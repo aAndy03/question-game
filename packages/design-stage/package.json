@@ -9,6 +9,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./stage.css": "./stage.css",
+    "./tokens/*": "./tokens/*",
     "./assets/*": "./assets/*"
   },
   "scripts": {

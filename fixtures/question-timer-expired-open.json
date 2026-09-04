@@ -1,0 +1,164 @@
+{
+  "contractVersion": 1,
+  "playId": "play-fixture-1",
+  "status": "playing",
+  "teams": [
+    {
+      "id": "team-alpha",
+      "name": "TEAM ALPHA",
+      "shortCode": "ALPHA",
+      "color": "var(--state-info)",
+      "logoUrl": null,
+      "score": 500,
+      "rank": 1,
+      "turnsTaken": 2,
+      "active": true
+    },
+    {
+      "id": "team-beta",
+      "name": "TEAM BETA",
+      "shortCode": "BETA",
+      "color": "var(--state-correct)",
+      "logoUrl": null,
+      "score": 250,
+      "rank": 2,
+      "turnsTaken": 2,
+      "active": true
+    },
+    {
+      "id": "team-gamma",
+      "name": "TEAM GAMMA",
+      "shortCode": "GAMMA",
+      "color": "var(--state-leader)",
+      "logoUrl": null,
+      "score": 250,
+      "rank": 2,
+      "turnsTaken": 1,
+      "active": true
+    },
+    {
+      "id": "team-delta",
+      "name": "TEAM DELTA",
+      "shortCode": "DELTA",
+      "color": "var(--state-accent)",
+      "logoUrl": null,
+      "score": 0,
+      "rank": 4,
+      "turnsTaken": 1,
+      "active": true
+    }
+  ],
+  "ring": {
+    "order": [
+      "team-alpha",
+      "team-beta",
+      "team-gamma",
+      "team-delta"
+    ],
+    "currentTeamId": "team-gamma",
+    "roundIndex": 2
+  },
+  "domains": [
+    {
+      "id": "dom-sci",
+      "name": "Science",
+      "code": "SCI_204",
+      "remaining": 2,
+      "exhausted": false
+    },
+    {
+      "id": "dom-hst",
+      "name": "History",
+      "code": "HST_102",
+      "remaining": 3,
+      "exhausted": false
+    },
+    {
+      "id": "dom-art",
+      "name": "Arts",
+      "code": "ART_980",
+      "remaining": 1,
+      "exhausted": false
+    },
+    {
+      "id": "dom-tec",
+      "name": "Technology",
+      "code": "TEC_881",
+      "remaining": 2,
+      "exhausted": false
+    },
+    {
+      "id": "dom-geo",
+      "name": "Geography",
+      "code": "GEO_105",
+      "remaining": 0,
+      "exhausted": true
+    },
+    {
+      "id": "dom-spt",
+      "name": "Sports",
+      "code": "SPT_512",
+      "remaining": 2,
+      "exhausted": false
+    }
+  ],
+  "session": {
+    "questionId": "q-sci-2",
+    "domainId": "dom-sci",
+    "stem": "What is the highest peak in the Solar System?",
+    "options": [
+      {
+        "id": "opt-a",
+        "text": "Olympus Mons"
+      },
+      {
+        "id": "opt-b",
+        "text": "Mount Everest"
+      },
+      {
+        "id": "opt-c",
+        "text": "Mauna Kea"
+      },
+      {
+        "id": "opt-d",
+        "text": "Maxwell Montes"
+      }
+    ],
+    "answerMode": "single",
+    "difficulty": 20,
+    "selectedOptionIds": [],
+    "lockedOptionIds": null,
+    "outcome": null,
+    "timer": {
+      "durationMs": 30000,
+      "remainingMs": 0,
+      "running": false,
+      "remainingMsAtLock": null,
+      "expiredOpen": true
+    },
+    "reveals": {
+      "stem": true,
+      "optionIds": [
+        "opt-a",
+        "opt-b",
+        "opt-c",
+        "opt-d"
+      ],
+      "outcome": false,
+      "leaderboardRanks": []
+    }
+  },
+  "currentScreen": "question",
+  "overlay": {
+    "busy": false,
+    "active": null,
+    "pending": null,
+    "enabled": true
+  },
+  "revealModes": {
+    "question": "operator",
+    "answers": "operator",
+    "outcome": "operator",
+    "leaderboard": "operator"
+  }
+}

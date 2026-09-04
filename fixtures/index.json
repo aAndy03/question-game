@@ -1,0 +1,22 @@
+{
+  "fixtures": [
+    "idle",
+    "team-order",
+    "choose-domain",
+    "current-team",
+    "question-issued",
+    "question-stem-revealed",
+    "question-options-partial",
+    "question-locked",
+    "question-timer-expired-open",
+    "question-outcome-correct",
+    "question-outcome-incorrect",
+    "question-outcome-partial",
+    "scoreboard",
+    "final-leaderboard-partial",
+    "overlay-over-question",
+    "rehearsal-solo",
+    "operator-pace",
+    "paused"
+  ]
+}

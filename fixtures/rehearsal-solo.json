@@ -1,0 +1,83 @@
+{
+  "contractVersion": 1,
+  "playId": "play-fixture-1",
+  "status": "playing",
+  "teams": [
+    {
+      "id": "team-alpha",
+      "name": "TEAM ALPHA",
+      "shortCode": "ALPHA",
+      "color": "var(--state-info)",
+      "logoUrl": null,
+      "score": 0,
+      "rank": 1,
+      "turnsTaken": 1,
+      "active": true
+    }
+  ],
+  "ring": {
+    "order": [
+      "team-alpha"
+    ],
+    "currentTeamId": "team-alpha",
+    "roundIndex": 1
+  },
+  "domains": [
+    {
+      "id": "dom-sci",
+      "name": "Science",
+      "code": "SCI_204",
+      "remaining": 2,
+      "exhausted": false
+    },
+    {
+      "id": "dom-hst",
+      "name": "History",
+      "code": "HST_102",
+      "remaining": 3,
+      "exhausted": false
+    },
+    {
+      "id": "dom-art",
+      "name": "Arts",
+      "code": "ART_980",
+      "remaining": 1,
+      "exhausted": false
+    },
+    {
+      "id": "dom-tec",
+      "name": "Technology",
+      "code": "TEC_881",
+      "remaining": 2,
+      "exhausted": false
+    },
+    {
+      "id": "dom-geo",
+      "name": "Geography",
+      "code": "GEO_105",
+      "remaining": 0,
+      "exhausted": true
+    },
+    {
+      "id": "dom-spt",
+      "name": "Sports",
+      "code": "SPT_512",
+      "remaining": 2,
+      "exhausted": false
+    }
+  ],
+  "session": null,
+  "currentScreen": "teamOrder",
+  "overlay": {
+    "busy": false,
+    "active": null,
+    "pending": null,
+    "enabled": true
+  },
+  "revealModes": {
+    "question": "operator",
+    "answers": "operator",
+    "outcome": "operator",
+    "leaderboard": "operator"
+  }
+}

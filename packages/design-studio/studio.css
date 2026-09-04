@@ -12,6 +12,9 @@
 
 @import "./globals.css";
 
+/* The layers HeroUI and Tailwind leave implicit, made visible and tunable. */
+@import "./tokens/theme.css";
+
 /* globals.css sets --font-sans: var(--font-geist) and expects the app to load
  * Geist. It is not installed yet (P7 decision), so this keeps text readable
  * without silently falling back to a serif. */

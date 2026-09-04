@@ -1,0 +1,36 @@
+/* Stage layout tokens.
+ *
+ * The Stage canvas, its padding and its zone rhythm are design decisions, not
+ * magic numbers scattered through components. Nothing in TypeScript should
+ * carry a pixel value that belongs here.
+ *
+ * Source: questiongame Design System readme — "fixed 1920x1080 canvas, 64px
+ * outer padding on all sides, 40px vertical gap between header/body zones,
+ * generous 24-64px gaps between siblings, ... a fixed-width decorative column
+ * on the right (398-600px)".
+ */
+:root {
+  /* Canvas. Fixed by the design system, not a responsive breakpoint. */
+  --stage-width: 1920px;
+  --stage-height: 1080px;
+
+  /* Outer padding on all four sides. */
+  --stage-padding: 64px;
+
+  /* Vertical gap between the header zone and the body zone. */
+  --stage-zone-gap: 40px;
+
+  /* Sibling gaps inside a zone. The design system gives a range; these are the
+   * two ends of it, so a layout picks a named step rather than a number. */
+  --stage-gap-tight: 24px;
+  --stage-gap-loose: 64px;
+
+  /* The fixed-width decorative column in a two-column screen. */
+  --stage-decor-column-min: 398px;
+  --stage-decor-column-max: 600px;
+
+  /* Decorative shapes: texture vs commentary (readme: 0.12-0.35 or full). */
+  --decor-opacity-texture-min: 0.12;
+  --decor-opacity-texture-max: 0.35;
+  --decor-opacity-commentary: 1;
+}

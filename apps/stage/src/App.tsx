@@ -1,82 +1,69 @@
-import { STAGE_SIZE, STAGE_PADDING } from '@questiongame/design-stage'
+import { LAYOUT } from '@questiongame/design-stage'
 
 /**
- * P0 placeholder. Proves the Stage token scope resolves: fonts, colours,
- * spacing, the fixed 1920x1080 canvas, and the zero-radius / inset-border
- * treatment.
+ * P0/P1 placeholder: a token proof sheet.
  *
- * P2 replaces this with the real pages (docs/v1/04_ROADMAP.md).
+ * It renders nothing from the real design — its job is to show, at a glance
+ * and in the DOM, that a Tailwind utility and a `var(--…)` reference resolve to
+ * the same value. P2 replaces it with the real pages.
+ *
+ * Everything here reads from tokens. No pixel value is written inline.
  */
 export function App() {
   return (
     <div
       data-surface="stage"
+      className="flex flex-col bg-paper text-ink box-border"
       style={{
-        width: STAGE_SIZE.width,
-        height: STAGE_SIZE.height,
-        padding: STAGE_PADDING,
-        background: 'var(--paper)',
-        color: 'var(--text-primary)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-6)',
-        boxSizing: 'border-box',
+        width: LAYOUT.width,
+        height: LAYOUT.height,
+        padding: LAYOUT.padding,
+        gap: LAYOUT.zoneGap,
       }}
     >
-      <header
-        style={{
-          boxShadow:
-            'inset 0 var(--border-thin) 0 0 var(--ink), inset 0 calc(var(--border-thick) * -1) 0 0 var(--ink), inset var(--border-thin) 0 0 0 var(--ink), inset calc(var(--border-thin) * -1) 0 0 0 var(--ink)',
-          padding: 'var(--space-3) var(--space-4)',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 'var(--text-label)',
-          letterSpacing: 'var(--tracking-wide-1)',
-          textTransform: 'lowercase',
-        }}
-      >
-        QUESTIONGAME // STAGE SCOPE OK
+      <header className="px-3 py-2 font-mono text-label tracking-wide-1 lowercase shadow-[inset_0_1px_0_0_var(--ink),inset_0_-2px_0_0_var(--ink),inset_1px_0_0_0_var(--ink),inset_-1px_0_0_0_var(--ink)]">
+        QUESTIONGAME // TOKEN SCOPE OK
       </header>
 
-      <h1
-        style={{
-          margin: 0,
-          fontFamily: 'var(--font-display)',
-          fontWeight: 700,
-          fontSize: 'var(--text-giant)',
-          letterSpacing: 'var(--tracking-tight-2)',
-          color: 'var(--text-heading)',
-        }}
-      >
+      <h1 className="m-0 font-display font-bold text-giant tracking-tight-2 text-[var(--text-heading)]">
         question
         <br />
         game
       </h1>
 
-      <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+      {/* Tailwind scans source for complete class strings, so a class can never
+       * be built by interpolation (`bg-${name}` produces nothing). Map to whole
+       * class names instead. This bites once per project; here is the once. */}
+      <div className="flex" style={{ gap: LAYOUT.gapTight }}>
         {(
           [
-            ['correct', 'var(--state-correct)'],
-            ['incorrect', 'var(--state-incorrect)'],
-            ['info', 'var(--state-info)'],
-            ['leader', 'var(--state-leader)'],
-            ['accent', 'var(--state-accent)'],
+            ['correct', 'bg-correct'],
+            ['incorrect', 'bg-incorrect'],
+            ['info', 'bg-info'],
+            ['leader', 'bg-leader'],
+            ['accent', 'bg-accent'],
           ] as const
-        ).map(([name, value]) => (
+        ).map(([name, bg]) => (
           <span
             key={name}
-            style={{
-              background: value,
-              color: 'var(--ink)',
-              padding: 'var(--space-1) var(--space-3)',
-              borderRadius: 'var(--radius-none)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 'var(--text-caption)',
-              letterSpacing: 'var(--tracking-wide-1)',
-            }}
+            className={`${bg} px-3 py-1 rounded-none font-mono text-caption tracking-wide-1 text-ink`}
           >
             {name}
           </span>
         ))}
+      </div>
+
+      {/* Utility vs var(): both columns must render identically. */}
+      <div className="flex" style={{ gap: LAYOUT.gapLoose }}>
+        <div className="p-4 font-mono text-caption border-2 border-ink">
+          utility · p-4 · text-caption
+        </div>
+        <div
+          className="font-mono border-2 border-ink"
+          style={{ padding: 'var(--space-4)', fontSize: 'var(--text-caption)' }}
+        >
+          var() · --space-4 · --text-caption
+        </div>
       </div>
     </div>
   )

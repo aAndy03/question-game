@@ -52,6 +52,62 @@ export const BORDER = {
   heavy: 'var(--border-heavy)',
 } as const;
 
-/** Fixed Stage canvas. Never a responsive breakpoint. */
-export const STAGE_SIZE = { width: 1920, height: 1080 } as const;
-export const STAGE_PADDING = 64;
+export const TYPE = {
+  mega: 'var(--text-mega)',
+  giant: 'var(--text-giant)',
+  display1: 'var(--text-display-1)',
+  display2: 'var(--text-display-2)',
+  display3: 'var(--text-display-3)',
+  display4: 'var(--text-display-4)',
+  heading1: 'var(--text-heading-1)',
+  heading2: 'var(--text-heading-2)',
+  heading3: 'var(--text-heading-3)',
+  heading4: 'var(--text-heading-4)',
+  body: 'var(--text-body)',
+  label: 'var(--text-label)',
+  caption: 'var(--text-caption)',
+  micro: 'var(--text-micro)',
+} as const;
+
+export const WEIGHT = {
+  regular: 'var(--weight-regular)',
+  medium: 'var(--weight-medium)',
+  bold: 'var(--weight-bold)',
+} as const;
+
+/**
+ * Stage layout. Values live in tokens/layout.css — these are references, not
+ * copies, so there is exactly one place to change the canvas.
+ */
+export const LAYOUT = {
+  width: 'var(--stage-width)',
+  height: 'var(--stage-height)',
+  padding: 'var(--stage-padding)',
+  zoneGap: 'var(--stage-zone-gap)',
+  gapTight: 'var(--stage-gap-tight)',
+  gapLoose: 'var(--stage-gap-loose)',
+  decorColumnMin: 'var(--stage-decor-column-min)',
+  decorColumnMax: 'var(--stage-decor-column-max)',
+} as const;
+
+/**
+ * Every token this package exposes, as `{ group: [names] }`. Tests use it to
+ * assert that each name resolves in a real document, so a token deleted from
+ * CSS but still referenced here fails rather than rendering as nothing.
+ */
+export const TOKEN_GROUPS = {
+  color: COLOR,
+  space: SPACE,
+  radius: RADIUS,
+  border: BORDER,
+  type: TYPE,
+  weight: WEIGHT,
+  layout: LAYOUT,
+} as const;
+
+/** Extract the custom-property name from a `var(--x)` reference. */
+export function tokenName(reference: string): string {
+  const match = /^var\((--[^),]+)/.exec(reference);
+  if (!match?.[1]) throw new Error(`not a token reference: ${reference}`);
+  return match[1];
+}

@@ -1,0 +1,83 @@
+/* Studio tokens that HeroUI leaves implicit.
+ *
+ * WHY THIS FILE EXISTS
+ *
+ * `globals.css` is HeroUI's export of "only the variables users need to
+ * customize" — colours, --radius, --font-sans. It is not the whole contract.
+ * HeroUI v3.2.4 also ships --spacing, --border-width, --disabled-opacity,
+ * --ring-offset-width, shadows and cursors, and it inherits the entire type
+ * scale (--text-*, --font-weight-*, --leading-*, --tracking-*) from Tailwind
+ * v4's defaults.
+ *
+ * So HeroUI components DO come with correct padding, sizing and typography out
+ * of the box — those values are variable-driven, just declared somewhere you
+ * cannot see. That invisibility is the problem: you cannot tune what you
+ * cannot find, and a component we write by hand has nothing to match against.
+ *
+ * This file restates that layer at the values HeroUI and Tailwind actually
+ * use, so it is visible and tunable in one place. Changing a value here
+ * changes HeroUI components and our own components together.
+ *
+ * Verified against `node .agents/skills/heroui-react/scripts/get_theme.mjs`
+ * (v3.2.4) and `node_modules/tailwindcss/theme.css` on 2026-09-04. Re-verify
+ * after a HeroUI or Tailwind major.
+ */
+
+:root {
+  /* --- Spacing root ----------------------------------------------------- *
+   * Tailwind computes every spacing utility as calc(var(--spacing) * n), and
+   * HeroUI's own padding is written in those utilities. Changing this one
+   * value rescales the entire Studio. HeroUI ships 0.25rem. */
+  --spacing: 0.25rem;
+
+  /* --- Structure -------------------------------------------------------- *
+   * HeroUI reads these directly; globals.css omits them. */
+  --border-width: 1px;
+  --field-border-width: 0px;
+  --disabled-opacity: 0.5;
+  --ring-offset-width: 2px;
+  --cursor-interactive: pointer;
+  --cursor-disabled: not-allowed;
+
+  /* --field-radius is derived, not independent. Set --radius in globals.css
+   * and this follows. */
+  --field-radius: calc(var(--radius) * 1.5);
+
+  /* --- Motion ----------------------------------------------------------- *
+   * Studio chrome only; Stage timing lives in the GSAP timelines. */
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-base: 220ms;
+  --duration-slow: 360ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0, 1);
+
+  /* --- Panel rhythm ----------------------------------------------------- *
+   * The Control mosaic needs named steps so a panel can declare its density
+   * (spec §11.H, "how do I look when space is limited") without inventing
+   * numbers. Expressed in spacing steps so they rescale with --spacing. */
+  --panel-padding-comfortable: calc(var(--spacing) * 4);
+  --panel-padding-compact: calc(var(--spacing) * 2);
+  --panel-padding-dense: calc(var(--spacing) * 1);
+  --panel-gap-comfortable: calc(var(--spacing) * 3);
+  --panel-gap-compact: calc(var(--spacing) * 2);
+  --panel-gap-dense: calc(var(--spacing) * 1);
+  --panel-min-width: calc(var(--spacing) * 60);
+  --panel-min-height: calc(var(--spacing) * 32);
+}
+
+/* Tailwind's type scale is already variable-driven and already correct for
+ * Studio; naming the roles keeps components off raw t-shirt sizes. Add a role
+ * here rather than reaching for `text-[13px]`. */
+@theme inline {
+  --text-studio-title: var(--text-xl);
+  --text-studio-title--line-height: var(--leading-snug);
+  --text-studio-heading: var(--text-lg);
+  --text-studio-heading--line-height: var(--leading-snug);
+  --text-studio-body: var(--text-sm);
+  --text-studio-body--line-height: var(--leading-normal);
+  --text-studio-label: var(--text-xs);
+  --text-studio-label--line-height: var(--leading-normal);
+  --text-studio-caption: var(--text-xs);
+  --text-studio-caption--line-height: var(--leading-tight);
+}

@@ -11,9 +11,15 @@
  */
 
 @import "./fonts/fonts.css";
+
+/* Raw design tokens — the single source of truth for every value. */
 @import "./tokens/colors.css";
 @import "./tokens/typography.css";
 @import "./tokens/spacing.css";
+@import "./tokens/layout.css";
+
+/* Tells Tailwind about those tokens, so a utility class and a var() agree. */
+@import "./tokens/theme.css";
 
 :root {
   color-scheme: light;
@@ -29,6 +35,8 @@ body {
   background: var(--surface);
   color: var(--text-primary);
   font-family: var(--font-display);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-body);
   cursor: none;
 }
 

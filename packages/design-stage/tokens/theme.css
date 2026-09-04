@@ -1,0 +1,114 @@
+/* Tailwind v4 theme mapping for Stage.
+ *
+ * WHY THIS FILE EXISTS
+ *
+ * Tailwind v4 ships its own scale as CSS variables (--spacing, --text-xs..9xl,
+ * --font-weight-*, --radius-*, --tracking-*). Without this file a Stage
+ * component writing `p-4` or `text-lg` would silently get Tailwind's defaults
+ * instead of the questiongame design system, and two parallel scales would
+ * drift apart — including a real collision, since Tailwind's --radius-md is
+ * 6px while the design system's is 8px.
+ *
+ * `@theme inline` repoints Tailwind's scale at the token files, so a utility
+ * class and a `var(--…)` resolve to the same value. The token files stay the
+ * single source of truth; this file only tells Tailwind about them.
+ *
+ * ADDING A TOKEN: add it to the token file first, then expose it here if
+ * components should be able to reach it as a utility class.
+ */
+
+@theme inline {
+  /* --- Fonts ------------------------------------------------------------ */
+  --font-sans: var(--font-display);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+
+  /* --- Type scale ------------------------------------------------------- *
+   * Named by role, not by t-shirt size, so `text-question` says what it is.
+   * Tailwind's own xs..9xl steps stay available for anything unnamed. */
+  --text-mega: var(--text-mega);
+  --text-mega--line-height: var(--leading-display);
+  --text-giant: var(--text-giant);
+  --text-giant--line-height: var(--leading-display);
+  --text-display-1: var(--text-display-1);
+  --text-display-1--line-height: var(--leading-display);
+  --text-display-2: var(--text-display-2);
+  --text-display-2--line-height: var(--leading-display);
+  --text-display-3: var(--text-display-3);
+  --text-display-3--line-height: var(--leading-heading);
+  --text-display-4: var(--text-display-4);
+  --text-display-4--line-height: var(--leading-heading);
+  --text-heading-1: var(--text-heading-1);
+  --text-heading-1--line-height: var(--leading-heading);
+  --text-heading-2: var(--text-heading-2);
+  --text-heading-2--line-height: var(--leading-heading);
+  --text-heading-3: var(--text-heading-3);
+  --text-heading-3--line-height: var(--leading-heading);
+  --text-heading-4: var(--text-heading-4);
+  --text-heading-4--line-height: var(--leading-heading);
+  --text-body: var(--text-body);
+  --text-body--line-height: var(--leading-body);
+  --text-label: var(--text-label);
+  --text-label--line-height: var(--leading-hud);
+  --text-caption: var(--text-caption);
+  --text-caption--line-height: var(--leading-hud);
+  --text-micro: var(--text-micro);
+  --text-micro--line-height: var(--leading-hud);
+
+  /* --- Weights ---------------------------------------------------------- */
+  --font-weight-regular: var(--weight-regular);
+  --font-weight-medium: var(--weight-medium);
+  --font-weight-bold: var(--weight-bold);
+
+  /* --- Tracking --------------------------------------------------------- *
+   * The design system tracks in px, not em, because the values are tuned per
+   * display size rather than proportionally. */
+  --tracking-tight-1: var(--tracking-tight-1);
+  --tracking-tight-2: var(--tracking-tight-2);
+  --tracking-tight-3: var(--tracking-tight-3);
+  --tracking-tight-4: var(--tracking-tight-4);
+  --tracking-wide-1: var(--tracking-wide-1);
+  --tracking-wide-2: var(--tracking-wide-2);
+
+  /* --- Spacing ---------------------------------------------------------- *
+   * The design system's 8px base replaces Tailwind's 4px root, so `p-1` is
+   * one design step and `p-8` is the largest. Fractional utilities (`p-1.5`)
+   * still work off the same root. */
+  --spacing: 8px;
+  --spacing-1: var(--space-1);
+  --spacing-2: var(--space-2);
+  --spacing-3: var(--space-3);
+  --spacing-4: var(--space-4);
+  --spacing-5: var(--space-5);
+  --spacing-6: var(--space-6);
+  --spacing-7: var(--space-7);
+  --spacing-8: var(--space-8);
+
+  /* --- Radius ----------------------------------------------------------- *
+   * Overrides Tailwind's xs..4xl deliberately: the design system allows three
+   * radii and nothing else, so `rounded-lg` should not exist as a third,
+   * unsanctioned value. */
+  --radius-none: var(--radius-none);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+
+  /* --- Layout ----------------------------------------------------------- */
+  --spacing-stage-padding: var(--stage-padding);
+  --spacing-stage-zone-gap: var(--stage-zone-gap);
+  --spacing-stage-gap-tight: var(--stage-gap-tight);
+  --spacing-stage-gap-loose: var(--stage-gap-loose);
+
+  /* --- Colours ---------------------------------------------------------- *
+   * Semantic names only. `bg-correct`, never `bg-[#83ffb2]`. */
+  --color-ink: var(--ink);
+  --color-ink-black: var(--ink-black);
+  --color-paper: var(--paper);
+  --color-muted: var(--text-muted);
+  --color-border-default: var(--border-default);
+  --color-border-subtle: var(--border-subtle);
+  --color-correct: var(--state-correct);
+  --color-incorrect: var(--state-incorrect);
+  --color-info: var(--state-info);
+  --color-leader: var(--state-leader);
+  --color-accent: var(--state-accent);
+}

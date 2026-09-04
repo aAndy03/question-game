@@ -23,3 +23,30 @@
 --tracking-wide-1:2px;
 --tracking-wide-2:4px;
 }
+
+/* Weights, line heights and casing.
+ *
+ * The Figma source uses two weights only (readme: "Space Grotesk (display /
+ * headline, bold weight)" and "Space Mono (bold, wide positive letter-spacing
+ * on small labels)"), plus a lowercase transform on HUD labels that produces
+ * the stylized broken-case effect. These were implicit in the export; naming
+ * them keeps components from writing raw 700 / 1.1 / lowercase.
+ */
+:root {
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  /* Display type is set tight; HUD and body need room. */
+  --leading-display: 0.95;
+  --leading-heading: 1.1;
+  --leading-body: 1.5;
+  --leading-hud: 1.2;
+
+  /* HUD labels are authored uppercase and transformed (readme: "the CSS applies
+   * text-transform: lowercase on top of them for a stylized broken-case
+   * effect"). Team names are true uppercase with no transform. */
+  --case-hud: lowercase;
+  --case-name: uppercase;
+  --case-prose: none;
+}

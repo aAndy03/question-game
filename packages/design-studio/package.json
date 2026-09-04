@@ -8,7 +8,9 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./studio.css": "./studio.css"
+    "./studio.css": "./studio.css",
+    "./globals.css": "./globals.css",
+    "./tokens/*": "./tokens/*"
   },
   "scripts": {
     "typecheck": "tsc --build"

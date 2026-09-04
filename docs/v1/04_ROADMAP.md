@@ -162,7 +162,7 @@ Tauri is deliberately absent — it wraps an existing Vite dev server, so P1–P
 
 ---
 
-## P1 — The Stage contract  ☐
+## P1 — The Stage contract  ☑
 
 **Goal:** freeze what a Stage screen consumes and exposes, so screens, motion, the Screens canvas, and the host agree. ~1 day. Skipping it guarantees a P2 rebuild.
 
@@ -182,11 +182,19 @@ Tauri is deliberately absent — it wraps an existing Vite dev server, so P1–P
 - **Persistence rule** — which nodes survive a screen change (header, wordmark, clock, decor) so overlays animate over them without a remount.
 - `fixtures/` — idle · team-order · domain-selection · question (issued / stem-revealed / options-partially-revealed / locked / outcome-correct / outcome-incorrect / outcome-partial) · scoreboard · final-leaderboard · current-team.
 
-**Exit criteria**
+**Exit criteria — all met 2026-09-04**
 
-- ☐ Every fixture typechecks against `PlayStateForStage`.
-- ☐ Every node id is derivable from a fixture without reading component code.
-- ☐ Written answer to: "an overlay plays while `question.option.<id>` is revealed — which nodes must not unmount?"
+- ☑ All 18 fixtures typecheck against `PlayStateForStage` (authored in TypeScript, emitted to JSON with `npm run fixtures`).
+- ☑ Every node id is derivable from a fixture without reading component code — asserted for every team, domain and option in every fixture.
+- ☑ Written answer in `05_STAGE_CONTRACT.md` §3: **none of them.** Persistent slots (`header`, `wordmark`, `timer`, `decor`) mount once in the Stage frame, outside the page components; every list keys off an entity id.
+- ☑ 39 contract tests green, covering the invariants across all fixtures rather than one at a time.
+
+**Also delivered**
+
+- `screenPairs()` derives all 42 ordered transition pairs from the registry, so adding a screen demands its transitions.
+- `AnimKey` namespaces transitions, overlays and reveals, so `anim-complete` is unambiguous.
+- `contractVersion` on every snapshot, so a host/webview mismatch is a notice rather than a blank screen.
+- Commands grouped by owning module, with `STAGE_COMMANDS` limited to `overlay_ack_complete`.
 
 ---
 
