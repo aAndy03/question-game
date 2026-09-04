@@ -92,6 +92,9 @@ export const LAYOUT = {
   sidePanelHeight: 'var(--stage-side-panel-height)',
   questionColumn: 'var(--stage-question-column)',
   answerCardHeight: 'var(--stage-answer-card-height)',
+  scoreRowHeight: 'var(--stage-score-row-height)',
+  placeCardHeight: 'var(--stage-place-card-height)',
+  placeCardGap: 'var(--stage-place-card-gap)',
   decorColumnMin: 'var(--stage-decor-column-min)',
   decorColumnMax: 'var(--stage-decor-column-max)',
 } as const;

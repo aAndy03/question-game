@@ -18,12 +18,12 @@ describe('molecules', () => {
   })
 
   it('ScoreRow stays mounted when not revealed', () => {
-    const { container } = render(
-      <ScoreRow nodeId="finalLeaderboard.row.2" rank={2} name="TEAM BETA" shortCode="BETA" score={250} revealed={false} />,
-    )
-    const row = container.querySelector('[data-node-id="finalLeaderboard.row.2"]') as HTMLElement
+    const { container } = render(<ScoreRow nodeId="scoreboard.row.t2" rank={2} name="TEAM BETA" score={1800} revealed={false} />)
+    const row = container.querySelector('[data-node-id="scoreboard.row.t2"]') as HTMLElement
     expect(row).toBeTruthy()
     expect(row.style.visibility).toBe('hidden')
+    expect(row.textContent).toContain('1,800 PTS')
+    expect(row.textContent).toContain('02')
   })
 
   it('DomainCard shows difficulty, name and selected state', () => {

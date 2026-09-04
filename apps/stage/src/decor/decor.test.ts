@@ -84,7 +84,7 @@ describe('decor settle', () => {
   })
 
   it('a screen without a manifest lays out nothing', () => {
-    expect(layoutDecor('scoreboard', seed)).toEqual([])
+    expect(layoutDecor('currentTeam', seed)).toEqual([])
   })
 })
 

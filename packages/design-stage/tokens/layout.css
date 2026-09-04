@@ -37,6 +37,11 @@
   --stage-question-column: 1248px;
   --stage-answer-card-height: 157px;
 
+  /* Standings rows and place cards (Figma at 1920). */
+  --stage-score-row-height: 84px;
+  --stage-place-card-height: 247px;
+  --stage-place-card-gap: 32px;
+
   /* The fixed-width decorative column in a two-column screen. */
   --stage-decor-column-min: 398px;
   --stage-decor-column-max: 600px;

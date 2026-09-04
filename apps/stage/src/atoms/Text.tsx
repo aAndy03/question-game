@@ -28,8 +28,8 @@ export interface StageTextProps {
   tone?: TextTone
   /** Contract node id, when this text is itself an addressable node. */
   nodeId?: string
-  className?: string
-  style?: CSSProperties
+  className?: string | undefined
+  style?: CSSProperties | undefined
   children?: ReactNode
 }
 

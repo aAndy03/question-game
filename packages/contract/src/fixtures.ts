@@ -272,7 +272,48 @@ export const FIXTURES = {
 
   scoreboard: base({ currentScreen: 'scoreboard' }),
 
-  /** Two of four ranks revealed, lowest first: 4 then 3. */
+  /** Two teams share the lead: both wear the LEADER pill (competition rank 1, 1, 3). */
+  'scoreboard-tie': base({
+    currentScreen: 'scoreboard',
+    teams: [
+      team('team-alpha', 'TEAM ALPHA', 'ALPHA', 'var(--state-info)', 2400, 1, 2, 'Moldova'),
+      team('team-beta', 'TEAM BETA', 'BETA', 'var(--state-correct)', 2400, 1, 2, 'Muntenia'),
+      team('team-gamma', 'TEAM GAMMA', 'GAMMA', 'var(--state-leader)', 1200, 3, 1, 'Ardeal'),
+      { ...team('team-delta', 'TEAM DELTA', 'DELTA', 'var(--state-accent)', 600, 4, 1, 'Oltenia'), active: false },
+    ],
+  }),
+
+  /** Every rank revealed: the champion line shows. */
+  'final-leaderboard-full': base({
+    status: 'completed',
+    currentScreen: 'finalLeaderboard',
+    ring: { order: ['team-alpha', 'team-beta', 'team-gamma', 'team-delta'], currentTeamId: null, roundIndex: 3 },
+    session: null,
+    domains: DOMAINS.map((d) => ({ ...d, remaining: 0, exhausted: true, nextDifficulty: null })),
+    clock: { elapsedMs: 2_900_000, running: false },
+    leaderboardRevealedRanks: [4, 2, 1],
+  }),
+
+  /** Six teams, two tied for the lead, all revealed: cards wrap and the champion line names both. */
+  'final-leaderboard-six': base({
+    status: 'completed',
+    currentScreen: 'finalLeaderboard',
+    teams: [
+      team('team-alpha', 'TEAM ALPHA', 'ALPHA', 'var(--state-info)', 4200, 1, 3, 'Moldova'),
+      team('team-beta', 'TEAM BETA', 'BETA', 'var(--state-correct)', 4200, 1, 3, 'Muntenia'),
+      team('team-gamma', 'TEAM GAMMA', 'GAMMA', 'var(--state-leader)', 2400, 3, 3, 'Ardeal'),
+      team('team-delta', 'TEAM DELTA', 'DELTA', 'var(--state-accent)', 2400, 3, 3, 'Oltenia'),
+      team('team-eps', 'TEAM EPSILON', 'EPS', 'var(--state-incorrect)', 900, 5, 3, 'Banat'),
+      team('team-zeta', 'TEAM ZETA', 'ZETA', 'var(--ink)', 0, 6, 3, 'Dobrogea'),
+    ],
+    ring: { order: ['team-alpha', 'team-beta', 'team-gamma', 'team-delta', 'team-eps', 'team-zeta'], currentTeamId: null, roundIndex: 4 },
+    session: null,
+    domains: DOMAINS.map((d) => ({ ...d, remaining: 0, exhausted: true, nextDifficulty: null })),
+    clock: { elapsedMs: 4_100_000, running: false },
+    leaderboardRevealedRanks: [6, 5, 3, 1],
+  }),
+
+  /** Two of four ranks revealed, lowest first: 4 then 2 (a tie). */
   'final-leaderboard-partial': base({
     status: 'completed',
     currentScreen: 'finalLeaderboard',

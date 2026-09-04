@@ -42,7 +42,7 @@ export const STAGE_COPY = {
     chooseDomain: 'SELECT CATEGORY',
     question: '',
     scoreboard: 'CURRENT STANDINGS',
-    finalLeaderboard: 'FINAL STANDINGS',
+    finalLeaderboard: 'TOURNAMENT CHAMPION',
     currentTeam: 'CURRENT TEAM',
   } satisfies Record<StageScreen, string>,
 
@@ -83,6 +83,13 @@ export const STAGE_COPY = {
   /** Sequence rows: `01`, `02`, … Prefix and zero-padding are authored, the number derived. */
   sequencePrefix: '',
   sequenceDigits: 2,
+
+  /** Standings: `2,400 PTS` grouping, and the place card label `PLACE_01`. */
+  thousandsSeparator: ',',
+  placePrefix: 'PLACE_',
+  placeDigits: 2,
+  /** Joins the names when the lead is shared: `TEAM ALPHA & TEAM BETA`. */
+  championJoiner: ' & ',
 
   /** Team rows: the label over the team's catalog detail, and over its score. */
   teamDetailLabel: 'REGION',

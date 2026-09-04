@@ -11,6 +11,8 @@ import { IDLE_DECOR } from './manifests/idle'
 import { TEAM_ORDER_DECOR } from './manifests/teamOrder'
 import { CHOOSE_DOMAIN_DECOR } from './manifests/chooseDomain'
 import { QUESTION_DECOR } from './manifests/question'
+import { SCOREBOARD_DECOR } from './manifests/scoreboard'
+import { FINAL_LEADERBOARD_DECOR } from './manifests/finalLeaderboard'
 import { settle } from './settle'
 import type { PlacedBody, ScreenDecorSpec } from './types'
 
@@ -19,6 +21,8 @@ export const DECOR_BY_SCREEN: Partial<Record<StageScreen, ScreenDecorSpec>> = {
   teamOrder: TEAM_ORDER_DECOR,
   chooseDomain: CHOOSE_DOMAIN_DECOR,
   question: QUESTION_DECOR,
+  scoreboard: SCOREBOARD_DECOR,
+  finalLeaderboard: FINAL_LEADERBOARD_DECOR,
 }
 
 /** Frame-zero layout for a screen and a seed; empty for a screen with no decor. */

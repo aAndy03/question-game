@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
-import { FIXTURES, SCREEN_SLOTS, nodeId } from '@questiongame/contract'
+import { FIXTURES, SCREEN_SLOTS, leaderboard, nodeId } from '@questiongame/contract'
 import { DECOR_BY_SCREEN, decorOpacity } from '@/decor'
 import { STAGE_COPY } from '@/copy'
 import { BUILT_SCREENS, StageRoot } from './index'
@@ -186,9 +186,64 @@ describe('Question page, every engine state', () => {
   })
 })
 
+describe('Scoreboard page', () => {
+  const state = FIXTURES.scoreboard
+
+  it('lists every team in finishing order with grouped points and a LEADER pill on rank 1', () => {
+    const { container } = render(<StageRoot state={state} />)
+    expect(byNode(container, nodeId('scoreboard', 'title'))!.textContent).toBe('CURRENT STANDINGS //')
+    const rows = [...container.querySelectorAll('[data-node-id^="scoreboard.row."]')] as HTMLElement[]
+    expect(rows.map((r) => r.dataset.nodeId)).toEqual(leaderboard(state).map((t) => nodeId('scoreboard', 'row', t.id)))
+    expect(rows[0]!.dataset.leader).toBe('true')
+    expect(rows[0]!.textContent).toContain('LEADER')
+    expect(rows[0]!.textContent).toContain('500 PTS')
+    expect(rows.slice(1).every((r) => r.dataset.leader === 'false')).toBe(true)
+  })
+
+  it('lays out the scoreboard shapes as decor', () => {
+    const { container } = render(<StageRoot state={state} />)
+    DECOR_BY_SCREEN.scoreboard!.bodies.forEach((_, i) => expect(byNode(container, nodeId('scoreboard', 'decor', i))).toBeTruthy())
+  })
+})
+
+describe('FinalLeaderboard page', () => {
+  const partial = FIXTURES['final-leaderboard-partial']
+
+  it('keys cards by finishing position, labels them by competition rank, reveals by rank', () => {
+    const { container } = render(<StageRoot state={partial} />)
+    const order = leaderboard(partial)
+    order.forEach((team, i) => {
+      const card = byNode(container, nodeId('finalLeaderboard', 'row', i + 1))!
+      expect(card).toBeTruthy()
+      expect(card.textContent).toContain(`PLACE_${String(team.rank).padStart(2, '0')}`)
+      expect(card.dataset.revealed).toBe(String(partial.leaderboardRevealedRanks.includes(team.rank)))
+    })
+    // Two teams tie at rank 2: two cards read PLACE_02, and both are revealed together.
+    const tied = order.filter((t) => t.rank === 2)
+    expect(tied.length).toBe(2)
+  })
+
+  it('shows the champion only once rank 1 is revealed', () => {
+    const hidden = render(<StageRoot state={partial} />)
+    expect(byNode(hidden.container, nodeId('finalLeaderboard', 'champion'))!.style.visibility).toBe('hidden')
+
+    const full = { ...partial, leaderboardRevealedRanks: [4, 2, 1] }
+    const shown = render(<StageRoot state={full} />)
+    const champion = byNode(shown.container, nodeId('finalLeaderboard', 'champion'))!
+    expect(champion.style.visibility).not.toBe('hidden')
+    expect(champion.textContent).toBe(leaderboard(full)[0]!.name)
+    expect(byNode(shown.container, nodeId('finalLeaderboard', 'title'))!.textContent).toBe('TOURNAMENT CHAMPION //')
+  })
+
+  it('lays out the WINNER letters as decor', () => {
+    const { container } = render(<StageRoot state={partial} />)
+    DECOR_BY_SCREEN.finalLeaderboard!.bodies.forEach((_, i) => expect(byNode(container, nodeId('finalLeaderboard', 'decor', i))).toBeTruthy())
+  })
+})
+
 describe('Stage root', () => {
   it('renders an unbuilt screen without crashing and keeps the frame', () => {
-    const { container } = render(<StageRoot state={FIXTURES.scoreboard} />)
+    const { container } = render(<StageRoot state={FIXTURES['current-team']} />)
     expect(container.querySelector('[data-page="unbuilt"]')).toBeTruthy()
     expect(container.querySelector('[data-stage-frame]')).toBeTruthy()
     expect(BUILT_SCREENS).toContain('idle')

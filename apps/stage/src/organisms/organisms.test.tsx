@@ -61,6 +61,7 @@ describe('organisms derive every node from play-state', () => {
     const rows = [...container.querySelectorAll('[data-node-id]')] as HTMLElement[]
     expect(rows.map((r) => r.dataset.nodeId)).toEqual(leaderboard(state).map((t) => nodeId('scoreboard', 'row', t.id)))
     expect(rows[0]!.dataset.rank).toBe('1')
+    expect(rows[0]!.dataset.leader).toBe('true')
   })
 
   it('LeaderboardList keys rows by position, reveals by rank, and never unmounts a row', () => {

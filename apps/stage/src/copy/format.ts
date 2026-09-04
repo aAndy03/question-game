@@ -37,6 +37,23 @@ export function clock(ms: number, hours: ClockHours = 'auto'): string {
   return showHours ? `${pad2(h)}:${pad2(m)}:${pad2(s)}` : `${pad2(m)}:${pad2(s)}`
 }
 
+/** `2,400` — digits grouped by the authored separator. */
+export function grouped(n: number): string {
+  const sign = n < 0 ? '-' : ''
+  const digits = String(Math.abs(Math.trunc(n)))
+  return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, STAGE_COPY.thousandsSeparator)
+}
+
+/** `2,400 PTS`. */
+export function scoreWithUnit(n: number): string {
+  return `${grouped(n)} ${STAGE_COPY.pointsUnit}`
+}
+
+/** `PLACE_01` from a competition rank (ties share a rank, so also a label). */
+export function placeLabel(rank: number): string {
+  return `${STAGE_COPY.placePrefix}${String(rank).padStart(STAGE_COPY.placeDigits, '0')}`
+}
+
 /** `[ 00:12:20 ]`. */
 export function bracketed(text: string): string {
   return `${STAGE_COPY.clockOpen}${text}${STAGE_COPY.clockClose}`

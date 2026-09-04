@@ -1,0 +1,179 @@
+{
+  "contractVersion": 2,
+  "playId": "play-fixture-1",
+  "status": "completed",
+  "teams": [
+    {
+      "id": "team-alpha",
+      "name": "TEAM ALPHA",
+      "shortCode": "ALPHA",
+      "color": "var(--state-info)",
+      "logoUrl": null,
+      "detail": "Moldova",
+      "score": 4200,
+      "rank": 1,
+      "turnsTaken": 3,
+      "active": true
+    },
+    {
+      "id": "team-beta",
+      "name": "TEAM BETA",
+      "shortCode": "BETA",
+      "color": "var(--state-correct)",
+      "logoUrl": null,
+      "detail": "Muntenia",
+      "score": 4200,
+      "rank": 1,
+      "turnsTaken": 3,
+      "active": true
+    },
+    {
+      "id": "team-gamma",
+      "name": "TEAM GAMMA",
+      "shortCode": "GAMMA",
+      "color": "var(--state-leader)",
+      "logoUrl": null,
+      "detail": "Ardeal",
+      "score": 2400,
+      "rank": 3,
+      "turnsTaken": 3,
+      "active": true
+    },
+    {
+      "id": "team-delta",
+      "name": "TEAM DELTA",
+      "shortCode": "DELTA",
+      "color": "var(--state-accent)",
+      "logoUrl": null,
+      "detail": "Oltenia",
+      "score": 2400,
+      "rank": 3,
+      "turnsTaken": 3,
+      "active": true
+    },
+    {
+      "id": "team-eps",
+      "name": "TEAM EPSILON",
+      "shortCode": "EPS",
+      "color": "var(--state-incorrect)",
+      "logoUrl": null,
+      "detail": "Banat",
+      "score": 900,
+      "rank": 5,
+      "turnsTaken": 3,
+      "active": true
+    },
+    {
+      "id": "team-zeta",
+      "name": "TEAM ZETA",
+      "shortCode": "ZETA",
+      "color": "var(--ink)",
+      "logoUrl": null,
+      "detail": "Dobrogea",
+      "score": 0,
+      "rank": 6,
+      "turnsTaken": 3,
+      "active": true
+    }
+  ],
+  "ring": {
+    "order": [
+      "team-alpha",
+      "team-beta",
+      "team-gamma",
+      "team-delta",
+      "team-eps",
+      "team-zeta"
+    ],
+    "currentTeamId": null,
+    "roundIndex": 4
+  },
+  "domains": [
+    {
+      "id": "dom-sci",
+      "name": "Science",
+      "code": "SCI_204",
+      "remaining": 0,
+      "exhausted": true,
+      "nextDifficulty": null
+    },
+    {
+      "id": "dom-hst",
+      "name": "History",
+      "code": "HST_102",
+      "remaining": 0,
+      "exhausted": true,
+      "nextDifficulty": null
+    },
+    {
+      "id": "dom-art",
+      "name": "Arts",
+      "code": "ART_980",
+      "remaining": 0,
+      "exhausted": true,
+      "nextDifficulty": null
+    },
+    {
+      "id": "dom-tec",
+      "name": "Technology",
+      "code": "TEC_881",
+      "remaining": 0,
+      "exhausted": true,
+      "nextDifficulty": null
+    },
+    {
+      "id": "dom-geo",
+      "name": "Geography",
+      "code": "GEO_105",
+      "remaining": 0,
+      "exhausted": true,
+      "nextDifficulty": null
+    },
+    {
+      "id": "dom-spt",
+      "name": "Sports",
+      "code": "SPT_512",
+      "remaining": 0,
+      "exhausted": true,
+      "nextDifficulty": null
+    }
+  ],
+  "session": null,
+  "clock": {
+    "elapsedMs": 4100000,
+    "running": false
+  },
+  "leaderboardRevealedRanks": [
+    6,
+    5,
+    3,
+    1
+  ],
+  "decor": {
+    "mode": "collide",
+    "anchor": {
+      "enabled": true,
+      "attractSeconds": 12,
+      "repelSeconds": 6,
+      "strength": 0.3
+    },
+    "drift": 14,
+    "attraction": 0.3,
+    "bounce": 0.9,
+    "spin": 4,
+    "maxSpeed": 40
+  },
+  "currentScreen": "finalLeaderboard",
+  "overlay": {
+    "busy": false,
+    "active": null,
+    "pending": null,
+    "enabled": true
+  },
+  "revealModes": {
+    "question": "operator",
+    "answers": "operator",
+    "outcome": "operator",
+    "leaderboard": "operator"
+  }
+}

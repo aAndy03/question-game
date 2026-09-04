@@ -62,6 +62,7 @@ export const SCREEN_SLOTS = {
   finalLeaderboard: {
     header: 'static',
     title: 'static',
+    champion: 'static',
     row: 'ranked',
     decor: 'indexed',
   },

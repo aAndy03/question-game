@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bracketed, clock, difficulty, hud, optionLetter, sequencePosition, signedPoints } from './format'
+import { bracketed, clock, difficulty, grouped, hud, optionLetter, placeLabel, scoreWithUnit, sequencePosition, signedPoints } from './format'
 
 describe('stage copy formatters', () => {
   it('joins label and value with the delimiter', () => {
@@ -27,6 +27,16 @@ describe('stage copy formatters', () => {
     expect(difficulty(1)).toBe('EASY')
     expect(difficulty(50)).toBe('MEDIUM')
     expect(difficulty(100)).toBe('HARD')
+  })
+
+  it('groups thousands and labels places', () => {
+    expect(grouped(0)).toBe('0')
+    expect(grouped(600)).toBe('600')
+    expect(grouped(2400)).toBe('2,400')
+    expect(grouped(1234567)).toBe('1,234,567')
+    expect(scoreWithUnit(4200)).toBe('4,200 PTS')
+    expect(placeLabel(1)).toBe('PLACE_01')
+    expect(placeLabel(12)).toBe('PLACE_12')
   })
 
   it('derives letters and sequence positions from index', () => {
