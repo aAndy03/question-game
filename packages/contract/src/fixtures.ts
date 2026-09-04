@@ -18,7 +18,7 @@ import type {
   StageSession,
   StageTeam,
 } from './play-state'
-import { CONTRACT_VERSION } from './play-state'
+import { CONTRACT_VERSION, DEFAULT_DECOR_SETTINGS } from './play-state'
 
 const PLAY_ID = 'play-fixture-1'
 
@@ -74,6 +74,7 @@ function base(overrides: Partial<PlayStateForStage> = {}): PlayStateForStage {
     session: null,
     clock: { elapsedMs: 740_000, running: true },
     leaderboardRevealedRanks: [],
+    decor: DEFAULT_DECOR_SETTINGS,
     currentScreen: 'idle',
     overlay: { busy: false, active: null, pending: null, enabled: true },
     revealModes: {

@@ -78,6 +78,14 @@
     "running": true
   },
   "leaderboardRevealedRanks": [],
+  "decor": {
+    "mode": "collide",
+    "drift": 14,
+    "attraction": 0.3,
+    "bounce": 0.9,
+    "spin": 4,
+    "maxSpeed": 40
+  },
   "currentScreen": "teamOrder",
   "overlay": {
     "busy": false,

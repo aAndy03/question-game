@@ -1,4 +1,4 @@
-import { FIXTURES, FIXTURE_NAMES, type FixtureName } from '@questiongame/contract'
+import { FIXTURES, FIXTURE_NAMES, type DecorMotionMode, type FixtureName, type PlayStateForStage } from '@questiongame/contract'
 import { StageRoot } from '@/pages'
 
 /**
@@ -14,9 +14,16 @@ function fixtureFromUrl(): FixtureName {
   return raw && (FIXTURE_NAMES as readonly string[]).includes(raw) ? (raw as FixtureName) : 'idle'
 }
 
+/** `?decor=collide|collide-attract` overrides the fixture's decor mode, dev only. */
+function withDecorOverride(state: PlayStateForStage): PlayStateForStage {
+  const raw = new URLSearchParams(window.location.search).get('decor')
+  const mode: DecorMotionMode | null = raw === 'collide' || raw === 'collide-attract' ? raw : null
+  return mode ? { ...state, decor: { ...state.decor, mode } } : state
+}
+
 export function App() {
   const name = fixtureFromUrl()
-  const state = FIXTURES[name]
+  const state = withDecorOverride(FIXTURES[name])
   return (
     <>
       <StageRoot state={state} />
@@ -33,6 +40,20 @@ export function App() {
             cursor: 'auto',
           }}
         >
+          {(['collide', 'collide-attract'] as const).map((m) => (
+            <a
+              key={m}
+              href={`?fixture=${name}&decor=${m}`}
+              style={{
+                color: 'var(--ink)',
+                background: m === state.decor.mode ? 'var(--state-info)' : 'transparent',
+                padding: '0 var(--space-1)',
+                textDecoration: 'none',
+              }}
+            >
+              {`decor:${m}`}
+            </a>
+          ))}
           {FIXTURE_NAMES.map((f) => (
             <a
               key={f}

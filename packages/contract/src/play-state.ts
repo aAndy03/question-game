@@ -173,6 +173,44 @@ export interface StageOverlay {
   readonly enabled: boolean
 }
 
+/**
+ * How the decorative bodies move. They are never static: the design elements
+ * are loose 2D bodies that keep drifting and colliding inside an invisible
+ * box for the life of a screen.
+ *
+ *   collide          bodies drift, bounce off each other and the box.
+ *   collide-attract  the same, plus a mild mutual pull so they keep meeting.
+ *
+ * A per-recipe layout setting (Screens tab, saved with `recipe_set_layout`),
+ * so it may change between Plays and is live-updatable — it affects nothing
+ * the game scores. Every number is a dial the operator can tune.
+ */
+export type DecorMotionMode = 'collide' | 'collide-attract'
+
+export interface StageDecorSettings {
+  readonly mode: DecorMotionMode
+  /** Cruising speed the bodies are kept near, canvas px per second. */
+  readonly drift: number
+  /** Mutual pull strength, 0–1. Ignored in `collide` mode. */
+  readonly attraction: number
+  /** Restitution on impact, 0 (dead) – 1 (fully elastic). */
+  readonly bounce: number
+  /** Ceiling on rotation speed, degrees per second. */
+  readonly spin: number
+  /** Hard ceiling on linear speed, canvas px per second. */
+  readonly maxSpeed: number
+}
+
+/** Mild by design: the scatter should read as breathing, not as a screensaver. */
+export const DEFAULT_DECOR_SETTINGS: StageDecorSettings = {
+  mode: 'collide',
+  drift: 14,
+  attraction: 0.3,
+  bounce: 0.9,
+  spin: 4,
+  maxSpeed: 40,
+}
+
 export interface PlayStateForStage {
   readonly contractVersion: number
   /** Identifies the Play so Stage can detect a Restart rather than a redraw. */
@@ -192,6 +230,9 @@ export interface PlayStateForStage {
    * Tied teams share a rank and so reveal together.
    */
   readonly leaderboardRevealedRanks: readonly number[]
+
+  /** Decorative-body motion for this recipe. See `StageDecorSettings`. */
+  readonly decor: StageDecorSettings
 
   /** What the operator has chosen to show. Independent of game truth. */
   readonly currentScreen: StageScreen

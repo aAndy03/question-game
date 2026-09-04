@@ -1,16 +1,18 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, Ref } from 'react'
 import { COLOR } from '@questiongame/design-stage'
 
 /**
- * One decorative body, absolutely positioned inside the decor layer at its
- * settled centre, size and angle. Three kinds:
+ * One decorative body, absolutely positioned inside the decor layer by a
+ * single `transform` (translate to its centre-box, then rotate). Three kinds:
  *
  *   svg      inline markup from the copied assets, coloured via currentColor
  *   glyph    a character in the display face (stand-in for missing paths)
  *   outline  a hairline square — the diamond outlines
  *
  * The atom takes numbers and markup; it never chooses a shape, a colour, or a
- * position. Those are the manifest's and the solver's.
+ * position. The body keeps moving for the life of the screen, so the owner
+ * holds a `ref` and rewrites `style.transform` each frame — the atom renders
+ * the first frame and the static look, nothing more.
  */
 
 export type DecorShapeColor = 'ink' | 'correct' | 'incorrect' | 'info' | 'leader' | 'accent'
@@ -26,27 +28,26 @@ const FILL: Record<DecorShapeColor, string> = {
 
 export interface DecorShapeProps {
   nodeId: string
-  /** Centre, canvas px. */
-  x: number
-  y: number
   width: number
   height: number
-  /** Degrees. */
-  angle: number
+  /** The full transform for this frame; see `decorTransform` in `@/decor`. */
+  transform: string
   color: DecorShapeColor
   opacity: number
   body: { kind: 'svg'; markup: string } | { kind: 'glyph'; glyph: string } | { kind: 'outline' }
+  ref?: Ref<HTMLDivElement>
 }
 
-export function DecorShape({ nodeId, x, y, width, height, angle, color, opacity, body }: DecorShapeProps) {
+export function DecorShape({ nodeId, width, height, transform, color, opacity, body, ref }: DecorShapeProps) {
   const base: CSSProperties = {
     position: 'absolute',
-    left: x - width / 2,
-    top: y - height / 2,
+    left: 0,
+    top: 0,
     width,
     height,
-    transform: `rotate(${angle}deg)`,
+    transform,
     transformOrigin: '50% 50%',
+    willChange: 'transform',
     color: FILL[color],
     opacity,
     pointerEvents: 'none',
@@ -55,6 +56,7 @@ export function DecorShape({ nodeId, x, y, width, height, angle, color, opacity,
   if (body.kind === 'svg') {
     return (
       <div
+        ref={ref}
         data-node-id={nodeId}
         data-decor="svg"
         style={{ ...base, display: 'block', lineHeight: 0 }}
@@ -66,6 +68,7 @@ export function DecorShape({ nodeId, x, y, width, height, angle, color, opacity,
   if (body.kind === 'glyph') {
     return (
       <div
+        ref={ref}
         data-node-id={nodeId}
         data-decor="glyph"
         aria-hidden
@@ -91,6 +94,7 @@ export function DecorShape({ nodeId, x, y, width, height, angle, color, opacity,
 
   return (
     <div
+      ref={ref}
       data-node-id={nodeId}
       data-decor="outline"
       style={{ ...base, boxSizing: 'border-box', boxShadow: `inset 0 0 0 var(--border-thin) currentColor` }}

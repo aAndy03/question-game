@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { FIXTURES } from '@questiongame/contract'
+import { DEFAULT_DECOR_SETTINGS, FIXTURES } from '@questiongame/contract'
 import { IDLE_DECOR } from './manifests/idle'
-import { decorAsset, hashString, layoutDecor, seedFromPlay, settle } from './index'
+import { STEP_MS, createDecorWorld, decorAsset, hashString, layoutDecor, seedFromPlay, settle } from './index'
 
 function corners(b: { x: number; y: number; width: number; height: number; angle: number }) {
   const a = (b.angle * Math.PI) / 180
@@ -66,7 +66,7 @@ describe('decor settle', () => {
         expect(p.height).toBeGreaterThanOrEqual(spec.height.min)
         expect(p.height).toBeLessThanOrEqual(spec.height.max)
       }
-      // The solver may nudge rotation while resolving a collision; it must not spin.
+      // The settle may nudge rotation while resolving a collision; it must not spin.
       expect(Math.abs(p.angle - (spec.rotation.min + spec.rotation.max) / 2)).toBeLessThan(90)
     }
   })
@@ -106,5 +106,83 @@ describe('decor assets', () => {
 
   it('rejects an unknown asset loudly', () => {
     expect(() => decorAsset('nope')).toThrow()
+  })
+})
+
+describe('decor world (live)', () => {
+  const seed = seedFromPlay(FIXTURES.idle)
+  /** Mean speed per body over one second, px/s (a single collision push is not "speed"). */
+  const speeds = (w: ReturnType<typeof createDecorWorld>) => {
+    const total = w.read().map(() => 0)
+    let prev = w.read()
+    for (let t = 0; t < 60; t++) {
+      w.step(STEP_MS)
+      const next = w.read()
+      next.forEach((p, i) => (total[i]! += Math.hypot(p.x - prev[i]!.x, p.y - prev[i]!.y)))
+      prev = next
+    }
+    return total
+  }
+
+  for (const mode of ['collide', 'collide-attract'] as const) {
+    it(`${mode}: bodies keep moving, stay inside the box and under maxSpeed over 20 seconds`, () => {
+      const settings = { ...DEFAULT_DECOR_SETTINGS, mode }
+      const world = createDecorWorld(IDLE_DECOR, seed, settings)
+      const { boundary } = IDLE_DECOR
+      for (let t = 0; t < 20 * 60; t++) {
+        world.step(STEP_MS)
+        if (t % 60 !== 0) continue
+        for (const p of world.read()) {
+          expect(p.x - p.width / 2, `t=${t}`).toBeGreaterThanOrEqual(boundary.x - 1)
+          expect(p.x + p.width / 2, `t=${t}`).toBeLessThanOrEqual(boundary.x + boundary.width + 1)
+          expect(p.y - p.height / 2, `t=${t}`).toBeGreaterThanOrEqual(boundary.y - 1)
+          expect(p.y + p.height / 2, `t=${t}`).toBeLessThanOrEqual(boundary.y + boundary.height + 1)
+        }
+      }
+      for (const s of speeds(world)) {
+        expect(s).toBeGreaterThan(0)
+        expect(s).toBeLessThanOrEqual(settings.maxSpeed + 1)
+      }
+      world.destroy()
+    })
+  }
+
+  it('the pull only exists in collide-attract mode', () => {
+    // Two bodies at rest: with attraction they close in, without it they stay put.
+    const square = (x: number) => ({
+      kind: 'outline' as const,
+      side: { min: 100, max: 100 },
+      color: 'ink' as const,
+      opacity: 1,
+      rotation: { min: 0, max: 0 },
+      anchor: { x: { min: x, max: x }, y: { min: 0.5, max: 0.5 } },
+    })
+    const spec = { screen: 'idle' as const, boundary: { x: 0, y: 0, width: 2000, height: 1000 }, bodies: [square(0.1), square(0.9)] }
+    const still = { ...DEFAULT_DECOR_SETTINGS, drift: 0, spin: 0 }
+    const dist = (w: ReturnType<typeof createDecorWorld>) => {
+      const [a, b] = w.read()
+      return Math.hypot(a!.x - b!.x, a!.y - b!.y)
+    }
+    const off = createDecorWorld(spec, 1, { ...still, mode: 'collide' })
+    const on = createDecorWorld(spec, 1, { ...still, mode: 'collide-attract', attraction: 1 })
+    const d0 = dist(off)
+    for (let t = 0; t < 10 * 60; t++) {
+      off.step(STEP_MS)
+      on.step(STEP_MS)
+    }
+    expect(Math.abs(dist(off) - d0)).toBeLessThan(1)
+    expect(dist(on)).toBeLessThan(d0 - 20)
+    off.destroy()
+    on.destroy()
+  })
+
+  it('a stalled frame catches up a bounded number of steps', () => {
+    const world = createDecorWorld(IDLE_DECOR, seed, DEFAULT_DECOR_SETTINGS)
+    const before = world.read()
+    world.step(10_000)
+    const after = world.read()
+    // At most 5 steps: nobody teleports.
+    after.forEach((p, i) => expect(Math.hypot(p.x - before[i]!.x, p.y - before[i]!.y)).toBeLessThan(DEFAULT_DECOR_SETTINGS.maxSpeed))
+    world.destroy()
   })
 })

@@ -207,7 +207,7 @@ Every library write and every Play event append is crash-safe. Events append fir
 | GSAP + `@gsap/react` | Stage screens, transitions, overlays, reveals, Stage 2D. |
 | Calligraph | Studio **text transitions** only, behind the `Text` module. Not a typography primitive, not on Stage. See §2.29. |
 | `svg.js` | Dropped. |
-| `matter-js` | **Stage decor only** (decided 2026-09-04). Headless collision solver for the loose decorative bodies: each screen declares an invisible boundary box and a seeded body list; matter settles them into the static layout, and at P3 drives their entry motion. GSAP's `Physics2DPlugin` has no collision detection, so it cannot do this job. Never used for anything whose truth is in play-state. |
+| `matter-js` | **Stage decor only** (decided 2026-09-04). A live world for the loose decorative bodies: each screen declares an invisible boundary box (may extend a little past the canvas) and a seeded body list; the bodies keep drifting and colliding for the life of the screen — `collide` by default, `collide-attract` (mild mutual pull) as a per-recipe option — tuned by `StageDecorSettings` (Screens tab dials at P9). GSAP's `Physics2DPlugin` has no collision detection, so it cannot do this job. Never used for anything whose truth is in play-state. |
 
 ### 2.12 Desktop only
 

@@ -200,7 +200,7 @@ Tauri is deliberately absent — it wraps an existing Vite dev server, so P1–P
 
 ## P2 — Stage screens, static  ◐
 
-**Goal:** the screens and answer variants, pixel-faithful to the design system, driven only by fixtures. No host, no animation.
+**Goal:** the screens and answer variants, pixel-faithful to the design system, driven only by fixtures. No host, no GSAP animation (the live decor world is the one exception, see below).
 
 **This is the Fable 5.1 phase.** Give it the tokens, the design system readme, the P1 contract, and the atomic convention — one screen at a time, producing real components.
 
@@ -234,7 +234,7 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 - **No hover, focus, or press states.** The only state change is the reveal: dim → highlighted.
 - Decorative shapes are loose bodies at matrix rotations, opacity 0.12–0.35 as texture or 1.0 as commentary. Never redraw the `?`/`!` glyphs.
 
-**Decor model (decided 2026-09-04).** Each screen has two kinds of element: *functional* (derived from the Play or authored copy) and *design* (the SVG bodies). Design bodies are 2D physics bodies. v1 uses the simple containment rule: each screen declares an **invisible rectangular boundary** the bodies cannot leave (it may extend past the canvas so shapes bleed off the edge as in Figma); collision with functional elements is v2. A screen's decor is a **manifest** (`apps/stage/src/decor/manifests/<screen>.ts`): boundary + a body list with *ranges* for size, rotation and preferred region — never fixed positions. The concrete layout is **seeded from the Play** (play id, team names, domain names) and settled headless by `matter-js` (GSAP's `Physics2DPlugin` has no collision detection), so every Play gets its own scatter while the visual style stays exactly the design system's. The settled layout is the static state after all transitions; P3 animates *into* it. Bodies not present as exported paths (the giant `?`, digits `1 2 3`) render as display-face glyph stand-ins until the SVGs are exported; swapping one is a manifest edit.
+**Decor model (decided 2026-09-04).** Each screen has two kinds of element: *functional* (derived from the Play or authored copy) and *design* (the SVG bodies). Design bodies are 2D physics bodies. v1 uses the simple containment rule: each screen declares an **invisible rectangular boundary** the bodies cannot leave (it may extend past the canvas so shapes bleed off the edge as in Figma); collision with functional elements is v2. A screen's decor is a **manifest** (`apps/stage/src/decor/manifests/<screen>.ts`): boundary + a body list with *ranges* for size, rotation and preferred region — never fixed positions. The concrete layout is **seeded from the Play** (play id, team names, domain names) and settled headless by `matter-js` (GSAP's `Physics2DPlugin` has no collision detection), so every Play gets its own scatter while the visual style stays exactly the design system's. **The bodies are never static** (decided 2026-09-04): once a screen shows, its world keeps running — `collide` (default: drift and bounce inside the box) or `collide-attract` (plus a very mild mutual pull so they keep meeting). The mode and its dials (`drift`, `attraction`, `bounce`, `spin`, `maxSpeed`) are `StageDecorSettings` in play-state, a per-recipe layout setting; the Screens tab (P9) exposes them as [DialKit](https://www.npmjs.com/package/dialkit) dials saved through `recipe_set_layout`. The world steps at a fixed 60 Hz and writes transforms straight to the DOM — React renders frame zero only, so play-state emissions never restart the scatter. This is the one motion in P2; it is matter-driven, independent of the GSAP screen timeline, and reports no `anim-complete`. Bodies not present as exported paths (the giant `?`, digits `1 2 3`) render as display-face glyph stand-ins until the SVGs are exported; swapping one is a manifest edit.
 
 **Exit criteria**
 
@@ -405,7 +405,7 @@ Density: each panel declares its own limited-space behaviour. Vertical scroll on
 
 **Install:** [`dialkit`](https://www.npmjs.com/package/dialkit).
 
-**Deliverables:** route blocked while a Play is `playing|paused`, with the two-action notice and stacked "Are you sure?"; load a recipe, select nodes by P1 contract id, edit font / size / colour / position / size, apply to this screen or all screens; auto-save to `recipe_set_layout`, 400ms debounce, one `rev`.
+**Deliverables:** route blocked while a Play is `playing|paused`, with the two-action notice and stacked "Are you sure?"; load a recipe, select nodes by P1 contract id, edit font / size / colour / position / size, apply to this screen or all screens; **decor physics dials** (DialKit) bound to `StageDecorSettings` — mode, drift, attraction, bounce, spin, max speed, plus each screen's boundary box; auto-save to `recipe_set_layout`, 400ms debounce, one `rev`.
 
 **Exit criteria**
 

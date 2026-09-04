@@ -31,6 +31,8 @@ Three shape decisions worth stating, because they are not obvious:
 
 **Three additions at P2 (version 2).** `clock` carries how long the Play has been running, so the Stage header's Play clock reads host time rather than its own. `StageDomain.nextDifficulty` is the difficulty of the next question a domain would issue — the domain card shows that word, not a serial number. `leaderboardRevealedRanks` sits on the Play root: the final leaderboard shows with `session: null`, so a reveal list inside the session had nowhere to live.
 
+**`decor`** (`StageDecorSettings`) says how the decorative bodies move — they never stand still. `mode` is `collide` or `collide-attract`; the numbers are dials the Screens tab will expose. It is a per-recipe layout setting, live-updatable, and affects nothing the game scores.
+
 `contractVersion` is stamped on every snapshot. It bumps when a field is removed or changes meaning, never for additions, so a host/webview mismatch surfaces as a notice instead of a blank screen.
 
 ## 2. Node ids
