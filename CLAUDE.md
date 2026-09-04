@@ -153,7 +153,7 @@ When editing that config: flat config **replaces** rule options rather than merg
 - **Howler** plays the bundled default cue pack. `@web-kits/audio` is installed but inactive (`feat.audio.synth` off). User-replaceable packs are v2.
 - **EvilCharts/ECharts** isolated under Statistics, read-only.
 
-Explicitly **dropped**: `@svgdotjs/svg.js`, `matter-js`, `framer-motion`, legacy dnd-kit, haptics, Three.js in v1.
+Explicitly **dropped**: `@svgdotjs/svg.js`, `framer-motion`, legacy dnd-kit, haptics, Three.js in v1. **`matter-js` is Stage decor only**: a headless collision/containment solver for the decorative bodies (`apps/stage/src/decor/`), never for anything whose truth is in `play-state`.
 
 ## Product constraints
 

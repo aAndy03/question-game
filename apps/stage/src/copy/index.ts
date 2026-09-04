@@ -29,7 +29,7 @@ export const STAGE_COPY = {
   domainLabel: 'DOMAIN',
   sessionLabel: 'SESSION',
   /** Authored per tournament; the Figma sample reads `2026 - 2027`. */
-  sessionValue: '',
+  sessionValue: '2026 - 2027',
 
   /** Per-screen header title, `<title> //`. Empty means no title. */
   screenTitle: {
@@ -42,8 +42,10 @@ export const STAGE_COPY = {
     currentTeam: 'CURRENT TEAM',
   } satisfies Record<StageScreen, string>,
 
-  /** Idle screen. */
-  idleTagline: 'AWAITING_GAME_START...',
+  /** Idle screen. Everything but the wordmark is authored. */
+  idleEyebrow: 'HOPE CHALLENGE X AMiCUS',
+  idleTagline: 'Choose your domain!',
+  idleStatus: 'AWAITING_GAME_START...',
 
   /** Play clock: how long the game has been running. */
   playClockLabel: 'TIMER',
@@ -77,6 +79,17 @@ export const STAGE_COPY = {
   /** Domain cards: the difficulty line, e.g. `DIFFICULTY // EASY`. */
   difficultyLabel: 'DIFFICULTY',
 } as const
+
+export type StageCopy = typeof STAGE_COPY
+
+/**
+ * The copy a page renders. Today this is the authored defaults; when the
+ * operator-editable copy table lands (Studio, later phase) its overrides are
+ * merged here and nowhere else.
+ */
+export function resolveCopy(overrides: Partial<StageCopy> = {}): StageCopy {
+  return { ...STAGE_COPY, ...overrides }
+}
 
 /**
  * Difficulty is 1–100 in the contract. Stage shows a word, not a number, so

@@ -40,7 +40,7 @@ export function ResultWidget({ nodeId, verdict, points, bonus = null, revealed =
         background: FILL[verdict],
         borderRadius: RADIUS.md,
         boxShadow: insetFrame('heavy'),
-        visibility: revealed ? 'visible' : 'hidden',
+        visibility: revealed ? undefined : 'hidden',
       }}
     >
       <Text variant="stage-hud">{hud(STAGE_COPY.resultLabel, STAGE_COPY.verdict[verdict])}</Text>

@@ -34,6 +34,8 @@ export type TextTransition = 'none' | 'swap' | 'count';
  *   hud                      HUD labels (`DOMAIN // …`) — Space Mono, broken case
  *   code                     category codes, clocks — Space Mono, no transform
  *   caption                  small mono metadata
+ *   eyebrow                  a short line above the wordmark — Space Grotesk, regular
+ *   tagline                  a short line below it — Space Mono, regular
  */
 export type TextVariant =
   | 'stage-mega'
@@ -45,6 +47,8 @@ export type TextVariant =
   | 'stage-hud'
   | 'stage-code'
   | 'stage-caption'
+  | 'stage-eyebrow'
+  | 'stage-tagline'
   | 'studio-body'
   | 'studio-label'
   | 'studio-caption';
@@ -113,6 +117,22 @@ const VARIANT_TOKENS: Record<TextVariant, VariantTokens> = {
   'stage-hud': mono('var(--text-label)', 'var(--tracking-wide-1)', 'var(--case-hud)'),
   'stage-code': mono('var(--text-label)', 'var(--tracking-wide-2)', 'var(--case-prose)'),
   'stage-caption': mono('var(--text-caption)', 'var(--tracking-wide-1)', 'var(--case-hud)'),
+  'stage-eyebrow': {
+    size: 'var(--text-heading-4)',
+    family: 'var(--font-display)',
+    weight: 'var(--weight-regular)',
+    tracking: 'var(--tracking-normal)',
+    leading: 'var(--leading-heading)',
+    casing: 'var(--case-prose)',
+  },
+  'stage-tagline': {
+    size: 'var(--text-heading-4)',
+    family: 'var(--font-mono)',
+    weight: 'var(--weight-regular)',
+    tracking: 'var(--tracking-normal)',
+    leading: 'var(--leading-heading)',
+    casing: 'var(--case-prose)',
+  },
   'studio-body': studio('var(--text-body)'),
   'studio-label': studio('var(--text-label)'),
   'studio-caption': studio('var(--text-caption)'),

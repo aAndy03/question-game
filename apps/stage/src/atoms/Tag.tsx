@@ -29,7 +29,7 @@ export function Tag({ tone = 'ink', children }: TagProps) {
     <span data-tag-tone={tone} style={{ display: 'inline-block' }}>
       <Text
         as="span"
-        variant="stage-caption"
+        variant="stage-code"
         tone={tone === 'ink' ? 'inverse' : 'primary'}
         style={{
           display: 'inline-block',

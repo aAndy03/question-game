@@ -1,70 +1,54 @@
-import { LAYOUT } from '@questiongame/design-stage'
+import { FIXTURES, FIXTURE_NAMES, type FixtureName } from '@questiongame/contract'
+import { StageRoot } from '@/pages'
 
 /**
- * P0/P1 placeholder: a token proof sheet.
- *
- * It renders nothing from the real design — its job is to show, at a glance
- * and in the DOM, that a Tailwind utility and a `var(--…)` reference resolve to
- * the same value. P2 replaces it with the real pages.
- *
- * Everything here reads from tokens. No pixel value is written inline.
+ * Fixture switcher — the P2/P3 dev harness. Until P6 there is no host, so
+ * Stage renders the fixture named in `?fixture=`; the strip of links below the
+ * canvas swaps it. The strip is outside the 1920×1080 frame and outside the
+ * Stage tree, so nothing interactive is ever inside the surface the camera
+ * sees. It is removed at P6 when play-state arrives from the host.
  */
+
+function fixtureFromUrl(): FixtureName {
+  const raw = new URLSearchParams(window.location.search).get('fixture')
+  return raw && (FIXTURE_NAMES as readonly string[]).includes(raw) ? (raw as FixtureName) : 'idle'
+}
+
 export function App() {
+  const name = fixtureFromUrl()
+  const state = FIXTURES[name]
   return (
-    <div
-      data-surface="stage"
-      className="flex flex-col bg-paper text-ink box-border"
-      style={{
-        width: LAYOUT.width,
-        height: LAYOUT.height,
-        padding: LAYOUT.padding,
-        gap: LAYOUT.zoneGap,
-      }}
-    >
-      <header className="px-3 py-2 font-mono text-label tracking-wide-1 lowercase shadow-[inset_0_1px_0_0_var(--ink),inset_0_-2px_0_0_var(--ink),inset_1px_0_0_0_var(--ink),inset_-1px_0_0_0_var(--ink)]">
-        QUESTIONGAME // TOKEN SCOPE OK
-      </header>
-
-      <h1 className="m-0 font-display font-bold text-giant tracking-tight-2 text-[var(--text-heading)]">
-        question
-        <br />
-        game
-      </h1>
-
-      {/* Tailwind scans source for complete class strings, so a class can never
-       * be built by interpolation (`bg-${name}` produces nothing). Map to whole
-       * class names instead. This bites once per project; here is the once. */}
-      <div className="flex" style={{ gap: LAYOUT.gapTight }}>
-        {(
-          [
-            ['correct', 'bg-correct'],
-            ['incorrect', 'bg-incorrect'],
-            ['info', 'bg-info'],
-            ['leader', 'bg-leader'],
-            ['accent', 'bg-accent'],
-          ] as const
-        ).map(([name, bg]) => (
-          <span
-            key={name}
-            className={`${bg} px-3 py-1 rounded-none font-mono text-caption tracking-wide-1 text-ink`}
-          >
-            {name}
-          </span>
-        ))}
-      </div>
-
-      {/* Utility vs var(): both columns must render identically. */}
-      <div className="flex" style={{ gap: LAYOUT.gapLoose }}>
-        <div className="p-4 font-mono text-caption border-2 border-ink">
-          utility · p-4 · text-caption
-        </div>
-        <div
-          className="font-mono border-2 border-ink"
-          style={{ padding: 'var(--space-4)', fontSize: 'var(--text-caption)' }}
+    <>
+      <StageRoot state={state} />
+      {import.meta.env.DEV ? (
+        <nav
+          data-dev-fixtures
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'var(--space-2)',
+            padding: 'var(--space-3)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 'var(--text-caption)',
+            cursor: 'auto',
+          }}
         >
-          var() · --space-4 · --text-caption
-        </div>
-      </div>
-    </div>
+          {FIXTURE_NAMES.map((f) => (
+            <a
+              key={f}
+              href={`?fixture=${f}`}
+              style={{
+                color: f === name ? 'var(--paper)' : 'var(--ink)',
+                background: f === name ? 'var(--ink)' : 'transparent',
+                padding: '0 var(--space-1)',
+                textDecoration: 'none',
+              }}
+            >
+              {f}
+            </a>
+          ))}
+        </nav>
+      ) : null}
+    </>
   )
 }

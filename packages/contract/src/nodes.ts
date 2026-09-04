@@ -24,7 +24,14 @@ import { isStageScreen } from './screens'
 export type SlotKind = 'static' | 'entity' | 'ranked' | 'indexed'
 
 export const SCREEN_SLOTS = {
-  idle: { wordmark: 'static', tagline: 'static', decor: 'indexed' },
+  idle: {
+    eyebrow: 'static',
+    wordmark: 'static',
+    tagline: 'static',
+    status: 'static',
+    session: 'static',
+    decor: 'indexed',
+  },
   teamOrder: {
     header: 'static',
     title: 'static',

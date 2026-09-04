@@ -47,7 +47,7 @@ export function DomainCard({ nodeId, name, difficulty, code, selected = false, e
         <Text variant="stage-hud" tone={selected ? 'inverse' : dimmed ? 'muted' : 'primary'}>
           {hud(STAGE_COPY.difficultyLabel, difficulty ?? STAGE_COPY.exhaustedTag)}
         </Text>
-        <span style={{ visibility: selected ? 'visible' : 'hidden' }}>
+        <span style={{ visibility: selected ? undefined : 'hidden' }}>
           <Tag tone="info">{STAGE_COPY.selectedTag}</Tag>
         </span>
       </div>

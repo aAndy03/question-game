@@ -19,7 +19,7 @@ export function QuestionStem({ nodeId, stem, revealed = true }: QuestionStemProp
       transition="swap"
       tone="heading"
       nodeId={nodeId}
-      style={{ visibility: revealed ? 'visible' : 'hidden', overflowWrap: 'anywhere' }}
+      style={{ visibility: revealed ? undefined : 'hidden', overflowWrap: 'anywhere' }}
     >
       {stem}
     </Text>

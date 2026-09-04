@@ -51,7 +51,7 @@ export function SequenceRow({
         {sequencePosition(index)}
       </Text>
       <TeamChip name={name} shortCode={shortCode} dimmed={dimmed} emphasised={current} />
-      <span style={{ visibility: current ? 'visible' : 'hidden' }}>
+      <span style={{ visibility: current ? undefined : 'hidden' }}>
         <Tag tone="ink">{STAGE_COPY.currentTag}</Tag>
       </span>
       <Text variant="stage-heading" transition="count" tone={dimmed ? 'muted' : 'heading'} style={{ fontVariantNumeric: 'tabular-nums' }}>

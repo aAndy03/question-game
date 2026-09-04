@@ -45,14 +45,14 @@ export function ScoreRow({
         padding: `${SPACE[4]} 0`,
         boxShadow: insetBorder({ bottom: 'thin' }, 'var(--border-subtle)'),
         background: leader ? 'var(--state-leader)' : 'transparent',
-        visibility: revealed ? 'visible' : 'hidden',
+        visibility: revealed ? undefined : 'hidden',
       }}
     >
       <Text variant="stage-number" tone={dimmed ? 'muted' : 'heading'} style={{ minWidth: '2ch', textAlign: 'right' }}>
         {rank}
       </Text>
       <TeamChip name={name} shortCode={shortCode} dimmed={dimmed} size="lg" />
-      <span style={{ visibility: leader ? 'visible' : 'hidden' }}>
+      <span style={{ visibility: leader ? undefined : 'hidden' }}>
         <Tag tone="ink">{STAGE_COPY.leaderTag}</Tag>
       </span>
       <Text variant="stage-number" transition="count" tone={dimmed ? 'muted' : 'heading'} style={{ fontVariantNumeric: 'tabular-nums' }}>

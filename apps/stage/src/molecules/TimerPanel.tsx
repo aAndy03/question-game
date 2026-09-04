@@ -51,7 +51,7 @@ export function TimerPanel({
         gap: SPACE[2],
         padding: framed ? SPACE[4] : 0,
         boxShadow: framed ? insetFrame('thin') : 'none',
-        visibility: visible ? 'visible' : 'hidden',
+        visibility: visible ? undefined : 'hidden',
       }}
     >
       <Text variant="stage-hud" tone="muted">

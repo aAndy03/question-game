@@ -206,11 +206,12 @@ Every library write and every Play event append is crash-safe. Events append fir
 | Motion (`motion/react`) | Studio chrome only. |
 | GSAP + `@gsap/react` | Stage screens, transitions, overlays, reveals, Stage 2D. |
 | Calligraph | Studio **text transitions** only, behind the `Text` module. Not a typography primitive, not on Stage. See §2.29. |
-| `svg.js` / `matter-js` | Dropped. |
+| `svg.js` | Dropped. |
+| `matter-js` | **Stage decor only** (decided 2026-09-04). Headless collision solver for the loose decorative bodies: each screen declares an invisible boundary box and a seeded body list; matter settles them into the static layout, and at P3 drives their entry motion. GSAP's `Physics2DPlugin` has no collision detection, so it cannot do this job. Never used for anything whose truth is in play-state. |
 
 ### 2.12 Desktop only
 
-No haptics. Physics = GSAP 2D plugins on Stage. No Three.js in v1 unless a later screen design needs WebGL.
+No haptics. Physics = GSAP 2D plugins for tweened motion on Stage, plus `matter-js` headless for decor collision and containment (decor only). No Three.js in v1 unless a later screen design needs WebGL.
 
 ### 2.13 Search
 
@@ -723,7 +724,7 @@ Search: `tantivy`.
 
 Host: `serde`, `tokio`, `rusqlite` or `tauri-plugin-sql`, `thiserror`, `tracing`, `uuid`.
 
-Drop: `matter-js`, `@svgdotjs/svg.js`, `framer-motion`, legacy dnd-kit.
+Drop: `@svgdotjs/svg.js`, `framer-motion`, legacy dnd-kit. `matter-js` is kept for Stage decor collision only (§7 table).
 
 ---
 
@@ -953,7 +954,7 @@ Worked slice stays the 1-details `"test"` path: lock at 12s, reveal scores lock-
 
 ## 16. What this file refuses to invent
 
-Livestream graphs, mobile haptics, Matter.js collisions, git branches for operators, free-form award scripting, auto-advance of Stage after resolve, library expiry of questions, scoring on override without reveal.
+Livestream graphs, mobile haptics, Matter.js collisions between *functional* elements (decor bodies collide with an invisible box only in v1), git branches for operators, free-form award scripting, auto-advance of Stage after resolve, library expiry of questions, scoring on override without reveal.
 
 ---
 

@@ -214,9 +214,9 @@ Tauri is deliberately absent — it wraps an existing Vite dev server, so P1–P
 | **molecules** ☑ | `TeamChip` · `ScoreRow` · `SequenceRow` (position derived from ring index, team and score from play-state) · `DomainCard` (**difficulty** of the next question + name + selected state — no serial number) · `AnswerOption` (8px card, neutral/dim/selected/correct/incorrect, hidden-but-mounted until revealed) · `TimerPanel` (label + milliseconds in; serves both the **Play clock** — how long the game has been running — and the question countdown) · `ResultWidget` (verdict + awarded points) · `QuestionStem` |
 | **organisms** ☑ | `StageHeader` (asymmetric 1/1/2px rule; title, subject and Play clock derived from play-state) · `SequenceTable` · `DomainGrid` · `AnswerGrid` · `ScoreboardTable` · `LeaderboardList` · `DecorField` **deferred to pages** |
 | **templates** ☑ | `StageFrame` (1920×1080, 64px padding, 40px header/body gap, header + body + decor slots) · `SplitFrame` (content column + fixed 398–600px decorative column) |
-| **pages** ☐ | `Idle` · `TeamOrder` · `ChooseDomain` · `Question` · `Scoreboard` · `FinalLeaderboard` · `CurrentTeam` — built one at a time with the operator, decor included |
+| **pages** ◐ | `Idle` ☑ · `TeamOrder` · `ChooseDomain` · `Question` · `Scoreboard` · `FinalLeaderboard` · `CurrentTeam` — built one at a time with the operator, decor included. `StageRoot` holds the frame, the persistent header and decor, and the screen → page registry. |
 
-Plus a **fixture switcher** dev route — pick a fixture, render the screen. It survives into P3 as the animation harness.
+Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside the canvas, dev builds only). It survives into P3 as the animation harness.
 
 **Two kinds of text reach Stage.** Derived text (team names, domain names, difficulty, stems, options, points, ranks, clocks) arrives in `play-state` and is never written in a component. Authored text (HUD labels, the `//` delimiter, verdict wording, tag words, the idle tagline, the difficulty bands) lives in `apps/stage/src/copy/` so an operator-editable copy table later has exactly one thing to override. A component that carries a string literal an operator might want to change is a bug.
 
@@ -232,7 +232,9 @@ Plus a **fixture switcher** dev route — pick a fixture, render the screen. It 
 - Copy is HUD-terse: `DOMAIN // TECHNOLOGY`, `TIMER // REMAINING`, `[ 00:12:20 ]`, `RESULT // ALL CORRECT`, `+N PTS`. Category codes `TEC_881`. No emoji.
 - Max 1–2 signal colours live per screen.
 - **No hover, focus, or press states.** The only state change is the reveal: dim → highlighted.
-- Decorative shapes are loose bodies at matrix rotations, opacity 0.12–0.35 as texture or 1.0 as commentary. Never redraw the `?`/`!` glyphs. **Placement is decided per page, with the operator, not in advance.**
+- Decorative shapes are loose bodies at matrix rotations, opacity 0.12–0.35 as texture or 1.0 as commentary. Never redraw the `?`/`!` glyphs.
+
+**Decor model (decided 2026-09-04).** Each screen has two kinds of element: *functional* (derived from the Play or authored copy) and *design* (the SVG bodies). Design bodies are 2D physics bodies. v1 uses the simple containment rule: each screen declares an **invisible rectangular boundary** the bodies cannot leave (it may extend past the canvas so shapes bleed off the edge as in Figma); collision with functional elements is v2. A screen's decor is a **manifest** (`apps/stage/src/decor/manifests/<screen>.ts`): boundary + a body list with *ranges* for size, rotation and preferred region — never fixed positions. The concrete layout is **seeded from the Play** (play id, team names, domain names) and settled headless by `matter-js` (GSAP's `Physics2DPlugin` has no collision detection), so every Play gets its own scatter while the visual style stays exactly the design system's. The settled layout is the static state after all transitions; P3 animates *into* it. Bodies not present as exported paths (the giant `?`, digits `1 2 3`) render as display-face glyph stand-ins until the SVGs are exported; swapping one is a manifest edit.
 
 **Exit criteria**
 
@@ -466,7 +468,7 @@ Wager/stake · CSV import/export · user-replaceable audio packs · `@web-kits/a
 | --- | --- | --- |
 | **Studio theme reconciliation** | P7 | `globals.css` ships HeroUI's default blue/Geist/`0.75rem` theme. That is now the *intended* Studio look (§2.30), so the only open question is whether Studio should borrow the signal colours (mint/coral) for correct/incorrect readouts so the two surfaces agree on meaning. |
 | **Missing design-system files** | P2 | The design system readme indexes `styles.css`, `assets/`, `components/core/`, `ui_kits/questiongame/` (13 screens), `guidelines/`, and `SKILL.md`. **None are in this repo** — only `tokens/` and four decorative SVG folders. If they exist elsewhere, that is most of P2 already built. |
-| **Idle and Question decorative art** | P2 | Letterforms exist for CHOOSE, READY, WINNER and the scoreboard arrows. The Figma frames show the giant `?` on idle and a `+` burst on question — confirm those SVGs are among the copied assets. |
+| **Idle and Question decorative art** | P2 | Letterforms exist for CHOOSE, READY, WINNER and the scoreboard arrows; `+` and `−` exist. **Missing as paths: the giant `?`, the digits `1 2 3`, and the diamond outlines** on idle. They render as glyph / hairline stand-ins from `decor/manifests/idle.ts`; export them from Figma and swap the manifest entries to `kind: 'svg'`. |
 | **Default Stage monitor with several externals** | P6 | §9, ungrilled. |
 | **Archive view visual design** | P7 | §9. |
 

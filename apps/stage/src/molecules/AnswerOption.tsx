@@ -47,7 +47,7 @@ export function AnswerOption({ nodeId, letter, text, state = 'neutral', revealed
         borderRadius: RADIUS.md,
         boxShadow: insetFrame(look.weight, look.border),
         opacity: look.opacity,
-        visibility: revealed ? 'visible' : 'hidden',
+        visibility: revealed ? undefined : 'hidden',
       }}
     >
       <LabelBox size="lg" fill={look.letter}>

@@ -56,13 +56,13 @@ export function StageHeader({ state }: StageHeaderProps) {
         gap: SPACE[6],
         padding: `${SPACE[3]} ${SPACE[4]}`,
         boxShadow: insetHeaderRule(),
-        visibility: hasHeader ? 'visible' : 'hidden',
+        visibility: hasHeader ? undefined : 'hidden',
       }}
     >
       <Text variant="stage-hud" transition="swap">
         {titleFor(state)}
       </Text>
-      <Text variant="stage-hud" tone="muted" style={{ visibility: STAGE_COPY.sessionValue ? 'visible' : 'hidden' }}>
+      <Text variant="stage-hud" tone="muted" style={{ visibility: STAGE_COPY.sessionValue ? undefined : 'hidden' }}>
         {hud(STAGE_COPY.sessionLabel, STAGE_COPY.sessionValue)}
       </Text>
       <TimerPanel
