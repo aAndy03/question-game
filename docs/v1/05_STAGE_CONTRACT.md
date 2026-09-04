@@ -29,6 +29,8 @@ Three shape decisions worth stating, because they are not obvious:
 
 **Verdict is presentational; points are separate.** The design system has three result frames — `ALL CORRECT`, `INCORRECT`, `EXTRA SELECTION` — but with partial credit off (the default) the third still scores zero. `outcome.verdict` picks the frame; `outcome.pointsAwarded` is the number.
 
+**Three additions at P2 (version 2).** `clock` carries how long the Play has been running, so the Stage header's Play clock reads host time rather than its own. `StageDomain.nextDifficulty` is the difficulty of the next question a domain would issue — the domain card shows that word, not a serial number. `leaderboardRevealedRanks` sits on the Play root: the final leaderboard shows with `session: null`, so a reveal list inside the session had nowhere to live.
+
 `contractVersion` is stamped on every snapshot. It bumps when a field is removed or changes meaning, never for additions, so a host/webview mismatch surfaces as a notice instead of a blank screen.
 
 ## 2. Node ids
@@ -41,10 +43,10 @@ Four slot kinds, declared per screen in `SCREEN_SLOTS`:
 | --- | --- | --- |
 | `static` | none | `question.stem` |
 | `entity` | catalog entity id | `scoreboard.row.team-alpha` |
-| `ranked` | 1-based rank | `finalLeaderboard.row.3` |
+| `ranked` | 1-based finishing *position* | `finalLeaderboard.row.3` |
 | `indexed` | decorative index | `idle.decor.2` |
 
-**A key is never an array position and never a label.** An operator can spend an afternoon in the Screens canvas; renaming a team or reordering the board must not move that work. `nodeId()` throws on a missing or surplus key, so a malformed id cannot be built. `parseNodeId()` returns `null` instead of throwing, so a stale override from an older recipe revision can be reported and skipped rather than crashing Stage.
+**A key is never an array position and never a label** — with one deliberate exception: `finalLeaderboard.row.<n>` keys off finishing position because competition rank is shared by tied teams (`1, 1, 3`) and two rows cannot share a node id. Position is stable for the life of the Play, which is all a final leaderboard needs. An operator can spend an afternoon in the Screens canvas; renaming a team or reordering the board must not move that work. `nodeId()` throws on a missing or surplus key, so a malformed id cannot be built. `parseNodeId()` returns `null` instead of throwing, so a stale override from an older recipe revision can be reported and skipped rather than crashing Stage.
 
 Adding a slot is one entry in `SCREEN_SLOTS`. The builder, parser, validator and canvas all derive from it.
 

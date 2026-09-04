@@ -1,5 +1,5 @@
 {
-  "contractVersion": 1,
+  "contractVersion": 2,
   "playId": "play-fixture-1",
   "status": "completed",
   "teams": [
@@ -64,45 +64,59 @@
       "name": "Science",
       "code": "SCI_204",
       "remaining": 0,
-      "exhausted": true
+      "exhausted": true,
+      "nextDifficulty": null
     },
     {
       "id": "dom-hst",
       "name": "History",
       "code": "HST_102",
       "remaining": 0,
-      "exhausted": true
+      "exhausted": true,
+      "nextDifficulty": null
     },
     {
       "id": "dom-art",
       "name": "Arts",
       "code": "ART_980",
       "remaining": 0,
-      "exhausted": true
+      "exhausted": true,
+      "nextDifficulty": null
     },
     {
       "id": "dom-tec",
       "name": "Technology",
       "code": "TEC_881",
       "remaining": 0,
-      "exhausted": true
+      "exhausted": true,
+      "nextDifficulty": null
     },
     {
       "id": "dom-geo",
       "name": "Geography",
       "code": "GEO_105",
       "remaining": 0,
-      "exhausted": true
+      "exhausted": true,
+      "nextDifficulty": null
     },
     {
       "id": "dom-spt",
       "name": "Sports",
       "code": "SPT_512",
       "remaining": 0,
-      "exhausted": true
+      "exhausted": true,
+      "nextDifficulty": null
     }
   ],
   "session": null,
+  "clock": {
+    "elapsedMs": 2900000,
+    "running": false
+  },
+  "leaderboardRevealedRanks": [
+    4,
+    2
+  ],
   "currentScreen": "finalLeaderboard",
   "overlay": {
     "busy": false,

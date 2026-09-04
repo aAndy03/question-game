@@ -43,12 +43,12 @@ const TEAMS: readonly StageTeam[] = [
 ]
 
 const DOMAINS = [
-  { id: 'dom-sci', name: 'Science', code: 'SCI_204', remaining: 2, exhausted: false },
-  { id: 'dom-hst', name: 'History', code: 'HST_102', remaining: 3, exhausted: false },
-  { id: 'dom-art', name: 'Arts', code: 'ART_980', remaining: 1, exhausted: false },
-  { id: 'dom-tec', name: 'Technology', code: 'TEC_881', remaining: 2, exhausted: false },
-  { id: 'dom-geo', name: 'Geography', code: 'GEO_105', remaining: 0, exhausted: true },
-  { id: 'dom-spt', name: 'Sports', code: 'SPT_512', remaining: 2, exhausted: false },
+  { id: 'dom-sci', name: 'Science', code: 'SCI_204', remaining: 2, exhausted: false, nextDifficulty: 20 },
+  { id: 'dom-hst', name: 'History', code: 'HST_102', remaining: 3, exhausted: false, nextDifficulty: 10 },
+  { id: 'dom-art', name: 'Arts', code: 'ART_980', remaining: 1, exhausted: false, nextDifficulty: 30 },
+  { id: 'dom-tec', name: 'Technology', code: 'TEC_881', remaining: 2, exhausted: false, nextDifficulty: 20 },
+  { id: 'dom-geo', name: 'Geography', code: 'GEO_105', remaining: 0, exhausted: true, nextDifficulty: null },
+  { id: 'dom-spt', name: 'Sports', code: 'SPT_512', remaining: 2, exhausted: false, nextDifficulty: 60 },
 ] as const
 
 const OPTIONS = [
@@ -72,6 +72,8 @@ function base(overrides: Partial<PlayStateForStage> = {}): PlayStateForStage {
     },
     domains: DOMAINS,
     session: null,
+    clock: { elapsedMs: 740_000, running: true },
+    leaderboardRevealedRanks: [],
     currentScreen: 'idle',
     overlay: { busy: false, active: null, pending: null, enabled: true },
     revealModes: {
@@ -102,7 +104,7 @@ function session(overrides: Partial<StageSession> = {}): StageSession {
       remainingMsAtLock: null,
       expiredOpen: false,
     },
-    reveals: { stem: false, optionIds: [], outcome: false, leaderboardRanks: [] },
+    reveals: { stem: false, optionIds: [], outcome: false },
     ...overrides,
   }
 }
@@ -111,12 +113,16 @@ const allRevealed = {
   stem: true,
   optionIds: OPTIONS.map((o) => o.id),
   outcome: false,
-  leaderboardRanks: [],
 }
 
 export const FIXTURES = {
   /** Nothing playing. The only screen legal before `play_start`. */
-  idle: base({ status: 'loaded', currentScreen: 'idle', ring: { order: [], currentTeamId: null, roundIndex: 1 } }),
+  idle: base({
+    status: 'loaded',
+    currentScreen: 'idle',
+    ring: { order: [], currentTeamId: null, roundIndex: 1 },
+    clock: { elapsedMs: 0, running: false },
+  }),
 
   'team-order': base({ currentScreen: 'teamOrder' }),
 
@@ -132,7 +138,7 @@ export const FIXTURES = {
   'question-stem-revealed': base({
     currentScreen: 'question',
     session: session({
-      reveals: { stem: true, optionIds: [], outcome: false, leaderboardRanks: [] },
+      reveals: { stem: true, optionIds: [], outcome: false },
       timer: {
         durationMs: 30_000,
         remainingMs: 30_000,
@@ -150,8 +156,7 @@ export const FIXTURES = {
       reveals: {
         stem: true,
         optionIds: ['opt-a', 'opt-b'],
-        outcome: false,
-        leaderboardRanks: [],
+        outcome: false
       },
       timer: {
         durationMs: 30_000,
@@ -275,7 +280,9 @@ export const FIXTURES = {
       roundIndex: 3,
     },
     session: null,
-    domains: DOMAINS.map((d) => ({ ...d, remaining: 0, exhausted: true })),
+    domains: DOMAINS.map((d) => ({ ...d, remaining: 0, exhausted: true, nextDifficulty: null })),
+    clock: { elapsedMs: 2_900_000, running: false },
+    leaderboardRevealedRanks: [4, 2],
   }),
 
   /** An overlay running over a question with reveals already showing. The
@@ -286,8 +293,7 @@ export const FIXTURES = {
       reveals: {
         stem: true,
         optionIds: ['opt-a', 'opt-b'],
-        outcome: false,
-        leaderboardRanks: [],
+        outcome: false
       },
     }),
     overlay: {
@@ -311,7 +317,12 @@ export const FIXTURES = {
     session: session({ timer: null, reveals: { ...allRevealed, outcome: false } }),
   }),
 
-  paused: base({ status: 'paused', currentScreen: 'question', session: session({ reveals: allRevealed }) }),
+  paused: base({
+    status: 'paused',
+    currentScreen: 'question',
+    session: session({ reveals: allRevealed }),
+    clock: { elapsedMs: 740_000, running: false },
+  }),
 } as const satisfies Record<string, PlayStateForStage>
 
 export type FixtureName = keyof typeof FIXTURES

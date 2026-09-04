@@ -1,5 +1,5 @@
 {
-  "contractVersion": 1,
+  "contractVersion": 2,
   "playId": "play-fixture-1",
   "status": "paused",
   "teams": [
@@ -64,42 +64,48 @@
       "name": "Science",
       "code": "SCI_204",
       "remaining": 2,
-      "exhausted": false
+      "exhausted": false,
+      "nextDifficulty": 20
     },
     {
       "id": "dom-hst",
       "name": "History",
       "code": "HST_102",
       "remaining": 3,
-      "exhausted": false
+      "exhausted": false,
+      "nextDifficulty": 10
     },
     {
       "id": "dom-art",
       "name": "Arts",
       "code": "ART_980",
       "remaining": 1,
-      "exhausted": false
+      "exhausted": false,
+      "nextDifficulty": 30
     },
     {
       "id": "dom-tec",
       "name": "Technology",
       "code": "TEC_881",
       "remaining": 2,
-      "exhausted": false
+      "exhausted": false,
+      "nextDifficulty": 20
     },
     {
       "id": "dom-geo",
       "name": "Geography",
       "code": "GEO_105",
       "remaining": 0,
-      "exhausted": true
+      "exhausted": true,
+      "nextDifficulty": null
     },
     {
       "id": "dom-spt",
       "name": "Sports",
       "code": "SPT_512",
       "remaining": 2,
-      "exhausted": false
+      "exhausted": false,
+      "nextDifficulty": 60
     }
   ],
   "session": {
@@ -144,10 +150,14 @@
         "opt-c",
         "opt-d"
       ],
-      "outcome": false,
-      "leaderboardRanks": []
+      "outcome": false
     }
   },
+  "clock": {
+    "elapsedMs": 740000,
+    "running": false
+  },
+  "leaderboardRevealedRanks": [],
   "currentScreen": "question",
   "overlay": {
     "busy": false,

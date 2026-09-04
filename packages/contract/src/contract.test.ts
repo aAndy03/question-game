@@ -305,7 +305,7 @@ describe('fixtures', () => {
 
   it('reveals leaderboard ranks lowest first', () => {
     for (const name of FIXTURE_NAMES) {
-      const ranks = FIXTURES[name].session?.reveals.leaderboardRanks ?? []
+      const ranks = FIXTURES[name].leaderboardRevealedRanks
       const descending = [...ranks].sort((a, b) => b - a)
       expect(ranks, name).toEqual(descending)
     }

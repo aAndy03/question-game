@@ -11,10 +11,13 @@
     "typecheck": "tsc --build"
   },
   "dependencies": {
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "@base-ui/react": "^1.8.0",
+    "@heroui/react": "^3.2.4",
+    "@heroui/styles": "^3.2.4",
     "@questiongame/contract": "*",
+    "@questiongame/design-stage": "*",
     "@questiongame/text": "*",
-    "@questiongame/design-stage": "*"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   }
 }

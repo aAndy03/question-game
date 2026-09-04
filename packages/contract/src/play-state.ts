@@ -19,7 +19,7 @@ import type { OverlayRequest, RevealChannel, RevealMode } from './reveal'
  * not bump it. Stage compares this against its own build so a host/webview
  * mismatch surfaces as a notice instead of a blank screen.
  */
-export const CONTRACT_VERSION = 1
+export const CONTRACT_VERSION = 2
 
 /** Spec §5.1. */
 export type PlayStatus =
@@ -73,6 +73,22 @@ export interface StageDomain {
   readonly remaining: number
   /** True when `remaining === 0`; the card renders dimmed and unpickable. */
   readonly exhausted: boolean
+  /**
+   * Difficulty (1-100) of the next question this domain would issue.
+   * Difficulty walks easy→hard inside a domain, so this is what the card
+   * shows in place of a serial number. Null when exhausted.
+   */
+  readonly nextDifficulty: number | null
+}
+
+/**
+ * How long the Play has been running. Host-authoritative like the question
+ * timer; Stage may interpolate between ticks but never invents time. Paused
+ * time is excluded, so `running` is false while `status === 'paused'`.
+ */
+export interface StagePlayClock {
+  readonly elapsedMs: number
+  readonly running: boolean
 }
 
 export interface StageOption {
@@ -124,8 +140,6 @@ export interface StageReveals {
   readonly stem: boolean
   readonly optionIds: readonly string[]
   readonly outcome: boolean
-  /** Ranks revealed on FinalLeaderboard, lowest first (spec §5.5). */
-  readonly leaderboardRanks: readonly number[]
 }
 
 /** The issued question. Null when no question is in play. */
@@ -169,6 +183,15 @@ export interface PlayStateForStage {
   readonly ring: StageRing
   readonly domains: readonly StageDomain[]
   readonly session: StageSession | null
+  readonly clock: StagePlayClock
+
+  /**
+   * Competition ranks revealed on FinalLeaderboard, lowest first (spec §5.5).
+   * Lives on the Play, not the session: the final leaderboard shows once
+   * every question is consumed and there is no session left to carry it.
+   * Tied teams share a rank and so reveal together.
+   */
+  readonly leaderboardRevealedRanks: readonly number[]
 
   /** What the operator has chosen to show. Independent of game truth. */
   readonly currentScreen: StageScreen

@@ -198,25 +198,29 @@ Tauri is deliberately absent — it wraps an existing Vite dev server, so P1–P
 
 ---
 
-## P2 — Stage screens, static  ☐
+## P2 — Stage screens, static  ◐
 
 **Goal:** the screens and answer variants, pixel-faithful to the design system, driven only by fixtures. No host, no animation.
 
 **This is the Fable 5.1 phase.** Give it the tokens, the design system readme, the P1 contract, and the atomic convention — one screen at a time, producing real components.
 
-**Install:** `@base-ui-components/react`, `@heroui/react@^3.2.4`, `@heroui/styles`.
+**Install:** `@base-ui/react` (Base UI moved off the `@base-ui-components` scope), `@heroui/react@^3.2.4`, `@heroui/styles`. Installed 2026-09-04; the static atoms and molecules are plain token-driven markup and do not mount either library yet — pages decide where a display component earns its place.
 
 **Deliverables by atomic level** (`apps/stage/src/`, shared primitives in `packages/design-stage`)
 
 | Level | Components |
 | --- | --- |
-| **atoms** | `Text` (§2.29, `transition="none"` this phase) · `Tag` (SELECTED, LEADER pills, radius 0, solid fill) · `LabelBox` (4px radius letter box) · `Rule` (1/2/3px inset divider) · `DecorShape` (the copied SVGs at matrix rotation and opacity) · `ClockDigits` · `PointsFigure` (`+500 PTS`) · `CategoryCode` (`TEC_881`) |
-| **molecules** | `TeamChip` · `ScoreRow` · `SequenceRow` (`G1 · TEAM ALPHA · score`) · `DomainCard` (number + name + selected state) · `AnswerOption` (8px card, dim/selected/correct/incorrect) · `TimerPanel` (`TIMER // REMAINING` + `[ 00:12:20 ]`) · `ResultWidget` (`RESULT // ALL CORRECT` + points) |
-| **organisms** | `StageHeader` (asymmetric 1/1/2px rule, `DOMAIN // …`, session line) · `SequenceTable` · `DomainGrid` · `AnswerGrid` · `ScoreboardTable` · `LeaderboardList` · `DecorField` (the loose bodies for one screen) |
-| **templates** | `StageFrame` (1920×1080, 64px padding, 40px header/body gap, header + body + decor slots) · `SplitFrame` (content column + fixed 398–600px decorative column) |
-| **pages** | `Idle` · `TeamOrder` · `ChooseDomain` · `Question` · `Scoreboard` · `FinalLeaderboard` · `CurrentTeam` |
+| **atoms** ☑ | `Text` (§2.29, `transition="none"` this phase) · `Tag` (pill, radius 0, solid fill; the word is a prop) · `LabelBox` (4px radius letter box) · `Rule` (1/2/3px divider) · `ClockDigits` (ms in, `[ hh:mm:ss ]` out; never ticks) · `PointsFigure` (signed points + authored unit) · `CategoryCode` (whatever code play-state carries) · `DecorShape` **deferred to pages** |
+| **molecules** ☑ | `TeamChip` · `ScoreRow` · `SequenceRow` (position derived from ring index, team and score from play-state) · `DomainCard` (**difficulty** of the next question + name + selected state — no serial number) · `AnswerOption` (8px card, neutral/dim/selected/correct/incorrect, hidden-but-mounted until revealed) · `TimerPanel` (label + milliseconds in; serves both the **Play clock** — how long the game has been running — and the question countdown) · `ResultWidget` (verdict + awarded points) · `QuestionStem` |
+| **organisms** ☑ | `StageHeader` (asymmetric 1/1/2px rule; title, subject and Play clock derived from play-state) · `SequenceTable` · `DomainGrid` · `AnswerGrid` · `ScoreboardTable` · `LeaderboardList` · `DecorField` **deferred to pages** |
+| **templates** ☑ | `StageFrame` (1920×1080, 64px padding, 40px header/body gap, header + body + decor slots) · `SplitFrame` (content column + fixed 398–600px decorative column) |
+| **pages** ☐ | `Idle` · `TeamOrder` · `ChooseDomain` · `Question` · `Scoreboard` · `FinalLeaderboard` · `CurrentTeam` — built one at a time with the operator, decor included |
 
 Plus a **fixture switcher** dev route — pick a fixture, render the screen. It survives into P3 as the animation harness.
+
+**Two kinds of text reach Stage.** Derived text (team names, domain names, difficulty, stems, options, points, ranks, clocks) arrives in `play-state` and is never written in a component. Authored text (HUD labels, the `//` delimiter, verdict wording, tag words, the idle tagline, the difficulty bands) lives in `apps/stage/src/copy/` so an operator-editable copy table later has exactly one thing to override. A component that carries a string literal an operator might want to change is a bug.
+
+**Contract changes made for P2 (2026-09-04, `CONTRACT_VERSION` 2):** `clock: { elapsedMs, running }` on the Play (the header's Play clock — how long the game has been running — needs host time); `nextDifficulty` on `StageDomain` (the domain card shows difficulty, not a number); `leaderboardRevealedRanks` moved from `session.reveals` to the Play root, because FinalLeaderboard shows with `session: null` and had nowhere to keep it. `finalLeaderboard.row.<n>` keys off finishing *position*, not competition rank, so tied teams get distinct node ids.
 
 **Design constraints — rules, not suggestions** (source: the design system readme)
 
@@ -228,7 +232,7 @@ Plus a **fixture switcher** dev route — pick a fixture, render the screen. It 
 - Copy is HUD-terse: `DOMAIN // TECHNOLOGY`, `TIMER // REMAINING`, `[ 00:12:20 ]`, `RESULT // ALL CORRECT`, `+N PTS`. Category codes `TEC_881`. No emoji.
 - Max 1–2 signal colours live per screen.
 - **No hover, focus, or press states.** The only state change is the reveal: dim → highlighted.
-- Decorative shapes are loose bodies at matrix rotations, opacity 0.12–0.35 as texture or 1.0 as commentary. Never redraw the `?`/`!` glyphs.
+- Decorative shapes are loose bodies at matrix rotations, opacity 0.12–0.35 as texture or 1.0 as commentary. Never redraw the `?`/`!` glyphs. **Placement is decided per page, with the operator, not in advance.**
 
 **Exit criteria**
 
