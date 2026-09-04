@@ -1,0 +1,213 @@
+o3_context.md
+01_codebase-design-spec-v1.md
+02_spec-v1/
+
+use this document 00_first_spec.txt just as reference; it is the first prompt and it might have gaps;
+
+
+
+
+
+
+0. Full-stack monorepo managed by git; opensource, license: GNU v3 and so on.
+Context for the AI agent: But the app does not need to hasle with these. App for a TV production. The app does not need to work in live environments like streaming live. The game is played anywhere [studio, room, etc etc]. The Stage needs to open full screen on a secondary display. etc etc. So this app/game is for a recorded show that goes through post production. Or even the app can be downloaded by anybody that does not need all this hassle. he just wants to play the game with his firends, or at school. 
+But for now, the app needs to be ready for a recorded show, where teams and moderator are in a studio room (or outside) and an operator needs to control the STAGE. 
+
+The app needs to integrate with Windows and Mac OS correctly. 
+The app has to use real data. For example it needs to know from OS when an external display is connected to the device the app is on. it needs to know the real permissions etc etc. (many of these do not even have to be surfaced; the engines of the app have to handle mostly; but if for example there are some errors the user of the app needs to know about; surface them as errors/warnings along side suggestions). 
+The app has to respect how to install and how to uninstall, or to respect how to create processes to be seen in task manager on windows and mac os etc (most of the things might be done by Tauri 2 when everything get's packaged; so we do not have to worry too much about these).
+But the app has to have engines that handle the health of the app in background (no surfacing until an error/warning/necessary info). No memory leaks. 
+The app has to respect paths of installation. The app has to respect where to store all of the files once the user starts to use the app. 
+The uninstallation screen has to provide options to delete app files and/or generated user files. etc etc. 
+
+Atomic. 
+
+The app needs state management. For example, in the same tab it a change happens; if other componentes depende or use that variable that changed, all have to update instantly. If something changed in a tab; it has to reflect in other tabs as well. 
+The app has to stay optimized while offering fullstack quality. 
+
+Offline first. No need for internet now. 
+
+
+
+
+1. Short description:
+A game of question and answers.
+
+1.1 When? How? 
+Competing teams and the game moderator can see the game presented on an external display, TV, monitor, projector etc. So this is the presentation or stage.
+The stage is controlled by an operator in the app. The app allows the operator determine what's going next on the stage/presentation.
+There is a game engine that owns the game itself. The stage presents the game through custom built SLIDES/SCREENS.
+
+1.2 Who owns what?
+The engines work layered.
+To ensure everything works correctly we have to separate concerns to different engines. Every engine owns what it has to do. To ensure the engines work correctly we can introduce Layered Engines: 
+(Layer 1) A single engine that owns it's own concerns 
+(Layer 2) An engine that owns/manages/binds/operates two single engines. I imagine these facilitate the talking between the two engines
+(Layer 3) An engine that owns/manages/binds/operates (layer 1) + (layer 2) + (layer 2) OR (Layer 2) + (Layer 2) + (Layer 2) + (Layer 1) OR etc...
+(Layer 4) and so on....
+
+(Layer 2), (Layer 3), (Layer 4) and so on have to ALSO manage their own states and metadata.
+
+
+Also, for React follow the api/docs pattern. I think react uses Providers. and other things. make sure you follow the react 19 api docs.
+1.3 Stack
+RUST
+Tauri 2
+Typescript@latest, React@latest, Tailwind@Latest, HeroUi@latest
+npm i @heroui/styles @heroui/react
+npm install echarts (npx shadcn@latest add @evilcharts/echarts-{chart-name}) (use for charts; use non-conflictual with the rest of the app ui that uses HeroUI)
+npm install motion (import { motion } from "motion/react")
+npm install @web-kits/audio (can it be used to create sounds for the game? or is it used only for ui of the app? can it load custom sound files?)
+npm install calligraph
+npm install matter-js
+npm install dialkit motion (this can be handy in many areas of the app)
+npm install @svgdotjs/svg.js
+
+
+i think if we use gsap we might drop some other depenceies like, svg.js, matter-js. 
+npm install gsap
+npm install @gsap/react
+
+
+npm install @dnd-kit/react
+npm i @phosphor-icons/react (dual tone)
+npm i @base-ui/react (unstyled components are used by the AI to create custom new components, only if the styled ones of HeroUI are deemed as not good for a certain usecase; it has to integrate with the use of the Hero ui primitives for the app)
+
+
+
+skills or agents.md
+npx skills add https://github.com/anthropics/skills --skill frontend-design
+npx heroui-cli@latest agents-md --react
+
+1.4
+The SLIDES/SCREEN that get presented on STAGE/PRESENTATION
+Built like a game,
+Runs like an presentation.
+Beautifully designed like a game using 3D/2D, animation, physics, haptics, and sounds.
+
+
+1.5 The game screens/slides
+Screens/Slides that would go on STAGE/PRESENTATION.
+
+0. Idle
+a. Order of teams
+b. Choose Domain for question
+c. Question Screen
+d. Scoreboard
+e. Final Leaderboard 
+
+
+2. How the game plays.
+spec v1 for questiongame
+the game rules and variables.
+1. Teams [n number of teams]
+2. Questions [difficulty]
+3. Answers
+4. Domains [questions]
+5. Points [number]
+The game settings, names, domains, questions, difficulty, answers, points and other variables (not yet included in this spec, but might be introduced in future) can be changed/are set before the game plays; 
+
+The game is played in teams. The game follows a predictable order of the teams. 
+The domains can be n number. They also can hold n number of questions. Each question has it's own set difficulty (as number between 1 and 100). Per domain, the difficulty progresses from easy to hard. Once a question has been played by a team and the outcome was either correct or wrong, the question expires for the {current} game.   
+All the domains of questions: (a) they can have different number of questions; (b) the questions can have different difficulty progressions; (c) the domains can have the same number of questions; (c) the progression of difficulty is the same for all the questions in each domain.
+The team in order can choose any domain. But they cannot choose their question or difficulty. The questions and difficulty progress automatically per domain. 
+The questions can be multiple answer or single answer.
+A team's turn is available until they answer wrong to a question. If they answer correct to a question they keep the turn and can either continue with the same domain (if the domain still has questions) either they can choose another domain. 
+
+Points awarded: (1) flat, no matter the difficulty; (2) complex, based on the difficulty of the questions; (3) other;  these should be set manually in the settings before the game. 
+
+A game finishes when there are no more questions in any domain. The game accepts ties between any team place. 
+
+There can be examples where a team never answers wrong and they can continue with their turn as long as there are questions. So they can finish the game. But that is why this engine accept settings. 
+
+example: 
+Team 1, Team 2, Team 3 (in this order)
+Domain:  History ([q1, 10], [q2, 20], [q3, 30]), Geography ([q1, 10], [q2,20], [q3,30])
+
+Team  1 chooses history. q1 is played. Correct answer. q1 is never played in the current game. Team 1 continues. Team 1 can choose to change domain. But Team 1 chooses to continue in history. q2 is played. Answer wrong. q2 is never played again in the current game. Team 2 is next in order. Available domains. History and Geography. They choose history. q3 is played. Answer wrong. q3 is never played again in the current game. Team 3 is next. Available domains Geography. They choose geography. q1 is played. Correct answer. Team 3 can choose to change domain... etc The game ends when there are no more questions.
+
+Now, each of these are settings. A setting can have multiple options. So the engine of the game can accept different settings. Infer logical options for each of the question. For example a setting that owns how many consecutive correct turns are allowed. (this way this setting ensures that a team cannot finish alone the questions). Another setting that owns the awarded points can say "If a team completes consecutive correct turns, they get a bonus award {based on the scoring system}".
+
+
+3. App
+
+The app works like a studio. It manages everything. It's backend and frontend structure.
+through the app, the end-user/operator/everyone, manages all the variables.
+
+3.1. Installation screen
+3.2. First time setup screen. Each of the settings the setup contains can be modified at any point from the Settings. 
+
+Shell. Sidebar + Content + Top bar + Bottom bar (Status bar)
+
+3.3. Teams tab. Manager for all teams. Library of teams. Allows full CRUD. Metadata for each team (includes all possible data, when played, + technical etc ). Delete is just soft delete, in archive.
+3.4. Domains+Question tab. Library of all the domains+questions. Allows full CRUD. Here all questions are created. Here all domains are created and managed. Difficulty for each question. Metadata full. All Delete is just soft delete, in archive. 
+3.5. Game tab. Library for all played games. The game tab shows all games as cards/folders. So in-tab navigation is required to Allows full CRUD. Delete is soft-delete, in archive. Metadata full.  
+3.8 Screens tab. Only use is when the game is not playing. I think this can be a canvas. This will allow the operator to load a game (from game tab). Here the operator/user will be able to visually modify each component of the screens (that go on stage). The screens already have everything default as they are built, so the game can play even if the operator has not used this tab with all of it's options. For example change font, font size, color (apply to all screens or to current screen); Loading the game will also load the questions, domains, etc. So, for example, if the operator sees that a question text is too small and out of bounds he can do resizing of the component, moving, etc. This will need a layout engine (either custom from 0; either based on dnd kit or some other library). Here the the dialkit motion package can be used. All modifications are saved to the game that was loaded. So when the game is played, the screens/slides show up on STAGE/Presentation with those modifications. What has not been modified stays as default. 
+3.6. Control tab. Centre [Viewer of the STAGE/Presentation]. Bottom [Timeline panel, others will follow]; Right [Right top [Actions panel] , Right bottom [Strips panel of all the Screens/Slides]], Left [Game panel], Top [Some control settings: like, STAGE [External Display 1, 2, 3, etc], Statisctics [External Display 1,2,3, etc], what other settings?]. These panels can resize and adapt and can be moved, even the viewer. Each component (of the panels, and of groups) has to have a state a visual style for scale: how do i look when space is limited? What options can i show directly when space is limited? Based on the space available how many steps to show all of my components?. Of course all the components can allow for scroll, but only vertical, not horizontal. 
+3.7. Statistics. Live statistics for the currently playing game, and Statistics of all data: Manager of all statistics. Offers full filters. Compound filters [All variables + Time]. Has two main views. 
+
+3.8. Operators. Library of all operators. 
+3.9. Settings tab. Manages all the global settings. 
+
+All these tabs show up in the sidebar. But all tabs can offer in-tab navigation back-and-forth. As deep as every tab content requires.  
+The sidebar can be collapsed in two ways: strip, where only the icons are shown, or hidden completely: it can be added again by draging from the left-edge of the app.
+ 
+Most of these tabs need a search. Use tantivy for Rust so that we do not have to build it from 0. The search component can be reused in Questions, Teams, Game, Screens, Operator tabs etc etc.  
+
+3.10 So how do i imagine the flow?
+A. Context for AI: i need this for the recorded show. 
+1. Add teams in Teams tab. 
+2. Add Questions in Question's tab.
+3. Add Game in Game tab. Configure everything for the game. In the game tab add all teams, domains+questions, modify game settings etc etc.
+4. (optionally) Load game in Screen's tab (canvas) and apply modifications. All the modifications save automatically. 
+5. To play a game, Go into control. From the game panel select which game to load. The game starts when the operator presses play from the game panel. 
+
+What means to play a game? The distinction is needed for metadata. So each play of the same game can correctly manage it's own metadata.
+The same game can be played an infinite amount of times. The same game can play with some settings. or the same game can play with different settings and setup's. 
+All the questions are reusable: teams, domains, questions. Can be added in any game. etc etc. that's why it's important for each to handle correctly it's metadata. 
+
+
+4. The Staged Screens/Slides and some control tab
+
+I will detail the screens in other prompt. But i need to clarify something.
+If using the gsap, the screens need to transition seamlessly and that's the base/default transitions. All screens need to have transitions between each of them, because the operator can decide what screen to show on stage.
+
+But there will still be animated components that run as complementary transitions between screens. 
+For example: If from Idle Screen --> Domains screen, that means the team order screen was passed. This means that going from Idle to Domains will have a complementary animation showing the team that has the current turn. 
+If the order was Idle --> Order Team --> Domain, only the base transition is played. 
+
+Another example. If Team 1 answers wrongly and Team 2 is next, if the operator decides to show the screen of domains, stepping over team order screen, the entry animation on the Domain screen will first show an animation that shows the turn change from TEAM 1 to Team 2. 
+But If Team 1 answers wrongly and Team 2 is next, if the operator decides to show the screen Order Screen, the only transition is the default one, based on what gsap does. And then going to domain screen, plays the default transition determined with gsap; and then going to question screen, still plays the default transition between those screens determined by gsap. 
+
+
+There is another layer of animations: (a) Question Screen; once the transition from previous screen is completed, (a.1) the Question, and the answers, are not shown automatically. The operator chooses to reveal each individually. First the Question, Then each answer individually. The time starts also when the operator starts it from Action panel.
+The (b) leaderboard also get's this same level of control. From the lowest team, first, to the first one. 
+But for these, the operator can choose from Control tab in the Game Panel, if they appear automatically or they need to wait for operator's decision.
+
+i will detail them even more if needed.
+
+4.1 The control tab
+
+The control tab get's the viewer. The viewer shows the same screens that are on stage. But with some modifications. These modifications are overlays. To not overload the Action Panel, i want that the operator interact with some elements from the screens through the viewer. Of course they are separate concerns, so that the STAGED screens do not show them or the mouse. They are different. 
+Anyhow, for Team order Screen. So with the viewer, the operator can control by clicking the actual components of the screen to give the turn to another team instead of the default order. So the default order of teams will be set in the Game tab. but the operator can change that through the viewer While the game is playing. But the default order still continues once the team (that was selected by the operator) answers wrong. If the operator overrides again, no problem. the default order continues. Example: Deafult order: Team 1 --> Team 2 --> Team 3 --> Team 4. Team 2 answered wrong. The operator opens domain screen. Since an entering dirrectly domain screen the animation between Team 2 and Team 3 is played. But if the operator overrides to team 4, the animation is replayed again between Team 2 and 4, and then the domain screen content is shown. 
+This raises another problem, If the operator never shows the Order team, how can he override? because from the viewer he could not click the team name in the order screen. The answer is simple: there are actions in Action Panel. 
+The default order engine (or whatever engine own this thing), adapts dynamically so that Team 3 is not overlooked. 
+The Action Panel will show a table with all teams and the operator can drag and drop them. But one clarification: All team's turns have to be in sync. A team can play on it's turn infinite number of questions and get points. So, if Team 1, team 2, Team 3, TEam 4 have turns [1,1,0,1] and questions [20,2,0,4], the order cannot go to [2,1,0,1]. All teams have to play their turn [1,1,1,1], questions [20,2,1,4], then the turn can go [2,1,1,1]. The operator cannot override the same team consecutive times. and if turns [1,1,0,0] the order of turns cannot be [2,1,0,0] or [1,2,0,0] or [2,2,0,0]. So by default the engine will enforce to have [1,1,1,1]. 
+
+
+The panels are resizable [min, max] per width and height. The panels can be arranged between panels in the control tab. Multiple panels can stack, so the user has tab control and can change between them. 
+
+
+The timeline in the control. Is an optional panel, meaning by default it is collapsed. it's only use case that i can think of is to offer a simple interface for the operator to see the order of the elements that played. Why? On a studio set, while recording there might be unexpected things. For example if the game takes too much time to record, and certain breaks are needed [pee-break, hunger-break etc etc], from the Game panel the operator can pause the game. And when ready again, he can resume. 
+But the Timeline panel allows for undoing turns and redoing them. The operator can go back with one, two, tree, or all turns. If needing to go back from the beginning the app will warn him to better restart the game (from game panel). (This is for metadata purposes only; to have clear metadata about the game. Plus it would be illogical to go back from the beginning when the operator can restart from form game panel). 
+Another case, in the game tab, the user can add multiple questions to the game anticipating at least 2 restarts; if so when restarting from game panel it should give the operator the option: restart with same questions or different questions. This seems similar to the thing i mentioned in this prompt that the game can be replayed multiple times with settings, and other variables different (teams, questions). But a replay is different from restarting. What differs? Well i do not have the terminology now. 
+
+I didn't say this anywhere but here. So i am introducing this thing now. The app clearly needs a version control for each little thing. So maybe a replay is a different version in branching (version control). While a restart is just a restart in the same branch. I do not know. Is this good? Do you have a better strategy?
+
+
+5. Manage/Engines
+
+So i propose this engine structure Question Engine, The Award engine, The domain engine, The teams engine, The settings engine, The screens engine, The animation engine. What other engines would you suggest? 
+What goes in RUST and what in Typescript? I would say that the logic of backend in Rust. Is there any logic that is in Typescript + REact + other libraries? I think the multiple visual versions per component? But anyway, for those versions to surface, they need to be caused by the backend (or be surfaced because something changed in the backend).
+
+(Man, full stack is complex)

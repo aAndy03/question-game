@@ -1,0 +1,68 @@
+/* Stage token scope — questiongame design system.
+ *
+ * optimized_first_spec.md §2.30: Studio and Stage share one component stack and
+ * differ only in token scope. This file is that scope. It must never be loaded
+ * by the Studio webview, and packages/design-studio/studio.css must never be
+ * loaded here.
+ *
+ * The HeroUI variables at the bottom are redefined so any HeroUI or Base UI
+ * component rendered on Stage inherits the questiongame look instead of the
+ * Studio theme.
+ */
+
+@import "./fonts/fonts.css";
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+
+:root {
+  color-scheme: light;
+}
+
+/* Stage is a fixed 1920x1080 surface. The design system allows no page scroll,
+ * no drop shadow, and no pointer affordance. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  cursor: none;
+}
+
+/* HeroUI v3 / Base UI theme variables, repointed at the questiongame palette.
+ * See docs/v1/04_ROADMAP.md "Two design systems, one component stack". */
+:root,
+[data-surface="stage"] {
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --surface: var(--paper);
+  --surface-foreground: var(--ink);
+  --surface-secondary: var(--paper);
+  --surface-secondary-foreground: var(--ink);
+  --border: var(--ink);
+  --separator: var(--border-subtle);
+  --muted: var(--text-muted);
+
+  --success: var(--state-correct);
+  --success-foreground: var(--ink);
+  --danger: var(--state-incorrect);
+  --danger-foreground: var(--ink);
+  --warning: var(--state-accent);
+  --warning-foreground: var(--ink);
+  --accent: var(--state-info);
+  --accent-foreground: var(--ink);
+
+  /* The design system uses 0 radius by default; 4px letter boxes and 8px
+   * answer cards are the only exceptions, set locally by those components. */
+  --radius: var(--radius-none);
+  --field-radius: var(--radius-none);
+
+  /* HeroUI's --font-mono and the questiongame --font-mono are the same token
+   * name, so only the sans slot needs repointing. Do not "remap" --font-mono
+   * to itself: a self-referential custom property is invalid and silently
+   * falls back to the inherited family. */
+  --font-sans: var(--font-display);
+}

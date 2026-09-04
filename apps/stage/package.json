@@ -1,0 +1,20 @@
+{
+  "name": "@questiongame/stage",
+  "version": "0.0.0",
+  "private": true,
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5180 --strictPort",
+    "build": "vite build",
+    "preview": "vite preview --port 5180 --strictPort",
+    "typecheck": "tsc --build"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "@questiongame/contract": "*",
+    "@questiongame/text": "*",
+    "@questiongame/design-stage": "*"
+  }
+}

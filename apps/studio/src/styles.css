@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+/* The Studio token scope. Loading design-stage here is a lint error
+ * (optimized_first_spec.md §2.30). */
+@import "@questiongame/design-studio/studio.css";

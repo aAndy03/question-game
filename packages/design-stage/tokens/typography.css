@@ -1,0 +1,25 @@
+/* Fonts are self-hosted in ../fonts/fonts.css (offline-first). */
+:root{
+--font-display:"Space Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+--font-mono:"Space Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+--text-mega:160px;
+--text-giant:104px;
+--text-display-1:73px;
+--text-display-2:56px;
+--text-display-3:48px;
+--text-display-4:36px;
+--text-heading-1:64px;
+--text-heading-2:32px;
+--text-heading-3:28px;
+--text-heading-4:24px;
+--text-body:16px;
+--text-label:14px;
+--text-caption:12px;
+--text-micro:10px;
+--tracking-tight-1:-6px;
+--tracking-tight-2:-4px;
+--tracking-tight-3:-2px;
+--tracking-tight-4:-1.5px;
+--tracking-wide-1:2px;
+--tracking-wide-2:4px;
+}

@@ -1,0 +1,30 @@
+/* Studio token scope — HeroUI v3 theme as shipped.
+ *
+ * optimized_first_spec.md §2.30: this is the Studio chrome's design system, and
+ * it is deliberately NOT the questiongame Stage look. It must never be loaded
+ * by the Stage webview, and packages/design-stage/stage.css must never be
+ * loaded here.
+ *
+ * globals.css is the theme exported from HeroUI. Edit that file to retheme
+ * Studio; do not add overrides below it without recording the decision in the
+ * spec.
+ */
+
+@import "./globals.css";
+
+/* globals.css sets --font-sans: var(--font-geist) and expects the app to load
+ * Geist. It is not installed yet (P7 decision), so this keeps text readable
+ * without silently falling back to a serif. */
+:root {
+  --font-geist: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}

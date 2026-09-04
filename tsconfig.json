@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/contract" },
+    { "path": "./packages/text" },
+    { "path": "./packages/design-stage" },
+    { "path": "./packages/design-studio" },
+    { "path": "./apps/stage" },
+    { "path": "./apps/studio" }
+  ]
+}

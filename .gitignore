@@ -1,0 +1,16 @@
+node_modules/
+dist/
+target/
+*.tsbuildinfo
+.vite/
+coverage/
+
+# agent tooling, not project source
+.agents/
+.claude/
+.remember/
+skills-lock.json
+
+# os
+Thumbs.db
+.DS_Store
