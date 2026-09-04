@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { nodeId, type PlayStateForStage, type StageDecorSettings } from '@questiongame/contract'
 import { DecorShape, type DecorShapeBody } from '@/atoms'
-import { DECOR_BY_SCREEN, createDecorWorld, decorAsset, decorTransform, seedFromPlay, type DecorWorld } from '@/decor'
+import {
+  DECOR_BY_SCREEN,
+  createDecorWorld,
+  decorAsset,
+  decorOpacity,
+  decorTransform,
+  seedFromPlay,
+  type DecorWorld,
+  type PlacedBody,
+} from '@/decor'
 
 /**
  * The loose bodies for the current screen, alive for as long as the screen
@@ -9,10 +18,11 @@ import { DECOR_BY_SCREEN, createDecorWorld, decorAsset, decorTransform, seedFrom
  *
  * The world is created from (screen, seed, settings) and stepped on
  * requestAnimationFrame; each frame writes `style.transform` on the shape
- * elements directly. React renders the first frame and never re-renders per
- * tick, so a play-state emission every 100ms costs nothing here and never
- * restarts the scatter. A new Play (new seed), a screen change, or a changed
- * decor setting builds a new world; anything else leaves it running.
+ * elements directly. React renders from the latest known placements, so a
+ * re-render for any other reason (an outcome changing a body's opacity)
+ * never snaps a body back to frame zero. A new Play (new seed), a screen
+ * change, or a changed decor setting builds a new world; anything else
+ * leaves it running.
  *
  * Node ids are `<screen>.decor.<n>` in manifest order.
  */
@@ -23,7 +33,8 @@ export interface DecorFieldProps {
 
 /** A stable identity for the settings object, so equal values share a world. */
 function settingsKey(s: StageDecorSettings): string {
-  return `${s.mode}|${s.drift}|${s.attraction}|${s.bounce}|${s.spin}|${s.maxSpeed}`
+  const a = s.anchor
+  return [s.mode, s.drift, s.attraction, s.bounce, s.spin, s.maxSpeed, a.enabled, a.attractSeconds, a.repelSeconds, a.strength].join('|')
 }
 
 export function DecorField({ state }: DecorFieldProps) {
@@ -39,7 +50,12 @@ export function DecorField({ state }: DecorFieldProps) {
     // `key` stands in for `settings` so an equal-valued new object is a no-op.
   }, [screen, seed, key])
 
-  const first = useMemo(() => world?.read() ?? [], [world])
+  const latest = useRef<readonly PlacedBody[]>([])
+  const worldOfLatest = useRef<DecorWorld | null>(null)
+  if (worldOfLatest.current !== world) {
+    worldOfLatest.current = world
+    latest.current = world?.read() ?? []
+  }
   const elements = useRef<(HTMLDivElement | null)[]>([])
 
   useEffect(() => {
@@ -51,6 +67,7 @@ export function DecorField({ state }: DecorFieldProps) {
       world.step(now - last)
       last = now
       const placed = world.read()
+      latest.current = placed
       for (const p of placed) {
         const el = elements.current[p.index]
         if (el) el.style.transform = decorTransform(p)
@@ -66,7 +83,7 @@ export function DecorField({ state }: DecorFieldProps) {
 
   return (
     <div data-decor-field={screen} data-decor-seed={seed} data-decor-mode={settings.mode} style={{ position: 'absolute', inset: 0 }}>
-      {first.map((p) => {
+      {latest.current.map((p) => {
         const spec = p.spec
         const body: DecorShapeBody =
           spec.kind === 'svg'
@@ -85,7 +102,7 @@ export function DecorField({ state }: DecorFieldProps) {
             height={p.height}
             transform={decorTransform(p)}
             color={spec.color}
-            opacity={spec.opacity}
+            opacity={decorOpacity(spec, state)}
             body={body}
           />
         )

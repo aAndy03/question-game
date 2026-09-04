@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { COLOR, RADIUS, SPACE } from '@questiongame/design-stage'
 import { insetFrame } from './inset'
 import { Text, type TextTone } from './Text'
+import type { BorderWeight } from './inset'
 
 /**
  * The letter / avatar box: the only surface with a 4px radius. Holds one
@@ -28,10 +29,11 @@ const FILL: Record<LabelBoxFill, { bg: string; fg: TextTone; border: string }> =
 export interface LabelBoxProps {
   size?: LabelBoxSize
   fill?: LabelBoxFill
+  border?: BorderWeight
   children: ReactNode
 }
 
-export function LabelBox({ size = 'md', fill = 'paper', children }: LabelBoxProps) {
+export function LabelBox({ size = 'md', fill = 'paper', border = 'thick', children }: LabelBoxProps) {
   const f = FILL[fill]
   return (
     <span
@@ -45,10 +47,10 @@ export function LabelBox({ size = 'md', fill = 'paper', children }: LabelBoxProp
         flex: '0 0 auto',
         background: f.bg,
         borderRadius: RADIUS.sm,
-        boxShadow: insetFrame('thick', f.border),
+        boxShadow: insetFrame(border, f.border),
       }}
     >
-      <Text variant="stage-code" tone={f.fg}>
+      <Text variant="stage-letter" tone={f.fg}>
         {children}
       </Text>
     </span>

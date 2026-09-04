@@ -39,7 +39,8 @@ export interface DecorShapeProps {
   /** The full transform for this frame; see `decorTransform` in `@/decor`. */
   transform: string
   color: DecorShapeColor
-  opacity: number
+  /** A number, or a CSS value such as `var(--decor-opacity-texture-min)`. */
+  opacity: number | string
   body: DecorShapeBody
   ref?: Ref<HTMLDivElement>
 }

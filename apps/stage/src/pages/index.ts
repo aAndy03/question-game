@@ -2,3 +2,4 @@ export { StageRoot, BUILT_SCREENS, type StageRootProps, type StagePageProps } fr
 export { IdlePage, type IdlePageProps } from './Idle'
 export { TeamOrderPage } from './TeamOrder'
 export { ChooseDomainPage } from './ChooseDomain'
+export { QuestionPage } from './Question'

@@ -42,6 +42,9 @@ export type TextTransition = 'none' | 'swap' | 'count';
  *   meta-label / meta-value  small label over value stacks — Space Grotesk
  *   code-quiet               a category code at rest — Space Mono regular
  *   card-figure / card-name  the domain card's number and name
+ *   figure                   a hero figure in a panel (timer digits, points) — Space Grotesk bold
+ *   team-tag                 a team name beside a HUD label — Space Grotesk regular, uppercase
+ *   letter / answer          an answer card's letter and text — Space Grotesk bold
  */
 export type TextVariant =
   | 'stage-mega'
@@ -65,6 +68,10 @@ export type TextVariant =
   | 'stage-code-quiet'
   | 'stage-card-figure'
   | 'stage-card-name'
+  | 'stage-figure'
+  | 'stage-team-tag'
+  | 'stage-letter'
+  | 'stage-answer'
   | 'studio-body'
   | 'studio-label'
   | 'studio-caption';
@@ -134,7 +141,7 @@ const VARIANT_TOKENS: Record<TextVariant, VariantTokens> = {
   'stage-mega': display('var(--text-mega)', 'var(--tracking-tight-1)'),
   'stage-display': display('var(--text-display-1)', 'var(--tracking-tight-2)'),
   'stage-number': display('var(--text-giant)', 'var(--tracking-tight-2)'),
-  'stage-question': display('var(--text-display-3)', 'var(--tracking-tight-3)', 'var(--leading-heading)'),
+  'stage-question': display('var(--text-display-2)', 'var(--tracking-tight-3)', 'var(--leading-heading)'),
   'stage-name': {
     ...display('var(--text-display-2)', 'var(--tracking-tight-3)', 'var(--leading-heading)'),
     casing: 'var(--case-name)',
@@ -169,6 +176,10 @@ const VARIANT_TOKENS: Record<TextVariant, VariantTokens> = {
   'stage-code-quiet': { ...mono('var(--text-body)', 'var(--tracking-normal)', 'var(--case-prose)'), weight: 'var(--weight-regular)' },
   'stage-card-figure': grotesk('var(--text-display-4)', 'var(--weight-bold)'),
   'stage-card-name': { ...mono('var(--text-display-4)', 'var(--tracking-normal)', 'var(--case-prose)'), leading: 'var(--leading-heading)' },
+  'stage-figure': { ...grotesk('var(--text-heading-1)', 'var(--weight-bold)'), tracking: 'var(--tracking-tight-3)', leading: 'var(--leading-display)' },
+  'stage-team-tag': { ...grotesk('var(--text-body)', 'var(--weight-regular)'), casing: 'var(--case-name)' },
+  'stage-letter': grotesk('var(--text-heading-4)', 'var(--weight-bold)'),
+  'stage-answer': grotesk('var(--text-heading-2)', 'var(--weight-bold)'),
   'studio-body': studio('var(--text-body)'),
   'studio-label': studio('var(--text-label)'),
   'studio-caption': studio('var(--text-caption)'),

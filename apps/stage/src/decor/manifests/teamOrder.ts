@@ -2,8 +2,7 @@ import type { ScreenDecorSpec } from '../types'
 
 /**
  * TeamOrder: the letters R E A D Y from the export, tumbling on the right
- * third, with a hairline-outlined `?` among them. The `?` outline is a glyph
- * stand-in until it is exported as a path.
+ * third, with the outlined `?` (the `_` asset) among them.
  */
 export const TEAM_ORDER_DECOR: ScreenDecorSpec = {
   screen: 'teamOrder',
@@ -15,6 +14,6 @@ export const TEAM_ORDER_DECOR: ScreenDecorSpec = {
     { kind: 'svg', asset: 'order-E', height: { min: 270, max: 320 }, color: 'ink', opacity: 1, rotation: { min: -10, max: 10 }, region: { x: { min: 0, max: 0.3 }, y: { min: 0.3, max: 0.5 } } },
     { kind: 'svg', asset: 'order-R', height: { min: 270, max: 320 }, color: 'ink', opacity: 1, rotation: { min: -10, max: 10 }, region: { x: { min: 0.6, max: 1 }, y: { min: 0.4, max: 0.6 } } },
     { kind: 'svg', asset: 'order-Y', height: { min: 270, max: 320 }, color: 'ink', opacity: 1, rotation: { min: -10, max: 10 }, region: { x: { min: 0.1, max: 0.4 }, y: { min: 0.7, max: 1 } } },
-    { kind: 'glyph', glyph: '?', stroke: true, height: { min: 260, max: 300 }, aspect: 0.62, color: 'ink', opacity: 1, rotation: { min: -25, max: -10 }, region: { x: { min: 0.3, max: 0.6 }, y: { min: 0.35, max: 0.6 } } },
+    { kind: 'svg', asset: 'order-_', height: { min: 270, max: 310 }, color: 'ink', opacity: 1, rotation: { min: -10, max: 10 }, region: { x: { min: 0.3, max: 0.6 }, y: { min: 0.35, max: 0.6 } } },
   ],
 }

@@ -16,10 +16,10 @@ export interface PointsFigureProps {
 export function PointsFigure({ points, size = 'hero', tone = 'heading' }: PointsFigureProps) {
   return (
     <span data-points={points} style={{ display: 'inline-flex', alignItems: 'baseline', gap: SPACE[2] }}>
-      <Text variant={size === 'hero' ? 'stage-number' : 'stage-heading'} transition="count" tone={tone}>
+      <Text variant={size === 'hero' ? 'stage-figure' : 'stage-heading'} transition="count" tone={tone}>
         {signedPoints(points)}
       </Text>
-      <Text variant="stage-code" tone={tone === 'muted' ? 'muted' : 'primary'}>
+      <Text variant={size === 'hero' ? 'stage-figure' : 'stage-code'} tone={tone}>
         {STAGE_COPY.pointsUnit}
       </Text>
     </span>

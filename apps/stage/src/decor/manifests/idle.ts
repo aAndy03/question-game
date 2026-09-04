@@ -5,9 +5,8 @@ import type { ScreenDecorSpec } from '../types'
  * giant `?`, three loose digits, a mint `+` burst, a coral `−` bar and two
  * hairline diamond outlines, all bleeding off the top and right edges.
  *
- * The `?` and the digits are glyph stand-ins: the Figma export did not
- * include them as paths (see roadmap, open decisions). Swap each to
- * `{ kind: 'svg', asset: … }` once the asset lands — nothing else changes.
+ * The diamonds are the Union assets. The `?` and the digits are glyph
+ * stand-ins until exported as paths; swap each to `{ kind: 'svg' }` then.
  */
 export const IDLE_DECOR: ScreenDecorSpec = {
   screen: 'idle',
@@ -73,21 +72,21 @@ export const IDLE_DECOR: ScreenDecorSpec = {
       region: { x: { min: 0.55, max: 0.95 }, y: { min: 0.35, max: 0.6 } },
     },
     {
-      kind: 'outline',
-      shape: 'square',
-      height: { min: 170, max: 230 },
+      kind: 'svg',
+      asset: 'board-union',
+      height: { min: 230, max: 280 },
       color: 'ink',
       opacity: 1,
-      rotation: { min: 25, max: 60 },
+      rotation: { min: -15, max: 15 },
       region: { x: { min: 0.7, max: 1 }, y: { min: 0, max: 0.2 } },
     },
     {
-      kind: 'outline',
-      shape: 'square',
-      height: { min: 150, max: 210 },
+      kind: 'svg',
+      asset: 'board-union-1',
+      height: { min: 230, max: 280 },
       color: 'ink',
       opacity: 1,
-      rotation: { min: 25, max: 60 },
+      rotation: { min: -15, max: 15 },
       region: { x: { min: 0.75, max: 1 }, y: { min: 0.8, max: 1 } },
     },
   ],

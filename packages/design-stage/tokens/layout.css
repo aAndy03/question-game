@@ -30,6 +30,13 @@
   --stage-content-column: 1128px;
   --stage-content-column-wide: 1228px;
 
+  /* Question screen (Figma at 1920): the side panel that holds the timer or
+   * the result, and the answer board width. */
+  --stage-side-panel-width: 396px;
+  --stage-side-panel-height: 197px;
+  --stage-question-column: 1248px;
+  --stage-answer-card-height: 157px;
+
   /* The fixed-width decorative column in a two-column screen. */
   --stage-decor-column-min: 398px;
   --stage-decor-column-max: 600px;

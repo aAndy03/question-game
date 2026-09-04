@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
 import { FIXTURES, SCREEN_SLOTS, nodeId } from '@questiongame/contract'
-import { DECOR_BY_SCREEN } from '@/decor'
+import { DECOR_BY_SCREEN, decorOpacity } from '@/decor'
 import { STAGE_COPY } from '@/copy'
 import { BUILT_SCREENS, StageRoot } from './index'
 
@@ -89,6 +89,100 @@ describe('ChooseDomain page', () => {
   it('lays out the CHOOSE letters as decor', () => {
     const { container } = render(<StageRoot state={state} />)
     DECOR_BY_SCREEN.chooseDomain!.bodies.forEach((_, i) => expect(byNode(container, nodeId('chooseDomain', 'decor', i))).toBeTruthy())
+  })
+})
+
+describe('Question page, every engine state', () => {
+  const questionFixtures = (Object.keys(FIXTURES) as (keyof typeof FIXTURES)[]).filter((n) => FIXTURES[n].currentScreen === 'question')
+
+  it('covers the whole session lifecycle in fixtures', () => {
+    expect(questionFixtures.length).toBeGreaterThanOrEqual(9)
+  })
+
+  for (const name of questionFixtures) {
+    it(`${name}: every static node is present and visibility follows play-state`, () => {
+      const state = FIXTURES[name]
+      const session = state.session!
+      const { container } = render(<StageRoot state={state} />)
+      for (const [slot, kind] of Object.entries(SCREEN_SLOTS.question)) {
+        if (kind === 'static') expect(byNode(container, `question.${slot}`), slot).toBeTruthy()
+      }
+      const stem = byNode(container, nodeId('question', 'stem'))!
+      expect(stem.style.visibility === 'hidden').toBe(!session.reveals.stem)
+
+      for (const o of session.options) {
+        const card = byNode(container, nodeId('question', 'option', o.id))!
+        expect(card.dataset.revealed).toBe(String(session.reveals.optionIds.includes(o.id)))
+      }
+
+      const outcomeShown = Boolean(session.outcome && session.reveals.outcome)
+      const timer = byNode(container, nodeId('question', 'timer'))!
+      const result = byNode(container, nodeId('question', 'result'))!
+      expect(result.style.visibility === 'hidden').toBe(!outcomeShown)
+      expect(timer.style.visibility === 'hidden').toBe(session.timer === null || outcomeShown)
+    })
+  }
+
+  it('locked: the timer shows the value frozen at lock', () => {
+    const state = FIXTURES['question-locked']
+    const { container } = render(<StageRoot state={state} />)
+    const timer = byNode(container, nodeId('question', 'timer'))!
+    const ms = state.session!.timer!.remainingMsAtLock!
+    const s = Math.floor(ms / 1000)
+    expect(timer.textContent).toContain(`00:${String(s).padStart(2, '0')}`)
+  })
+
+  it('expired open: the timer reads 00:00 and turns urgent', () => {
+    const { container } = render(<StageRoot state={FIXTURES['question-timer-expired-open']} />)
+    const timer = byNode(container, nodeId('question', 'timer'))!
+    expect(timer.textContent).toContain('00:00')
+    expect(timer.dataset.urgent).toBe('true')
+  })
+
+  it('operator pace: no timer anywhere', () => {
+    const { container } = render(<StageRoot state={FIXTURES['operator-pace']} />)
+    expect(byNode(container, nodeId('question', 'timer'))!.style.visibility).toBe('hidden')
+  })
+
+  it('outcomes: the result names the verdict, cards take their looks, decor keeps the matching body', () => {
+    const cases = [
+      ['question-outcome-correct', 'correct', 'RESULT // ALL CORRECT'],
+      ['question-outcome-incorrect', 'incorrect', 'RESULT // INCORRECT'],
+      ['question-outcome-partial', 'partial', 'RESULT // EXTRA SELECTION'],
+    ] as const
+    for (const [name, verdict, label] of cases) {
+      const state = FIXTURES[name]
+      const { container } = render(<StageRoot state={state} />)
+      const result = byNode(container, nodeId('question', 'result'))!
+      expect(result.dataset.verdict, name).toBe(verdict)
+      expect(result.textContent, name).toContain(label)
+      expect(result.textContent, name).toContain(`+${state.session!.outcome!.pointsAwarded}`)
+      for (const id of state.session!.outcome!.correctOptionIds) {
+        expect(byNode(container, nodeId('question', 'option', id))!.dataset.state, name).toBe('correct')
+      }
+      const bodies = DECOR_BY_SCREEN.question!.bodies
+      const plus = bodies.find((b) => b.role === 'correct')!
+      const minus = bodies.find((b) => b.role === 'incorrect')!
+      if (verdict === 'correct') {
+        expect(decorOpacity(plus, state)).toBe(1)
+        expect(decorOpacity(minus, state)).not.toBe(1)
+      } else {
+        expect(decorOpacity(minus, state)).toBe(1)
+        expect(decorOpacity(plus, state)).not.toBe(1)
+      }
+    }
+  })
+
+  it('before the outcome both commentary bodies are at full opacity', () => {
+    const state = FIXTURES['question-locked']
+    for (const b of DECOR_BY_SCREEN.question!.bodies) expect(decorOpacity(b, state)).toBe(b.opacity)
+  })
+
+  it('category line names the domain and the team on token', () => {
+    const { container } = render(<StageRoot state={FIXTURES['question-issued']} />)
+    const line = byNode(container, nodeId('question', 'category'))!
+    expect(line.textContent).toContain('DOMAIN // Science')
+    expect(line.textContent).toContain('TEAM GAMMA')
   })
 })
 

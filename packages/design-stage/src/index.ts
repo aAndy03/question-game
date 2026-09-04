@@ -88,6 +88,10 @@ export const LAYOUT = {
   gapLoose: 'var(--stage-gap-loose)',
   contentColumn: 'var(--stage-content-column)',
   contentColumnWide: 'var(--stage-content-column-wide)',
+  sidePanelWidth: 'var(--stage-side-panel-width)',
+  sidePanelHeight: 'var(--stage-side-panel-height)',
+  questionColumn: 'var(--stage-question-column)',
+  answerCardHeight: 'var(--stage-answer-card-height)',
   decorColumnMin: 'var(--stage-decor-column-min)',
   decorColumnMax: 'var(--stage-decor-column-max)',
 } as const;

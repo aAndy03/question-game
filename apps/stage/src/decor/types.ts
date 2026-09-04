@@ -67,6 +67,12 @@ export type DecorBodySpec = (SvgBody | GlyphBody | OutlineBody) & {
    * Absent means anywhere. The world may move it to resolve collisions.
    */
   readonly region?: { readonly x: Range; readonly y: Range }
+  /**
+   * What the body comments on, if anything. The screen's mood (derived from
+   * play-state, see `mood.ts`) can dim bodies by role — a correct outcome
+   * leaves the `+` and fades the `−` — without touching the running world.
+   */
+  readonly role?: 'correct' | 'incorrect'
 }
 
 /** The invisible box, in canvas px. May extend a little past the 1920×1080

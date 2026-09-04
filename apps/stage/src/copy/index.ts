@@ -59,6 +59,9 @@ export const STAGE_COPY = {
   timerLabel: 'TIMER',
   timerValue: 'REMAINING',
 
+  /** Question: the timer turns urgent below this many seconds. */
+  timerUrgentSeconds: 5,
+
   /** Result widget. */
   resultLabel: 'RESULT',
   verdict: {

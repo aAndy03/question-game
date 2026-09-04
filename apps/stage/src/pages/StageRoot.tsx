@@ -6,6 +6,7 @@ import { StageFrame } from '@/templates'
 import { IdlePage } from './Idle'
 import { TeamOrderPage } from './TeamOrder'
 import { ChooseDomainPage } from './ChooseDomain'
+import { QuestionPage } from './Question'
 
 /**
  * The Stage tree. One frame for the life of the window; the persistent slots
@@ -22,6 +23,7 @@ const PAGES: Partial<Record<StageScreen, ComponentType<StagePageProps>>> = {
   idle: IdlePage,
   teamOrder: TeamOrderPage,
   chooseDomain: ChooseDomainPage,
+  question: QuestionPage,
 }
 
 /** Screens with a page built. Tests assert the registry against the contract. */

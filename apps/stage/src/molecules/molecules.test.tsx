@@ -46,9 +46,9 @@ describe('molecules', () => {
   })
 
   it('TimerPanel formats whatever label and milliseconds it is given', () => {
-    render(<TimerPanel label="TIMER" value="ELAPSED" ms={740_000} hours="always" />)
-    expect(screen.getByText('TIMER // ELAPSED')).toBeTruthy()
-    expect(screen.getByText('[ 00:12:20 ]')).toBeTruthy()
+    render(<TimerPanel label="TIMER" value="REMAINING" ms={30_000} hours="never" />)
+    expect(screen.getByText('TIMER // REMAINING')).toBeTruthy()
+    expect(screen.getByText('00:30')).toBeTruthy()
   })
 
   it('ResultWidget names the verdict from copy and shows the awarded points', () => {
