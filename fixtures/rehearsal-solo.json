@@ -9,6 +9,7 @@
       "shortCode": "ALPHA",
       "color": "var(--state-info)",
       "logoUrl": null,
+      "detail": "Solo",
       "score": 0,
       "rank": 1,
       "turnsTaken": 1,
@@ -80,6 +81,12 @@
   "leaderboardRevealedRanks": [],
   "decor": {
     "mode": "collide",
+    "anchor": {
+      "enabled": true,
+      "attractSeconds": 12,
+      "repelSeconds": 6,
+      "strength": 0.3
+    },
     "drift": 14,
     "attraction": 0.3,
     "bounce": 0.9,

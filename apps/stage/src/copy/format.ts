@@ -53,7 +53,12 @@ export function optionLetter(index: number): string {
   return OPTION_LETTERS[index] ?? `${index + 1}`
 }
 
-/** 0-based sequence position → `G1`, `G2`, … */
+/** 0-based sequence position → `01`, `02`, … (prefix and padding from copy). */
 export function sequencePosition(index: number): string {
-  return `${STAGE_COPY.sequencePrefix}${index + 1}`
+  return `${STAGE_COPY.sequencePrefix}${String(index + 1).padStart(STAGE_COPY.sequenceDigits, '0')}`
+}
+
+/** What a domain card prints for the next question's difficulty. */
+export function difficultyFigure(value: number): string {
+  return STAGE_COPY.difficultyDisplay === 'band' ? difficulty(value) : `${value}`
 }

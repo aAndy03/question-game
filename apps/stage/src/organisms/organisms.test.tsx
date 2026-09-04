@@ -22,7 +22,7 @@ describe('organisms derive every node from play-state', () => {
       expect(card).toBeTruthy()
       expect(card.dataset.exhausted).toBe(String(d.exhausted))
     }
-    expect(container.textContent).toContain('DIFFICULTY // EASY')
+    expect(container.textContent).toContain('SCI_204')
   })
 
   it('AnswerGrid keeps hidden options mounted and marks reveals by id', () => {
@@ -76,13 +76,11 @@ describe('organisms derive every node from play-state', () => {
     expect(ids.size).toBe(order.length)
   })
 
-  it('StageHeader carries the screen header node and derives its subject', () => {
+  it('StageHeader carries the screen header node, the brand pair and the Play clock', () => {
     const q = render(<StageHeader state={FIXTURES['question-issued']} />)
     expect(byNode(q.container, 'question.header')).toBeTruthy()
-    expect(q.container.textContent).toContain('DOMAIN // Science')
-
-    const c = render(<StageHeader state={FIXTURES['choose-domain']} />)
-    expect(c.container.textContent).toContain('SELECT CATEGORY // TEAM GAMMA')
+    expect(q.container.textContent).toContain('HOPE CHALLENGE')
+    expect(q.container.textContent).toContain('[ 00:12:20 ]')
 
     const idle = render(<StageHeader state={FIXTURES.idle} />)
     const header = idle.container.querySelector('[data-stage-header]') as HTMLElement

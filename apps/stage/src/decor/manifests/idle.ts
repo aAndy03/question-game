@@ -12,6 +12,7 @@ import type { ScreenDecorSpec } from '../types'
 export const IDLE_DECOR: ScreenDecorSpec = {
   screen: 'idle',
   boundary: { x: 940, y: -120, width: 1040, height: 1280 },
+  anchor: { x: 0.45, y: 0.5 },
   bodies: [
     {
       kind: 'glyph',
@@ -21,7 +22,7 @@ export const IDLE_DECOR: ScreenDecorSpec = {
       color: 'ink',
       opacity: 1,
       rotation: { min: -8, max: 8 },
-      anchor: { x: { min: 0, max: 0.35 }, y: { min: 0.15, max: 0.45 } },
+      region: { x: { min: 0, max: 0.35 }, y: { min: 0.15, max: 0.45 } },
     },
     {
       kind: 'glyph',
@@ -31,7 +32,7 @@ export const IDLE_DECOR: ScreenDecorSpec = {
       color: 'ink',
       opacity: 1,
       rotation: { min: 10, max: 30 },
-      anchor: { x: { min: 0.35, max: 0.7 }, y: { min: 0, max: 0.25 } },
+      region: { x: { min: 0.35, max: 0.7 }, y: { min: 0, max: 0.25 } },
     },
     {
       kind: 'glyph',
@@ -41,7 +42,7 @@ export const IDLE_DECOR: ScreenDecorSpec = {
       color: 'ink',
       opacity: 1,
       rotation: { min: 15, max: 35 },
-      anchor: { x: { min: 0.55, max: 0.9 }, y: { min: 0.15, max: 0.4 } },
+      region: { x: { min: 0.55, max: 0.9 }, y: { min: 0.15, max: 0.4 } },
     },
     {
       kind: 'glyph',
@@ -51,7 +52,7 @@ export const IDLE_DECOR: ScreenDecorSpec = {
       color: 'ink',
       opacity: 1,
       rotation: { min: -25, max: -5 },
-      anchor: { x: { min: 0.6, max: 1 }, y: { min: 0.55, max: 0.85 } },
+      region: { x: { min: 0.6, max: 1 }, y: { min: 0.55, max: 0.85 } },
     },
     {
       kind: 'svg',
@@ -60,7 +61,7 @@ export const IDLE_DECOR: ScreenDecorSpec = {
       color: 'correct',
       opacity: 1,
       rotation: { min: -15, max: 15 },
-      anchor: { x: { min: 0.2, max: 0.55 }, y: { min: 0.6, max: 0.95 } },
+      region: { x: { min: 0.2, max: 0.55 }, y: { min: 0.6, max: 0.95 } },
     },
     {
       kind: 'svg',
@@ -69,23 +70,25 @@ export const IDLE_DECOR: ScreenDecorSpec = {
       color: 'incorrect',
       opacity: 1,
       rotation: { min: -15, max: 15 },
-      anchor: { x: { min: 0.55, max: 0.95 }, y: { min: 0.35, max: 0.6 } },
+      region: { x: { min: 0.55, max: 0.95 }, y: { min: 0.35, max: 0.6 } },
     },
     {
       kind: 'outline',
-      side: { min: 170, max: 230 },
+      shape: 'square',
+      height: { min: 170, max: 230 },
       color: 'ink',
       opacity: 1,
       rotation: { min: 25, max: 60 },
-      anchor: { x: { min: 0.7, max: 1 }, y: { min: 0, max: 0.2 } },
+      region: { x: { min: 0.7, max: 1 }, y: { min: 0, max: 0.2 } },
     },
     {
       kind: 'outline',
-      side: { min: 150, max: 210 },
+      shape: 'square',
+      height: { min: 150, max: 210 },
       color: 'ink',
       opacity: 1,
       rotation: { min: 25, max: 60 },
-      anchor: { x: { min: 0.75, max: 1 }, y: { min: 0.8, max: 1 } },
+      region: { x: { min: 0.75, max: 1 }, y: { min: 0.8, max: 1 } },
     },
   ],
 }

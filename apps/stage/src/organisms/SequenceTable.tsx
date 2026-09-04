@@ -26,7 +26,7 @@ export function SequenceTable({ state }: SequenceTableProps) {
             nodeId={nodeId('teamOrder', 'row', team.id)}
             index={index}
             name={team.name}
-            shortCode={team.shortCode}
+            detail={team.detail}
             score={team.score}
             current={current}
             served={!current && team.turnsTaken >= ring.roundIndex}

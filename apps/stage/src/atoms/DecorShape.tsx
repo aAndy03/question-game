@@ -6,8 +6,9 @@ import { COLOR } from '@questiongame/design-stage'
  * single `transform` (translate to its centre-box, then rotate). Three kinds:
  *
  *   svg      inline markup from the copied assets, coloured via currentColor
- *   glyph    a character in the display face (stand-in for missing paths)
- *   outline  a hairline square — the diamond outlines
+ *   glyph    a character in the display face (stand-in for missing paths),
+ *            filled or, with `stroke`, as a hairline outline
+ *   outline  a hairline square, circle or rectangle
  *
  * The atom takes numbers and markup; it never chooses a shape, a colour, or a
  * position. The body keeps moving for the life of the screen, so the owner
@@ -26,6 +27,11 @@ const FILL: Record<DecorShapeColor, string> = {
   accent: COLOR.accent,
 }
 
+export type DecorShapeBody =
+  | { kind: 'svg'; markup: string }
+  | { kind: 'glyph'; glyph: string; stroke?: boolean }
+  | { kind: 'outline'; shape: 'square' | 'circle' | 'rect' }
+
 export interface DecorShapeProps {
   nodeId: string
   width: number
@@ -34,7 +40,7 @@ export interface DecorShapeProps {
   transform: string
   color: DecorShapeColor
   opacity: number
-  body: { kind: 'svg'; markup: string } | { kind: 'glyph'; glyph: string } | { kind: 'outline' }
+  body: DecorShapeBody
   ref?: Ref<HTMLDivElement>
 }
 
@@ -66,6 +72,9 @@ export function DecorShape({ nodeId, width, height, transform, color, opacity, b
   }
 
   if (body.kind === 'glyph') {
+    const stroke: CSSProperties = body.stroke
+      ? { WebkitTextStroke: 'var(--border-thin) currentColor', WebkitTextFillColor: 'transparent' }
+      : {}
     return (
       <div
         ref={ref}
@@ -85,6 +94,7 @@ export function DecorShape({ nodeId, width, height, transform, color, opacity, b
           fontSize: height / 0.7,
           lineHeight: 1,
           userSelect: 'none',
+          ...stroke,
         }}
       >
         {body.glyph}
@@ -97,7 +107,13 @@ export function DecorShape({ nodeId, width, height, transform, color, opacity, b
       ref={ref}
       data-node-id={nodeId}
       data-decor="outline"
-      style={{ ...base, boxSizing: 'border-box', boxShadow: `inset 0 0 0 var(--border-thin) currentColor` }}
+      data-shape={body.shape}
+      style={{
+        ...base,
+        boxSizing: 'border-box',
+        borderRadius: body.shape === 'circle' ? '50%' : 'var(--radius-none)',
+        boxShadow: `inset 0 0 0 var(--border-thin) currentColor`,
+      }}
     />
   )
 }

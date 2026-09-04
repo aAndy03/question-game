@@ -25,6 +25,11 @@
   --stage-gap-tight: 24px;
   --stage-gap-loose: 64px;
 
+  /* Content column widths on the list screens (Figma: 1127px rows on
+   * TeamOrder, 1228px board on ChooseDomain). The decor takes the rest. */
+  --stage-content-column: 1128px;
+  --stage-content-column-wide: 1228px;
+
   /* The fixed-width decorative column in a two-column screen. */
   --stage-decor-column-min: 398px;
   --stage-decor-column-max: 600px;

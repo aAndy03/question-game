@@ -55,8 +55,8 @@ export function bodySize(spec: DecorBodySpec, pick: (r: Range) => number): Sized
       return { width: height * spec.aspect, height }
     }
     case 'outline': {
-      const side = pick(spec.side)
-      return { width: side, height: side }
+      const height = pick(spec.height)
+      return { width: height * (spec.shape === 'rect' ? (spec.aspect ?? 1) : 1), height }
     }
   }
 }
@@ -94,8 +94,8 @@ export function createDecorWorld(spec: ScreenDecorSpec, seed: number, settings: 
   const sized = spec.bodies.map((b) => bodySize(b, pick))
   const bodies = spec.bodies.map((b, i) => {
     const { width, height } = sized[i]!
-    const ax = b.anchor?.x ?? { min: 0, max: 1 }
-    const ay = b.anchor?.y ?? { min: 0, max: 1 }
+    const ax = b.region?.x ?? { min: 0, max: 1 }
+    const ay = b.region?.y ?? { min: 0, max: 1 }
     const cx = boundary.x + width / 2 + pick(ax) * Math.max(0, boundary.width - width)
     const cy = boundary.y + height / 2 + pick(ay) * Math.max(0, boundary.height - height)
     return Bodies.rectangle(cx, cy, width, height, {
@@ -131,10 +131,18 @@ export function createDecorWorld(spec: ScreenDecorSpec, seed: number, settings: 
     })
   }
 
+  const anchorPoint = {
+    x: boundary.x + (spec.anchor?.x ?? 0.5) * boundary.width,
+    y: boundary.y + (spec.anchor?.y ?? 0.5) * boundary.height,
+  }
+
   let accumulator = 0
+  let elapsedSteps = 0
 
   const tick = () => {
     if (settings.mode === 'collide-attract') attract(bodies, settings)
+    if (settings.anchor.enabled) anchorPull(bodies, anchorPoint, settings, elapsedSteps)
+    elapsedSteps++
     Engine.update(engine, STEP_MS)
     regulate(bodies, settings, r)
     contain()
@@ -179,6 +187,13 @@ export function createDecorWorld(spec: ScreenDecorSpec, seed: number, settings: 
  */
 const ATTRACT_ACCEL = 0.0004 // px/step² at attraction = 1
 
+/**
+ * matter integrates `force / mass × dt²` per step, so a force meant as an
+ * acceleration in px/step² must be divided by dt² first.
+ */
+const DT2 = STEP_MS * STEP_MS
+const forceFor = (accelPerStep2: number, mass: number) => (accelPerStep2 * mass) / DT2
+
 function attract(bodies: Matter.Body[], settings: StageDecorSettings) {
   const a = ATTRACT_ACCEL * settings.attraction
   for (let i = 0; i < bodies.length; i++) {
@@ -190,9 +205,38 @@ function attract(bodies: Matter.Body[], settings: StageDecorSettings) {
       if (len < 1) continue
       const dir = Vector.div(d, len)
       // applyForce takes a force; force = mass × acceleration.
-      Body.applyForce(bi, bi.position, Vector.mult(dir, a * bi.mass))
-      Body.applyForce(bj, bj.position, Vector.mult(dir, -a * bj.mass))
+      Body.applyForce(bi, bi.position, Vector.mult(dir, forceFor(a, bi.mass)))
+      Body.applyForce(bj, bj.position, Vector.mult(dir, -forceFor(a, bj.mass)))
     }
+  }
+}
+
+/** Which half of the anchor cycle a step falls in. */
+export function anchorPhase(settings: StageDecorSettings, elapsedSteps: number): 'attract' | 'repel' | 'off' {
+  const { anchor } = settings
+  if (!anchor.enabled) return 'off'
+  const cycle = anchor.attractSeconds + anchor.repelSeconds
+  if (cycle <= 0) return 'off'
+  const t = (elapsedSteps / 60) % cycle
+  return t < anchor.attractSeconds ? 'attract' : 'repel'
+}
+
+const ANCHOR_ACCEL = 0.001 // px/step² at strength = 1
+
+/**
+ * The invisible anchor: pulls every body toward one point for a while, then
+ * pushes it away for a while. Constant magnitude, like the pairwise pull, so
+ * it reads as a slow tide rather than a slingshot.
+ */
+function anchorPull(bodies: Matter.Body[], point: { x: number; y: number }, settings: StageDecorSettings, elapsedSteps: number) {
+  const phase = anchorPhase(settings, elapsedSteps)
+  if (phase === 'off') return
+  const a = ANCHOR_ACCEL * settings.anchor.strength * (phase === 'attract' ? 1 : -1)
+  for (const body of bodies) {
+    const d = Vector.sub(point, body.position)
+    const len = Vector.magnitude(d)
+    if (len < 1) continue
+    Body.applyForce(body, body.position, Vector.mult(Vector.div(d, len), forceFor(a, body.mass)))
   }
 }
 

@@ -36,6 +36,12 @@ export type TextTransition = 'none' | 'swap' | 'count';
  *   caption                  small mono metadata
  *   eyebrow                  a short line above the wordmark — Space Grotesk, regular
  *   tagline                  a short line below it — Space Mono, regular
+ *   brand / partner          the header pair — Space Grotesk bold / regular, as typed
+ *   title                    a body title (`playing sequence //`) — Space Mono bold, broken case
+ *   row-number / row-name    a list row — Space Grotesk bold
+ *   meta-label / meta-value  small label over value stacks — Space Grotesk
+ *   code-quiet               a category code at rest — Space Mono regular
+ *   card-figure / card-name  the domain card's number and name
  */
 export type TextVariant =
   | 'stage-mega'
@@ -49,6 +55,16 @@ export type TextVariant =
   | 'stage-caption'
   | 'stage-eyebrow'
   | 'stage-tagline'
+  | 'stage-brand'
+  | 'stage-partner'
+  | 'stage-title'
+  | 'stage-row-number'
+  | 'stage-row-name'
+  | 'stage-meta-label'
+  | 'stage-meta-value'
+  | 'stage-code-quiet'
+  | 'stage-card-figure'
+  | 'stage-card-name'
   | 'studio-body'
   | 'studio-label'
   | 'studio-caption';
@@ -95,6 +111,16 @@ const mono = (size: string, tracking: string, casing: string): VariantTokens => 
   casing,
 });
 
+/** Space Grotesk at a small size: no display tracking, heading leading. */
+const grotesk = (size: string, weight: string): VariantTokens => ({
+  size,
+  family: 'var(--font-display)',
+  weight,
+  tracking: 'var(--tracking-normal)',
+  leading: 'var(--leading-heading)',
+  casing: 'var(--case-prose)',
+});
+
 const studio = (size: string): VariantTokens => ({
   size,
   family: 'var(--font-sans)',
@@ -133,6 +159,16 @@ const VARIANT_TOKENS: Record<TextVariant, VariantTokens> = {
     leading: 'var(--leading-heading)',
     casing: 'var(--case-prose)',
   },
+  'stage-brand': { ...grotesk('var(--text-body)', 'var(--weight-bold)'), casing: 'var(--case-name)' },
+  'stage-partner': { ...grotesk('var(--text-body)', 'var(--weight-regular)'), casing: 'var(--case-prose)' },
+  'stage-title': { ...mono('var(--text-display-3)', 'var(--tracking-normal)', 'var(--case-hud)'), leading: 'var(--leading-heading)' },
+  'stage-row-number': grotesk('var(--text-heading-3)', 'var(--weight-bold)'),
+  'stage-row-name': { ...grotesk('var(--text-heading-2)', 'var(--weight-bold)'), casing: 'var(--case-name)' },
+  'stage-meta-label': { ...grotesk('var(--text-caption)', 'var(--weight-regular)'), casing: 'var(--case-name)' },
+  'stage-meta-value': { ...grotesk('var(--text-label)', 'var(--weight-bold)'), casing: 'var(--case-name)' },
+  'stage-code-quiet': { ...mono('var(--text-body)', 'var(--tracking-normal)', 'var(--case-prose)'), weight: 'var(--weight-regular)' },
+  'stage-card-figure': grotesk('var(--text-display-4)', 'var(--weight-bold)'),
+  'stage-card-name': { ...mono('var(--text-display-4)', 'var(--tracking-normal)', 'var(--case-prose)'), leading: 'var(--leading-heading)' },
   'studio-body': studio('var(--text-body)'),
   'studio-label': studio('var(--text-label)'),
   'studio-caption': studio('var(--text-caption)'),

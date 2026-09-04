@@ -44,6 +44,55 @@ describe('Idle page', () => {
     expect(container.querySelectorAll('button, input, select, textarea, a[href], [tabindex]').length).toBe(0)
   })
 
+})
+
+describe('TeamOrder page', () => {
+  const state = FIXTURES['team-order']
+
+  it('renders header, title and one row per ring position with their contract ids', () => {
+    const { container } = render(<StageRoot state={state} />)
+    expect(byNode(container, nodeId('teamOrder', 'header'))).toBeTruthy()
+    expect(byNode(container, nodeId('teamOrder', 'title'))!.textContent).toBe('PLAYING SEQUENCE //')
+    state.ring.order.forEach((id, i) => {
+      const row = byNode(container, nodeId('teamOrder', 'row', id))!
+      expect(row).toBeTruthy()
+      expect(row.textContent).toContain(String(i + 1).padStart(2, '0'))
+    })
+    expect(byNode(container, nodeId('teamOrder', 'row', state.ring.currentTeamId!))!.dataset.current).toBe('true')
+  })
+
+  it('shows the Play clock in the header', () => {
+    const { container } = render(<StageRoot state={state} />)
+    expect(container.querySelector('[data-stage-header]')!.textContent).toContain('[ 00:12:20 ]')
+  })
+
+  it('lays out the READY letters as decor', () => {
+    const { container } = render(<StageRoot state={state} />)
+    DECOR_BY_SCREEN.teamOrder!.bodies.forEach((_, i) => expect(byNode(container, nodeId('teamOrder', 'decor', i))).toBeTruthy())
+  })
+})
+
+describe('ChooseDomain page', () => {
+  const state = FIXTURES['choose-domain']
+
+  it('titles the board with the team on token and renders every domain card', () => {
+    const { container } = render(<StageRoot state={state} />)
+    expect(byNode(container, nodeId('chooseDomain', 'title'))!.textContent).toBe('SELECT CATEGORY // TEAM GAMMA')
+    for (const d of state.domains) {
+      const card = byNode(container, nodeId('chooseDomain', 'card', d.id))!
+      expect(card).toBeTruthy()
+      expect(card.textContent).toContain(d.code)
+      if (d.nextDifficulty !== null) expect(card.textContent).toContain(String(d.nextDifficulty))
+    }
+  })
+
+  it('lays out the CHOOSE letters as decor', () => {
+    const { container } = render(<StageRoot state={state} />)
+    DECOR_BY_SCREEN.chooseDomain!.bodies.forEach((_, i) => expect(byNode(container, nodeId('chooseDomain', 'decor', i))).toBeTruthy())
+  })
+})
+
+describe('Stage root', () => {
   it('renders an unbuilt screen without crashing and keeps the frame', () => {
     const { container } = render(<StageRoot state={FIXTURES.scoreboard} />)
     expect(container.querySelector('[data-page="unbuilt"]')).toBeTruthy()

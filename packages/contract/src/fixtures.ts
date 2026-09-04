@@ -30,16 +30,17 @@ function team(
   score: number,
   rank: number,
   turnsTaken: number,
+  detail: string,
 ): StageTeam {
-  return { id, name, shortCode, color, logoUrl: null, score, rank, turnsTaken, active: true }
+  return { id, name, shortCode, color, logoUrl: null, detail, score, rank, turnsTaken, active: true }
 }
 
 /** Four teams, mid-round: two have played this round, two have not. */
 const TEAMS: readonly StageTeam[] = [
-  team('team-alpha', 'TEAM ALPHA', 'ALPHA', 'var(--state-info)', 500, 1, 2),
-  team('team-beta', 'TEAM BETA', 'BETA', 'var(--state-correct)', 250, 2, 2),
-  team('team-gamma', 'TEAM GAMMA', 'GAMMA', 'var(--state-leader)', 250, 2, 1),
-  team('team-delta', 'TEAM DELTA', 'DELTA', 'var(--state-accent)', 0, 4, 1),
+  team('team-alpha', 'TEAM ALPHA', 'ALPHA', 'var(--state-info)', 500, 1, 2, 'Moldova'),
+  team('team-beta', 'TEAM BETA', 'BETA', 'var(--state-correct)', 250, 2, 2, 'Muntenia'),
+  team('team-gamma', 'TEAM GAMMA', 'GAMMA', 'var(--state-leader)', 250, 2, 1, 'Ardeal'),
+  team('team-delta', 'TEAM DELTA', 'DELTA', 'var(--state-accent)', 0, 4, 1, 'Oltenia'),
 ]
 
 const DOMAINS = [
@@ -307,7 +308,7 @@ export const FIXTURES = {
 
   /** Single-team rehearsal Play (spec §4.3 allows it with a warning). */
   'rehearsal-solo': base({
-    teams: [team('team-alpha', 'TEAM ALPHA', 'ALPHA', 'var(--state-info)', 0, 1, 1)],
+    teams: [team('team-alpha', 'TEAM ALPHA', 'ALPHA', 'var(--state-info)', 0, 1, 1, 'Solo')],
     ring: { order: ['team-alpha'], currentTeamId: 'team-alpha', roundIndex: 1 },
     currentScreen: 'teamOrder',
   }),

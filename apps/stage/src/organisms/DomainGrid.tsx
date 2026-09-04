@@ -1,6 +1,6 @@
 import { nodeId, type PlayStateForStage } from '@questiongame/contract'
 import { SPACE } from '@questiongame/design-stage'
-import { difficulty } from '@/copy/format'
+import { difficultyFigure } from '@/copy/format'
 import { DomainCard } from '@/molecules'
 
 /**
@@ -30,7 +30,7 @@ export function DomainGrid({ state, columns = 3 }: DomainGridProps) {
           key={d.id}
           nodeId={nodeId('chooseDomain', 'card', d.id)}
           name={d.name}
-          difficulty={d.nextDifficulty === null ? null : difficulty(d.nextDifficulty)}
+          difficulty={d.nextDifficulty === null ? null : difficultyFigure(d.nextDifficulty)}
           code={d.code}
           selected={d.id === selectedId}
           exhausted={d.exhausted}

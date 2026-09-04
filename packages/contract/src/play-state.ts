@@ -44,6 +44,11 @@ export interface StageTeam {
   readonly color: string
   /** Resolved asset URL, or null when the recipe sets no logo. */
   readonly logoUrl: string | null
+  /**
+   * One line of catalog detail shown beside the name (the Figma sample uses
+   * a region). The label for it is authored copy; the value is the team's.
+   */
+  readonly detail: string | null
   readonly score: number
   /** Competition rank, ties share a rank: 1, 1, 3 (spec §4.4). */
   readonly rank: number
@@ -187,8 +192,24 @@ export interface StageOverlay {
  */
 export type DecorMotionMode = 'collide' | 'collide-attract'
 
+/**
+ * An invisible point in a screen's boundary that pulls the bodies in for a
+ * while, then pushes them away for a while, forever. Where it sits is the
+ * screen manifest's business; how it behaves is the operator's.
+ */
+export interface DecorAnchorSettings {
+  readonly enabled: boolean
+  /** Seconds spent attracting per cycle. */
+  readonly attractSeconds: number
+  /** Seconds spent repelling per cycle. */
+  readonly repelSeconds: number
+  /** Pull / push strength, 0–1. */
+  readonly strength: number
+}
+
 export interface StageDecorSettings {
   readonly mode: DecorMotionMode
+  readonly anchor: DecorAnchorSettings
   /** Cruising speed the bodies are kept near, canvas px per second. */
   readonly drift: number
   /** Mutual pull strength, 0–1. Ignored in `collide` mode. */
@@ -204,6 +225,7 @@ export interface StageDecorSettings {
 /** Mild by design: the scatter should read as breathing, not as a screensaver. */
 export const DEFAULT_DECOR_SETTINGS: StageDecorSettings = {
   mode: 'collide',
+  anchor: { enabled: true, attractSeconds: 12, repelSeconds: 6, strength: 0.3 },
   drift: 14,
   attraction: 0.3,
   bounce: 0.9,

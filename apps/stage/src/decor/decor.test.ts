@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_DECOR_SETTINGS, FIXTURES } from '@questiongame/contract'
 import { IDLE_DECOR } from './manifests/idle'
-import { STEP_MS, createDecorWorld, decorAsset, hashString, layoutDecor, seedFromPlay, settle } from './index'
+import { STEP_MS, anchorPhase, createDecorWorld, decorAsset, hashString, layoutDecor, seedFromPlay, settle } from './index'
 
 function corners(b: { x: number; y: number; width: number; height: number; angle: number }) {
   const a = (b.angle * Math.PI) / 180
@@ -59,13 +59,8 @@ describe('decor settle', () => {
   it('sizes and rotations stay within the manifest ranges', () => {
     for (const p of settle(IDLE_DECOR, seed)) {
       const spec = p.spec
-      if (spec.kind === 'outline') {
-        expect(p.width).toBeGreaterThanOrEqual(spec.side.min)
-        expect(p.width).toBeLessThanOrEqual(spec.side.max)
-      } else {
-        expect(p.height).toBeGreaterThanOrEqual(spec.height.min)
-        expect(p.height).toBeLessThanOrEqual(spec.height.max)
-      }
+      expect(p.height).toBeGreaterThanOrEqual(spec.height.min)
+      expect(p.height).toBeLessThanOrEqual(spec.height.max)
       // The settle may nudge rotation while resolving a collision; it must not spin.
       expect(Math.abs(p.angle - (spec.rotation.min + spec.rotation.max) / 2)).toBeLessThan(90)
     }
@@ -151,14 +146,15 @@ describe('decor world (live)', () => {
     // Two bodies at rest: with attraction they close in, without it they stay put.
     const square = (x: number) => ({
       kind: 'outline' as const,
-      side: { min: 100, max: 100 },
+      shape: 'square' as const,
+      height: { min: 100, max: 100 },
       color: 'ink' as const,
       opacity: 1,
       rotation: { min: 0, max: 0 },
-      anchor: { x: { min: x, max: x }, y: { min: 0.5, max: 0.5 } },
+      region: { x: { min: x, max: x }, y: { min: 0.5, max: 0.5 } },
     })
     const spec = { screen: 'idle' as const, boundary: { x: 0, y: 0, width: 2000, height: 1000 }, bodies: [square(0.1), square(0.9)] }
-    const still = { ...DEFAULT_DECOR_SETTINGS, drift: 0, spin: 0 }
+    const still = { ...DEFAULT_DECOR_SETTINGS, drift: 0, spin: 0, anchor: { ...DEFAULT_DECOR_SETTINGS.anchor, enabled: false } }
     const dist = (w: ReturnType<typeof createDecorWorld>) => {
       const [a, b] = w.read()
       return Math.hypot(a!.x - b!.x, a!.y - b!.y)
@@ -174,6 +170,35 @@ describe('decor world (live)', () => {
     expect(dist(on)).toBeLessThan(d0 - 20)
     off.destroy()
     on.destroy()
+  })
+
+  it('the anchor attracts for attractSeconds, then repels for repelSeconds, forever', () => {
+    const settings = { ...DEFAULT_DECOR_SETTINGS, anchor: { enabled: true, attractSeconds: 2, repelSeconds: 1, strength: 1 } }
+    expect(anchorPhase(settings, 0)).toBe('attract')
+    expect(anchorPhase(settings, 60 * 1.9)).toBe('attract')
+    expect(anchorPhase(settings, 60 * 2.1)).toBe('repel')
+    expect(anchorPhase(settings, 60 * 3.1)).toBe('attract')
+    expect(anchorPhase(settings, 60 * 302.5)).toBe('repel')
+    expect(anchorPhase({ ...settings, anchor: { ...settings.anchor, enabled: false } }, 0)).toBe('off')
+  })
+
+  it('the anchor pulls a body toward the manifest point, then pushes it away', () => {
+    const one = {
+      screen: 'idle' as const,
+      boundary: { x: 0, y: 0, width: 2000, height: 1000 },
+      anchor: { x: 0.5, y: 0.5 },
+      bodies: [{ kind: 'outline' as const, shape: 'square' as const, height: { min: 100, max: 100 }, color: 'ink' as const, opacity: 1, rotation: { min: 0, max: 0 }, region: { x: { min: 0.1, max: 0.1 }, y: { min: 0.5, max: 0.5 } } }],
+    }
+    const settings = { ...DEFAULT_DECOR_SETTINGS, drift: 0, spin: 0, anchor: { enabled: true, attractSeconds: 3, repelSeconds: 12, strength: 1 } }
+    const world = createDecorWorld(one, 3, settings)
+    const dist = () => Math.abs(world.read()[0]!.x - 1000)
+    const d0 = dist()
+    for (let t = 0; t < 3 * 60; t++) world.step(STEP_MS)
+    const dAttract = dist()
+    expect(dAttract).toBeLessThan(d0 - 10)
+    for (let t = 0; t < 12 * 60; t++) world.step(STEP_MS)
+    expect(dist()).toBeGreaterThan(dAttract)
+    world.destroy()
   })
 
   it('a stalled frame catches up a bounded number of steps', () => {

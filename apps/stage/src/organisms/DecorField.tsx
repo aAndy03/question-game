@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { nodeId, type PlayStateForStage, type StageDecorSettings } from '@questiongame/contract'
-import { DecorShape } from '@/atoms'
+import { DecorShape, type DecorShapeBody } from '@/atoms'
 import { DECOR_BY_SCREEN, createDecorWorld, decorAsset, decorTransform, seedFromPlay, type DecorWorld } from '@/decor'
 
 /**
@@ -68,12 +68,12 @@ export function DecorField({ state }: DecorFieldProps) {
     <div data-decor-field={screen} data-decor-seed={seed} data-decor-mode={settings.mode} style={{ position: 'absolute', inset: 0 }}>
       {first.map((p) => {
         const spec = p.spec
-        const body =
+        const body: DecorShapeBody =
           spec.kind === 'svg'
-            ? { kind: 'svg' as const, markup: decorAsset(spec.asset).markup }
+            ? { kind: 'svg', markup: decorAsset(spec.asset).markup }
             : spec.kind === 'glyph'
-              ? { kind: 'glyph' as const, glyph: spec.glyph }
-              : { kind: 'outline' as const }
+              ? { kind: 'glyph', glyph: spec.glyph, ...(spec.stroke ? { stroke: true } : {}) }
+              : { kind: 'outline', shape: spec.shape }
         return (
           <DecorShape
             key={p.index}

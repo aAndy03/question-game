@@ -10,8 +10,10 @@ describe('molecules', () => {
   })
 
   it('SequenceRow derives the position from the index', () => {
-    render(<SequenceRow nodeId="teamOrder.row.t1" index={2} name="TEAM GAMMA" shortCode="GAMMA" score={250} />)
-    expect(screen.getByText('G3')).toBeTruthy()
+    render(<SequenceRow nodeId="teamOrder.row.t1" index={2} name="TEAM GAMMA" detail="Ardeal" score={250} />)
+    expect(screen.getByText('03')).toBeTruthy()
+    expect(screen.getByText('Ardeal')).toBeTruthy()
+    expect(screen.getByText('CURRENT POINTS')).toBeTruthy()
     expect(document.querySelector('[data-node-id="teamOrder.row.t1"]')).toBeTruthy()
   })
 
@@ -26,9 +28,11 @@ describe('molecules', () => {
 
   it('DomainCard shows difficulty, name and selected state', () => {
     const { container } = render(
-      <DomainCard nodeId="chooseDomain.card.d1" name="Technology" difficulty="EASY" selected />,
+      <DomainCard nodeId="chooseDomain.card.d1" name="Technology" code="TEC_881" difficulty="10" selected />,
     )
-    expect(screen.getByText('DIFFICULTY // EASY')).toBeTruthy()
+    expect(screen.getByText('10')).toBeTruthy()
+    expect(screen.getByText('TEC_881')).toBeTruthy()
+    expect(screen.getByText('SELECTED')).toBeTruthy()
     expect(screen.getByText('Technology')).toBeTruthy()
     expect((container.querySelector('[data-node-id="chooseDomain.card.d1"]') as HTMLElement).dataset.selected).toBe('true')
   })

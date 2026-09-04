@@ -86,6 +86,8 @@ export const LAYOUT = {
   zoneGap: 'var(--stage-zone-gap)',
   gapTight: 'var(--stage-gap-tight)',
   gapLoose: 'var(--stage-gap-loose)',
+  contentColumn: 'var(--stage-content-column)',
+  contentColumnWide: 'var(--stage-content-column-wide)',
   decorColumnMin: 'var(--stage-decor-column-min)',
   decorColumnMax: 'var(--stage-decor-column-max)',
 } as const;

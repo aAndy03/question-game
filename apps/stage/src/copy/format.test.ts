@@ -32,6 +32,7 @@ describe('stage copy formatters', () => {
   it('derives letters and sequence positions from index', () => {
     expect(optionLetter(0)).toBe('A')
     expect(optionLetter(3)).toBe('D')
-    expect(sequencePosition(0)).toBe('G1')
+    expect(sequencePosition(0)).toBe('01')
+    expect(sequencePosition(11)).toBe('12')
   })
 })

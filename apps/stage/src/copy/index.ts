@@ -25,16 +25,20 @@ export const STAGE_COPY = {
   clockOpen: '[ ',
   clockClose: ' ]',
 
-  /** Header HUD labels. */
+  /** Header: `<brand> | <partner>` on the left, the Play clock on the right. */
+  headerBrand: 'HOPE CHALLENGE',
+  headerPartner: 'AMiCUS',
+
+  /** HUD labels. */
   domainLabel: 'DOMAIN',
   sessionLabel: 'SESSION',
   /** Authored per tournament; the Figma sample reads `2026 - 2027`. */
   sessionValue: '2026 - 2027',
 
-  /** Per-screen header title, `<title> //`. Empty means no title. */
+  /** Per-screen body title, `<title> // <subject>`. Empty means no title. */
   screenTitle: {
     idle: '',
-    teamOrder: 'PLAYING ORDER',
+    teamOrder: 'PLAYING SEQUENCE',
     chooseDomain: 'SELECT CATEGORY',
     question: '',
     scoreboard: 'CURRENT STANDINGS',
@@ -73,8 +77,16 @@ export const STAGE_COPY = {
   currentTag: 'CURRENT',
   exhaustedTag: 'EMPTY',
 
-  /** Sequence rows: `G1`, `G2`, … The prefix is authored, the number derived. */
-  sequencePrefix: 'G',
+  /** Sequence rows: `01`, `02`, … Prefix and zero-padding are authored, the number derived. */
+  sequencePrefix: '',
+  sequenceDigits: 2,
+
+  /** Team rows: the label over the team's catalog detail, and over its score. */
+  teamDetailLabel: 'REGION',
+  teamPointsLabel: 'CURRENT POINTS',
+
+  /** Domain cards show the next question's difficulty as a number (Figma) or as a band word. */
+  difficultyDisplay: 'number' as 'number' | 'band',
 
   /** Domain cards: the difficulty line, e.g. `DIFFICULTY // EASY`. */
   difficultyLabel: 'DIFFICULTY',

@@ -4,6 +4,8 @@ import { Text } from '@/atoms'
 import { DecorField, StageHeader } from '@/organisms'
 import { StageFrame } from '@/templates'
 import { IdlePage } from './Idle'
+import { TeamOrderPage } from './TeamOrder'
+import { ChooseDomainPage } from './ChooseDomain'
 
 /**
  * The Stage tree. One frame for the life of the window; the persistent slots
@@ -18,6 +20,8 @@ export interface StagePageProps {
 
 const PAGES: Partial<Record<StageScreen, ComponentType<StagePageProps>>> = {
   idle: IdlePage,
+  teamOrder: TeamOrderPage,
+  chooseDomain: ChooseDomainPage,
 }
 
 /** Screens with a page built. Tests assert the registry against the contract. */

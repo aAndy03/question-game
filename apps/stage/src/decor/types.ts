@@ -2,15 +2,15 @@
  * Decorative bodies — the loose 2D shapes that scatter around a screen.
  *
  * A screen declares a manifest (`ScreenDecorSpec`): a boundary box the bodies
- * cannot escape, and a list of bodies with *ranges* rather than positions.
- * The concrete layout is derived from a seed taken from the Play (team names,
- * domain names, play id), so every Play gets its own scatter while the visual
- * style — which shapes, which colours, which weights — stays exactly what the
- * design system fixes.
+ * cannot escape, an anchor point that pulls and pushes them on a cycle, and a
+ * list of bodies with *ranges* rather than positions. The concrete layout is
+ * derived from a seed taken from the Play (team names, domain names, play id),
+ * so every Play gets its own scatter while the visual style — which shapes,
+ * which colours, which weights — stays exactly what the design system fixes.
  *
- * Positions and rotations in a manifest are hints only. The settle step
- * (`settle.ts`) resolves collisions and containment, and what it returns is
- * the static state the page renders.
+ * Positions and rotations in a manifest are hints only. The world resolves
+ * collisions and containment and then keeps the bodies moving for the life
+ * of the screen (`world.ts`).
  */
 
 import type { StageScreen } from '@questiongame/contract'
@@ -34,7 +34,8 @@ export interface SvgBody {
 /**
  * A glyph set in the display face. Stand-in for shapes the Figma export did
  * not include as paths (the giant `?`, digits); swapping to an `svg` body is
- * a manifest edit once the asset exists.
+ * a manifest edit once the asset exists. `stroke` draws it as a hairline
+ * outline instead of a fill (the outlined `?` on TeamOrder).
  */
 export interface GlyphBody {
   readonly kind: 'glyph'
@@ -43,12 +44,16 @@ export interface GlyphBody {
   readonly height: Range
   /** Width / height of the glyph's ink, for the collider. */
   readonly aspect: number
+  readonly stroke?: boolean
 }
 
-/** A stroked outline square — the diamond outlines in the reference. */
+/** A hairline outline: a square, a circle, or a rectangle of `aspect` w/h. */
 export interface OutlineBody {
   readonly kind: 'outline'
-  readonly side: Range
+  readonly shape: 'square' | 'circle' | 'rect'
+  /** Height in canvas px. Width is `height × aspect` (1 for square/circle). */
+  readonly height: Range
+  readonly aspect?: number
 }
 
 export type DecorBodySpec = (SvgBody | GlyphBody | OutlineBody) & {
@@ -59,13 +64,13 @@ export type DecorBodySpec = (SvgBody | GlyphBody | OutlineBody) & {
   readonly rotation: Range
   /**
    * Where the body prefers to start, as fractions of the boundary (0–1).
-   * Absent means anywhere. The solver may move it to resolve collisions.
+   * Absent means anywhere. The world may move it to resolve collisions.
    */
-  readonly anchor?: { readonly x: Range; readonly y: Range }
+  readonly region?: { readonly x: Range; readonly y: Range }
 }
 
-/** The invisible box, in canvas px. May extend past the 1920×1080 canvas so
- * shapes can bleed off the edge as they do in the reference. */
+/** The invisible box, in canvas px. May extend a little past the 1920×1080
+ * canvas so shapes clip off the edge as they do in the reference. */
 export interface DecorBoundary {
   readonly x: number
   readonly y: number
@@ -76,13 +81,16 @@ export interface DecorBoundary {
 export interface ScreenDecorSpec {
   readonly screen: StageScreen
   readonly boundary: DecorBoundary
+  /**
+   * The anchor point, as fractions of the boundary. Its timing and strength
+   * are operator settings (`StageDecorSettings.anchor`); where it sits is a
+   * design decision per screen. Defaults to the boundary centre.
+   */
+  readonly anchor?: { readonly x: number; readonly y: number }
   readonly bodies: readonly DecorBodySpec[]
-  /** Downward pull during settle. 0 keeps the scatter; small values let
-   * bodies drift down a little. */
-  readonly gravity?: number
 }
 
-/** One body after settle — what the page renders. */
+/** One body's placement at some instant. */
 export interface PlacedBody {
   readonly index: number
   readonly spec: DecorBodySpec

@@ -6,3 +6,4 @@ export { AnswerOption, type AnswerOptionProps, type AnswerOptionState } from './
 export { TimerPanel, type TimerPanelProps } from './TimerPanel'
 export { ResultWidget, type ResultWidgetProps } from './ResultWidget'
 export { QuestionStem, type QuestionStemProps } from './QuestionStem'
+export { ScreenTitle, type ScreenTitleProps } from './ScreenTitle'
