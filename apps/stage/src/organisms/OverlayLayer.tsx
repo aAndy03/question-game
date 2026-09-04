@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { OVERLAY_COVERAGE, teamById, type OverlayRequest, type PlayStateForStage } from '@questiongame/contract'
 import { SPACE } from '@questiongame/design-stage'
-import { LabelBox, Text } from '@/atoms'
+import { Arrow, LabelBox, Text } from '@/atoms'
 import { resolveCopy } from '@/copy'
 import { optionLetter } from '@/copy/format'
 
@@ -51,6 +51,9 @@ function Sheet({ kind, children }: { kind: OverlayRequest['kind']; children: Rea
   )
 }
 
+/** The export's arrow is 120px on a 1920 canvas. */
+const ARROW_SIZE = 120
+
 function Handoff({ state, from, to }: { state: PlayStateForStage; from: string | null; to: string }) {
   const copy = resolveCopy()
   const fromTeam = from ? teamById(state, from) : undefined
@@ -62,9 +65,7 @@ function Handoff({ state, from, to }: { state: PlayStateForStage; from: string |
           <Text variant="stage-hero" tone="muted" style={{ textDecoration: 'line-through', textDecorationThickness: 'var(--border-thick)' }}>
             {fromTeam.name}
           </Text>
-          <Text variant="stage-hero" tone="heading" style={{ fontWeight: 'var(--weight-regular)' }} aria-hidden>
-            {'→'}
-          </Text>
+          <Arrow size={ARROW_SIZE} />
         </>
       ) : null}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: SPACE[2] }}>

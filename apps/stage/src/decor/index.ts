@@ -6,8 +6,8 @@
  * never know which screen they are drawing.
  */
 
-import type { StageDecorSettings, StageScreen } from '@questiongame/contract'
-import { IDLE_DECOR } from './manifests/idle'
+import type { PlayStateForStage, StageDecorSettings, StageScreen } from '@questiongame/contract'
+import { idleDecor } from './manifests/idle'
 import { TEAM_ORDER_DECOR } from './manifests/teamOrder'
 import { CHOOSE_DOMAIN_DECOR } from './manifests/chooseDomain'
 import { QUESTION_DECOR } from './manifests/question'
@@ -16,8 +16,14 @@ import { FINAL_LEADERBOARD_DECOR } from './manifests/finalLeaderboard'
 import { settle } from './settle'
 import type { PlacedBody, ScreenDecorSpec } from './types'
 
-export const DECOR_BY_SCREEN: Partial<Record<StageScreen, ScreenDecorSpec>> = {
-  idle: IDLE_DECOR,
+/** What a manifest needs from the Play to shape itself (idle: one digit per team). */
+export type DecorContext = Pick<PlayStateForStage, 'teams'>
+
+/** A manifest is a spec, or a function of the Play that returns one. */
+export type DecorManifest = ScreenDecorSpec | ((ctx: DecorContext) => ScreenDecorSpec)
+
+export const DECOR_BY_SCREEN: Partial<Record<StageScreen, DecorManifest>> = {
+  idle: idleDecor,
   teamOrder: TEAM_ORDER_DECOR,
   chooseDomain: CHOOSE_DOMAIN_DECOR,
   question: QUESTION_DECOR,
@@ -25,9 +31,16 @@ export const DECOR_BY_SCREEN: Partial<Record<StageScreen, ScreenDecorSpec>> = {
   finalLeaderboard: FINAL_LEADERBOARD_DECOR,
 }
 
+/** The concrete spec for a screen in this Play, or null when it has no decor. */
+export function decorSpecFor(screen: StageScreen, ctx: DecorContext): ScreenDecorSpec | null {
+  const manifest = DECOR_BY_SCREEN[screen]
+  if (!manifest) return null
+  return typeof manifest === 'function' ? manifest(ctx) : manifest
+}
+
 /** Frame-zero layout for a screen and a seed; empty for a screen with no decor. */
-export function layoutDecor(screen: StageScreen, seed: number, settings?: StageDecorSettings): readonly PlacedBody[] {
-  const spec = DECOR_BY_SCREEN[screen]
+export function layoutDecor(screen: StageScreen, seed: number, ctx: DecorContext, settings?: StageDecorSettings): readonly PlacedBody[] {
+  const spec = decorSpecFor(screen, ctx)
   return spec ? settle(spec, seed, settings) : []
 }
 

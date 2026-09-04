@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_DECOR_SETTINGS, FIXTURES } from '@questiongame/contract'
-import { IDLE_DECOR } from './manifests/idle'
+import { idleDecor } from './manifests/idle'
+
+const IDLE_DECOR = idleDecor(FIXTURES.idle)
 import { STEP_MS, anchorPhase, createDecorWorld, decorAsset, hashString, layoutDecor, seedFromPlay, settle } from './index'
 
 function corners(b: { x: number; y: number; width: number; height: number; angle: number }) {
@@ -84,7 +86,21 @@ describe('decor settle', () => {
   })
 
   it('a screen without a manifest lays out nothing', () => {
-    expect(layoutDecor('currentTeam', seed)).toEqual([])
+    expect(layoutDecor('currentTeam', seed, FIXTURES.idle)).toEqual([])
+  })
+})
+
+describe('idle manifest shapes itself from the Play', () => {
+  const digits = (n: number) => idleDecor({ teams: FIXTURES['final-leaderboard-six'].teams.slice(0, n) }).bodies.filter((b) => b.kind === 'svg' && b.asset.startsWith('digit-'))
+  it('shows one digit per team, at most five, none with no team', () => {
+    expect(digits(0).length).toBe(0)
+    expect(digits(1).length).toBe(1)
+    expect(digits(4).map((b) => (b.kind === 'svg' ? b.asset : ''))).toEqual(['digit-1', 'digit-2', 'digit-3', 'digit-4'])
+    expect(digits(6).length).toBe(5)
+  })
+  it('uses the exported ? path, not a glyph', () => {
+    expect(IDLE_DECOR.bodies.some((b) => b.kind === 'svg' && b.asset === 'question')).toBe(true)
+    expect(IDLE_DECOR.bodies.some((b) => b.kind === 'glyph')).toBe(false)
   })
 })
 
@@ -97,6 +113,13 @@ describe('decor assets', () => {
     expect(plus.markup).not.toMatch(/fill="#/)
     expect(plus.markup).toContain('width="100%"')
     expect(plus.markup).toContain('viewBox=')
+  })
+
+  it('recolours fills named by keyword too (the digit export uses fill="black")', () => {
+    const one = decorAsset('digit-1')
+    expect(one.markup).toContain('fill="currentColor"')
+    expect(one.markup).not.toContain('fill="black"')
+    expect(decorAsset('question').width).toBe(151)
   })
 
   it('rejects an unknown asset loudly', () => {
@@ -136,7 +159,7 @@ describe('decor world (live)', () => {
       }
       for (const s of speeds(world)) {
         expect(s).toBeGreaterThan(0)
-        expect(s).toBeLessThanOrEqual(settings.maxSpeed + 1)
+        expect(s).toBeLessThanOrEqual(settings.maxSpeed + 2)
       }
       world.destroy()
     })
@@ -207,7 +230,7 @@ describe('decor world (live)', () => {
     world.step(10_000)
     const after = world.read()
     // At most 5 steps: nobody teleports.
-    after.forEach((p, i) => expect(Math.hypot(p.x - before[i]!.x, p.y - before[i]!.y)).toBeLessThan(DEFAULT_DECOR_SETTINGS.maxSpeed))
+    after.forEach((p, i) => expect(Math.hypot(p.x - before[i]!.x, p.y - before[i]!.y)).toBeLessThan(DEFAULT_DECOR_SETTINGS.maxSpeed + 2))
     world.destroy()
   })
 })

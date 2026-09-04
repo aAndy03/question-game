@@ -32,6 +32,12 @@ import leaderN1 from '@questiongame/design-stage/assets/devorative_leaderboard_s
 import leaderE from '@questiongame/design-stage/assets/devorative_leaderboard_screen/E.svg?raw'
 import leaderR from '@questiongame/design-stage/assets/devorative_leaderboard_screen/R.svg?raw'
 import leaderI1 from '@questiongame/design-stage/assets/devorative_leaderboard_screen/I-1.svg?raw'
+import question from '@questiongame/design-stage/assets/decorative_idle_screen/question.svg?raw'
+import digit1 from '@questiongame/design-stage/assets/decorative_idle_screen/1.svg?raw'
+import digit2 from '@questiongame/design-stage/assets/decorative_idle_screen/2.svg?raw'
+import digit3 from '@questiongame/design-stage/assets/decorative_idle_screen/3.svg?raw'
+import digit4 from '@questiongame/design-stage/assets/decorative_idle_screen/4.svg?raw'
+import digit5 from '@questiongame/design-stage/assets/decorative_idle_screen/5.svg?raw'
 
 const RAW = {
   plus,
@@ -59,6 +65,12 @@ const RAW = {
   'leader-E': leaderE,
   'leader-R': leaderR,
   'leader-I-1': leaderI1,
+  question,
+  'digit-1': digit1,
+  'digit-2': digit2,
+  'digit-3': digit3,
+  'digit-4': digit4,
+  'digit-5': digit5,
 } as const
 
 export type DecorAssetId = keyof typeof RAW
@@ -82,8 +94,8 @@ function parse(id: DecorAssetId, raw: string): DecorAsset {
       (_m, attrs: string) =>
         `<svg${attrs.replace(/\s(width|height)="[^"]*"/g, '')} width="100%" height="100%" preserveAspectRatio="xMidYMid meet">`,
     )
-    .replace(/fill="#[0-9a-fA-F]{3,8}"/g, 'fill="currentColor"')
-    .replace(/stroke="#[0-9a-fA-F]{3,8}"/g, 'stroke="currentColor"')
+    .replace(/fill="(?!none")[^"]*"/g, 'fill="currentColor"')
+    .replace(/stroke="(?!none")[^"]*"/g, 'stroke="currentColor"')
   return { id, width, height, markup }
 }
 

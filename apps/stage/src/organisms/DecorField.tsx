@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { nodeId, type PlayStateForStage, type StageDecorSettings } from '@questiongame/contract'
 import { DecorShape, type DecorShapeBody } from '@/atoms'
 import {
-  DECOR_BY_SCREEN,
+  decorSpecFor,
   createDecorWorld,
   decorAsset,
   decorOpacity,
@@ -43,12 +43,18 @@ export function DecorField({ state }: DecorFieldProps) {
   const settings = state.decor
   const key = settingsKey(settings)
 
+  // A manifest may shape itself from the Play (idle: one digit per team); a
+  // different body list is a different world, the same list is not.
+  const spec = decorSpecFor(screen, state)
+  const bodiesKey = spec ? spec.bodies.map((b) => (b.kind === 'svg' ? b.asset : b.kind)).join(',') : ''
+
   // The world lives across renders; it is rebuilt only when its inputs change.
   const world = useMemo<DecorWorld | null>(() => {
-    const spec = DECOR_BY_SCREEN[screen]
-    return spec ? createDecorWorld(spec, seed, settings) : null
-    // `key` stands in for `settings` so an equal-valued new object is a no-op.
-  }, [screen, seed, key])
+    const s = decorSpecFor(screen, state)
+    return s ? createDecorWorld(s, seed, settings) : null
+    // `key` and `bodiesKey` stand in for `settings` and `state`, so an
+    // equal-valued new object is a no-op.
+  }, [screen, seed, key, bodiesKey])
 
   const latest = useRef<readonly PlacedBody[]>([])
   const worldOfLatest = useRef<DecorWorld | null>(null)

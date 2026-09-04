@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
 import { FIXTURES, SCREEN_SLOTS, leaderboard, nodeId } from '@questiongame/contract'
-import { DECOR_BY_SCREEN, decorOpacity } from '@/decor'
+import { decorOpacity, decorSpecFor } from '@/decor'
 import { STAGE_COPY } from '@/copy'
 import { BUILT_SCREENS, StageRoot } from './index'
 
@@ -26,7 +26,8 @@ describe('Idle page', () => {
 
   it('lays out one decor node per manifest body, seeded from the Play', () => {
     const { container } = render(<StageRoot state={FIXTURES.idle} />)
-    const bodies = DECOR_BY_SCREEN.idle!.bodies
+    const bodies = decorSpecFor('idle', FIXTURES.idle)!.bodies
+    expect(bodies.filter((b) => b.kind === 'svg' && b.asset.startsWith('digit-')).length).toBe(FIXTURES.idle.teams.length)
     bodies.forEach((_, i) => expect(byNode(container, nodeId('idle', 'decor', i)), `decor ${i}`).toBeTruthy())
     const field = container.querySelector('[data-decor-field]') as HTMLElement
     expect(field.dataset.decorSeed).toMatch(/^\d+$/)
@@ -68,7 +69,7 @@ describe('TeamOrder page', () => {
 
   it('lays out the READY letters as decor', () => {
     const { container } = render(<StageRoot state={state} />)
-    DECOR_BY_SCREEN.teamOrder!.bodies.forEach((_, i) => expect(byNode(container, nodeId('teamOrder', 'decor', i))).toBeTruthy())
+    decorSpecFor('teamOrder', state)!.bodies.forEach((_, i) => expect(byNode(container, nodeId('teamOrder', 'decor', i))).toBeTruthy())
   })
 })
 
@@ -88,7 +89,7 @@ describe('ChooseDomain page', () => {
 
   it('lays out the CHOOSE letters as decor', () => {
     const { container } = render(<StageRoot state={state} />)
-    DECOR_BY_SCREEN.chooseDomain!.bodies.forEach((_, i) => expect(byNode(container, nodeId('chooseDomain', 'decor', i))).toBeTruthy())
+    decorSpecFor('chooseDomain', state)!.bodies.forEach((_, i) => expect(byNode(container, nodeId('chooseDomain', 'decor', i))).toBeTruthy())
   })
 })
 
@@ -160,7 +161,7 @@ describe('Question page, every engine state', () => {
       for (const id of state.session!.outcome!.correctOptionIds) {
         expect(byNode(container, nodeId('question', 'option', id))!.dataset.state, name).toBe('correct')
       }
-      const bodies = DECOR_BY_SCREEN.question!.bodies
+      const bodies = decorSpecFor('question', state)!.bodies
       const plus = bodies.find((b) => b.role === 'correct')!
       const minus = bodies.find((b) => b.role === 'incorrect')!
       if (verdict === 'correct') {
@@ -175,7 +176,7 @@ describe('Question page, every engine state', () => {
 
   it('before the outcome both commentary bodies are at full opacity', () => {
     const state = FIXTURES['question-locked']
-    for (const b of DECOR_BY_SCREEN.question!.bodies) expect(decorOpacity(b, state)).toBe(b.opacity)
+    for (const b of decorSpecFor('question', state)!.bodies) expect(decorOpacity(b, state)).toBe(b.opacity)
   })
 
   it('category line names the domain and the team on token', () => {
@@ -202,7 +203,7 @@ describe('Scoreboard page', () => {
 
   it('lays out the scoreboard shapes as decor', () => {
     const { container } = render(<StageRoot state={state} />)
-    DECOR_BY_SCREEN.scoreboard!.bodies.forEach((_, i) => expect(byNode(container, nodeId('scoreboard', 'decor', i))).toBeTruthy())
+    decorSpecFor('scoreboard', state)!.bodies.forEach((_, i) => expect(byNode(container, nodeId('scoreboard', 'decor', i))).toBeTruthy())
   })
 })
 
@@ -237,7 +238,7 @@ describe('FinalLeaderboard page', () => {
 
   it('lays out the WINNER letters as decor', () => {
     const { container } = render(<StageRoot state={partial} />)
-    DECOR_BY_SCREEN.finalLeaderboard!.bodies.forEach((_, i) => expect(byNode(container, nodeId('finalLeaderboard', 'decor', i))).toBeTruthy())
+    decorSpecFor('finalLeaderboard', partial)!.bodies.forEach((_, i) => expect(byNode(container, nodeId('finalLeaderboard', 'decor', i))).toBeTruthy())
   })
 })
 
@@ -273,6 +274,7 @@ describe('Overlays draw over the live screen', () => {
     expect(overlay.dataset.coverage).toBe('full')
     expect(overlay.textContent).toContain('TEAM BETA')
     expect(overlay.textContent).toContain('NOW PLAYING')
+    expect(overlay.querySelector('[data-arrow] svg')).toBeTruthy()
     expect(overlay.textContent).toContain('TEAM GAMMA')
     // The board underneath is still mounted.
     expect(byNode(container, nodeId('chooseDomain', 'card', 'dom-sci'))).toBeTruthy()
