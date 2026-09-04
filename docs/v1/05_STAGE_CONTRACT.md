@@ -33,6 +33,8 @@ Three shape decisions worth stating, because they are not obvious:
 
 **`decor`** (`StageDecorSettings`) says how the decorative bodies move — they never stand still. `mode` is `collide` or `collide-attract`; `anchor` is the invisible point that attracts for a while and repels for a while; the numbers are dials the Screens tab will expose. `StageTeam.detail` is one line of catalog detail beside the name (a region in the sample); its label is authored copy. It is a per-recipe layout setting, live-updatable, and affects nothing the game scores.
 
+`questionsIssued` counts the questions issued so far this Play, the current one included; the CurrentTeam interstitial reads it as `QUESTION 20`.
+
 `contractVersion` is stamped on every snapshot. It bumps when a field is removed or changes meaning, never for additions, so a host/webview mismatch surfaces as a notice instead of a blank screen.
 
 ## 2. Node ids
@@ -95,4 +97,4 @@ At P6 these become integration assertions — the host must reproduce each one a
 - **Copy and labels.** The contract carries ids and values, never strings like `TIMER // REMAINING`. Those belong to the design system.
 - **Payload shapes for commands.** Names are frozen; each argument list arrives with the phase that implements it.
 - **Studio's own state.** Nothing here describes the Control mosaic, the Viewer, or the libraries.
-- **`OverlayKind`** has two members today (`token-handoff`, `round-advance`). It is a union so a third is one entry plus one timeline, not a new event shape.
+- **`OverlayRequest`** is a discriminated union (version 3): `token-handoff` and `round-advance` (full screen), `multiple-answers` (full screen), `outcome` (half screen — the verdict word over the bottom half while the question stays visible). `OVERLAY_COVERAGE` records which is which. A new overlay is one member plus one component and one timeline.

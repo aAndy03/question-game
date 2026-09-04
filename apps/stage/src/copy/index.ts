@@ -62,6 +62,18 @@ export const STAGE_COPY = {
   /** Question: the timer turns urgent below this many seconds. */
   timerUrgentSeconds: 5,
 
+  /** Interstitials and overlays. */
+  questionLabel: 'QUESTION',
+  nowPlayingLabel: 'NOW PLAYING',
+  multipleAnswersWord: 'MULTIPLE ANSWERS',
+  roundAdvanceLabel: 'ROUND',
+  /** The verdict word on the half-screen outcome overlay. */
+  outcomeWord: {
+    correct: 'CORRECT',
+    incorrect: 'INCORRECT',
+    partial: 'EXTRA SELECTION',
+  } satisfies Record<OutcomeVerdict, string>,
+
   /** Result widget. */
   resultLabel: 'RESULT',
   verdict: {

@@ -13,12 +13,14 @@ import { LAYOUT } from '@questiongame/design-stage'
 export interface StageFrameProps {
   header?: ReactNode
   decor?: ReactNode
+  /** The overlay layer: drawn above the content, never remounting it (spec §2.6). */
+  overlay?: ReactNode
   children: ReactNode
   /** Data hook for the current screen, for tests and the Screens canvas. */
   screen?: string
 }
 
-export function StageFrame({ header, decor, children, screen }: StageFrameProps) {
+export function StageFrame({ header, decor, overlay, children, screen }: StageFrameProps) {
   return (
     <div
       data-surface="stage"
@@ -60,6 +62,9 @@ export function StageFrame({ header, decor, children, screen }: StageFrameProps)
         <div data-stage-body style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           {children}
         </div>
+      </div>
+      <div data-stage-overlay style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+        {overlay}
       </div>
     </div>
   )

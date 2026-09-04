@@ -69,16 +69,38 @@ export function channelForRevealKey(key: RevealKey): RevealChannel | null {
 }
 
 /**
- * Overlay animations. `kind` is a union so a new handoff style is one entry
- * here plus one timeline, not a new event shape.
+ * Overlay animations: drawn over the live screen, never remounting it
+ * (spec §2.6). A discriminated union, so a new overlay is one member here
+ * plus one component and one timeline, not a new event shape.
+ *
+ *   token-handoff     full screen: the token passes from one team to the next
+ *                     (`TEAM ALPHA → TEAM BETA`, "NOW PLAYING")
+ *   round-advance     full screen: a new round begins
+ *   multiple-answers  full screen: the issued question takes several answers
+ *   outcome           half screen: the verdict word over the bottom half, the
+ *                     question staying visible above it
  */
-export type OverlayKind = 'token-handoff' | 'round-advance'
+export type OverlayRequest =
+  | {
+      readonly kind: 'token-handoff'
+      /** Null when there was no previous holder (first token of the Play). */
+      readonly fromTeamId: string | null
+      readonly toTeamId: string
+    }
+  | { readonly kind: 'round-advance'; readonly roundIndex: number }
+  | { readonly kind: 'multiple-answers'; readonly optionIds: readonly string[] }
+  | { readonly kind: 'outcome'; readonly verdict: 'correct' | 'incorrect' | 'partial' }
 
-export interface OverlayRequest {
-  readonly kind: OverlayKind
-  /** Null when there was no previous holder (first token of the Play). */
-  readonly fromTeamId: string | null
-  readonly toTeamId: string
+export type OverlayKind = OverlayRequest['kind']
+
+export const OVERLAY_KINDS = ['token-handoff', 'round-advance', 'multiple-answers', 'outcome'] as const satisfies readonly OverlayKind[]
+
+/** Full-screen overlays hide the screen; half-screen ones leave it visible. */
+export const OVERLAY_COVERAGE: Record<OverlayKind, 'full' | 'half'> = {
+  'token-handoff': 'full',
+  'round-advance': 'full',
+  'multiple-answers': 'full',
+  outcome: 'half',
 }
 
 /**

@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import { STAGE_SCREENS, type PlayStateForStage, type StageScreen } from '@questiongame/contract'
 import { Text } from '@/atoms'
-import { DecorField, StageHeader } from '@/organisms'
+import { DecorField, OverlayLayer, StageHeader } from '@/organisms'
 import { StageFrame } from '@/templates'
 import { IdlePage } from './Idle'
 import { TeamOrderPage } from './TeamOrder'
@@ -9,6 +9,7 @@ import { ChooseDomainPage } from './ChooseDomain'
 import { QuestionPage } from './Question'
 import { ScoreboardPage } from './Scoreboard'
 import { FinalLeaderboardPage } from './FinalLeaderboard'
+import { CurrentTeamPage } from './CurrentTeam'
 
 /**
  * The Stage tree. One frame for the life of the window; the persistent slots
@@ -28,6 +29,7 @@ const PAGES: Partial<Record<StageScreen, ComponentType<StagePageProps>>> = {
   question: QuestionPage,
   scoreboard: ScoreboardPage,
   finalLeaderboard: FinalLeaderboardPage,
+  currentTeam: CurrentTeamPage,
 }
 
 /** Screens with a page built. Tests assert the registry against the contract. */
@@ -50,7 +52,12 @@ export interface StageRootProps {
 export function StageRoot({ state }: StageRootProps) {
   const Page = PAGES[state.currentScreen] ?? Unbuilt
   return (
-    <StageFrame screen={state.currentScreen} header={<StageHeader state={state} />} decor={<DecorField state={state} />}>
+    <StageFrame
+      screen={state.currentScreen}
+      header={<StageHeader state={state} />}
+      decor={<DecorField state={state} />}
+      overlay={<OverlayLayer state={state} />}
+    >
       <Page state={state} />
     </StageFrame>
   )

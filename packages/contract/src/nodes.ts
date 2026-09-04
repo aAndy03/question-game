@@ -66,7 +66,13 @@ export const SCREEN_SLOTS = {
     row: 'ranked',
     decor: 'indexed',
   },
-  currentTeam: { header: 'static', teamName: 'static', decor: 'indexed' },
+  currentTeam: {
+    question: 'static',
+    mark: 'static',
+    teamName: 'static',
+    domain: 'static',
+    decor: 'indexed',
+  },
 } as const satisfies Record<StageScreen, Record<string, SlotKind>>
 
 export type SlotOf<S extends StageScreen> = keyof (typeof SCREEN_SLOTS)[S] & string

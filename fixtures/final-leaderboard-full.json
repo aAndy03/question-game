@@ -1,5 +1,5 @@
 {
-  "contractVersion": 2,
+  "contractVersion": 3,
   "playId": "play-fixture-1",
   "status": "completed",
   "teams": [
@@ -136,6 +136,7 @@
     "spin": 4,
     "maxSpeed": 40
   },
+  "questionsIssued": 5,
   "currentScreen": "finalLeaderboard",
   "overlay": {
     "busy": false,

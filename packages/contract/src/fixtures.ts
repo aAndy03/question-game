@@ -76,6 +76,7 @@ function base(overrides: Partial<PlayStateForStage> = {}): PlayStateForStage {
     clock: { elapsedMs: 740_000, running: true },
     leaderboardRevealedRanks: [],
     decor: DEFAULT_DECOR_SETTINGS,
+    questionsIssued: 5,
     currentScreen: 'idle',
     overlay: { busy: false, active: null, pending: null, enabled: true },
     revealModes: {
@@ -124,6 +125,7 @@ export const FIXTURES = {
     currentScreen: 'idle',
     ring: { order: [], currentTeamId: null, roundIndex: 1 },
     clock: { elapsedMs: 0, running: false },
+    questionsIssued: 0,
   }),
 
   'team-order': base({ currentScreen: 'teamOrder' }),
@@ -311,6 +313,54 @@ export const FIXTURES = {
     domains: DOMAINS.map((d) => ({ ...d, remaining: 0, exhausted: true, nextDifficulty: null })),
     clock: { elapsedMs: 4_100_000, running: false },
     leaderboardRevealedRanks: [6, 5, 3, 1],
+  }),
+
+  /** The token passes: a full-screen overlay over the domain board. */
+  'overlay-handoff': base({
+    currentScreen: 'chooseDomain',
+    overlay: {
+      busy: true,
+      active: { kind: 'token-handoff', fromTeamId: 'team-beta', toTeamId: 'team-gamma' },
+      pending: null,
+      enabled: true,
+    },
+  }),
+
+  /** A several-answers question was issued: the full-screen notice over it. */
+  'overlay-multiple-answers': base({
+    currentScreen: 'question',
+    session: session({ answerMode: 'multiple' }),
+    overlay: {
+      busy: true,
+      active: { kind: 'multiple-answers', optionIds: OPTIONS.map((o) => o.id) },
+      pending: null,
+      enabled: true,
+    },
+  }),
+
+  /** The verdict word over the bottom half; the question stays visible. */
+  'overlay-outcome-correct': base({
+    currentScreen: 'question',
+    session: session({
+      reveals: { ...allRevealed, outcome: true },
+      lockedOptionIds: ['opt-a'],
+      selectedOptionIds: ['opt-a'],
+      outcome: { verdict: 'correct', pointsAwarded: 500, correctOptionIds: ['opt-a'], bonusAwarded: null },
+      timer: { durationMs: 30_000, remainingMs: 21_400, running: false, remainingMsAtLock: 21_400, expiredOpen: false },
+    }),
+    overlay: { busy: true, active: { kind: 'outcome', verdict: 'correct' }, pending: null, enabled: true },
+  }),
+
+  'overlay-outcome-incorrect': base({
+    currentScreen: 'question',
+    session: session({
+      reveals: { ...allRevealed, outcome: true },
+      lockedOptionIds: ['opt-b'],
+      selectedOptionIds: ['opt-b'],
+      outcome: { verdict: 'incorrect', pointsAwarded: 0, correctOptionIds: ['opt-a'], bonusAwarded: null },
+      timer: { durationMs: 30_000, remainingMs: 12_000, running: false, remainingMsAtLock: 12_000, expiredOpen: false },
+    }),
+    overlay: { busy: true, active: { kind: 'outcome', verdict: 'incorrect' }, pending: null, enabled: true },
   }),
 
   /** Two of four ranks revealed, lowest first: 4 then 2 (a tie). */

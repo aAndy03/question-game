@@ -46,6 +46,8 @@ export type TextTransition = 'none' | 'swap' | 'count';
  *   team-tag                 a team name beside a HUD label — Space Grotesk regular, uppercase
  *   letter / answer          an answer card's letter and text — Space Grotesk bold
  *   champion                 the winner's name, huge — Space Grotesk regular, uppercase
+ *   hero                     an interstitial word (CORRECT, TEAM ALPHA) — Space Grotesk bold, huge, uppercase
+ *   hud-large                a HUD line at interstitial size — Space Mono bold, as typed
  *   place-label              `PLACE_01` — Space Grotesk bold, small, uppercase
  */
 export type TextVariant =
@@ -75,6 +77,8 @@ export type TextVariant =
   | 'stage-letter'
   | 'stage-answer'
   | 'stage-champion'
+  | 'stage-hero'
+  | 'stage-hud-large'
   | 'stage-place-label'
   | 'studio-body'
   | 'studio-label'
@@ -186,6 +190,8 @@ const VARIANT_TOKENS: Record<TextVariant, VariantTokens> = {
   'stage-answer': grotesk('var(--text-heading-2)', 'var(--weight-bold)'),
   'stage-champion': { ...grotesk('var(--text-giant)', 'var(--weight-regular)'), tracking: 'var(--tracking-tight-2)', leading: 'var(--leading-display)', casing: 'var(--case-name)' },
   'stage-place-label': { ...grotesk('var(--text-label)', 'var(--weight-bold)'), tracking: 'var(--tracking-wide-1)', casing: 'var(--case-name)' },
+  'stage-hero': { ...grotesk('var(--text-giant)', 'var(--weight-bold)'), tracking: 'var(--tracking-tight-2)', leading: 'var(--leading-display)', casing: 'var(--case-name)' },
+  'stage-hud-large': { ...mono('var(--text-heading-4)', 'var(--tracking-wide-1)', 'var(--case-prose)'), leading: 'var(--leading-heading)' },
   'studio-body': studio('var(--text-body)'),
   'studio-label': studio('var(--text-label)'),
   'studio-caption': studio('var(--text-caption)'),

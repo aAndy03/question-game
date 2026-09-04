@@ -241,11 +241,72 @@ describe('FinalLeaderboard page', () => {
   })
 })
 
-describe('Stage root', () => {
-  it('renders an unbuilt screen without crashing and keeps the frame', () => {
+describe('CurrentTeam page', () => {
+  it('shows the question counter, the team mark and name, and the chosen domain with its difficulty', () => {
+    const base = FIXTURES['current-team']
+    const state = { ...base, session: FIXTURES['question-issued'].session }
+    const { container } = render(<StageRoot state={state} />)
+    expect(byNode(container, nodeId('currentTeam', 'question'))!.textContent).toBe(`QUESTION ${state.questionsIssued}`)
+    expect(byNode(container, nodeId('currentTeam', 'teamName'))!.textContent).toBe('TEAM GAMMA')
+    expect(byNode(container, nodeId('currentTeam', 'mark'))!.textContent).toBe('G')
+    const domain = byNode(container, nodeId('currentTeam', 'domain'))!
+    expect(domain.textContent).toBe('DOMAIN // Science 20')
+    expect(domain.style.visibility).not.toBe('hidden')
+    expect((container.querySelector('[data-stage-header]') as HTMLElement).style.visibility).toBe('hidden')
+  })
+
+  it('hides the domain line while no question is issued', () => {
     const { container } = render(<StageRoot state={FIXTURES['current-team']} />)
-    expect(container.querySelector('[data-page="unbuilt"]')).toBeTruthy()
+    expect(byNode(container, nodeId('currentTeam', 'domain'))!.style.visibility).toBe('hidden')
+  })
+})
+
+describe('Overlays draw over the live screen', () => {
+  it('nothing is drawn while the queue is idle', () => {
+    const { container } = render(<StageRoot state={FIXTURES['question-locked']} />)
+    expect(container.querySelector('[data-overlay]')).toBeNull()
+  })
+
+  it('token-handoff: full screen, old holder struck through, new holder under NOW PLAYING', () => {
+    const { container } = render(<StageRoot state={FIXTURES['overlay-handoff']} />)
+    const overlay = container.querySelector('[data-overlay="token-handoff"]') as HTMLElement
+    expect(overlay.dataset.coverage).toBe('full')
+    expect(overlay.textContent).toContain('TEAM BETA')
+    expect(overlay.textContent).toContain('NOW PLAYING')
+    expect(overlay.textContent).toContain('TEAM GAMMA')
+    // The board underneath is still mounted.
+    expect(byNode(container, nodeId('chooseDomain', 'card', 'dom-sci'))).toBeTruthy()
+  })
+
+  it('multiple-answers: full screen, one letter box per option', () => {
+    const state = FIXTURES['overlay-multiple-answers']
+    const { container } = render(<StageRoot state={state} />)
+    const overlay = container.querySelector('[data-overlay="multiple-answers"]') as HTMLElement
+    expect(overlay.dataset.coverage).toBe('full')
+    expect(overlay.textContent).toContain('MULTIPLE ANSWERS')
+    expect(overlay.querySelectorAll('[data-label-box]').length).toBe(state.session!.options.length)
+  })
+
+  for (const [name, word] of [
+    ['overlay-outcome-correct', 'CORRECT'],
+    ['overlay-outcome-incorrect', 'INCORRECT'],
+  ] as const) {
+    it(`outcome: half screen, ${word}, the question still visible`, () => {
+      const { container } = render(<StageRoot state={FIXTURES[name]} />)
+      const overlay = container.querySelector('[data-overlay="outcome"]') as HTMLElement
+      expect(overlay.dataset.coverage).toBe('half')
+      expect(overlay.textContent).toBe(word)
+      expect(byNode(container, nodeId('question', 'stem'))!.style.visibility).not.toBe('hidden')
+      expect(byNode(container, nodeId('question', 'result'))!.style.visibility).not.toBe('hidden')
+    })
+  }
+})
+
+describe('Stage root', () => {
+  it('every contract screen has a page', () => {
+    const { container } = render(<StageRoot state={FIXTURES.idle} />)
+    expect(container.querySelector('[data-page="unbuilt"]')).toBeNull()
     expect(container.querySelector('[data-stage-frame]')).toBeTruthy()
-    expect(BUILT_SCREENS).toContain('idle')
+    expect(BUILT_SCREENS.length).toBe(7)
   })
 })

@@ -19,7 +19,7 @@ import type { OverlayRequest, RevealChannel, RevealMode } from './reveal'
  * not bump it. Stage compares this against its own build so a host/webview
  * mismatch surfaces as a notice instead of a blank screen.
  */
-export const CONTRACT_VERSION = 2
+export const CONTRACT_VERSION = 3
 
 /** Spec §5.1. */
 export type PlayStatus =
@@ -255,6 +255,9 @@ export interface PlayStateForStage {
 
   /** Decorative-body motion for this recipe. See `StageDecorSettings`. */
   readonly decor: StageDecorSettings
+
+  /** Questions issued so far this Play, the current one included. `QUESTION 20`. */
+  readonly questionsIssued: number
 
   /** What the operator has chosen to show. Independent of game truth. */
   readonly currentScreen: StageScreen

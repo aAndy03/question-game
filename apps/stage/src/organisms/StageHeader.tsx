@@ -23,7 +23,7 @@ export function StageHeader({ state }: StageHeaderProps) {
   const copy = resolveCopy()
   const screen = state.currentScreen
   const hasHeader = 'header' in SCREEN_SLOTS[screen]
-  const id = hasHeader ? nodeId(screen, 'header' as never) : undefined
+  const id = hasHeader ? nodeId(screen as 'teamOrder', 'header') : undefined
 
   return (
     <header
