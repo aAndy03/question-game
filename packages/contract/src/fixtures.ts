@@ -1,9 +1,12 @@
 /**
  * `play-state` fixtures.
  *
- * These drive Stage through P2 and P3 while no host exists, and become
- * integration assertions at P6: every fixture must be reproducible as a real
- * host emission (roadmap P6 exit criteria).
+ * These drove Stage through P2 and P3 while no host existed, and are now two
+ * things at once: the **integration assertion** the host is held to
+ * (`crates/host/tests/stage_contract.rs` — every fixture must be reproducible
+ * as a real emission) and the **no-host fallback** Stage renders when
+ * `npm run dev:stage` runs in a plain browser, so screen work needs no
+ * database. Inside the desktop app they are unreachable.
  *
  * Authored in TypeScript rather than raw JSON so they typecheck against
  * `PlayStateForStage` at build time. `npm run fixtures` writes them to

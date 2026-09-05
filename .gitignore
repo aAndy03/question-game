@@ -1,6 +1,16 @@
 node_modules/
-dist/
 target/
+apps/*/dist/
+packages/*/dist/
+
+# Both webviews build into the repo-root dist/ — Tauri's `frontendDist` points
+# at it, so the directory itself has to exist for `cargo build` to run its
+# codegen. Hence the one tracked file.
+/dist/*
+!/dist/README.md
+
+# tauri-build generates the capability schemas here.
+crates/app/gen/
 *.tsbuildinfo
 .vite/
 coverage/

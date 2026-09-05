@@ -25,6 +25,7 @@ pub mod service;
 mod snapshot;
 mod store;
 
+pub use crate::flags::GameSettings;
 pub use db::CatalogLocation;
 pub use error::{CatalogError, CatalogKind, CatalogResult};
 pub use model::{

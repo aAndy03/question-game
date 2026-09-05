@@ -1,19 +1,47 @@
-import { useEffect, useMemo, useState } from 'react'
-import { FIXTURES, FIXTURE_NAMES, type DecorMotionMode, type FixtureName, type PlayStateForStage } from '@questiongame/contract'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import {
+  FIXTURES,
+  FIXTURE_NAMES,
+  type DecorMotionMode,
+  type FixtureName,
+  type PlayStateForStage,
+} from '@questiongame/contract'
 import { stageEvents } from '@/host/events'
+import { stageHost, type StageHost } from '@/host/host'
 import { StageRoot } from '@/pages'
 
 /**
- * Fixture switcher — the P2/P3 dev harness. Until P6 there is no host, so
- * Stage renders a fixture; the strip below the canvas swaps it *in place*,
- * so screen changes play their transitions instead of reloading. The strip
- * is outside the 1920×1080 frame and outside the Stage tree, so nothing
- * interactive is ever inside the surface the camera sees. It is removed at
- * P6 when play-state arrives from the host.
+ * Stage's root. Two ways in, one tree:
  *
- * `?fixture=<name>&decor=<mode>` seeds the first state; the URL follows the
- * strip so a view can be bookmarked.
+ * ```text
+ * host present   `play-state` from the Rust host. The real thing (P6).
+ * no host        the P2/P3 fixture strip, dev builds only — `npm run dev:stage`
+ *                in a plain browser, for screen work without booting the app.
+ * ```
+ *
+ * The fixture strip is a **fallback**, not a mode: inside the desktop app there
+ * is a host, so it never renders. It stays because a designer iterating on a
+ * screen should not need a database, and because "Stage renders identically
+ * fixture-fed or host-fed" is a P6 exit criterion that wants both paths alive.
+ * Either way it is outside the 1920×1080 frame and outside the Stage tree, so
+ * nothing interactive is ever inside the surface the camera sees.
  */
+
+function HostFed({ host }: { host: StageHost }) {
+  // `useSyncExternalStore` rather than an effect: the host is the store, and a
+  // render that tears halfway through a Play is a wrong score on a surface
+  // someone is filming. Until the first emission this is `EMPTY_PLAY_STATE` —
+  // the Idle screen, which reads nothing off the Play.
+  const state = useSyncExternalStore(host.subscribe, host.snapshot, host.snapshot)
+  return <StageRoot state={state} />
+}
+
+export function App() {
+  const host = stageHost()
+  return host ? <HostFed host={host} /> : <FixtureFed />
+}
+
+// ------------------------------------------------------- the no-host fallback
 
 function fixtureFromUrl(): FixtureName {
   const raw = new URLSearchParams(window.location.search).get('fixture')
@@ -41,7 +69,12 @@ const link = (active: boolean, activeBg: string) =>
     cursor: 'pointer',
   }) as const
 
-export function App() {
+/**
+ * `?fixture=<name>&decor=<mode>` seeds the first state; the URL follows the
+ * strip so a view can be bookmarked. The strip swaps the fixture *in place*, so
+ * screen changes play their transitions instead of reloading.
+ */
+function FixtureFed() {
   const [name, setName] = useState<FixtureName>(fixtureFromUrl)
   const [decor, setDecor] = useState<DecorMotionMode | null>(decorFromUrl)
   const [lastEvent, setLastEvent] = useState<string>('')

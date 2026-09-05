@@ -270,6 +270,82 @@ export interface PlayStateForStage {
   readonly revealModes: Readonly<Record<RevealChannel, RevealMode>>
 }
 
+/**
+ * What Stage draws before the host has anything to send: no Play is loaded, so
+ * the wall shows Idle — the wordmark, and nothing derived.
+ *
+ * It is presentation, not truth. Idle reads nothing off the Play (see
+ * `SCREENS.idle`), so an empty roster and an empty board are exactly right, and
+ * the first real `play-state` replaces this whole object. Nothing else may
+ * synthesise a state: a visual changes because the backend changed it.
+ */
+export const EMPTY_PLAY_STATE: PlayStateForStage = {
+  contractVersion: CONTRACT_VERSION,
+  playId: '',
+  status: 'loaded',
+  teams: [],
+  ring: { order: [], currentTeamId: null, roundIndex: 1 },
+  domains: [],
+  session: null,
+  clock: { elapsedMs: 0, running: false },
+  leaderboardRevealedRanks: [],
+  decor: DEFAULT_DECOR_SETTINGS,
+  questionsIssued: 0,
+  currentScreen: 'idle',
+  overlay: { busy: false, active: null, pending: null, enabled: true },
+  revealModes: {
+    question: 'operator',
+    answers: 'operator',
+    outcome: 'operator',
+    leaderboard: 'operator',
+  },
+}
+
+/**
+ * The operator half. **`main` only** — every field here is an affordance
+ * Control has to draw, and none of it belongs on a camera-facing surface
+ * (spec §5.7).
+ *
+ * All of it is derived from the Play and the settings document; nothing is
+ * stored twice. The event **log** is deliberately absent: Timeline reads it
+ * with `play_events`, because shipping a whole show's history ten times a
+ * second for a countdown is not a wire format.
+ */
+export interface OperatorState {
+  /** Who may receive the token right now (spec §5.4). Control greys the rest
+   * rather than letting the host refuse a click. */
+  readonly legalTokenTargets: readonly string[]
+  /** What the Action Panel arms by default. A default, not a rule — any legal
+   * target is still accepted. */
+  readonly defaultNextTeamId: string | null
+  readonly consecutiveCorrect: number
+  /** One team: legal, and warned about (spec §4.3). */
+  readonly isRehearsal: boolean
+  readonly canUndo: boolean
+  readonly canRedo: boolean
+  /** Timeline length, without the log itself. */
+  readonly eventCount: number
+  /** Spec §2.6: the setting decides the affordance, never whether the host
+   * obeys. */
+  readonly showGiveToken: boolean
+  readonly overrideAfterLock: 'refuse_until_reveal' | 'allow'
+  /** Spec §4.2 as data: every key that is frozen, inert or feature-off, with
+   * the reason. Computed once by the host instead of four times in Studio. */
+  readonly disabled: readonly {
+    readonly key: string
+    readonly reason: 'frozen' | 'inert' | 'feature_off'
+    readonly detail?: string
+  }[]
+}
+
+/**
+ * What the `main` webview receives on `play-state`: the stripped shape Stage
+ * gets, flattened, plus the operator half.
+ */
+export interface PlayStateForMain extends PlayStateForStage {
+  readonly operator: OperatorState
+}
+
 /** Teams in finishing order: score descending, then the recipe's ring order. */
 export function leaderboard(state: PlayStateForStage): readonly StageTeam[] {
   return [...state.teams].sort(

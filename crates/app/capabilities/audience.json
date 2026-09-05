@@ -1,0 +1,6 @@
+{
+  "identifier": "audience",
+  "description": "Stage is a projection, not a controller (spec 5.7). It listens for play-state and reports its animations; it gets no window, path, or webview verbs, and the command layer refuses everything but overlay_ack_complete from this label.",
+  "windows": ["stage"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}

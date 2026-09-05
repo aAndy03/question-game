@@ -3,23 +3,27 @@
 //! `PlayStateForStage` (in `packages/contract`) is two things bolted together:
 //! the **game** — teams, ring, domains, session, clock — which `MatchService`
 //! owns, and the **presentation** — `currentScreen`, `overlay`, `revealModes`,
-//! `decor` — which `PresentationService` owns. This module emits the first
-//! half. P6 merges the second and calls `emitTo("stage", …)`.
+//! `decor` — which `PresentationService` owns. [`project`] emits the first
+//! half; [`PresentationService::play_state`] merges the second and the app
+//! crate calls `emitTo("stage", …)` with the result.
 //!
-//! It is here rather than in P6 for one reason: `tests/stage_contract.rs`
-//! checks this struct against the P1 fixtures, so a field that drifts from the
-//! TypeScript contract fails a Rust test today instead of blanking Stage in
-//! three phases' time. `contract_version` is mirrored the same way.
+//! Both halves are declared here, and `tests/stage_contract.rs` checks the
+//! whole emission against the P1 fixtures: a field that drifts from the
+//! TypeScript contract fails a Rust test instead of blanking Stage.
+//! `contract_version` is mirrored the same way.
+//!
+//! [`PresentationService::play_state`]: crate::presentation::PresentationService::play_state
 //!
 //! Everything is derived and read-only. Stage is a projection, not a
 //! controller (§5.7): nothing on this path can write a Play.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::ids::{DomainId, OptionId, QuestionId, TeamId};
 use crate::play::{Play, PlayStatus};
 use crate::rules::Verdict;
 use crate::session::Session;
+use crate::settings::RevealSettings;
 use crate::snapshot::AnswerMode;
 
 /// Must equal `CONTRACT_VERSION` in `packages/contract/src/play-state.ts`.
@@ -123,7 +127,8 @@ pub struct StagePlayClock {
 }
 
 /// The game half of `PlayStateForStage`. The presentation half — `decor`,
-/// `currentScreen`, `overlay`, `revealModes` — is merged by P6.
+/// `currentScreen`, `overlay`, `revealModes` — is merged by
+/// `PresentationService`, which is the only thing that owns it.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StageGameState {
@@ -238,4 +243,201 @@ fn project_session(session: &Session, now_ms: u64) -> StageSession {
             outcome: session.reveals.outcome,
         },
     }
+}
+
+// ------------------------------------------------------- the presentation half
+
+/// One Stage layout. Mirrors `SCREENS` in `packages/contract/src/screens.ts`;
+/// adding a screen is one variant here and one entry there.
+///
+/// The operator may jump anywhere, so there is no ordering and no legal
+/// successor — only [`Self::available_before_play`], which keeps everything but
+/// Idle off the wall until a Play has started.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StageScreen {
+    #[default]
+    Idle,
+    TeamOrder,
+    ChooseDomain,
+    Question,
+    Scoreboard,
+    FinalLeaderboard,
+    CurrentTeam,
+}
+
+impl StageScreen {
+    pub const ALL: [StageScreen; 7] = [
+        StageScreen::Idle,
+        StageScreen::TeamOrder,
+        StageScreen::ChooseDomain,
+        StageScreen::Question,
+        StageScreen::Scoreboard,
+        StageScreen::FinalLeaderboard,
+        StageScreen::CurrentTeam,
+    ];
+
+    /// The contract's key, and the `AnimKey` fragment.
+    pub fn key(self) -> &'static str {
+        match self {
+            StageScreen::Idle => "idle",
+            StageScreen::TeamOrder => "teamOrder",
+            StageScreen::ChooseDomain => "chooseDomain",
+            StageScreen::Question => "question",
+            StageScreen::Scoreboard => "scoreboard",
+            StageScreen::FinalLeaderboard => "finalLeaderboard",
+            StageScreen::CurrentTeam => "currentTeam",
+        }
+    }
+
+    /// Whether the operator may show it before `play_start`. Everything but
+    /// Idle would render an empty roster, an empty board, or a leaderboard of
+    /// zeroes — on camera.
+    pub fn available_before_play(self) -> bool {
+        matches!(self, StageScreen::Idle)
+    }
+
+    /// Whether the screen reads the question session. A screen that does not
+    /// must render correctly with `session: null` — asserted on the TypeScript
+    /// side, mirrored here so the two lists cannot drift apart unnoticed.
+    pub fn uses_session(self) -> bool {
+        matches!(self, StageScreen::Question)
+    }
+}
+
+/// An overlay animation: drawn *over* the screen that is up, never remounting
+/// it and never resetting reveal, select or lock (§2.6).
+///
+/// Every kind is enqueued automatically when its cause occurs **and** may be
+/// called by hand with `show_overlay` over any screen (§5.6). Stage cannot tell
+/// the two apart, which is the point: one component, one timeline, one path.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase"
+)]
+pub enum OverlayRequest {
+    /// The token passes. `from_team_id` is `None` for the first token of a Play.
+    TokenHandoff {
+        from_team_id: Option<TeamId>,
+        to_team_id: TeamId,
+    },
+    RoundAdvance {
+        round_index: u32,
+    },
+    MultipleAnswers {
+        option_ids: Vec<OptionId>,
+    },
+    /// Half-screen and transparent: the question stays visible behind it.
+    Outcome {
+        verdict: Verdict,
+    },
+    CurrentTeam {
+        team_id: Option<TeamId>,
+    },
+}
+
+impl OverlayRequest {
+    /// The `overlay:<kind>` fragment of the contract's `AnimKey`.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            OverlayRequest::TokenHandoff { .. } => "token-handoff",
+            OverlayRequest::RoundAdvance { .. } => "round-advance",
+            OverlayRequest::MultipleAnswers { .. } => "multiple-answers",
+            OverlayRequest::Outcome { .. } => "outcome",
+            OverlayRequest::CurrentTeam { .. } => "current-team",
+        }
+    }
+
+    /// The key Stage reports with `anim-complete` when this overlay finishes.
+    pub fn anim_key(&self) -> String {
+        format!("overlay:{}", self.kind())
+    }
+}
+
+/// The overlay queue as Stage reads it: one running, at most one waiting
+/// (§2.6).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StageOverlay {
+    pub busy: bool,
+    pub active: Option<OverlayRequest>,
+    pub pending: Option<OverlayRequest>,
+    /// `overlay_animations.enabled`. False skips the queue entirely; the token
+    /// still moves (§5.6).
+    pub enabled: bool,
+}
+
+/// How the decorative bodies move. Never static, never game truth — see
+/// `StageDecorSettings` in `packages/contract`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DecorMotionMode {
+    #[default]
+    Collide,
+    CollideAttract,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecorAnchorSettings {
+    pub enabled: bool,
+    pub attract_seconds: f64,
+    pub repel_seconds: f64,
+    pub strength: f64,
+}
+
+/// A per-recipe **layout** setting (Screens tab, `recipe_set_layout`), so it
+/// may differ between recipes and change mid-Play: it affects nothing scored.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StageDecorSettings {
+    pub mode: DecorMotionMode,
+    pub anchor: DecorAnchorSettings,
+    pub drift: f64,
+    pub attraction: f64,
+    pub bounce: f64,
+    pub spin: f64,
+    pub max_speed: f64,
+}
+
+impl Default for StageDecorSettings {
+    /// `DEFAULT_DECOR_SETTINGS` in `packages/contract/src/play-state.ts`, value
+    /// for value. Mild by design: breathing, not a screensaver.
+    fn default() -> Self {
+        StageDecorSettings {
+            mode: DecorMotionMode::Collide,
+            anchor: DecorAnchorSettings {
+                enabled: true,
+                attract_seconds: 12.0,
+                repel_seconds: 6.0,
+                strength: 0.3,
+            },
+            drift: 14.0,
+            attraction: 0.3,
+            bounce: 0.9,
+            spin: 4.0,
+            max_speed: 40.0,
+        }
+    }
+}
+
+/// The whole emission: the game half, flattened, plus the presentation half.
+///
+/// `#[serde(flatten)]` is what keeps the two halves from being two nested
+/// objects on the wire — the contract is one flat record, and
+/// `tests/stage_contract.rs` holds it to that.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayStateForStage {
+    #[serde(flatten)]
+    pub game: StageGameState,
+    pub decor: StageDecorSettings,
+    pub current_screen: StageScreen,
+    pub overlay: StageOverlay,
+    /// Live, from `FlagService::reveal_modes` — never a second store. Stage
+    /// needs them because `auto` makes Stage drive the next beat itself once
+    /// `anim-complete` fires.
+    pub reveal_modes: RevealSettings,
 }

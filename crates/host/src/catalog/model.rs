@@ -26,7 +26,8 @@ use super::error::{CatalogError, CatalogResult};
 
 /// Which rows a list or a search should see. Each library tab owns its own
 /// archive view (§2.24), so the scope is a parameter, never a global mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ArchiveScope {
     #[default]
     Active,
@@ -394,7 +395,8 @@ pub struct RecipeOverlays {
 }
 
 /// Which side of `ScopeConfirm` an inline edit landed on (§2.17).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EditScope {
     /// Overlay on the recipe item. The original does not move.
     ThisGame,

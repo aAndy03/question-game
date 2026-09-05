@@ -84,6 +84,31 @@ impl MatchService {
         Ok(())
     }
 
+    /// Take back a Play that was replayed from its log
+    /// (`CatalogService::resume_open_play`). The boot path, and the only way a
+    /// Play enters this service without being loaded from a snapshot.
+    ///
+    /// It is not a back door: the Play arrived as a fold over an append-only
+    /// log this service wrote, so adopting it is the same computation
+    /// `MatchService` would have done live. The settings are re-validated for
+    /// the reason [`Self::play_load`] gives — the row may come from an older
+    /// build — and another open Play is refused the same way.
+    pub fn adopt(&mut self, play: Play) -> MatchResult<()> {
+        play.snapshot().settings.validate()?;
+        if let Some(open) = self.play.as_ref().filter(|p| p.status().is_open()) {
+            return Err(MatchError::WrongStatus {
+                actual: open.status(),
+                expected: vec![
+                    PlayStatus::Completed,
+                    PlayStatus::Abandoned,
+                    PlayStatus::Restarted,
+                ],
+            });
+        }
+        self.play = Some(play);
+        Ok(())
+    }
+
     /// `play_start`. Fails on an empty board; one team is allowed (rehearsal,
     /// §4.3) — [`Play::is_rehearsal`] is what raises the warn.
     pub fn play_start(&mut self, now_ms: u64) -> MatchResult<()> {
@@ -202,8 +227,17 @@ impl MatchService {
 
     /// FinalLeaderboard reveal, lowest rank first (§5.5). Tied teams share a
     /// rank and so reveal together — one rank, one call.
+    ///
+    /// A **completed** Play is the normal case, not the edge one: the board is
+    /// exhausted before the final standings go up, and `reveal_outcome` appends
+    /// `PlayCompleted` the moment the last question resolves. Playing and paused
+    /// stay legal so the operator can rehearse the screen mid-show.
     pub fn reveal_leaderboard_rank(&mut self, rank: u32, now_ms: u64) -> MatchResult<()> {
-        self.require_open()?;
+        self.require_status(&[
+            PlayStatus::Playing,
+            PlayStatus::Paused,
+            PlayStatus::Completed,
+        ])?;
         self.play_mut()?
             .append(EventKind::LeaderboardRankRevealed { rank }, now_ms)
     }
@@ -497,6 +531,34 @@ impl MatchService {
             },
             now_ms,
         )
+    }
+
+    /// Whether [`Self::undo_turn`] would succeed. A read, for the Timeline's
+    /// button state — Control asks rather than trying the command and catching
+    /// the refusal, because an attempted-and-refused undo is a notice.
+    pub fn can_undo(&self) -> bool {
+        if self.require_undoable().is_err() {
+            return false;
+        }
+        let Some(play) = self.play.as_ref() else {
+            return false;
+        };
+        let spans = active_inversions(play.events());
+        play.events().iter().any(|e| {
+            matches!(e.kind, EventKind::TurnResolved { .. }) && !is_inverted(&spans, e.seq)
+        })
+    }
+
+    /// Whether [`Self::redo_turn`] would succeed — that is, whether the undo is
+    /// still the last thing that happened (§5.8).
+    pub fn can_redo(&self) -> bool {
+        self.require_undoable().is_ok()
+            && self.play.as_ref().is_some_and(|play| {
+                matches!(
+                    play.events().last().map(|e| &e.kind),
+                    Some(EventKind::TurnInverted { .. })
+                )
+            })
     }
 
     /// `redo_turn` (§5.8). Legal only while the undo is still the last thing

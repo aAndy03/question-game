@@ -1,5 +1,5 @@
 /**
- * The contract shared by both webviews and, at P6, the Rust host schema.
+ * The contract shared by both webviews and the Rust host schema.
  *
  * Import discipline (enforced in eslint.config.js):
  *   - anything may import screens, node ids, reveal keys and command names;

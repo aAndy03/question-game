@@ -770,11 +770,16 @@ fn a_process_killed_mid_show_reopens_on_the_same_play() {
         .expect("a play was open");
     assert_eq!(serde_json::to_string(&resumed).unwrap(), expected);
 
-    // And the Play carries on from there, in the same `MatchService` interface.
+    // And the Play carries on from there — `adopt` is the boot path, and it
+    // keeps the score the log earned rather than reloading an empty snapshot.
     let mut service = MatchService::new();
-    service
-        .play_load(resumed.snapshot().clone(), 0)
-        .expect("the snapshot is still legal");
+    service.adopt(resumed).expect("the snapshot is still legal");
+    assert_eq!(
+        service.get_state().unwrap().score(&TeamId::from("team-a")),
+        100,
+        "boot loses nothing",
+    );
+    assert!(service.can_undo(), "the Timeline reaches the resumed turn");
     assert_eq!(
         reopened.play_list(None).unwrap()[0].scores[&TeamId::from("team-a")],
         100
@@ -1054,4 +1059,100 @@ fn a_search_can_be_narrowed_to_one_tab() {
         .unwrap();
     assert_eq!(hits.len(), 2);
     assert!(hits.iter().all(|hit| hit.kind == CatalogKind::Team));
+}
+
+// ---------------------------------------------------------------------- bulk
+
+/// §2.19: a bulk edit gets one confirm, so it gets one transaction. These
+/// assert the *atomicity* the batching buys; the fsync it saves is why it
+/// exists (one ~2.5 ms commit for the batch instead of one per row).
+#[test]
+fn a_bulk_upsert_is_one_transaction_and_an_illegal_row_writes_none_of_it() {
+    each_adapter("bulk-upsert", |service| {
+        let good: Vec<_> = (0..5)
+            .map(|i| question(&format!("q-bulk-{i}"), 10).into())
+            .collect();
+        let changes = service.catalog_upsert_many(&good, 1_000).unwrap();
+        assert_eq!(changes.len(), 5);
+        assert!(changes.iter().all(|c| c.op == ChangeOp::Upserted));
+        assert_eq!(
+            service
+                .catalog_list(CatalogKind::Question, ArchiveScope::Active)
+                .unwrap()
+                .len(),
+            5,
+        );
+
+        // One bad row at the end: nothing before it lands either.
+        let mut broken: Vec<_> = (5..8)
+            .map(|i| question(&format!("q-bulk-{i}"), 10).into())
+            .collect();
+        broken.push(Question::new("q-bulk-bad", "No options?", 10).into());
+        assert!(service.catalog_upsert_many(&broken, 2_000).is_err());
+        assert_eq!(
+            service
+                .catalog_list(CatalogKind::Question, ArchiveScope::Active)
+                .unwrap()
+                .len(),
+            5,
+            "a refused batch is a batch that never started",
+        );
+    });
+}
+
+#[test]
+fn a_bulk_archive_is_all_or_nothing_and_restores_the_same_way() {
+    each_adapter("bulk-archive", |service| {
+        let ids: Vec<String> = (0..4).map(|i| format!("t-bulk-{i}")).collect();
+        let teams: Vec<_> = ids.iter().map(|id| team(id).into()).collect();
+        service.catalog_upsert_many(&teams, 1_000).unwrap();
+
+        // One id that is not there aborts the batch before anything moves.
+        let mut with_ghost = ids.clone();
+        with_ghost.push("t-bulk-ghost".to_owned());
+        assert!(matches!(
+            service.catalog_archive_many(CatalogKind::Team, &with_ghost, 2_000),
+            Err(CatalogError::NotFound { .. }),
+        ));
+        assert_eq!(
+            service
+                .catalog_list(CatalogKind::Team, ArchiveScope::Archived)
+                .unwrap()
+                .len(),
+            0,
+            "nothing was archived",
+        );
+
+        let changes = service
+            .catalog_archive_many(CatalogKind::Team, &ids, 3_000)
+            .unwrap();
+        assert_eq!(changes.len(), 4);
+        assert_eq!(
+            service
+                .catalog_list(CatalogKind::Team, ArchiveScope::Archived)
+                .unwrap()
+                .len(),
+            4,
+        );
+
+        // And the search index follows the batch, not the singular path.
+        let hits = service
+            .catalog_search(&SearchQuery::new("bulk").kinds(vec![CatalogKind::Team]))
+            .unwrap();
+        assert!(
+            hits.is_empty(),
+            "archived rows leave the default search scope",
+        );
+
+        service
+            .catalog_restore_many(CatalogKind::Team, &ids)
+            .unwrap();
+        assert_eq!(
+            service
+                .catalog_list(CatalogKind::Team, ArchiveScope::Active)
+                .unwrap()
+                .len(),
+            4,
+        );
+    });
 }

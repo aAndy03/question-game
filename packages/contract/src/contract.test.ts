@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CONTRACT_VERSION,
+  EMPTY_PLAY_STATE,
   COMMANDS,
   COMMAND_GROUPS,
   EVENTS,
@@ -158,9 +159,27 @@ describe('commands and events', () => {
     expect(COMMANDS).toHaveLength(all.length)
   })
 
-  it('lets Stage acknowledge animations and nothing else', () => {
-    // Stage is a projection, not a controller (spec §5.7).
-    expect(STAGE_COMMANDS).toEqual(['overlay_ack_complete'])
+  it('ships an empty state Stage can draw before the host says anything', () => {
+    // Idle reads nothing off the Play, so an empty roster is not a hole — it is
+    // the wall before a recipe is loaded. It still has to be a *real* state:
+    // same contract version, every key present, and the round invariant holds.
+    expect(EMPTY_PLAY_STATE.contractVersion).toBe(CONTRACT_VERSION)
+    expect(EMPTY_PLAY_STATE.currentScreen).toBe('idle')
+    expect(EMPTY_PLAY_STATE.session).toBeNull()
+    expect(roundInvariantHolds(EMPTY_PLAY_STATE)).toBe(true)
+    expect(Object.keys(EMPTY_PLAY_STATE).sort()).toEqual(Object.keys(FIXTURES.idle).sort())
+  })
+
+  it('lets Stage report on itself and nothing else', () => {
+    // Stage is a projection, not a controller (spec §5.7). Both of these are
+    // Stage reporting its own state — a finished timeline, and "I have mounted,
+    // and this is my contract version". Neither carries an opinion about the
+    // Play. The host enforces the same list in `crates/app/src/guard.rs`,
+    // because Tauri does not gate app-defined commands behind capabilities.
+    expect(STAGE_COMMANDS).toEqual(['overlay_ack_complete', 'stage_ready'])
+    for (const command of STAGE_COMMANDS) {
+      expect(COMMANDS).toContain(command)
+    }
   })
 
   it('carries the anim-complete handshake event', () => {

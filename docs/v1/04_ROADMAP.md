@@ -69,7 +69,9 @@ questiongame/
 │  ├─ design-studio/          globals.css, HeroUI theme scope, Studio primitives
 │  └─ text/                   the Text module (§2.29), one impl per surface
 ├─ crates/
-│  └─ host/                   Tauri 2 app + Rust modules
+│  ├─ host/                   the four services. A plain library: zero `tauri::`
+│  └─ app/                    the Tauri 2 shell around it (P6)
+├─ dist/                      both webviews build here; Tauri's `frontendDist`
 ├─ fixtures/                  play-state JSON for frontend development
 └─ docs/
 ```
@@ -158,7 +160,7 @@ P0 ─┬─ P1 → P2 → P3 ──────────────┐
 - `stage.css` repoints the HeroUI variables onto the questiongame palette. **Never remap a variable to itself** (`--font-mono: var(--font-mono)`): a self-referential custom property is invalid and silently falls back to the inherited family.
 - Tauri is not installed yet (P6). `crates/` exists but is empty.
 
-Tauri is deliberately absent — it wraps an existing Vite dev server, so P1–P3 stay browser-runnable and P6 costs nothing.
+Tauri is deliberately absent — it wraps an existing Vite dev server, so P1–P3 stay browser-runnable and P6 costs nothing. *(It did: P6 added `crates/app` and two `dist/` subdirectories, and touched no screen.)*
 
 ---
 
@@ -306,7 +308,7 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 
 **Also delivered**
 
-- **`stage::project`** — the game half of `PlayStateForStage`, with `tests/stage_contract.rs` checking it against all 25 P1 fixtures: same keys, same JSON kinds, same `CONTRACT_VERSION`. The only keys the host may be missing are the presentation half (`currentScreen`, `overlay`, `revealModes`, `decor`), which P6 merges. This buys most of the P6 exit criterion three phases early, and a rename on either side now fails a Rust test instead of blanking Stage.
+- **`stage::project`** — the game half of `PlayStateForStage`, with `tests/stage_contract.rs` checking it against all 25 P1 fixtures: same keys, same JSON kinds, same `CONTRACT_VERSION`. The only keys the host may be missing are the presentation half (`currentScreen`, `overlay`, `revealModes`, `decor`), which P6 merges. This buys most of the P6 exit criterion three phases early, and a rename on either side now fails a Rust test instead of blanking Stage. *(P6 kept the split and added the whole-emission assertion beside it.)*
 - **`reveal_and_pass`** — §2.6's two-click *Reveal & pass* as one atomic command: an illegal target is refused before anything is revealed.
 - **`Ring::default_next`** — what the Action Panel arms by default (next legal target in ring order). A default, not a rule; any legal target is still accepted.
 
@@ -359,7 +361,7 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 **Decisions made while building it (2026-09-05)**
 
 - **`tokio` was not installed.** Nothing in the host is asynchronous: `rusqlite` is sync, Tantivy's writer is sync, and the whole point of choosing `rusqlite` over `tauri-plugin-sql` was to keep catalog calls and their tests from becoming futures to talk to a local file. A runtime with no user is weight, not readiness — it belongs with P6's Tauri wiring, where something actually awaits.
-- **The search index lives in RAM and is rebuilt at open.** A v1 library is thousands of rows; rebuilding costs milliseconds and removes the entire class of "the index disagrees with the database" bugs an on-disk index has to defend against. The read-only lane WAL reserves is still the right home for indexing the moment it moves off-thread. Commits are lazy — a write marks the index dirty and the next search commits — so a bulk edit (§2.19) pays for one commit, not one per row.
+- **The search index lives in RAM and is rebuilt at open.** A v1 library is thousands of rows; rebuilding costs milliseconds and removes the entire class of "the index disagrees with the database" bugs an on-disk index has to defend against. The read-only lane WAL reserves is still the right home for indexing the moment it moves off-thread. Commits are lazy — a write marks the index dirty and the next search commits — so a bulk edit (§2.19) pays for one commit, not one per row. **The *write* half of that was still one transaction per row when P5 shipped; P6 closed it with `catalog_upsert_many` / `catalog_archive_many` / `catalog_restore_many`.**
 - **Recipes are not reachable through `catalog_*`.** §11.A and §11.B are two families with two verb lists, and a row writable through both `catalog_upsert` and `recipe_upsert` would be two ways to do one thing. `CatalogKind::Recipe` exists for `catalog-changed` and the archive plumbing; `catalog_list` and `catalog_get` refuse it.
 - **Every §4.2 write is validated on a clone and committed whole.** A refused settings write changes nothing — the same discipline `MatchService` keeps for commands, and the reason `settings_set_*` can be per key while the *document* stays legal.
 - **An unreachable bonus is an illegal document.** `turn.bonus_after_consecutive.count > turn.max_consecutive_correct` is refused: the cap ends the token *at* n corrects and the bonus lands *at* count, so a larger count is a setting that can never take effect. §4.4 does not spell this out; it follows from the two keys' definitions, and a silently dead award is worse than a notice.
@@ -370,26 +372,77 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 
 ---
 
-## P6 — Tauri wiring  ☐
+## P6 — Tauri wiring  ☑
 
 **Goal:** the tracks meet. Stage stops reading fixtures and starts reading the host.
 
-**Install:** [Tauri 2](https://v2.tauri.app), `@tauri-apps/api`.
+**Install:** [Tauri 2](https://v2.tauri.app) (`tauri`, `tauri-build`), `@tauri-apps/api`, `@tauri-apps/cli`, `tokio`, `tracing-subscriber`.
+
+**`crates/app`, a new workspace member.** `crates/host` stays a plain library — the P4 source sweep still fails on a `tauri` in its `src` tree — so Tauri wraps it from the outside instead of moving into it. `crates/app` depends on `questiongame-host`; nothing depends on `crates/app`.
+
+```text
+state         the four services behind one lock, and the only clock in the project
+commands/     the §13 surface as `#[tauri::command]`, one file per service
+emit          host → webview events; the only sender
+guard         which webview may call what (§5.7)
+windows       the two webviews, and where the Stage one stands
+monitors      the real end of the monitor seam
+tick          the 100ms show loop and the monitor watch
+decor         `StageDecorSettings` out of the recipe's layout document
+demo          a demo library, for running P6 before P7 has library tabs
+error         what a refused command looks like on the wire
+```
 
 **Deliverables**
 
-- Two webviews: `main` and `stage`. Stage window created on **first Control Load**, not at boot.
-- The §13 command surface as `#[tauri::command]`; `tauri::State` holds the DB pool and materialized `PlayState`.
-- `emitTo("main", …)` full snapshot; `emitTo("stage", …)` stripped.
-- Monitor port: `availableMonitors`, `toLogical(scaleFactor)`, plus a **fake monitor list adapter** so unplug behaviour is testable.
-- In-process test harness adapter for the host command seam.
+- ☑ Two webviews: `main` and `stage`. Stage created on **first Control Load**, not at boot — and it opens fullscreen on primary and *waits* there (§9).
+- ☑ The §13 command surface as `#[tauri::command]`; `tauri::State` holds one `Mutex<Host>` with all four services.
+- ☑ `emitTo("main", …)` full (`PlayStateForStage` + `OperatorState`); `emitTo("stage", …)` stripped.
+- ☑ Monitor seam: `availableMonitors` + `toLogical(scaleFactor)` on one side, a `Vec<MonitorInfo>` literal on the other. The unplug path is a host unit test.
+- ☑ `PresentationService` (`crates/host/src/presentation.rs`) — the screen, the overlay queue, the `anim-complete` door. Reveals go *through* `MatchService`.
+- ☑ `catalog_upsert_many` / `catalog_archive_many` / `catalog_restore_many` — §2.19's bulk as one transaction (the open question from P5; see the decisions below).
 
-**Exit criteria**
+**Exit criteria — all met 2026-09-06** (193 Rust tests: 72 host unit, 29 `catalog_service`, 25 `match_service`, 23 `flag_service`, 16 `presentation_service`, 13 `host_wiring`, 7 `stage_contract`, 6 app unit, 2 property. 306 TypeScript.)
 
-- ☐ Every P1 fixture is reproducible as a real `play-state` emission — fixtures become integration assertions.
-- ☐ Unplugging the Stage monitor pulls the window to primary, raises a notice, Play stays `playing`.
-- ☐ Stage renders identically fixture-fed or host-fed.
-- ☐ One monitor is a valid configuration (Stage fullscreen, Studio via Alt-Tab).
+- ☑ **Every P1 fixture is reproducible as a real `play-state` emission.** `every_fixture_is_reproducible_as_a_real_emission` builds the whole emission the way `crates/app` does and asserts that no fixture carries a key the host cannot produce and the host produces none a fixture does not know. `the_game_projection_is_still_only_the_game_half` keeps `project` on its own side of the split, so the 100ms tick cannot start dragging the queue along.
+- ☑ **Unplugging the Stage monitor pulls the window to primary, raises a notice, Play stays `playing`.** `unplugging_the_stage_display_leaves_the_play_playing` drives it through the fake list; nothing in `monitor.rs` can reach a Play, which is what makes the last clause true by construction rather than by care.
+- ☑ **Stage renders identically fixture-fed or host-fed.** `apps/stage/src/host/host.test.tsx` renders `StageRoot` directly and `App` behind a stub host and compares the DOM.
+- ☑ **One monitor is a valid configuration.** `one_display_is_a_valid_configuration`, and the Stage window is fullscreen-on-primary by default because the host never picks a display.
+
+**Also delivered**
+
+- **`MatchService::adopt`** — the boot path. P5 could replay an open Play but had no way to put it *back*; the test worked around it by reloading the snapshot, which loses the score. `Host::open` now adopts the replayed Play, and `boot_takes_back_the_play_that_was_open_with_its_score` asserts it.
+- **`MatchService::can_undo` / `can_redo`** — reads for the Timeline's buttons, so Control asks instead of trying the command and catching the refusal.
+- **`stage_ready`** — the second (and last) command Stage may call. It reports the contract version this webview was built against, which is what turns a mismatch into a §14 notice on the operator's screen instead of a blank one on the audience's, and it asks for the current state, which a deduplicated emission otherwise would not send to a late-mounting window.
+- **`recipe_new`** — a new recipe seeded from `game_defaults`, which is the one place §12's seeding rule is applied.
+- **`crates/app/src/demo.rs` + `seed_demo_library`** — a four-team, three-domain library written through the ordinary verbs. Dev builds only; §10's optional sample catalog at first run replaces it.
+- **A `tracing` subscriber.** The host has emitted spans since P5 with nobody listening.
+- **`EMPTY_PLAY_STATE`** in `packages/contract` — what Stage draws before the host has anything to send. Idle reads nothing off the Play, so an empty roster is the wall before a recipe is loaded, not a hole.
+
+**Decisions made while building it (2026-09-06)**
+
+- **Confirmed against the Tauri 2 docs: a plain `#[tauri::command]` runs on the main thread**; only `#[tauri::command(async)]` (or an `async fn`) moves off it. So **every command that can reach the database is `(async)`** — `play_persist` is a ~2.5 ms fsync and it follows every command that appends an event. `get_state` and `settings_get` stay synchronous: they are a fold and a struct borrow, and the thread hop would cost more than the work.
+- **`Host::write` persists only when the log grew.** That single line is why the show loop never touches disk: the 100ms tick goes through the same path and appends nothing 999 times in 1000. The T=0 table is the exception, and that one *should* cost an fsync.
+- **The emission is deduplicated.** An idle or paused Play costs nothing on the wire; `stage_ready` exists because of it.
+- **`PresentationService` lives in `crates/host`, not in `crates/app`.** The screen, the queue and the auto-reveal chain are pure computation with a reject table, so they belong where the other three services are and are tested at the same bar. What is genuinely Tauri's — the window, the display list, the event bus — is all that stayed above the line.
+- **Overlays are enqueued from a *diff* of the projection, not from the command.** §5.6 says a kind is enqueued when its **cause** occurs, and the same cause arrives from `reveal_outcome`, from an override and from an undo putting the token back. One diff covers all of them and a new command needs no entry.
+- **`current-team` has no automatic cause.** Its cause is the handoff, which `token-handoff` already animates; it stays operator-called (§5.6 allows any kind by hand at any time).
+- **`reveal.outcome` has no chained command.** The other three channels have one (`reveal_stem`, `reveal_next_option`, `reveal_leaderboard_rank`); the outcome node becomes visible as part of `reveal_outcome`, which is the only thing that scores (§2.4). Auto-revealing it would mean Stage resolving a question by itself. The channel still reaches Stage, which is where the arrival animates. **If §4.2 meant something else by `reveal.outcome = auto`, this is the place to say so.**
+- **The auto-reveal chain is host-side.** A beat is an append to the Play, so Stage driving it would be a second writer. Stage still receives `revealModes` because it has to know whether a node is waiting for a human. A chained beat the operator already took is `Ok(false)`, not an error: auto races the operator, and losing that race is not a failure.
+- **The webview boundary is enforced in the command layer, not in capabilities.** Tauri does not gate app-defined commands behind capabilities — `generate_handler!` registers them for every webview — so `guard::allow` refuses everything but `STAGE_COMMANDS` from the `stage` label, and an *unknown* label is treated as Stage. `capabilities/audience.json` narrows what it can do with the core verbs, which is all a capability file can do.
+- **One `Mutex<Host>`, not four locks.** Every service is single-writer and the operator is one human at one keyboard, so splitting the lock wins no concurrency and buys the chance of taking two in a different order in two commands. One lock makes every command atomic against every other and makes the lock order unspellable.
+- **The event log is not in the 100ms emission.** Timeline reads it with `play_events`; `operator.eventCount` is what rides the tick.
+- **`OverlayTarget` did not become a wire type.** A two-field tuple variant has no good JSON shape, and reshaping a P5 argument type to please serde would be the wire dictating the Rust. The payload is spelled at the boundary (`OverlaySpec` in `crates/app`), which is where a wire format belongs.
+- **The bulk question from P5 is closed: yes.** §2.19 gives a batch one confirm, so it gets one transaction and one fsync — a 200-row archive drops from ~0.8 s to one commit. Everything is validated before anything is written, so a bad row at index 199 leaves the library untouched rather than half-edited; an id that does not exist aborts an archive batch the same way.
+- **Stage's fixture strip stays as the no-host *fallback*.** The roadmap said P6 removes it; what P6 actually needs is that it never renders inside the app, and `stageHost()` returning `null` is what decides. Keeping it means screen work does not need a database, and it keeps both feeds of "renders identically fixture-fed or host-fed" alive.
+- **A Restart empties the queue and then opens with its own first token.** Nothing enqueued for the old Play may play over the new one, but the new Play's opening token is a cause like any other; the rest of the diff is meaningless across two Plays, because a fresh ring is not an advance of the old one.
+- **A `MatchService` bug surfaced and was fixed:** `reveal_leaderboard_rank` refused a `completed` Play, so the final leaderboard could never be revealed — the board is exhausted before the standings go up. It now accepts `playing | paused | completed`, like `undo_turn`.
+
+**Not done here, on purpose**
+
+- `stats_query` is P11's; `health` has no producer until P10.
+- The Studio surface is a **P6 harness**, not the shell: one button per command, no chrome, no store. P7 replaces it whole.
+- Two exit criteria need hardware to see rather than to assert: a second physical display, and Stage on a projector. The logic behind both is tested against the fake monitor list.
 
 ---
 
@@ -398,6 +451,8 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 **Install:** [`@tanstack/react-query`](https://tanstack.com/query/latest), [`@tanstack/react-table`](https://tanstack.com/table/latest), [`@tanstack/react-form`](https://tanstack.com/form/latest), [`@tanstack/react-virtual`](https://tanstack.com/virtual/latest), `@tanstack/react-pacer`, [`zustand`](https://zustand.docs.pmnd.rs), [`@iconify/react`](https://iconify.design/docs/icon-components/react), [`@phosphor-icons/react`](https://phosphoricons.com), [`motion`](https://motion.dev/docs/react).
 
 **Read the `heroui-react` skill first.** v3 only.
+
+`@tauri-apps/api` and the host command seam (`apps/studio/src/host/host.ts`) arrived at P6; P7 builds the shell on top of them and deletes the P6 harness in `apps/studio/src/App.tsx`.
 
 **Deliverables by atomic level** (`apps/studio/src/`)
 
@@ -512,7 +567,7 @@ Wager/stake · CSV import/export · user-replaceable audio packs · `@web-kits/a
 | --- | --- | --- |
 | **Studio theme reconciliation** | P7 | `globals.css` ships HeroUI's default blue/Geist/`0.75rem` theme. That is now the *intended* Studio look (§2.30), so the only open question is whether Studio should borrow the signal colours (mint/coral) for correct/incorrect readouts so the two surfaces agree on meaning. |
 | **Missing design-system files** | P2 | The design system readme indexes `styles.css`, `assets/`, `components/core/`, `ui_kits/questiongame/` (13 screens), `guidelines/`, and `SKILL.md`. **None are in this repo** — only `tokens/` and four decorative SVG folders. If they exist elsewhere, that is most of P2 already built. |
-| **Default Stage monitor with several externals** | P6 | §9, ungrilled. |
+| ~~Default Stage monitor with several externals~~ | ~~P6~~ | **Closed 2026-09-06: there is no default.** Stage is *ready* — fullscreen on primary from first Control Load — and the host never picks a display. The first send is manual (Control's top picker or Settings ▸ Monitors) and is remembered in `stage.monitor_id`; a remembered display that comes back is taken automatically outside a Play, and mid-Play `stage.reattach` decides (`ask` by default: stay put, offer a *Move Stage* notice). Two identical panels answer to one key, and that case asks rather than guessing. |
 | **Archive view visual design** | P7 | §9. |
 
 ---

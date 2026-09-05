@@ -4,9 +4,11 @@
 //! with a source sweep — and Tauri wraps this library at P6 (`04_ROADMAP.md`).
 //!
 //! ```text
-//! MatchService    all game truth (P4). The only writer of a Play.
-//! FlagService     the settings document and the only flag reader (P5).
-//! CatalogService  the library, the recipe store and the Play log (P5).
+//! MatchService         all game truth (P4). The only writer of a Play.
+//! FlagService          the settings document and the only flag reader (P5).
+//! CatalogService       the library, the recipe store and the Play log (P5).
+//! PresentationService  the screen, the overlay queue, the reveals (P6) —
+//!                      it writes reveals *through* `MatchService`.
 //! ```
 //!
 //! They compose without knowing about each other: `FlagService::freeze` hands
@@ -28,7 +30,10 @@
 //! snapshot  the §4.3 copy taken at Play start
 //! settings  frozen vs control-behaviour keys
 //! flags     the settings document, the §4.2 interlocks, the `feat.*` roots
-//! stage     the game half of `play-state`, checked against the P1 fixtures
+//! presentation  the current screen, the overlay queue, the `anim-complete` door
+//! monitor   where the Stage window lives; the OS list arrives as data
+//! notice    the §14 `{ code, severity, target_path, actions[] }` shape
+//! stage     `play-state`, checked against the P1 fixtures
 //! ```
 //!
 //! Section references (`§5.4`) point at `docs/v1/optimized_first_spec.md`,
@@ -41,7 +46,10 @@ pub mod error;
 pub mod event;
 pub mod flags;
 pub mod ids;
+pub mod monitor;
+pub mod notice;
 pub mod play;
+pub mod presentation;
 pub mod ring;
 pub mod rules;
 pub mod service;
@@ -58,10 +66,16 @@ pub use flags::{FeatureRoot, FlagService, GameSettings, GlobalSettings, RuntimeC
 pub use ids::{
     AssetId, DomainId, EventId, OperatorId, OptionId, PlayId, QuestionId, RecipeId, TeamId,
 };
+pub use monitor::{
+    MonitorError, MonitorInfo, MonitorKey, StageDisplay, StageMove, StagePlacement, StageReattach,
+};
+pub use notice::{Notice, Severity};
 pub use play::{Play, PlayStatus};
+pub use presentation::PresentationService;
 pub use ring::Ring;
 pub use rules::Verdict;
 pub use service::{MatchService, RestartMode};
 pub use session::Session;
 pub use snapshot::{PlaySnapshot, SnapshotDomain, SnapshotOption, SnapshotQuestion, SnapshotTeam};
+pub use stage::{OverlayRequest, PlayStateForStage, StageDecorSettings, StageScreen};
 pub use timer::Timer;

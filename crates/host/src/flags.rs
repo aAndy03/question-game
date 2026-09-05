@@ -30,6 +30,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{MatchError, MatchResult};
+use crate::monitor::StageReattach;
 use crate::play::PlayStatus;
 use crate::service::MatchService;
 use crate::settings::{
@@ -273,10 +274,16 @@ pub struct ControlSettings {
     pub overlay_animations_enabled: bool,
     pub viewer_hit_targets: bool,
     pub mosaic_density: MosaicDensity,
-    /// OS monitor ids. The monitor *list* is a P6 port; what lives here is the
-    /// operator's pick.
+    /// OS monitor keys. The connected *list* is runtime data the app crate
+    /// hands to [`crate::monitor::StageDisplay`]; what lives here is the
+    /// operator's pick, and it is the host's whole memory of where Stage
+    /// belongs. `None` means Stage stays on primary — the host never picks a
+    /// display for the operator (§9, decided 2026-09-05).
     pub stage_monitor_id: Option<String>,
     pub stats_monitor_id: Option<String>,
+    /// What happens when the remembered display reappears **during a Play**.
+    /// Outside a Play, Stage always goes back to it.
+    pub stage_reattach: StageReattach,
 }
 
 impl ControlSettings {
@@ -324,7 +331,11 @@ impl Default for GlobalSettings {
 
 /// One key of the recipe document. Writes are per key because the §4.2 rule is
 /// per key: *changing one key* must leave a legal document.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// On the wire it is `{ key, value }` — adjacently tagged, so the JSON reads
+/// the way §4.2 reads and a two-value key (`reveal`) still has a shape.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "key", content = "value")]
 pub enum GameSetting {
     ScoringMode(ScoringMode),
     FlatPoints(u32),
@@ -392,7 +403,8 @@ impl GameSetting {
 
 /// One key of the all-games document. `Game(..)` writes the seed a *new*
 /// recipe copies; it never reaches a recipe that already exists.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "key", content = "value")]
 pub enum GlobalSetting {
     TimerEnabled(bool),
     TimerDurationMs(u32),
@@ -404,6 +416,7 @@ pub enum GlobalSetting {
     MosaicDensity(MosaicDensity),
     StageMonitorId(Option<String>),
     StatsMonitorId(Option<String>),
+    StageReattach(StageReattach),
     Feature(FeatureRoot, bool),
 }
 
@@ -420,6 +433,7 @@ impl GlobalSetting {
             GlobalSetting::MosaicDensity(_) => "control.mosaic_density",
             GlobalSetting::StageMonitorId(_) => "stage.monitor_id",
             GlobalSetting::StatsMonitorId(_) => "stats.monitor_id",
+            GlobalSetting::StageReattach(_) => "stage.reattach",
             GlobalSetting::Feature(root, _) => root.key(),
         }
     }
@@ -505,6 +519,7 @@ pub const FLAG_KEYS: &[&str] = &[
     "judging.order_matters",
     "scoring.mode",
     "control.mosaic_density",
+    "stage.reattach",
     "reveal.question",
     "reveal.answers",
     "reveal.outcome",
@@ -676,6 +691,10 @@ impl FlagService {
                 globals.control.stats_monitor_id.clone_from(&v);
                 control.stats_monitor_id = v;
             }
+            GlobalSetting::StageReattach(v) => {
+                globals.control.stage_reattach = v;
+                control.stage_reattach = v;
+            }
             GlobalSetting::Feature(root, on) => globals.features.set(root, on),
         }
 
@@ -829,6 +848,7 @@ impl FlagService {
             "overlay_animations.enabled" => FlagValue::Bool(control.overlay_animations_enabled),
             "viewer.hit_targets" => FlagValue::Bool(control.viewer_hit_targets),
             "control.mosaic_density" => FlagValue::Text(control.mosaic_density.as_str()),
+            "stage.reattach" => FlagValue::Text(control.stage_reattach.as_str()),
             "judging.partial_credit" => FlagValue::Bool(judging?.partial_credit),
             "judging.order_matters" => FlagValue::Bool(judging?.order_matters),
             "scoring.mode" => FlagValue::Text(match self.current_game.as_ref()?.scoring.mode {

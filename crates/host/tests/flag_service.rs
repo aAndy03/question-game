@@ -15,6 +15,7 @@ use questiongame_host::flags::{
     FlagValue, GAME_AFFECTING_KEYS, GameSetting, GameSettings, GlobalSetting, GlobalSettings,
     MosaicDensity, RuntimeContext,
 };
+use questiongame_host::monitor::StageReattach;
 use questiongame_host::play::PlayStatus;
 use questiongame_host::settings::{
     ConsecutiveBonus, DifficultyMap, LockSpeedBase, OverrideAfterLock, RevealChannel, RevealMode,
@@ -446,6 +447,7 @@ fn a_control_behaviour_write_takes_effect_immediately_and_is_remembered() {
         GlobalSetting::MosaicDensity(MosaicDensity::Compact),
         GlobalSetting::StageMonitorId(Some("monitor-2".to_owned())),
         GlobalSetting::StatsMonitorId(Some("monitor-3".to_owned())),
+        GlobalSetting::StageReattach(StageReattach::Auto),
         GlobalSetting::Reveal(RevealChannel::Answers, RevealMode::Auto),
     ] {
         flags.settings_set_global(write, playing()).unwrap();
@@ -458,6 +460,7 @@ fn a_control_behaviour_write_takes_effect_immediately_and_is_remembered() {
         mosaic_density: MosaicDensity::Compact,
         stage_monitor_id: Some("monitor-2".to_owned()),
         stats_monitor_id: Some("monitor-3".to_owned()),
+        stage_reattach: StageReattach::Auto,
     };
     assert_eq!(flags.control(), &expected);
     assert_eq!(

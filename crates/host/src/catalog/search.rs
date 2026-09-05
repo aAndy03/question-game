@@ -20,6 +20,7 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use serde::{Deserialize, Serialize};
 use tantivy::collector::TopDocs;
 use tantivy::query::{AllQuery, BooleanQuery, Occur, Query, RegexQuery, TermQuery};
 use tantivy::schema::{Field, IndexRecordOption, STORED, STRING, Schema, TEXT, Value};
@@ -31,7 +32,8 @@ use super::model::ArchiveScope;
 /// One result. The score is Tantivy's, exposed so a caller can show relevance
 /// order without re-ranking; the row itself comes from `catalog_get`, because
 /// the index is not a second copy of the library.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchHit {
     pub kind: CatalogKind,
     pub id: String,
@@ -40,7 +42,8 @@ pub struct SearchHit {
 
 /// What to search for. Search *filters the current list* (§12), so the kinds
 /// and the archive scope are part of the query rather than a global mode.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchQuery {
     pub text: String,
     /// Empty means every kind.

@@ -1,0 +1,6 @@
+{
+  "identifier": "operator",
+  "description": "Studio. The operator surface: it drives everything, so it gets the default core permission set.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

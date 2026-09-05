@@ -2,24 +2,27 @@
 //! as the shared reference.
 //!
 //! P6's exit criterion is "every P1 fixture is reproducible as a real
-//! `play-state` emission". This test buys most of that early and cheaply: if a
-//! field is renamed on either side, or `CONTRACT_VERSION` moves, a Rust test
-//! fails now rather than a Stage screen going blank in three phases' time.
+//! `play-state` emission". P4 bought most of it early by checking the game half
+//! alone; now that `PresentationService` exists the **whole** emission is
+//! checked, and there is no key either side may be missing.
 //!
 //! It compares **shape**, not values — the fixtures are authored scenarios, not
-//! recordings of this engine. The only keys the host is allowed to be missing
-//! are the presentation half, which `PresentationService` merges at P6.
+//! recordings of this engine. `PRESENTATION_KEYS` is still named here, because
+//! [`project`] on its own must keep emitting exactly the game half: that split
+//! is what lets the 100ms tick re-project without touching the overlay queue.
 
 mod support;
 
 use std::path::PathBuf;
 
-use questiongame_host::settings::FrozenSettings;
-use questiongame_host::stage::{CONTRACT_VERSION, project};
+use questiongame_host::presentation::PresentationService;
+use questiongame_host::settings::{FrozenSettings, RevealSettings};
+use questiongame_host::stage::{CONTRACT_VERSION, StageScreen, project};
+use questiongame_host::{MatchService, OverlayRequest, PlayStatus};
 use serde_json::Value;
 use support::*;
 
-/// Owned by `PresentationService`, merged into the emission at P6.
+/// Owned by `PresentationService`, merged into the emission.
 const PRESENTATION_KEYS: [&str; 4] = ["currentScreen", "decor", "overlay", "revealModes"];
 
 fn fixtures_dir() -> PathBuf {
@@ -77,7 +80,8 @@ fn assert_same_shape(ours: &Value, theirs: &Value, path: &str) {
     }
 }
 
-fn projected(with_session: bool) -> Value {
+/// A Play driven far enough to exercise every nested shape at once.
+fn played(with_session: bool) -> MatchService {
     let mut service = started(snapshot(4, 3, 3, FrozenSettings::default()));
     if with_session {
         service.choose_domain(&domain_id(0), 100).unwrap();
@@ -87,12 +91,97 @@ fn projected(with_session: bool) -> Value {
         answer_correctly(&mut service, 5_000);
         service.reveal_leaderboard_rank(4, 6_000).unwrap();
     }
+    service
+}
+
+/// The game half alone — what the 100ms tick re-projects.
+fn projected(with_session: bool) -> Value {
+    let service = played(with_session);
     let play = service.get_state().unwrap();
     serde_json::to_value(project(play, 10_000)).expect("the projection serializes")
 }
 
+/// The whole emission, exactly as the app crate builds it for `stage`.
+fn emitted(with_session: bool) -> Value {
+    let service = played(with_session);
+    let mut presentation = PresentationService::new();
+    presentation
+        .show_screen(StageScreen::Question, Some(PlayStatus::Playing))
+        .unwrap();
+    let game = project(service.get_state().unwrap(), 10_000);
+    let state = presentation.play_state(game, RevealSettings::default(), true);
+    serde_json::to_value(state).expect("the emission serializes")
+}
+
+/// The P6 exit criterion as an assertion: no fixture carries a key the host
+/// cannot produce, and the host produces no key a fixture does not know.
 #[test]
-fn the_host_emits_every_game_key_the_fixtures_carry() {
+fn every_fixture_is_reproducible_as_a_real_emission() {
+    let ours = emitted(true);
+    let ours = ours.as_object().expect("an object");
+
+    for name in fixture_names() {
+        let theirs = fixture(&name);
+        let theirs = theirs.as_object().expect("an object");
+
+        let mut missing: Vec<&str> = theirs
+            .keys()
+            .map(String::as_str)
+            .filter(|key| !ours.contains_key(*key))
+            .collect();
+        missing.sort();
+        assert!(
+            missing.is_empty(),
+            "{name}: the host cannot emit {missing:?}"
+        );
+
+        let extra: Vec<&str> = ours
+            .keys()
+            .map(String::as_str)
+            .filter(|key| !theirs.contains_key(*key))
+            .collect();
+        assert!(
+            extra.is_empty(),
+            "{name}: the host emits unknown keys {extra:?}"
+        );
+    }
+}
+
+/// The overlay union is a wire format in both directions: `show_overlay` takes
+/// one from Studio, and Stage reads one back out of every emission.
+#[test]
+fn the_presentation_half_matches_the_fixtures_shape_for_shape() {
+    let ours = emitted(true);
+
+    for name in fixture_names() {
+        let theirs = fixture(&name);
+        for key in ["currentScreen", "decor", "revealModes"] {
+            assert_same_shape(&ours[key], &theirs[key], &format!("{name}.{key}"));
+        }
+        assert_same_shape(
+            &ours["overlay"]["busy"],
+            &theirs["overlay"]["busy"],
+            &format!("{name}.overlay.busy"),
+        );
+
+        let active = &theirs["overlay"]["active"];
+        if active.is_null() {
+            continue;
+        }
+        let parsed: OverlayRequest = serde_json::from_value(active.clone())
+            .unwrap_or_else(|e| panic!("{name}: the host cannot read its own overlay: {e}"));
+        assert_eq!(
+            serde_json::to_value(&parsed).unwrap(),
+            *active,
+            "{name}: the overlay union round-trips",
+        );
+    }
+}
+
+/// `project` alone stays the game half. The tick re-projects it a hundred times
+/// a minute and must not go near the queue, so the split has to hold.
+#[test]
+fn the_game_projection_is_still_only_the_game_half() {
     let ours = projected(true);
     let ours = ours.as_object().expect("an object");
 
@@ -108,7 +197,7 @@ fn the_host_emits_every_game_key_the_fixtures_carry() {
         missing.sort();
         assert_eq!(
             missing, PRESENTATION_KEYS,
-            "{name}: the host must emit every key except the presentation half",
+            "{name}: `project` must emit every key except the presentation half",
         );
 
         let extra: Vec<&str> = ours
@@ -137,6 +226,35 @@ fn the_game_half_has_the_same_shape_as_the_fixtures() {
     let idle = projected(false);
     assert!(idle["session"].is_null());
     assert_same_shape(&idle["teams"], &fixture("idle")["teams"], "teams");
+}
+
+/// `StageScreen::key` and the serde name are one string in `packages/contract`,
+/// and every fixture names a screen this host knows.
+#[test]
+fn the_screen_names_match_the_contract() {
+    let screens: Vec<String> = StageScreen::ALL
+        .iter()
+        .map(|s| {
+            serde_json::to_value(s)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    let keys: Vec<String> = StageScreen::ALL
+        .iter()
+        .map(|s| s.key().to_owned())
+        .collect();
+    assert_eq!(screens, keys);
+
+    for name in fixture_names() {
+        let screen = fixture(&name)["currentScreen"]
+            .as_str()
+            .expect("every fixture names a screen")
+            .to_owned();
+        assert!(screens.contains(&screen), "{name}: unknown screen {screen}");
+    }
 }
 
 #[test]

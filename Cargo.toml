@@ -1,10 +1,12 @@
 # Cargo workspace for the Rust host.
 #
-# `crates/host` is a plain library through P4-P5 (zero `tauri::` imports, see
-# 04_ROADMAP.md); Tauri wraps it at P6 without moving a module.
+# `crates/host` is a plain library and stays one: a test sweeps its whole `src`
+# tree for `tauri` and fails on a hit (04_ROADMAP.md). P6 wraps it from the
+# outside instead — `crates/app` is the only member that knows Tauri exists, and
+# it depends on `questiongame-host`, never the other way round.
 [workspace]
 resolver = "3"
-members = ["crates/host"]
+members = ["crates/host", "crates/app"]
 
 [workspace.package]
 version = "0.0.0"
@@ -22,7 +24,18 @@ proptest = "1"
 # which is what offline-first and a clean install require (04_ROADMAP.md).
 rusqlite = { version = "0.37", features = ["bundled"] }
 tracing = "0.1"
+# P6. The host has emitted `tracing` spans since P5 with nobody listening;
+# this is the subscriber, and it lives in the app crate because a library must
+# not choose a global one for its embedder.
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # P5. Search is `catalog_search` on `CatalogService`, not a `SearchService`:
 # one adapter exists and no second is planned (2.13), so a port would be
 # indirection rather than a seam.
 tantivy = "0.26"
+# P6. Only `crates/app` may name these.
+tauri = { version = "2", features = [] }
+tauri-build = { version = "2", features = [] }
+# P6. Installed now and not at P5 because nothing was asynchronous then: Tauri's
+# async commands are what finally await. `rt-multi-thread` moves every command
+# that touches the database off the main thread; `time` drives the 100ms tick.
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }

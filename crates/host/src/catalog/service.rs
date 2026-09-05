@@ -32,6 +32,7 @@ use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
 
 use crate::event::Event;
 use crate::flags::{GameSettings, GlobalSettings};
@@ -51,7 +52,8 @@ use super::snapshot::{self, Bodies};
 use super::store;
 
 /// The `op` of `catalog-changed { kind, id, op }` (§11.A).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ChangeOp {
     Upserted,
     Archived,
@@ -70,7 +72,8 @@ impl ChangeOp {
 
 /// What a write did, ready to be emitted as `catalog-changed`. Returned rather
 /// than emitted here, because this crate has no event bus — P6 does.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CatalogChange {
     pub kind: CatalogKind,
     pub id: String,
@@ -78,7 +81,8 @@ pub struct CatalogChange {
 }
 
 /// `recipe-changed { id, rev }` (§11.B).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RecipeChange {
     pub id: RecipeId,
     pub rev: u32,
@@ -86,11 +90,28 @@ pub struct RecipeChange {
 
 /// Which overlay a `recipe_set_overlay` writes, and to what. `None` is Reset —
 /// the patch goes, the catalog row shows through again (§2.17).
+///
+/// Deliberately **not** `Deserialize`: a two-field tuple variant has no good
+/// JSON shape, and reshaping a P5 argument type to please serde would be the
+/// wire dictating the Rust. The command payload is spelled at the boundary
+/// instead (`crates/app`), which is where a wire format belongs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OverlayTarget {
     Team(TeamId, Option<TeamOverlay>),
     Domain(DomainId, Option<DomainOverlay>),
     Question(QuestionId, Option<QuestionOverlay>),
+}
+
+impl OverlayTarget {
+    /// The library row the patch is about — the notice `target_path` (§14) and
+    /// what the ScopeConfirm dialog names.
+    pub fn id(&self) -> String {
+        match self {
+            OverlayTarget::Team(id, _) => id.to_string(),
+            OverlayTarget::Domain(id, _) => id.to_string(),
+            OverlayTarget::Question(id, _) => id.to_string(),
+        }
+    }
 }
 
 /// The key the globals document lives under.
@@ -227,6 +248,105 @@ impl CatalogService {
     /// `asset_put` — the same write, named the way §11.A names it.
     pub fn asset_put(&self, asset: &Asset, now_ms: u64) -> CatalogResult<CatalogChange> {
         self.catalog_upsert(&asset.clone().into(), now_ms)
+    }
+
+    /// `catalog_upsert_many` — §2.19's bulk edit as **one** transaction.
+    ///
+    /// The batch gets one confirm, so it gets one transaction and one fsync:
+    /// row-at-a-time would be `WAL + synchronous = FULL` paid two hundred times
+    /// over, which is most of a second the operator spends watching a spinner.
+    /// Everything is validated **before** anything is written, so a bad row at
+    /// index 199 leaves the library exactly as it was rather than half-edited.
+    pub fn catalog_upsert_many(
+        &self,
+        items: &[CatalogItem],
+        now_ms: u64,
+    ) -> CatalogResult<Vec<CatalogChange>> {
+        for item in items {
+            item.validate()?;
+        }
+        let mut guard = self.conn();
+        let tx = guard.transaction()?;
+        for item in items {
+            match item {
+                CatalogItem::Team(team) => store::team_upsert(&tx, team, now_ms)?,
+                CatalogItem::Domain(domain) => store::domain_upsert(&tx, domain, now_ms)?,
+                CatalogItem::Question(question) => store::question_upsert(&tx, question, now_ms)?,
+                CatalogItem::Operator(operator) => store::operator_upsert(&tx, operator, now_ms)?,
+                CatalogItem::Asset(asset) => store::asset_upsert(&tx, asset, now_ms)?,
+            }
+        }
+        tx.commit()?;
+        drop(guard);
+
+        // The index is lazy: this marks every document dirty and the next
+        // search commits once, whatever the batch size.
+        for item in items {
+            self.search.put(
+                item.kind(),
+                &item.id(),
+                item.is_archived(),
+                &item.search_text(),
+            )?;
+        }
+        Ok(items
+            .iter()
+            .map(|item| CatalogChange {
+                kind: item.kind(),
+                id: item.id(),
+                op: ChangeOp::Upserted,
+            })
+            .collect())
+    }
+
+    /// `catalog_archive_many` — the bulk sibling of [`Self::catalog_archive`].
+    pub fn catalog_archive_many(
+        &self,
+        kind: CatalogKind,
+        ids: &[String],
+        now_ms: u64,
+    ) -> CatalogResult<Vec<CatalogChange>> {
+        self.set_archived_many(kind, ids, Some(now_ms), ChangeOp::Archived)
+    }
+
+    /// `catalog_restore_many` — the bulk sibling of [`Self::catalog_restore`].
+    pub fn catalog_restore_many(
+        &self,
+        kind: CatalogKind,
+        ids: &[String],
+    ) -> CatalogResult<Vec<CatalogChange>> {
+        self.set_archived_many(kind, ids, None, ChangeOp::Restored)
+    }
+
+    /// One transaction for the whole batch; an id that does not exist aborts it
+    /// and nothing is written. A bulk action the operator confirmed once should
+    /// not half-happen.
+    fn set_archived_many(
+        &self,
+        kind: CatalogKind,
+        ids: &[String],
+        at_ms: Option<u64>,
+        op: ChangeOp,
+    ) -> CatalogResult<Vec<CatalogChange>> {
+        let mut guard = self.conn();
+        let tx = guard.transaction()?;
+        for id in ids {
+            store::set_archived(&tx, kind, id, at_ms)?;
+        }
+        tx.commit()?;
+        drop(guard);
+
+        for id in ids {
+            self.reindex(kind, id)?;
+        }
+        Ok(ids
+            .iter()
+            .map(|id| CatalogChange {
+                kind,
+                id: id.clone(),
+                op,
+            })
+            .collect())
     }
 
     /// `catalog_archive` — soft, restorable, and the only kind of delete v1 has

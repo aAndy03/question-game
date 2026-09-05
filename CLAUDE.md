@@ -4,18 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**P0–P5 are done** (`docs/v1/04_ROADMAP.md`). npm workspaces monorepo, GPLv3. Track A (Stage: contract, screens, motion) is at P3; Track B (Rust core) is at P5 — `crates/host` holds `MatchService`, `FlagService` and `CatalogService`, still a plain library with zero `tauri::` imports. Tauri arrives at P6.
+**P0–P6 are done** (`docs/v1/04_ROADMAP.md`). npm workspaces monorepo, GPLv3. **The two tracks met at P6:** Stage no longer reads fixtures, it reads the host. `crates/host` holds `MatchService`, `FlagService`, `CatalogService` and `PresentationService` and is still a plain library with zero `tauri::` imports; `crates/app` is the Tauri 2 shell around it. P7 builds the Studio shell.
 
 ```bash
-npm run dev:stage      # Stage webview, port 5180
-npm run dev:studio     # Studio webview, port 5181
+npm run dev:app        # the desktop app (tauri dev) — both webviews, the real host
+npm run dev:stage      # Stage webview alone, port 5180, fixture-fed (no host)
+npm run dev:studio     # Studio webview alone, port 5181
 npm run typecheck      # tsc --build across all project references
 npm test               # vitest run (packages + jsdom projects per app)
 npm run lint           # eslint, including the atomic + design-system boundaries
 npm run test:host      # cargo test — host unit, integration and property tests
+npm run test:app       # cargo test -p questiongame-app
 npm run lint:host      # cargo clippy --all-targets -D warnings
-npm run test:all       # both suites
+npm run lint:app       # the same, for the Tauri crate
+npm run test:all       # all three suites
 ```
+
+`npm run dev:app` starts the Vite dev servers itself. `npm run dev:stage` on its own has no Rust behind it and falls back to the P2/P3 fixture strip — that is the point: screen work does not need a database.
 
 `npm run lint` is not cosmetic here — it is where the architecture rules are enforced. See "Atomic design" below.
 
@@ -30,8 +35,11 @@ npm run test:all       # both suites
 - `docs/v1/00_first_spec.txt` — the original brain-dump prompt. **Reference only**; it has gaps and open questions, and its examples are illustrations, not rules.
 - `packages/design-stage/` — questiongame tokens, self-hosted fonts, decorative SVGs, and `stage.css` (the Stage token scope).
 - `packages/design-studio/` — `globals.css` and `studio.css` (the Studio token scope). Never loaded by Stage.
-- `packages/contract/` — screens, node ids, reveal keys, command and event names. The only package both webviews and the host schema share.
+- `packages/contract/` — screens, node ids, reveal keys, command and event names, `PlayStateForStage` and `PlayStateForMain`. The only package both webviews and the host schema share.
 - `packages/text/` — the `Text` module (§2.29).
+- `crates/host/` — the four services. A plain library; a test sweeps its `src` tree for `tauri` and fails on a hit.
+- `crates/app/` — the Tauri 2 shell (P6). Depends on `questiongame-host`; nothing depends on it.
+- `dist/` — where both webviews build (`dist/studio`, `dist/stage`). Tauri's `frontendDist` points at it, so the directory has to exist for `cargo build` to run its codegen; only `dist/README.md` is tracked.
 - `.agents/skills/` — skills installed from `mattpocock/skills` (37) and `heroui-inc/heroui` (3: `heroui-react`, `heroui-native`, `heroui-migration`), symlinked into `.claude/skills`. Use `heroui-react` before writing HeroUI v3 markup — v3 dropped `HeroUIProvider` and framer-motion, so v2 habits are wrong. Not project source; exclude from the repo when git is initialized.
 
 ### Document precedence
@@ -64,7 +72,7 @@ npm run test:all       # both suites
 `00_first_spec.txt` and `02_spec-v1/04-layered-engines.md` propose one engine per noun (Question, Domain, Teams, Award, Settings, Screens, Animation…) plus Layer 2/3/4 binders. `01_codebase-design-spec-v1.md` rejects that as shallow — the Layer-3 binders are pass-throughs, and per-noun engines force Control panels to talk to three engines at once. **Treat the engine list as a glossary of jobs, not as the interface.** Implement instead:
 
 - **`MatchService`** — collapses ring/turn order, question session, timer, award, cap/bonus, and per-Play consume behind one small interface (`play_*`, `choose_domain`, `set_selection`, `lock_selection`, `start_timer`, `reveal_outcome`, `give_token`, `reorder_ring`, `undo_turn`). It is the *only* writer of a Play. No second React-side writer.
-- **`PresentationService`** — hides GSAP and the overlay queue behind `show_screen`, `stage_set_monitor`, `overlay_ack_complete`, the reveal commands, and the `anim-complete` signal. Reveal counts must survive undo and match in Stage and Viewer, so it writes them *through* `MatchService`.
+- **`PresentationService`** — hides the overlay queue and the screen behind `show_screen`, `show_overlay`, `overlay_ack_complete`, the reveal commands, and the `anim-complete` signal. Reveal counts must survive undo and match in Stage and Viewer, so it writes them *through* `MatchService`. GSAP is on the other side of the wire (`apps/stage/src/presentation/`); this module never names a timeline. `stage_set_monitor` is its command but the state behind it is `monitor::StageDisplay`.
 - **`CatalogService`** — hides SQLite, archive scopes, recipe overlays, and the Tantivy sidecar behind `catalog_*` / `recipe_*`.
 - **`FlagService`** — the only flag reader: feature roots (`feat.*`), policy keys, and derived runtime flags (`session.locked`, `overlay.busy`, `play.status`). It owns the timer cascade and the settings interlocks; Studio never keeps a second flag store.
 
@@ -72,7 +80,9 @@ These are in-process Rust modules, not network hops.
 
 ### Seams worth keeping
 
-Two adapters each: host command seam (real Tauri `invoke`/`emitTo` vs in-process test harness); Play write seam (`MatchService`); Presentation seam (GSAP vs a stub that acks `anim-complete`); Catalog seam (SQLite vs in-memory); monitor seam (`availableMonitors` vs a fake monitor list, so the unplug-Stage path is testable). The audio seam's interface is the **cue key**, never a file path.
+Two adapters each: host command seam (real Tauri `invoke`/`emitTo` vs a stub `StageHost` / a bare `Host`); Play write seam (`MatchService`); Presentation seam (GSAP vs `motionConfig.immediate`, which jumps every timeline to its end synchronously and still reports once); Catalog seam (SQLite vs in-memory); monitor seam (`availableMonitors` vs a `Vec<MonitorInfo>` literal, so the unplug-Stage path is testable). The audio seam's interface is the **cue key**, never a file path.
+
+Three of those are **parameters, not traits** — the monitor list, the catalog location, the reveal modes. A trait with one real implementation is indirection; a value the test can supply is a seam.
 
 **Do not introduce a port with only one adapter.** Tantivy-vs-search-interface, HeroUI-vs-generic-widget, and EvilCharts-vs-chart-interface are named as hypothetical seams. Search stays as `catalog_search` on `CatalogService`.
 
@@ -86,11 +96,13 @@ TypeScript/React owns presentation only: Studio shell and tabs, Control panel la
 
 Studio surfaces that merely display Play state (Statistics, Screens tab, Control panels) are **projectors** — they read, they do not write.
 
-Frontend → host is `invoke("lock_selection", { playId })`. Host → Stage is `emitTo("stage", "play-state", …)` (stripped; `"main"` gets the full snapshot). Other events: `catalog-changed`, `recipe-changed`, `health`, `monitors-changed`, `anim-complete`. The Viewer click and the Action Panel button and the keyboard chord are three call sites of one command — that shared interface is the point.
+Frontend → host is `invoke("lock_selection", …)`. Host → Stage is `emitTo("stage", "play-state", …)` (stripped); `"main"` gets the same shape plus `operator` (`OperatorState`) — legal token targets, undo/redo availability, the §4.2 `disabled` list. Other events: `catalog-changed`, `recipe-changed`, `health`, `monitors-changed`, `notice`, `anim-complete`, all to `main` only. The Viewer click and the Action Panel button and the keyboard chord are three call sites of one command — that shared interface is the point.
 
-### The Rust host as built (P4–P5)
+**Stage may call exactly two commands** (`overlay_ack_complete`, `stage_ready`) and both are it reporting on itself; `crates/app/src/guard.rs` refuses the rest by webview label.
 
-`crates/host` is a Cargo workspace member and a plain library — a test asserts zero `tauri::` imports over the whole `src` tree, so P6 must keep it that way. Three services live in it, and they compose without knowing about each other:
+### The Rust host as built (P4–P6)
+
+`crates/host` is a Cargo workspace member and a plain library — a test asserts zero `tauri::` imports over the whole `src` tree, and **P6 kept it that way**: Tauri lives in `crates/app`, which depends on the host and is depended on by nothing. Four services live in the host, and they compose without knowing about each other:
 
 ```text
 FlagService::freeze()  →  CatalogService::build_snapshot()  →  MatchService::play_load()
@@ -98,15 +110,32 @@ FlagService::freeze()  →  CatalogService::build_snapshot()  →  MatchService:
                                                           CatalogService::play_persist()
 ```
 
-Module map (`crates/host/src/`): `service` (the §13 command surface, the only writer of a Play) → `play` (the materialized projection, a pure fold) → `event` (the append-only log) → `ring` · `session` · `timer` · `award` · `rules` · `snapshot` · `settings` · `stage`; `flags` (`FlagService`); `catalog/` (`service` · `model` · `snapshot` · `store` · `search` · `db` · `error`).
+Module map (`crates/host/src/`): `service` (the §13 command surface, the only writer of a Play) → `play` (the materialized projection, a pure fold) → `event` (the append-only log) → `ring` · `session` · `timer` · `award` · `rules` · `snapshot` · `settings` · `stage`; `flags` (`FlagService`); `catalog/` (`service` · `model` · `snapshot` · `store` · `search` · `db` · `error`); `presentation` (`PresentationService`) · `monitor` (where the Stage window stands) · `notice` (the §14 shape).
 
 Rules a later phase must not accidentally undo:
 
 - **No clock inside the host.** Every command — catalog writes included — takes `now_ms`; a running timer is `remaining as of running_since`. A tick never mutates a Play: `tick` only applies the T=0 table, and it applies it at the *computed* zero instant, so poll cadence cannot change a score and a replay lands on the same millisecond. P6 emits every 100ms by **reading** `stage::project`.
 - **The log only grows.** Undo appends `TurnInverted { target_event_id, from_seq, to_seq }` and the projection is rebuilt; redo appends `TurnReapplied` and is legal only while the undo is still the last event. `events` is append-only in SQLite too, and the `plays` table is a projection rebuilt from it at `CatalogService::open`.
 - **`FrozenSettings` live in `PlaySnapshot`, `LiveSettings` on the service.** There is no command that writes a frozen key — that is how §2.5 is enforced, not by disabling a control. `FlagService::settings_set_current_game` refuses a game-affecting key while a Play is open, and `play_load` re-validates the snapshot's settings against the §4.2 interlocks in case the row came from an older build.
-- **`stage::project` emits the game half of `PlayStateForStage`**; `currentScreen`, `overlay`, `revealModes` and `decor` are `PresentationService`'s to merge at P6 (`revealModes` comes from `FlagService::reveal_modes`). `crates/host/tests/stage_contract.rs` checks the shape and `CONTRACT_VERSION` against every `fixtures/*.json`, so bump `stage::CONTRACT_VERSION` and `packages/contract` together.
+- **`stage::project` emits the game half of `PlayStateForStage`**; `currentScreen`, `overlay`, `revealModes` and `decor` are `PresentationService::play_state`'s to merge (`revealModes` comes from `FlagService::reveal_modes`, never a second store). Keep the split: the 100ms tick re-projects the game half and must not touch the queue. `crates/host/tests/stage_contract.rs` checks both the half and the whole emission against every `fixtures/*.json`, so bump `stage::CONTRACT_VERSION` and `packages/contract` together.
 - **`give_token` is refused while a question is issued and unrevealed**, in both `override.after_lock` modes; the setting decides the Control affordance (`FlagService::show_give_token`), and `allow` pairs with `reveal_and_pass` (§2.6 path 2).
+
+#### `PresentationService` (P6)
+
+What the operator has chosen to show: the **current screen**, the **overlay queue**, and the recipe's **decor settings**. Everything else it appears to own it borrows.
+
+- **Reveals are Play state.** `reveal_stem`, `reveal_next_option` and `reveal_leaderboard_rank` take `&mut MatchService` and delegate. There is no way to spell a second writer.
+- **`revealModes` and `overlay_animations.enabled` are passed in per call**, from `FlagService`. A stored copy is the drift §2.16 forbids — the same discipline that keeps `play.status` out of `FlagService`.
+- **The queue advances on an ack, never on a clock** (§2.6): one active, at most one pending, a newer pending replacing an older. `anim_complete(key, …)` is the single door for Stage's handshake; an unmatched key advances nothing and is not an error, because Stage reports *every* timeline it plays.
+- **Overlays are enqueued from a diff of the projection** (`observe(prev, next)`), not from the command: §5.6 says a kind is enqueued when its **cause** occurs, and the same cause arrives from a resolve, an override and an undo. `current-team` has no automatic cause of its own; it stays operator-called.
+- **Auto reveal chains host-side.** A beat is an append, so Stage driving it would be a second writer. `reveal.outcome` has no chained command — the outcome node appears as part of `reveal_outcome`, the only thing that scores.
+- `show_screen` refuses everything but Idle before `play_start`: nothing else has a roster, a board or a score to draw.
+
+#### `monitor` — where Stage stands (P6, §9)
+
+**The host never picks a display.** Stage is *ready*: fullscreen on primary from first Control Load, waiting. The first send is manual and is remembered in `stage.monitor_id`; a remembered display that reappears is taken automatically **outside** a Play, and mid-Play `stage.reattach` (`ask` | `auto` | `stay`, default `ask`) decides. Unplugging pulls the window back to primary with a warn notice and **does not touch the Play** — nothing in this module can reach one. Two identical panels collide on one key, and that case asks rather than guessing.
+
+The OS list arrives as `Vec<MonitorInfo>` in **logical** pixels; that parameter *is* the monitor seam, and an unplug test needs nothing more than a shorter vector. Do not add a trait for it.
 
 #### `FlagService` (P5)
 
@@ -128,7 +157,30 @@ The §4.2 document and the only flag reader. It holds the globals, the recipe in
 - `recipe_set_overlay` carries ScopeConfirm (§2.17): `ThisGame` writes the patch, `Original` writes the catalog row, drops *this* recipe's patch, and leaves every other recipe's patch standing. A per-question duration has no original.
 - `build_snapshot` applies overlays to bodies (§4.3) and **refuses a board that names an archived or missing row** rather than quietly dropping a question.
 - The Tantivy index is in RAM, rebuilt at open from the catalog, updated by every write, and committed lazily on the next search. Terms match exactly or by prefix.
+- Bulk (§2.19) is **one transaction and one fsync per batch**: `catalog_upsert_many` / `catalog_archive_many` / `catalog_restore_many`. The whole batch is validated before anything is written, so a bad row at index 199 leaves the library untouched.
 - Tests: `CatalogLocation::Memory` is the adapter, and `tests/catalog_service.rs` runs the same bodies against memory *and* a real file.
+
+#### The Tauri shell (`crates/app`, P6)
+
+A thin adapter and nothing more. When a function in it starts branching on the state of a Play, the branch belongs in the host — that is the whole test for which side of the line a change goes on.
+
+```text
+state         the four services behind one `Mutex<Host>`, and the only clock (`now_ms`)
+commands/     the §13 surface, one file per service
+emit          host → webview events; the only sender
+guard         which webview may call what (§5.7)
+windows       the two webviews, and moving the Stage one between displays
+monitors      `availableMonitors` + `toLogical(scaleFactor)` → `MonitorInfo`
+tick          the 100ms show loop and the 1s monitor watch
+decor · demo · error
+```
+
+- **A plain `#[tauri::command]` runs on the main thread**; only `#[tauri::command(async)]` moves off it. Every command that can reach the database is `(async)` — `play_persist` is a ~2.5 ms fsync and follows every command that appends. `get_state` and `settings_get` stay synchronous.
+- **`Host::write` persists only when the log grew.** That is why the show loop never touches disk: the 100ms tick goes through the same path and appends nothing 999 times in 1000. The emission is deduplicated too, so an idle Play costs nothing on the wire.
+- **One lock, not four.** Every service is single-writer and the operator is one human; one lock makes every command atomic against every other and makes lock order unspellable.
+- **`main` gets `PlayStateForStage` + `OperatorState`; `stage` gets the stripped shape.** A leak here is a leak on camera. The event **log** is in neither — Timeline reads it with `play_events`.
+- **Tauri does not gate app-defined commands behind capabilities**, so `guard::allow` is the §5.7 boundary: the `stage` label may call only `STAGE_COMMANDS` (`overlay_ack_complete`, `stage_ready`), and an unknown label is treated as Stage. Keep that list identical to `packages/contract`.
+- `crates/app/src/demo.rs` + `seed_demo_library` are a **dev-build harness** so P6 can be run before P7 has library tabs; §10's sample catalog replaces them.
 
 ### Game rules that constrain the model
 
@@ -156,7 +208,7 @@ Import the token files rather than hardcoding values. The palette is a stark bla
 
 ## Planned stack (locked in `optimized_first_spec.md` §7; installed per phase)
 
-**Host** — Rust stable, Tauri 2, `@tauri-apps/api` (`availableMonitors`, `WebviewWindow`, `emitTo`, `listen`, `convertFileSrc`; convert physical `Monitor` pixels with `toLogical(scaleFactor)`), `serde`, `tokio`, `rusqlite` (`bundled`), `thiserror`, `tracing`, `uuid`, `tantivy`. **`rusqlite`, not `tauri-plugin-sql`** (decided 2026-09-05): the plugin needs Tauri inside the host crate and hands the webview its own SQL API — a second writer of the catalog. WAL + `synchronous = FULL`, one writer connection behind a `Mutex` inside `CatalogService`, handwritten forward-only migrations on the `user_version` pragma. **Installed so far (P5):** `serde`, `serde_json`, `thiserror`, `uuid`, `rusqlite` (`bundled`), `tantivy`, `tracing`, `proptest` — edition 2024, workspace deps in the root `Cargo.toml`. **`tokio` was deliberately not installed at P5**: nothing in the host is asynchronous (`rusqlite` and Tantivy's writer are both sync, and avoiding async catalog calls was half the reason for choosing `rusqlite`), so a runtime with no user is weight rather than readiness. It arrives with Tauri at P6, where something actually awaits.
+**Host** — Rust stable, Tauri 2, `@tauri-apps/api` (`availableMonitors`, `WebviewWindow`, `emitTo`, `listen`, `convertFileSrc`; convert physical `Monitor` pixels with `toLogical(scaleFactor)`), `serde`, `tokio`, `rusqlite` (`bundled`), `thiserror`, `tracing`, `uuid`, `tantivy`. **`rusqlite`, not `tauri-plugin-sql`** (decided 2026-09-05): the plugin needs Tauri inside the host crate and hands the webview its own SQL API — a second writer of the catalog. WAL + `synchronous = FULL`, one writer connection behind a `Mutex` inside `CatalogService`, handwritten forward-only migrations on the `user_version` pragma. **Installed (P6):** `serde`, `serde_json`, `thiserror`, `uuid`, `rusqlite` (`bundled`), `tantivy`, `tracing`, `proptest` in `crates/host`; `tauri`, `tauri-build`, `tokio`, `tracing-subscriber` in `crates/app` — edition 2024, workspace deps in the root `Cargo.toml`. **`tokio` waited for P6 on purpose**: nothing in the host is asynchronous (`rusqlite` and Tantivy's writer are both sync, and avoiding async catalog calls was half the reason for choosing `rusqlite`), so until something awaited, a runtime was weight rather than readiness. What awaits is Tauri's async commands and the 100ms tick.
 
 **Studio** — React 19 (follow the React 19 API docs and provider patterns), Tailwind v4, HeroUI v3 (`@heroui/react@^3.2.4`, `@heroui/styles`), Base UI where HeroUI has no fit, Iconify + Gravity UI as default icons with Phosphor duotone as supplement, `@dnd-kit/react` + `@dnd-kit/helpers`.
 
