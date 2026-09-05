@@ -15,7 +15,10 @@
     "typecheck": "tsc --build --force",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:host": "cargo test --manifest-path crates/host/Cargo.toml",
+    "test:all": "npm run test && npm run test:host",
     "lint": "eslint .",
+    "lint:host": "cargo clippy --manifest-path crates/host/Cargo.toml --all-targets -- -D warnings",
     "fixtures": "vite-node scripts/emit-fixtures.ts",
     "decor:hulls": "vite-node scripts/decor-hulls.ts"
   },

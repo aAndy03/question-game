@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**P0 is scaffolded** (`docs/v1/04_ROADMAP.md`). npm workspaces monorepo, git initialised, GPLv3. The Rust host does not exist yet — `crates/` is empty and Tauri arrives at P6. No `.rs` file, no `Cargo.toml`.
+**P0–P4 are done** (`docs/v1/04_ROADMAP.md`). npm workspaces monorepo, GPLv3. Track A (Stage: contract, screens, motion) is at P3; Track B (Rust core) is at P4 — `crates/host` is `MatchService`, a plain library with zero `tauri::` imports. Tauri still arrives at P6; `CatalogService`, `FlagService` and persistence are P5.
 
 ```bash
 npm run dev:stage      # Stage webview, port 5180
@@ -12,6 +12,9 @@ npm run dev:studio     # Studio webview, port 5181
 npm run typecheck      # tsc --build across all project references
 npm test               # vitest run (packages + jsdom projects per app)
 npm run lint           # eslint, including the atomic + design-system boundaries
+npm run test:host      # cargo test — MatchService unit, integration and property tests
+npm run lint:host      # cargo clippy --all-targets -D warnings
+npm run test:all       # both suites
 ```
 
 `npm run lint` is not cosmetic here — it is where the architecture rules are enforced. See "Atomic design" below.
@@ -85,6 +88,18 @@ Studio surfaces that merely display Play state (Statistics, Screens tab, Control
 
 Frontend → host is `invoke("lock_selection", { playId })`. Host → Stage is `emitTo("stage", "play-state", …)` (stripped; `"main"` gets the full snapshot). Other events: `catalog-changed`, `recipe-changed`, `health`, `monitors-changed`, `anim-complete`. The Viewer click and the Action Panel button and the keyboard chord are three call sites of one command — that shared interface is the point.
 
+### The Rust host as built (P4)
+
+`crates/host` is a Cargo workspace member and a plain library — a test asserts zero `tauri::` imports, so P5 and P6 must keep it that way. Module map (`crates/host/src/`): `service` (the §13 command surface, the only writer of a Play) → `play` (the materialized projection, a pure fold) → `event` (the append-only log) → `ring` · `session` · `timer` · `award` · `rules` · `snapshot` · `settings` · `stage`.
+
+Rules a later phase must not accidentally undo:
+
+- **No clock inside the host.** Every command takes `now_ms`; a running timer is `remaining as of running_since`. A tick never mutates a Play — `tick` only applies the T=0 table, and it applies it at the *computed* zero instant, so poll cadence cannot change a score and a replay lands on the same millisecond. P6 emits every 100ms by **reading** `stage::project`.
+- **The log only grows.** Undo appends `TurnInverted { target_event_id, from_seq, to_seq }` and the projection is rebuilt; redo appends `TurnReapplied` and is legal only while the undo is still the last event.
+- **`FrozenSettings` live in `PlaySnapshot`, `LiveSettings` on the service.** There is no command that writes a frozen key — that is how §2.5 is enforced, not by disabling a control.
+- **`stage::project` emits the game half of `PlayStateForStage`**; `currentScreen`, `overlay`, `revealModes` and `decor` are `PresentationService`'s to merge at P6. `crates/host/tests/stage_contract.rs` checks the shape and `CONTRACT_VERSION` against every `fixtures/*.json`, so bump `stage::CONTRACT_VERSION` and `packages/contract` together.
+- **`give_token` is refused while a question is issued and unrevealed**, in both `override.after_lock` modes; the setting decides the Control affordance, and `allow` pairs with `reveal_and_pass` (§2.6 path 2).
+
 ### Game rules that constrain the model
 
 - A team keeps its token until it answers wrong; a correct answer lets it continue in the same domain or switch domains.
@@ -109,9 +124,9 @@ Overlay kinds (`token-handoff`, `round-advance`, `multiple-answers`, `outcome`, 
 
 Import the token files rather than hardcoding values. The palette is a stark black-on-white base (`--ink`, `--paper`, `--gray-500/200`) plus semantic states (`--state-correct` green, `--state-incorrect` red, `--state-info` blue, `--state-leader` gold, `--state-accent` yellow). Type is Space Grotesk (display) / Space Mono, with a very large Stage-oriented scale (up to `--text-mega` 160px) and negative tracking tokens. Spacing is an 8px base; radii are small (0/4/8px) and borders are heavy (1/2/3px).
 
-## Planned stack (locked in `optimized_first_spec.md` §7; nothing installed yet)
+## Planned stack (locked in `optimized_first_spec.md` §7; installed per phase)
 
-**Host** — Rust stable, Tauri 2, `@tauri-apps/api` (`availableMonitors`, `WebviewWindow`, `emitTo`, `listen`, `convertFileSrc`; convert physical `Monitor` pixels with `toLogical(scaleFactor)`), `serde`, `tokio`, `rusqlite` or `tauri-plugin-sql`, `thiserror`, `tracing`, `uuid`, `tantivy`.
+**Host** — Rust stable, Tauri 2, `@tauri-apps/api` (`availableMonitors`, `WebviewWindow`, `emitTo`, `listen`, `convertFileSrc`; convert physical `Monitor` pixels with `toLogical(scaleFactor)`), `serde`, `tokio`, `rusqlite` or `tauri-plugin-sql`, `thiserror`, `tracing`, `uuid`, `tantivy`. **Installed so far (P4):** `serde`, `serde_json`, `thiserror`, `uuid`, `proptest` — edition 2024, workspace deps in the root `Cargo.toml`. `tokio`, `rusqlite` and `tantivy` arrive with P5; Tauri with P6.
 
 **Studio** — React 19 (follow the React 19 API docs and provider patterns), Tailwind v4, HeroUI v3 (`@heroui/react@^3.2.4`, `@heroui/styles`), Base UI where HeroUI has no fit, Iconify + Gravity UI as default icons with Phosphor duotone as supplement, `@dnd-kit/react` + `@dnd-kit/helpers`.
 

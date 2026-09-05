@@ -279,32 +279,47 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 
 ---
 
-## P4 — `MatchService` (Rust, headless)  ☐
+## P4 — `MatchService` (Rust, headless)  ☑
 
 **Goal:** all game truth, no UI and no database. Highest-value test surface in the project (category 1 — pure in-process computation).
 
-**Install:** Rust stable, `serde`, `thiserror`, `uuid`, [`proptest`](https://docs.rs/proptest).
+**Install:** Rust stable (1.94, edition 2024), `serde`, `serde_json`, `thiserror`, `uuid`, [`proptest`](https://docs.rs/proptest). A Cargo workspace at the repo root holds `crates/host`; `npm run test:host` and `npm run lint:host` run it from the same place as everything else.
 
 **Deliverables** — `crates/host/src/`
 
-- `rules` — judging (set equality, order-irrelevant, partial credit off by default), consume-per-Play, completion, competition rank `1,1,3`.
-- `ring` — the round invariant, `give_token` legality, `reorder_ring` on the future ring only.
-- `award` — flat / difficulty / lock-speed (exclusive and option), `floor(base * (1 + speed_weight * remaining_ms_at_lock / duration_ms))`, cap and consecutive bonus, `0` on wrong or empty reveal.
-- `session` — `issued → stem_revealed → options_revealed → selecting → locked | timer_expired_open → outcome_revealed`, plus the §5.3 reject table.
-- `timer` — host-authoritative, 100ms tick, the T=0 table, the §2.18 cascade, operator pace.
-- `play` — snapshot build (§4.3), lifecycle, append-only events, `TurnInverted` on undo, restart same/different.
-- One public interface: the §13 `play_*` and session commands returning `Result<_, MatchError>`.
+- ☑ `rules` — judging (set equality, order-irrelevant, partial credit off by default), competition rank `1,1,3`. Consume-per-Play and completion live on `play`, which is where the consumed set is.
+- ☑ `ring` — the round invariant, `give_token` legality, `reorder_ring` on the future ring only.
+- ☑ `award` — flat / difficulty / lock-speed (exclusive and option), `floor(base * (1 + speed_weight * remaining_ms_at_lock / duration_ms))`, `0` on wrong or empty reveal. Cap and consecutive bonus are applied by `reveal_outcome`, which is the only place that knows the running consecutive count.
+- ☑ `session` — the §5.3 stages, derived from the fields rather than stored: the operator reveals, selects and locks in the order the show decides, and a stored stage enum would need correcting at every step.
+- ☑ `timer` — host-authoritative, the T=0 table, the §2.18 cascade, operator pace.
+- ☑ `play` — snapshot build (§4.3), lifecycle, append-only events, `TurnInverted` on undo, restart same/different.
+- ☑ One public interface: the §13 `play_*` and session commands returning `Result<_, MatchError>`.
 
-**Exit criteria**
+**Exit criteria — all met 2026-09-05** (63 tests: 34 unit, 23 `match_service`, 4 `stage_contract`, 2 proptest)
 
-- ☐ **Property test:** for team counts 1–12 and random legal command sequences, `max(turns) − min(turns) ≤ 1` always holds and no team is overridden into consecutive turns.
-- ☐ Points are written only by `reveal_outcome` — a test drives lock, override, pause, and undo and sees the score unchanged.
-- ☐ Undo never mutates an existing event; the log only grows.
-- ☐ Replaying a full event log rebuilds a byte-identical `PlayState`.
-- ☐ `n = 1` rehearsal Play runs to completion.
-- ☐ Zero `tauri::` imports — these modules compile as a plain library.
+- ☑ **Property test:** `tests/round_invariant.rs` over 1–12 teams and random sequences (legal *and* illegal), and `random_command_sequences_keep_every_invariant` over the real command surface — the invariant holds, no team is overridden into consecutive turns, and a rejected command leaves the Play byte-identical.
+- ☑ Points are written only by `reveal_outcome` — `points_are_written_only_by_reveal_outcome` drives select, lock, override, pause and undo and sees the score unchanged.
+- ☑ Undo never mutates an existing event; the log only grows (`undo_only_grows_the_log` asserts the old log is a prefix of the new one).
+- ☑ Replaying a full event log rebuilds a byte-identical `PlayState` — asserted on a scripted Play *and* at the end of every property run.
+- ☑ `n = 1` rehearsal Play runs to completion.
+- ☑ Zero `tauri::` imports — asserted by a source sweep, not by hope.
 
----
+**Also delivered**
+
+- **`stage::project`** — the game half of `PlayStateForStage`, with `tests/stage_contract.rs` checking it against all 25 P1 fixtures: same keys, same JSON kinds, same `CONTRACT_VERSION`. The only keys the host may be missing are the presentation half (`currentScreen`, `overlay`, `revealModes`, `decor`), which P6 merges. This buys most of the P6 exit criterion three phases early, and a rename on either side now fails a Rust test instead of blanking Stage.
+- **`reveal_and_pass`** — §2.6's two-click *Reveal & pass* as one atomic command: an illegal target is refused before anything is revealed.
+- **`Ring::default_next`** — what the Action Panel arms by default (next legal target in ring order). A default, not a rule; any legal target is still accepted.
+
+**Decisions made while building it (2026-09-05)**
+
+- **No clock inside the host.** Every command takes the millisecond it happened at, and a running timer is stored as `remaining as of running_since`. Ticks therefore never mutate a Play: `tick` only applies the T=0 table, and it applies it **at the computed zero instant**, so a late poll scores exactly what a punctual one would and a replay lands on the same millisecond.
+- **`judging.order_matters` makes the outcome binary.** A set-share is meaningless when position is part of the answer, and partial credit pays only a `partial` verdict — otherwise a right set in the wrong order would have scored full marks.
+- **`give_token` is refused while a question is issued and unrevealed, in both `override.after_lock` modes** (§2.6 path 2: reveal is required, then scoring, then the token may move). The setting decides whether Control *shows* the button; `allow` pairs it with `reveal_and_pass`. The host never invents a reveal.
+- **Undo is a span, not a step.** `TurnInverted { target_event_id, from_seq, to_seq }` names the resolve it inverts and the stretch of log it takes out of the projection — from the `QuestionIssued` that opened that turn to the end of the log — so the question returns to the pool and the token to the team that held it. Redo is legal only while the undo is still the last event; after that the way forward is a fresh resolve (§5.8).
+- **Undo reaches a Play that has just completed.** The last question of the board is exactly the one an operator is most likely to want back, so `undo_turn` accepts `playing | paused | completed` and reopens the Play; abandoned and restarted are closed records and stay closed.
+- **A duration nowhere in the cascade is operator pace.** The host will not invent a countdown the operator never chose.
+- **The reveal commands live on `MatchService`.** `reveal_stem`, `reveal_next_option` and `reveal_leaderboard_rank` are Play state (they survive undo and must read identically in Stage and Viewer), so `PresentationService` will call them rather than keep its own copy.
+- **`play_start` warns, it does not refuse, at one team.** `Play::is_rehearsal` is the signal; the notice is P8's.
 
 ## P5 — `CatalogService`, `FlagService`, persistence  ☐
 
