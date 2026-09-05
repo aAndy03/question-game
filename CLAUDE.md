@@ -126,7 +126,7 @@ Import the token files rather than hardcoding values. The palette is a stark bla
 
 ## Planned stack (locked in `optimized_first_spec.md` §7; installed per phase)
 
-**Host** — Rust stable, Tauri 2, `@tauri-apps/api` (`availableMonitors`, `WebviewWindow`, `emitTo`, `listen`, `convertFileSrc`; convert physical `Monitor` pixels with `toLogical(scaleFactor)`), `serde`, `tokio`, `rusqlite` or `tauri-plugin-sql`, `thiserror`, `tracing`, `uuid`, `tantivy`. **Installed so far (P4):** `serde`, `serde_json`, `thiserror`, `uuid`, `proptest` — edition 2024, workspace deps in the root `Cargo.toml`. `tokio`, `rusqlite` and `tantivy` arrive with P5; Tauri with P6.
+**Host** — Rust stable, Tauri 2, `@tauri-apps/api` (`availableMonitors`, `WebviewWindow`, `emitTo`, `listen`, `convertFileSrc`; convert physical `Monitor` pixels with `toLogical(scaleFactor)`), `serde`, `tokio`, `rusqlite` (`bundled`), `thiserror`, `tracing`, `uuid`, `tantivy`. **`rusqlite`, not `tauri-plugin-sql`** (decided 2026-09-05): the plugin needs Tauri inside the host crate and hands the webview its own SQL API — a second writer of the catalog. WAL + `synchronous = FULL`, one writer connection behind a `Mutex` inside `CatalogService`, handwritten forward-only migrations on the `user_version` pragma. **Installed so far (P4):** `serde`, `serde_json`, `thiserror`, `uuid`, `proptest` — edition 2024, workspace deps in the root `Cargo.toml`. `tokio`, `rusqlite` and `tantivy` arrive with P5; Tauri with P6.
 
 **Studio** — React 19 (follow the React 19 API docs and provider patterns), Tailwind v4, HeroUI v3 (`@heroui/react@^3.2.4`, `@heroui/styles`), Base UI where HeroUI has no fit, Iconify + Gravity UI as default icons with Phosphor duotone as supplement, `@dnd-kit/react` + `@dnd-kit/helpers`.
 

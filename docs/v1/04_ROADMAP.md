@@ -323,7 +323,13 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 
 ## P5 — `CatalogService`, `FlagService`, persistence  ☐
 
-**Install:** [`rusqlite`](https://docs.rs/rusqlite) (or `tauri-plugin-sql`), [`tantivy`](https://docs.rs/tantivy), `tokio`, `tracing`.
+**Install:** [`rusqlite`](https://docs.rs/rusqlite) with `features = ["bundled"]`, [`tantivy`](https://docs.rs/tantivy), `tokio`, `tracing`.
+
+**`rusqlite`, decided 2026-09-05** (`optimized_first_spec.md` §7 no longer offers the choice). `tauri-plugin-sql` would drag Tauri into `crates/host` at P5 and break the plain-library property P4 asserts with a source sweep; its `Database.load()` / `execute` JS API is a second writer of the catalog by design; it is `sqlx`-async, so every catalog call and every test would become a future to talk to a local file; and it does nothing for Tantivy, which is Rust-side either way. Three decisions that come with it:
+
+1. **`bundled`** — SQLite compiled from source. No system library on either OS, which is what offline-first and a clean install require.
+2. **Migrations are handwritten and forward-only**, keyed off the `user_version` pragma: an ordered `&[&str]` applied in one transaction at boot. No migration crate — it is thirty lines, and it is exactly the kind of thing that should be readable in the diff. v1 has no downgrade story, so there are no `down` steps.
+3. **One writer connection behind a `Mutex`, owned by `CatalogService`** — the interface never hands a `Connection` out. `journal_mode = WAL` with `synchronous = FULL`: writes are human-paced (a handful per question), so the fsync costs nothing measurable and the durability claim stops depending on the kind of crash. WAL also gives readers a free lane, so the Tantivy indexer opens its **own read-only connection** rather than a pool dependency.
 
 **Deliverables**
 

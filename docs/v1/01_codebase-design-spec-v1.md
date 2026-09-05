@@ -65,7 +65,7 @@ Interface here means everything a caller must know: signatures, invariants, orde
 
 **Depth: deep.** Small verb list over SQLite, the archive scope per tab, the recipe-overlay patch model, and the Tantivy sidecar.
 
-**Dependency category: 2 (local-substitutable).** rusqlite/`tauri-plugin-sql` has an in-memory stand-in. That makes the storage seam **internal** to `CatalogService` — do not expose a `Repository` port at its external interface.
+**Dependency category: 2 (local-substitutable).** `rusqlite` (chosen over `tauri-plugin-sql`, 2026-09-05) has an in-memory stand-in — `Connection::open_in_memory()`. That makes the storage seam **internal** to `CatalogService` — do not expose a `Repository` port at its external interface.
 
 **Tantivy is a hypothetical seam.** One adapter exists and no second is planned (§2.13). Keep search as `catalog_search` on this interface. Do not define a `SearchService` port; that is indirection, not a seam.
 

@@ -722,7 +722,9 @@ Charts: EvilCharts isolated under Statistics.
 
 Search: `tantivy`.
 
-Host: `serde`, `tokio`, `rusqlite` or `tauri-plugin-sql`, `thiserror`, `tracing`, `uuid`.
+Host: `serde`, `tokio`, **`rusqlite`** (`features = ["bundled"]`), `thiserror`, `tracing`, `uuid`.
+
+**Resolved 2026-09-05: `rusqlite`, not `tauri-plugin-sql`.** The plugin exists only as a registered Tauri plugin and exposes SQL to the webview, which would put Tauri inside the host crate a phase early and hand the frontend a second writer of the catalog — the thing the Play write seam exists to prevent. `bundled` compiles SQLite from source, so an install needs no system library (§17, offline-first).
 
 Drop: `@svgdotjs/svg.js`, `framer-motion`, legacy dnd-kit. `matter-js` is kept for Stage decor collision only (§7 table).
 
