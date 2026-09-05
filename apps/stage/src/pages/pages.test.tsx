@@ -27,7 +27,7 @@ describe('Idle page', () => {
   it('lays out one decor node per manifest body, seeded from the Play', () => {
     const { container } = render(<StageRoot state={FIXTURES.idle} />)
     const bodies = decorSpecFor('idle', FIXTURES.idle)!.bodies
-    expect(bodies.filter((b) => b.kind === 'svg' && b.asset.startsWith('digit-')).length).toBe(FIXTURES.idle.teams.length)
+    expect(bodies.filter((b) => b.kind === 'svg' && /^\d$/.test(b.asset)).length).toBe(FIXTURES.idle.teams.length)
     bodies.forEach((_, i) => expect(byNode(container, nodeId('idle', 'decor', i)), `decor ${i}`).toBeTruthy())
     const field = container.querySelector('[data-decor-field]') as HTMLElement
     expect(field.dataset.decorSeed).toMatch(/^\d+$/)

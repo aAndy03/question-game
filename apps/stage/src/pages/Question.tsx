@@ -41,13 +41,13 @@ export function QuestionPage({ state }: StagePageProps) {
   return (
     <section data-page="question" style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', gap: SPACE[5] }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: LAYOUT.gapLoose }}>
-        <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column', gap: SPACE[3], paddingTop: SPACE[7] }}>
+        <div data-decor-solid style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column', gap: SPACE[3], paddingTop: SPACE[7] }}>
           <CategoryLine nodeId={nodeId('question', 'category')} domainName={domain?.name ?? null} teamName={team?.name ?? null} />
           <QuestionStem nodeId={nodeId('question', 'stem')} stem={session?.stem ?? ''} revealed={Boolean(session?.reveals.stem)} />
         </div>
 
         {/* The side panel slot: timer and result share it; both stay mounted. */}
-        <div style={{ position: 'relative', flex: '0 0 auto', width: LAYOUT.sidePanelWidth, minHeight: LAYOUT.sidePanelHeight }}>
+        <div data-decor-solid style={{ position: 'relative', flex: '0 0 auto', width: LAYOUT.sidePanelWidth, minHeight: LAYOUT.sidePanelHeight }}>
           <TimerPanel
             nodeId={nodeId('question', 'timer')}
             label={copy.timerLabel}
@@ -71,7 +71,7 @@ export function QuestionPage({ state }: StagePageProps) {
 
       <Rule weight="thick" />
 
-      <div style={{ width: LAYOUT.questionColumn, maxWidth: '100%' }}>
+      <div data-decor-solid style={{ width: LAYOUT.questionColumn, maxWidth: '100%' }}>
         <AnswerGrid state={state} columns={2} />
       </div>
     </section>

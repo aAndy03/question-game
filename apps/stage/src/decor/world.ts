@@ -6,9 +6,15 @@
  * the life of the screen:
  *
  *   collide          each body cruises near `drift` px/s, bounces off the
- *                    others and off the invisible box (restitution `bounce`).
+ *                    others, the functional elements and the box.
  *   collide-attract  the same, plus a mild constant pull between every pair
  *                    (`attraction`), so they keep meeting and parting.
+ *
+ * The space they live in is the canvas plus a bleed, minus the functional
+ * elements: each measured content rectangle becomes a static wall, so the
+ * free space hugs the content like a U and grows or shrinks with it. The
+ * colliders are the assets' convex hulls, so letters touch where their ink
+ * touches.
  *
  * Everything an operator can tune arrives as `StageDecorSettings` from
  * play-state; nothing here is a magic number that belongs to a recipe.
@@ -21,16 +27,35 @@ import Matter from 'matter-js'
 import type { StageDecorSettings } from '@questiongame/contract'
 import { decorAsset } from './assets'
 import { rng, type Rng } from './seed'
-import type { DecorBodySpec, PlacedBody, Range, ScreenDecorSpec } from './types'
+import type { DecorBodySpec, DecorBoundary, PlacedBody, Range, ScreenDecorSpec } from './types'
 
-const { Bodies, Body, Composite, Engine, Common, Vector } = Matter
+const { Bodies, Body, Composite, Engine, Common, Vector, Vertices } = Matter
 
 export const STEP_MS = 1000 / 60
 /** Frames a settle runs before the world goes live. */
-const SETTLE_STEPS = 120
+const SETTLE_STEPS = 150
 /** A stalled frame catches up at most this many steps. */
 const MAX_CATCHUP = 5
 const WALL = 400
+
+/**
+ * The default box: the 1920×1080 canvas plus a bleed on every side, so shapes
+ * clip past the edge as they do in the reference. A manifest may override it.
+ */
+export const CANVAS_BLEED = 160
+export const CANVAS_BOUNDARY: DecorBoundary = {
+  x: -CANVAS_BLEED,
+  y: -CANVAS_BLEED,
+  width: 1920 + 2 * CANVAS_BLEED,
+  height: 1080 + 2 * CANVAS_BLEED,
+}
+
+/** Breathing room kept between a body and a functional element, canvas px. */
+export const SOLID_MARGIN = 24
+
+export function resolveBoundary(spec: Pick<ScreenDecorSpec, 'boundary'>): DecorBoundary {
+  return spec.boundary ?? CANVAS_BOUNDARY
+}
 
 /** px/s → px/step. */
 const perStep = (pxPerSecond: number) => pxPerSecond / 60
@@ -61,6 +86,27 @@ export function bodySize(spec: DecorBodySpec, pick: (r: Range) => number): Sized
   }
 }
 
+/**
+ * Collider vertices for a body, in body-local px with the rendered box's
+ * centre at the origin. SVG bodies use their convex hull; everything else
+ * its box.
+ */
+export function colliderVertices(spec: DecorBodySpec, size: Sized): Matter.Vector[] {
+  if (spec.kind === 'svg') {
+    const a = decorAsset(spec.asset)
+    const s = size.height / a.height
+    return a.hull.map(([x, y]) => ({ x: x * s - size.width / 2, y: y * s - size.height / 2 }))
+  }
+  const hw = size.width / 2
+  const hh = size.height / 2
+  return [
+    { x: -hw, y: -hh },
+    { x: hw, y: -hh },
+    { x: hw, y: hh },
+    { x: -hw, y: hh },
+  ]
+}
+
 export interface DecorWorld {
   readonly spec: ScreenDecorSpec
   readonly settings: StageDecorSettings
@@ -75,7 +121,8 @@ export interface DecorWorld {
 export function createDecorWorld(spec: ScreenDecorSpec, seed: number, settings: StageDecorSettings): DecorWorld {
   const r = rng(seed)
   const pick = (range: Range) => r.between(range.min, range.max)
-  const { boundary } = spec
+  const boundary = resolveBoundary(spec)
+  const solids = spec.solids ?? []
 
   // matter's own RNG (used by a few internals) is seeded too; `_seed` is real but untyped.
   ;(Common as unknown as { _seed: number })._seed = seed
@@ -89,17 +136,25 @@ export function createDecorWorld(spec: ScreenDecorSpec, seed: number, settings: 
     Bodies.rectangle(boundary.x + boundary.width / 2, boundary.y + boundary.height + WALL / 2, boundary.width + 2 * WALL, WALL, wallOpts),
     Bodies.rectangle(boundary.x - WALL / 2, boundary.y + boundary.height / 2, WALL, boundary.height + 2 * WALL, wallOpts),
     Bodies.rectangle(boundary.x + boundary.width + WALL / 2, boundary.y + boundary.height / 2, WALL, boundary.height + 2 * WALL, wallOpts),
+    // The functional elements, as walls: the U the bodies live around.
+    ...solids.map((s) =>
+      Bodies.rectangle(s.x + s.width / 2, s.y + s.height / 2, s.width + 2 * SOLID_MARGIN, s.height + 2 * SOLID_MARGIN, wallOpts),
+    ),
   ])
 
   const sized = spec.bodies.map((b) => bodySize(b, pick))
+  /** Body-local offset from the matter position (hull centroid) to the rendered box centre. */
+  const centreOffset: Matter.Vector[] = []
+
   const bodies = spec.bodies.map((b, i) => {
     const { width, height } = sized[i]!
     const ax = b.region?.x ?? { min: 0, max: 1 }
     const ay = b.region?.y ?? { min: 0, max: 1 }
     const cx = boundary.x + width / 2 + pick(ax) * Math.max(0, boundary.width - width)
     const cy = boundary.y + height / 2 + pick(ay) * Math.max(0, boundary.height - height)
-    return Bodies.rectangle(cx, cy, width, height, {
-      angle: (pick(b.rotation) * Math.PI) / 180,
+    const verts = colliderVertices(b, sized[i]!)
+    const centroid = Vertices.centre(verts)
+    const body = Bodies.fromVertices(cx + centroid.x, cy + centroid.y, [verts], {
       restitution: settings.bounce,
       friction: 0,
       frictionStatic: 0,
@@ -107,8 +162,17 @@ export function createDecorWorld(spec: ScreenDecorSpec, seed: number, settings: 
       // Heavier bodies move less when pushed, so the biggest shape anchors the scene.
       density: 0.001 * Math.max(1, (width * height) / 10_000),
     })
+    centreOffset.push({ x: -centroid.x, y: -centroid.y })
+    Body.setAngle(body, (pick(b.rotation) * Math.PI) / 180)
+    return body
   })
   Composite.add(engine.world, bodies)
+
+  /** Rendered box centre of a body, in canvas px. */
+  const boxCentre = (body: Matter.Body, i: number) => {
+    const o = Vector.rotate(centreOffset[i]!, body.angle)
+    return { x: body.position.x + o.x, y: body.position.y + o.y }
+  }
 
   // 1. Settle: damped, so overlapping starts push apart and come to rest.
   for (let i = 0; i < SETTLE_STEPS; i++) Engine.update(engine, STEP_MS)
@@ -125,9 +189,10 @@ export function createDecorWorld(spec: ScreenDecorSpec, seed: number, settings: 
   const contain = () => {
     bodies.forEach((body, i) => {
       const { width, height } = sized[i]!
-      const x = clamp(body.position.x, boundary.x + width / 2, boundary.x + boundary.width - width / 2)
-      const y = clamp(body.position.y, boundary.y + height / 2, boundary.y + boundary.height - height / 2)
-      if (x !== body.position.x || y !== body.position.y) Body.setPosition(body, { x, y })
+      const c = boxCentre(body, i)
+      const x = clamp(c.x, boundary.x + width / 2, boundary.x + boundary.width - width / 2)
+      const y = clamp(c.y, boundary.y + height / 2, boundary.y + boundary.height - height / 2)
+      if (x !== c.x || y !== c.y) Body.setPosition(body, { x: body.position.x + (x - c.x), y: body.position.y + (y - c.y) })
     })
   }
 
@@ -162,17 +227,18 @@ export function createDecorWorld(spec: ScreenDecorSpec, seed: number, settings: 
       if (steps === MAX_CATCHUP) accumulator = 0
     },
     read: () =>
-      bodies.map(
-        (body, index): PlacedBody => ({
+      bodies.map((body, index): PlacedBody => {
+        const c = boxCentre(body, index)
+        return {
           index,
           spec: spec.bodies[index]!,
-          x: body.position.x,
-          y: body.position.y,
+          x: c.x,
+          y: c.y,
           width: sized[index]!.width,
           height: sized[index]!.height,
           angle: (body.angle * 180) / Math.PI,
-        }),
-      ),
+        }
+      }),
     destroy: () => {
       Composite.clear(engine.world, false)
       Engine.clear(engine)
@@ -204,7 +270,6 @@ function attract(bodies: Matter.Body[], settings: StageDecorSettings) {
       const len = Vector.magnitude(d)
       if (len < 1) continue
       const dir = Vector.div(d, len)
-      // applyForce takes a force; force = mass × acceleration.
       Body.applyForce(bi, bi.position, Vector.mult(dir, forceFor(a, bi.mass)))
       Body.applyForce(bj, bj.position, Vector.mult(dir, -forceFor(a, bj.mass)))
     }

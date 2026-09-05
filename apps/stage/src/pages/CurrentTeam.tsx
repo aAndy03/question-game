@@ -37,6 +37,7 @@ export function CurrentTeamPage({ state }: StagePageProps) {
         textAlign: 'center',
       }}
     >
+      <div data-decor-solid style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: SPACE[4] }}>
       <Text variant="stage-code" tone="heading" nodeId={nodeId('currentTeam', 'question')}>
         {`${copy.questionLabel} ${state.questionsIssued}`}
       </Text>
@@ -55,6 +56,7 @@ export function CurrentTeamPage({ state }: StagePageProps) {
       >
         {hud(copy.domainLabel, domainLine)}
       </Text>
+      </div>
     </section>
   )
 }

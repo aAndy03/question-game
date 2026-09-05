@@ -26,6 +26,7 @@ export function FinalLeaderboardPage({ state }: StagePageProps) {
   return (
     <section
       data-page="finalLeaderboard"
+      data-decor-solid
       style={{
         flex: '1 1 auto',
         display: 'flex',

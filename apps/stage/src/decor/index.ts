@@ -14,7 +14,7 @@ import { QUESTION_DECOR } from './manifests/question'
 import { SCOREBOARD_DECOR } from './manifests/scoreboard'
 import { FINAL_LEADERBOARD_DECOR } from './manifests/finalLeaderboard'
 import { settle } from './settle'
-import type { PlacedBody, ScreenDecorSpec } from './types'
+import type { DecorBoundary, PlacedBody, ScreenDecorSpec } from './types'
 
 /** What a manifest needs from the Play to shape itself (idle: one digit per team). */
 export type DecorContext = Pick<PlayStateForStage, 'teams'>
@@ -31,11 +31,15 @@ export const DECOR_BY_SCREEN: Partial<Record<StageScreen, DecorManifest>> = {
   finalLeaderboard: FINAL_LEADERBOARD_DECOR,
 }
 
-/** The concrete spec for a screen in this Play, or null when it has no decor. */
-export function decorSpecFor(screen: StageScreen, ctx: DecorContext): ScreenDecorSpec | null {
+/**
+ * The concrete spec for a screen in this Play, or null when it has no decor.
+ * `solids` are the measured functional elements the frame supplies.
+ */
+export function decorSpecFor(screen: StageScreen, ctx: DecorContext, solids?: readonly DecorBoundary[]): ScreenDecorSpec | null {
   const manifest = DECOR_BY_SCREEN[screen]
   if (!manifest) return null
-  return typeof manifest === 'function' ? manifest(ctx) : manifest
+  const spec = typeof manifest === 'function' ? manifest(ctx) : manifest
+  return solids && solids.length ? { ...spec, solids } : spec
 }
 
 /** Frame-zero layout for a screen and a seed; empty for a screen with no decor. */
@@ -51,7 +55,7 @@ export function decorTransform(p: Pick<PlacedBody, 'x' | 'y' | 'width' | 'height
 
 export { settle } from './settle'
 export { decorOpacity, type DecorMood } from './mood'
-export { createDecorWorld, anchorPhase, STEP_MS, type DecorWorld } from './world'
+export { createDecorWorld, anchorPhase, resolveBoundary, colliderVertices, CANVAS_BOUNDARY, CANVAS_BLEED, SOLID_MARGIN, STEP_MS, type DecorWorld } from './world'
 export { seedFromPlay, hashString, rng } from './seed'
-export { decorAsset, DECOR_ASSET_IDS, type DecorAsset, type DecorAssetId } from './assets'
+export { decorAsset, rawAsset, DECOR_ASSET_IDS, type DecorAsset, type DecorAssetId } from './assets'
 export type * from './types'

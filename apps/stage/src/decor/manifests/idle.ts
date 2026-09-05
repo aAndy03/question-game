@@ -11,7 +11,7 @@ import type { DecorBodySpec, ScreenDecorSpec } from '../types'
  * Everything else is fixed.
  */
 
-const DIGIT_ASSETS = ['digit-1', 'digit-2', 'digit-3', 'digit-4', 'digit-5'] as const
+const DIGIT_ASSETS = ['1', '2', '3', '4', '5'] as const
 
 const FIXED: readonly DecorBodySpec[] = [
   {
@@ -21,7 +21,7 @@ const FIXED: readonly DecorBodySpec[] = [
     color: 'ink',
     opacity: 1,
     rotation: { min: -8, max: 8 },
-    region: { x: { min: 0, max: 0.35 }, y: { min: 0.15, max: 0.45 } },
+    region: { x: { min: 0.5, max: 0.62 }, y: { min: 0.15, max: 0.4 } },
   },
   {
     kind: 'svg',
@@ -30,7 +30,7 @@ const FIXED: readonly DecorBodySpec[] = [
     color: 'correct',
     opacity: 1,
     rotation: { min: -15, max: 15 },
-    region: { x: { min: 0.2, max: 0.55 }, y: { min: 0.6, max: 0.95 } },
+    region: { x: { min: 0.6, max: 0.75 }, y: { min: 0.6, max: 0.85 } },
   },
   {
     kind: 'svg',
@@ -39,7 +39,7 @@ const FIXED: readonly DecorBodySpec[] = [
     color: 'incorrect',
     opacity: 1,
     rotation: { min: -15, max: 15 },
-    region: { x: { min: 0.55, max: 0.95 }, y: { min: 0.35, max: 0.6 } },
+    region: { x: { min: 0.78, max: 0.94 }, y: { min: 0.4, max: 0.58 } },
   },
   {
     kind: 'svg',
@@ -48,7 +48,7 @@ const FIXED: readonly DecorBodySpec[] = [
     color: 'ink',
     opacity: 1,
     rotation: { min: -15, max: 15 },
-    region: { x: { min: 0.7, max: 1 }, y: { min: 0, max: 0.2 } },
+    region: { x: { min: 0.84, max: 0.96 }, y: { min: 0.05, max: 0.2 } },
   },
   {
     kind: 'svg',
@@ -57,7 +57,7 @@ const FIXED: readonly DecorBodySpec[] = [
     color: 'ink',
     opacity: 1,
     rotation: { min: -15, max: 15 },
-    region: { x: { min: 0.75, max: 1 }, y: { min: 0.8, max: 1 } },
+    region: { x: { min: 0.84, max: 0.96 }, y: { min: 0.8, max: 0.94 } },
   },
 ]
 
@@ -71,7 +71,7 @@ function digit(asset: (typeof DIGIT_ASSETS)[number], i: number, n: number): Deco
     color: 'ink',
     opacity: 1,
     rotation: { min: -30, max: 30 },
-    region: { x: { min: 0.45, max: 1 }, y: { min: Math.max(0, t - 0.15), max: Math.min(1, t + 0.15) } },
+    region: { x: { min: 0.7, max: 0.94 }, y: { min: Math.max(0.05, t * 0.9 - 0.1), max: Math.min(0.95, t * 0.9 + 0.1) } },
   }
 }
 
@@ -80,10 +80,7 @@ export function idleDecor(state: Pick<PlayStateForStage, 'teams'>): ScreenDecorS
   const digits = DIGIT_ASSETS.slice(0, n).map((asset, i) => digit(asset, i, n))
   return {
     screen: 'idle',
-    // Wider than the canvas on the right and top so the crowd has room to
-    // move; shapes clip past the edge as in the reference.
-    boundary: { x: 900, y: -160, width: 1140, height: 1400 },
-    anchor: { x: 0.45, y: 0.5 },
+    anchor: { x: 0.72, y: 0.5 },
     bodies: [...FIXED, ...digits],
   }
 }

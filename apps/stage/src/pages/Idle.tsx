@@ -24,6 +24,7 @@ export function IdlePage(_props: IdlePageProps) {
   return (
     <section
       data-page="idle"
+      data-decor-solid
       style={{
         flex: '1 1 auto',
         display: 'flex',
@@ -31,6 +32,7 @@ export function IdlePage(_props: IdlePageProps) {
         justifyContent: 'center',
         alignItems: 'flex-start',
         gap: SPACE[4],
+        width: 'fit-content',
         maxWidth: '50%',
       }}
     >

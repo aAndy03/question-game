@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { nodeId, type PlayStateForStage, type StageDecorSettings } from '@questiongame/contract'
 import { DecorShape, type DecorShapeBody } from '@/atoms'
 import {
@@ -8,6 +8,7 @@ import {
   decorOpacity,
   decorTransform,
   seedFromPlay,
+  type DecorBoundary,
   type DecorWorld,
   type PlacedBody,
 } from '@/decor'
@@ -24,8 +25,40 @@ import {
  * change, or a changed decor setting builds a new world; anything else
  * leaves it running.
  *
+ * The functional elements are measured from the DOM: every element in the
+ * frame marked `data-decor-solid` becomes a wall, so the free space hugs
+ * the content like a U. They are measured after layout and re-measured
+ * when the content resizes (more rows, longer names).
+ *
  * Node ids are `<screen>.decor.<n>` in manifest order.
  */
+
+const CANVAS_WIDTH = 1920
+
+/** Bounding boxes of the marked functional elements, in canvas px. */
+function measureSolids(field: HTMLElement | null): DecorBoundary[] {
+  const frame = field?.closest('[data-stage-frame]') as HTMLElement | null
+  if (!frame) return []
+  const origin = frame.getBoundingClientRect()
+  if (origin.width === 0) return []
+  // The frame may be scaled by the host (Viewer preview); measure in canvas units.
+  const k = CANVAS_WIDTH / origin.width
+  const rects: DecorBoundary[] = []
+  for (const el of frame.querySelectorAll<HTMLElement>('[data-decor-solid]')) {
+    if (getComputedStyle(el).visibility === 'hidden') continue
+    const r = el.getBoundingClientRect()
+    if (r.width === 0 || r.height === 0) continue
+    rects.push({
+      x: Math.round((r.left - origin.left) * k),
+      y: Math.round((r.top - origin.top) * k),
+      width: Math.round(r.width * k),
+      height: Math.round(r.height * k),
+    })
+  }
+  return rects
+}
+
+const solidsKey = (s: readonly DecorBoundary[]) => s.map((r) => `${r.x},${r.y},${r.width},${r.height}`).join(';')
 
 export interface DecorFieldProps {
   state: PlayStateForStage
@@ -43,18 +76,37 @@ export function DecorField({ state }: DecorFieldProps) {
   const settings = state.decor
   const key = settingsKey(settings)
 
+  const field = useRef<HTMLDivElement | null>(null)
+  const [solids, setSolids] = useState<readonly DecorBoundary[]>([])
+  const sKey = solidsKey(solids)
+
+  // Measure the functional elements after layout, and again whenever the
+  // content resizes. jsdom measures nothing, so tests run with no solids.
+  useLayoutEffect(() => {
+    const apply = () => {
+      const next = measureSolids(field.current)
+      setSolids((prev) => (solidsKey(prev) === solidsKey(next) ? prev : next))
+    }
+    apply()
+    const frame = field.current?.closest('[data-stage-frame]')
+    if (!frame || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(apply)
+    for (const el of frame.querySelectorAll('[data-decor-solid]')) ro.observe(el)
+    return () => ro.disconnect()
+  }, [screen, state.teams.length, state.session?.questionId])
+
   // A manifest may shape itself from the Play (idle: one digit per team); a
   // different body list is a different world, the same list is not.
-  const spec = decorSpecFor(screen, state)
+  const spec = decorSpecFor(screen, state, solids)
   const bodiesKey = spec ? spec.bodies.map((b) => (b.kind === 'svg' ? b.asset : b.kind)).join(',') : ''
 
   // The world lives across renders; it is rebuilt only when its inputs change.
   const world = useMemo<DecorWorld | null>(() => {
-    const s = decorSpecFor(screen, state)
+    const s = decorSpecFor(screen, state, solids)
     return s ? createDecorWorld(s, seed, settings) : null
-    // `key` and `bodiesKey` stand in for `settings` and `state`, so an
-    // equal-valued new object is a no-op.
-  }, [screen, seed, key, bodiesKey])
+    // `key`, `bodiesKey` and `sKey` stand in for `settings`, `state` and
+    // `solids`, so an equal-valued new object is a no-op.
+  }, [screen, seed, key, bodiesKey, sKey])
 
   const latest = useRef<readonly PlacedBody[]>([])
   const worldOfLatest = useRef<DecorWorld | null>(null)
@@ -88,7 +140,14 @@ export function DecorField({ state }: DecorFieldProps) {
   }, [world])
 
   return (
-    <div data-decor-field={screen} data-decor-seed={seed} data-decor-mode={settings.mode} style={{ position: 'absolute', inset: 0 }}>
+    <div
+      ref={field}
+      data-decor-field={screen}
+      data-decor-seed={seed}
+      data-decor-mode={settings.mode}
+      data-decor-solids={solids.length}
+      style={{ position: 'absolute', inset: 0 }}
+    >
       {latest.current.map((p) => {
         const spec = p.spec
         const body: DecorShapeBody =

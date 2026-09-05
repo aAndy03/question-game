@@ -75,8 +75,9 @@ export type DecorBodySpec = (SvgBody | GlyphBody | OutlineBody) & {
   readonly role?: 'correct' | 'incorrect'
 }
 
-/** The invisible box, in canvas px. May extend a little past the 1920×1080
- * canvas so shapes clip off the edge as they do in the reference. */
+/** A rectangle in canvas px. As a boundary it may extend a little past the
+ * 1920×1080 canvas so shapes clip off the edge as they do in the reference;
+ * as a solid it is a functional element the bodies must stay off. */
 export interface DecorBoundary {
   readonly x: number
   readonly y: number
@@ -86,7 +87,18 @@ export interface DecorBoundary {
 
 export interface ScreenDecorSpec {
   readonly screen: StageScreen
-  readonly boundary: DecorBoundary
+  /**
+   * The outer box. Defaults to the canvas plus a bleed (`CANVAS_BOUNDARY`);
+   * a manifest overrides it only for a deliberately smaller field.
+   */
+  readonly boundary?: DecorBoundary
+  /**
+   * The functional elements on this screen, measured from the DOM by the
+   * frame (`data-decor-solid`), as walls. Together with the boundary they
+   * shape the free space like a U around the content. Regions and the
+   * anchor are fractions of the *boundary*, not of the free space.
+   */
+  readonly solids?: readonly DecorBoundary[]
   /**
    * The anchor point, as fractions of the boundary. Its timing and strength
    * are operator settings (`StageDecorSettings.anchor`); where it sits is a

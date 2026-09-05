@@ -3,7 +3,8 @@ import { DEFAULT_DECOR_SETTINGS, FIXTURES } from '@questiongame/contract'
 import { idleDecor } from './manifests/idle'
 
 const IDLE_DECOR = idleDecor(FIXTURES.idle)
-import { STEP_MS, anchorPhase, createDecorWorld, decorAsset, hashString, layoutDecor, seedFromPlay, settle } from './index'
+import { STEP_MS, DECOR_ASSET_IDS, SOLID_MARGIN, anchorPhase, colliderVertices, createDecorWorld, decorAsset, hashString, layoutDecor, rawAsset, resolveBoundary, seedFromPlay, settle } from './index'
+import hulls from '@questiongame/design-stage/assets/hulls.json'
 
 function corners(b: { x: number; y: number; width: number; height: number; angle: number }) {
   const a = (b.angle * Math.PI) / 180
@@ -47,7 +48,7 @@ describe('decor settle', () => {
   })
 
   it('keeps every body centre inside the boundary box, for many seeds', () => {
-    const { boundary } = IDLE_DECOR
+    const boundary = resolveBoundary(IDLE_DECOR)
     for (let s = 0; s < 25; s++) {
       for (const p of settle(IDLE_DECOR, s * 7919)) {
         expect(p.x).toBeGreaterThanOrEqual(boundary.x)
@@ -91,11 +92,11 @@ describe('decor settle', () => {
 })
 
 describe('idle manifest shapes itself from the Play', () => {
-  const digits = (n: number) => idleDecor({ teams: FIXTURES['final-leaderboard-six'].teams.slice(0, n) }).bodies.filter((b) => b.kind === 'svg' && b.asset.startsWith('digit-'))
+  const digits = (n: number) => idleDecor({ teams: FIXTURES['final-leaderboard-six'].teams.slice(0, n) }).bodies.filter((b) => b.kind === 'svg' && /^\d$/.test(b.asset))
   it('shows one digit per team, at most five, none with no team', () => {
     expect(digits(0).length).toBe(0)
     expect(digits(1).length).toBe(1)
-    expect(digits(4).map((b) => (b.kind === 'svg' ? b.asset : ''))).toEqual(['digit-1', 'digit-2', 'digit-3', 'digit-4'])
+    expect(digits(4).map((b) => (b.kind === 'svg' ? b.asset : ''))).toEqual(['1', '2', '3', '4'])
     expect(digits(6).length).toBe(5)
   })
   it('uses the exported ? path, not a glyph', () => {
@@ -104,7 +105,56 @@ describe('idle manifest shapes itself from the Play', () => {
   })
 })
 
+describe('decor colliders and solids', () => {
+  it('svg bodies collide with their convex hull, scaled to the rendered height', () => {
+    const spec = IDLE_DECOR.bodies.find((b) => b.kind === 'svg' && b.asset === 'plus')!
+    const verts = colliderVertices(spec, { width: 433, height: 364 })
+    expect(verts.length).toBeGreaterThanOrEqual(3)
+    // At natural size the hull spans the viewBox and is centred on the box.
+    const xs = verts.map((v) => v.x)
+    const ys = verts.map((v) => v.y)
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(-433 / 2 - 1)
+    expect(Math.max(...xs)).toBeLessThanOrEqual(433 / 2 + 1)
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(-364 / 2 - 1)
+    expect(Math.max(...ys)).toBeLessThanOrEqual(364 / 2 + 1)
+  })
+
+  it('bodies stay off the functional elements for the life of the screen', () => {
+    const solid = { x: 64, y: 64, width: 1228, height: 952 } // a content column
+    const spec = { ...IDLE_DECOR, solids: [solid] }
+    const world = createDecorWorld(spec, 11, DEFAULT_DECOR_SETTINGS)
+    const inner = {
+      x: solid.x + SOLID_MARGIN,
+      y: solid.y + SOLID_MARGIN,
+      right: solid.x + solid.width - SOLID_MARGIN,
+      bottom: solid.y + solid.height - SOLID_MARGIN,
+    }
+    for (let t = 0; t < 10 * 60; t++) {
+      world.step(STEP_MS)
+      if (t % 30 !== 0) continue
+      for (const p of world.read()) {
+        // The body centre never sits inside the solid (its hull would be overlapping deeply).
+        const inside = p.x > inner.x && p.x < inner.right && p.y > inner.y && p.y < inner.bottom
+        expect(inside, `t=${t} body ${p.index}`).toBe(false)
+      }
+    }
+    world.destroy()
+  })
+})
+
 describe('decor assets', () => {
+  it('every asset has a fresh convex hull (else run `npm run decor:hulls`)', () => {
+    const entries = hulls as Record<string, { hash: string; hull: number[][] }>
+    for (const id of DECOR_ASSET_IDS) {
+      const entry = entries[id]
+      expect(entry, `${id}: no hull — run npm run decor:hulls`).toBeTruthy()
+      const live = hashString(rawAsset(id)).toString(16).padStart(8, '0')
+      expect(live, `${id}: SVG changed since hulls.json — run npm run decor:hulls`).toBe(entry!.hash)
+      expect(entry!.hull.length).toBeGreaterThanOrEqual(3)
+      expect(entry!.hull.length).toBeLessThanOrEqual(20)
+    }
+  })
+
   it('inline the copied SVGs with currentColor fills and their natural size', () => {
     const plus = decorAsset('plus')
     expect(plus.width).toBe(433)
@@ -116,7 +166,7 @@ describe('decor assets', () => {
   })
 
   it('recolours fills named by keyword too (the digit export uses fill="black")', () => {
-    const one = decorAsset('digit-1')
+    const one = decorAsset('1')
     expect(one.markup).toContain('fill="currentColor"')
     expect(one.markup).not.toContain('fill="black"')
     expect(decorAsset('question').width).toBe(151)
@@ -146,7 +196,7 @@ describe('decor world (live)', () => {
     it(`${mode}: bodies keep moving, stay inside the box and under maxSpeed over 20 seconds`, () => {
       const settings = { ...DEFAULT_DECOR_SETTINGS, mode }
       const world = createDecorWorld(IDLE_DECOR, seed, settings)
-      const { boundary } = IDLE_DECOR
+      const boundary = resolveBoundary(IDLE_DECOR)
       for (let t = 0; t < 20 * 60; t++) {
         world.step(STEP_MS)
         if (t % 60 !== 0) continue
@@ -159,7 +209,8 @@ describe('decor world (live)', () => {
       }
       for (const s of speeds(world)) {
         expect(s).toBeGreaterThan(0)
-        expect(s).toBeLessThanOrEqual(settings.maxSpeed + 2)
+        // Collision pushes add displacement on top of the capped velocity.
+        expect(s).toBeLessThanOrEqual(settings.maxSpeed * 1.3)
       }
       world.destroy()
     })

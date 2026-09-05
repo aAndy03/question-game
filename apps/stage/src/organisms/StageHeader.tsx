@@ -29,6 +29,7 @@ export function StageHeader({ state }: StageHeaderProps) {
     <header
       {...(id ? { 'data-node-id': id } : {})}
       data-stage-header
+      data-decor-solid
       style={{
         display: 'flex',
         alignItems: 'center',

@@ -15,6 +15,7 @@ export function TeamOrderPage({ state }: StagePageProps) {
   return (
     <section
       data-page="teamOrder"
+      data-decor-solid
       style={{
         flex: '1 1 auto',
         display: 'flex',
