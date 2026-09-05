@@ -4,7 +4,7 @@ import { FIXTURES, SCREEN_SLOTS, leaderboard, nodeId } from '@questiongame/contr
 import { decorOpacity, decorSpecFor } from '@/decor'
 import { STAGE_COPY } from '@/copy'
 import { BUILT_SCREENS, StageRoot } from './index'
-import { motionConfig } from '@/presentation'
+import { motionConfig, sequencer } from '@/presentation'
 import { stageEvents } from '@/host/events'
 
 const byNode = (root: HTMLElement, id: string) => root.querySelector(`[data-node-id="${id}"]`) as HTMLElement | null
@@ -265,12 +265,45 @@ describe('CurrentTeam page', () => {
 })
 
 describe('Overlays draw over the live screen', () => {
+  const events: string[] = []
+  let off = () => {}
+  beforeEach(() => {
+    motionConfig.immediate = true
+    sequencer.reset()
+    events.length = 0
+    off = stageEvents.on('anim-complete', ({ key }) => events.push(key))
+  })
+  afterEach(() => {
+    off()
+    motionConfig.immediate = false
+    sequencer.reset()
+  })
+
+  it('an active request plays to completion and reports overlay:<kind> once; the revealed option keeps its DOM node', () => {
+    const before = FIXTURES['question-options-partial']
+    const { container, rerender } = render(<StageRoot state={before} />)
+    const optA = byNode(container, nodeId('question', 'option', 'opt-a'))
+    rerender(<StageRoot state={FIXTURES['overlay-over-question']} />)
+    expect(events).toEqual(['overlay:token-handoff'])
+    expect(byNode(container, nodeId('question', 'option', 'opt-a'))).toBe(optA)
+    expect((byNode(container, nodeId('question', 'option', 'opt-a')) as HTMLElement).dataset.revealed).toBe('true')
+  })
+
+  it('with overlays disabled nothing is drawn but the handshake still fires', () => {
+    const base = FIXTURES['overlay-handoff']
+    const state = { ...base, overlay: { ...base.overlay, enabled: false } }
+    const { container } = render(<StageRoot state={state} />)
+    expect(container.querySelector('[data-overlay]')).toBeNull()
+    expect(events).toEqual(['overlay:token-handoff'])
+  })
+
   it('nothing is drawn while the queue is idle', () => {
     const { container } = render(<StageRoot state={FIXTURES['question-locked']} />)
     expect(container.querySelector('[data-overlay]')).toBeNull()
   })
 
   it('token-handoff: full screen, old holder struck through, new holder under NOW PLAYING', () => {
+    motionConfig.immediate = false // keep it on screen to inspect
     const { container } = render(<StageRoot state={FIXTURES['overlay-handoff']} />)
     const overlay = container.querySelector('[data-overlay="token-handoff"]') as HTMLElement
     expect(overlay.dataset.coverage).toBe('full')
@@ -283,6 +316,7 @@ describe('Overlays draw over the live screen', () => {
   })
 
   it('multiple-answers: full screen, one letter box per option', () => {
+    motionConfig.immediate = false
     const state = FIXTURES['overlay-multiple-answers']
     const { container } = render(<StageRoot state={state} />)
     const overlay = container.querySelector('[data-overlay="multiple-answers"]') as HTMLElement
@@ -296,10 +330,11 @@ describe('Overlays draw over the live screen', () => {
     ['overlay-outcome-incorrect', 'INCORRECT'],
   ] as const) {
     it(`outcome: half screen, ${word}, the question still visible`, () => {
+      motionConfig.immediate = false
       const { container } = render(<StageRoot state={FIXTURES[name]} />)
       const overlay = container.querySelector('[data-overlay="outcome"]') as HTMLElement
       expect(overlay.dataset.coverage).toBe('half')
-      expect(overlay.textContent).toBe(word)
+      expect(overlay.querySelector('[data-overlay-word]')!.textContent).toBe(word)
       expect(byNode(container, nodeId('question', 'stem'))!.style.visibility).not.toBe('hidden')
       expect(byNode(container, nodeId('question', 'result'))!.style.visibility).not.toBe('hidden')
     })
@@ -311,6 +346,7 @@ describe('Screen transitions', () => {
   let off = () => {}
   beforeEach(() => {
     motionConfig.immediate = true
+    sequencer.reset()
     events.length = 0
     off = stageEvents.on('anim-complete', ({ key }) => events.push(key))
   })

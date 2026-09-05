@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react'
 import { STAGE_SCREENS, type PlayStateForStage, type StageScreen } from '@questiongame/contract'
 import { Text } from '@/atoms'
-import { runTransition, type RunningTransition } from '@/presentation'
+import { runTransition, sequencer, type RunningTransition } from '@/presentation'
 import { DecorField, OverlayLayer, StageHeader } from '@/organisms'
 import { StageFrame } from '@/templates'
 import { IdlePage } from './Idle'
@@ -95,28 +95,38 @@ export function StageRoot({ state }: StageRootProps) {
     lastState.current = state
   }, [screen, state])
 
-  // Play the transition once both layers exist.
+  // Play the transition once both layers exist — and once no overlay is
+  // running (spec §5.6: no base transition under a running overlay).
   useEffect(() => {
     if (!leaving || !incomingLayer.current) return
     const root = frame.current
-    const ctx = {
-      from: leaving.screen,
-      to: screen,
-      outgoing: outgoingLayer.current,
-      incoming: incomingLayer.current,
-      header: root?.querySelector<HTMLElement>('[data-stage-header]') ?? null,
-      decor: root?.querySelector<HTMLElement>('[data-stage-decor]') ?? null,
-      swapDecor: () => setPresented(screen),
-    }
-    const run = runTransition(ctx, () => {
-      running.current = null
-      setPresented(screen)
-      setLeaving(null)
+    const incoming = incomingLayer.current
+    const outgoing = outgoingLayer.current
+    let release = () => {}
+    const cancel = sequencer.whenFree('overlay', () => {
+      // StrictMode runs this effect twice in dev; one timeline per pair.
+      if (running.current && running.current.from === leaving.screen && running.current.to === screen) return
+      release = sequencer.acquire('transition')
+      const ctx = {
+        from: leaving.screen,
+        to: screen,
+        outgoing,
+        incoming,
+        header: root?.querySelector<HTMLElement>('[data-stage-header]') ?? null,
+        decor: root?.querySelector<HTMLElement>('[data-stage-decor]') ?? null,
+        swapDecor: () => setPresented(screen),
+      }
+      running.current = runTransition(ctx, () => {
+        running.current = null
+        release()
+        setPresented(screen)
+        setLeaving(null)
+      })
     })
-    running.current = run
     return () => {
-      // Layers changed under a running timeline (another jump): it was
-      // already finished by the layout effect; nothing to do.
+      // Another jump before this one started: it never runs. A running one
+      // was already finished by the layout effect.
+      cancel()
     }
   }, [leaving, screen])
 

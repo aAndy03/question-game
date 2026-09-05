@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FIXTURES, FIXTURE_NAMES, type DecorMotionMode, type FixtureName, type PlayStateForStage } from '@questiongame/contract'
 import { stageEvents } from '@/host/events'
 import { StageRoot } from '@/pages'
@@ -29,6 +29,8 @@ function withDecor(state: PlayStateForStage, mode: DecorMotionMode | null): Play
   return mode ? { ...state, decor: { ...state.decor, mode } } : state
 }
 
+const NO_OVERLAY = { busy: false, active: null, pending: null, enabled: true } as const
+
 const link = (active: boolean, activeBg: string) =>
   ({
     color: active && activeBg === 'var(--ink)' ? 'var(--paper)' : 'var(--ink)',
@@ -43,7 +45,14 @@ export function App() {
   const [name, setName] = useState<FixtureName>(fixtureFromUrl)
   const [decor, setDecor] = useState<DecorMotionMode | null>(decorFromUrl)
   const [lastEvent, setLastEvent] = useState<string>('')
-  const state = withDecor(FIXTURES[name], decor)
+  // Fake host for the overlay queue: `run` re-arms the fixture's overlay,
+  // and an `overlay:*` anim-complete clears it, as the real host would.
+  const [overlayRun, setOverlayRun] = useState(0)
+  const [overlayDone, setOverlayDone] = useState(false)
+  const state = useMemo(() => {
+    const base = withDecor(FIXTURES[name], decor)
+    return overlayDone && base.overlay.active ? { ...base, overlay: { ...NO_OVERLAY, enabled: base.overlay.enabled } } : base
+  }, [name, decor, overlayDone, overlayRun])
 
   useEffect(() => {
     const q = new URLSearchParams()
@@ -52,7 +61,15 @@ export function App() {
     window.history.replaceState(null, '', `?${q}`)
   }, [name, decor])
 
-  useEffect(() => stageEvents.on('anim-complete', ({ key }) => setLastEvent(key)), [])
+  useEffect(
+    () =>
+      stageEvents.on('anim-complete', ({ key }) => {
+        setLastEvent(key)
+        if (key.startsWith('overlay:')) setOverlayDone(true)
+      }),
+    [],
+  )
+  useEffect(() => setOverlayDone(false), [name, overlayRun])
 
   return (
     <>
@@ -81,6 +98,11 @@ export function App() {
               {f}
             </button>
           ))}
+          {FIXTURES[name].overlay.active ? (
+            <button type="button" data-dev-overlay-replay onClick={() => setOverlayRun((n) => n + 1)} style={link(true, 'var(--state-accent)')}>
+              replay overlay
+            </button>
+          ) : null}
           <span data-dev-last-event style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
             {lastEvent ? `anim-complete ${lastEvent}` : ''}
           </span>
