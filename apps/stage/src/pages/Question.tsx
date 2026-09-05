@@ -1,9 +1,11 @@
+import { useRef } from 'react'
 import { currentTeam, nodeId } from '@questiongame/contract'
 import { LAYOUT, SPACE } from '@questiongame/design-stage'
 import { Rule } from '@/atoms'
 import { resolveCopy } from '@/copy'
 import { CategoryLine, QuestionStem, ResultWidget, TimerPanel } from '@/molecules'
 import { AnswerGrid } from '@/organisms'
+import { useRevealPlayer } from '@/presentation'
 import type { StagePageProps } from './StageRoot'
 
 /**
@@ -29,6 +31,9 @@ import type { StagePageProps } from './StageRoot'
  */
 export function QuestionPage({ state }: StagePageProps) {
   const copy = resolveCopy()
+  const root = useRef<HTMLElement | null>(null)
+  // Newly revealed keys (stem, options, outcome) arrive with a beat and report reveal:<key>.
+  useRevealPlayer(state, root)
   const session = state.session
   const domain = state.domains.find((d) => d.id === session?.domainId) ?? null
   const team = currentTeam(state)
@@ -39,7 +44,7 @@ export function QuestionPage({ state }: StagePageProps) {
   const urgent = timer !== null && !outcomeShown && (timer.expiredOpen || timerMs <= copy.timerUrgentSeconds * 1000)
 
   return (
-    <section data-page="question" style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', gap: SPACE[5] }}>
+    <section ref={root} data-page="question" style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', gap: SPACE[5] }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: LAYOUT.gapLoose }}>
         <div data-decor-solid style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', flexDirection: 'column', gap: SPACE[3], paddingTop: SPACE[7] }}>
           <CategoryLine nodeId={nodeId('question', 'category')} domainName={domain?.name ?? null} teamName={team?.name ?? null} />

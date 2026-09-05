@@ -6,6 +6,7 @@ import { resolveCopy } from '@/copy'
 import { optionLetter } from '@/copy/format'
 import { stageEvents } from '@/host/events'
 import { runOverlay, sequencer, type RunningOverlay } from '@/presentation'
+import { CurrentTeamBlock } from './CurrentTeamBlock'
 
 /**
  * The overlay layer: whatever the queue is showing, drawn above the live
@@ -25,8 +26,13 @@ import { runOverlay, sequencer, type RunningOverlay } from '@/presentation'
  *   token-handoff     TEAM ALPHA  →  NOW PLAYING / TEAM BETA
  *   round-advance     ROUND // 3
  *   multiple-answers  MULTIPLE ANSWERS + one letter box per option
- *   outcome           CORRECT / INCORRECT / EXTRA SELECTION, bottom half,
- *                     with a burst of + or - pieces
+ *   outcome           CORRECT / INCORRECT / EXTRA SELECTION, bottom half on a
+ *                     transparent sheet, with a burst of + or - pieces
+ *   current-team      the current-team block over any screen
+ *
+ * Every kind arrives automatically from the host when its cause occurs, and
+ * the operator may call any of them by hand at any time (`show_overlay`);
+ * this layer cannot tell the two apart and does not need to.
  */
 
 export interface OverlayLayerProps {
@@ -54,7 +60,8 @@ function Sheet({ kind, children, ref }: { kind: OverlayRequest['kind']; children
         padding: 'var(--stage-padding)',
         boxSizing: 'border-box',
         overflow: 'hidden',
-        background: 'var(--surface)',
+        // A half-screen overlay sits on the question, so it paints nothing behind its word.
+        background: coverage === 'full' ? 'var(--surface)' : 'transparent',
         color: 'var(--text-heading)',
       }}
     >
@@ -133,6 +140,8 @@ function Content({ state, request }: { state: PlayStateForStage; request: Overla
       )
     case 'multiple-answers':
       return <MultipleAnswers count={request.optionIds.length} />
+    case 'current-team':
+      return <CurrentTeamBlock state={state} teamId={request.teamId} />
     case 'outcome':
       return (
         <span data-overlay-word>

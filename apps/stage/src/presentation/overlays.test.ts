@@ -7,7 +7,7 @@ function sheetFor(kind: OverlayRequest['kind']): HTMLElement {
   const sheet = document.createElement('div')
   sheet.setAttribute('data-overlay', kind)
   sheet.innerHTML =
-    '<span data-overlay-from>A</span><span data-arrow></span><span data-overlay-label>L</span><span data-overlay-to>B</span><span data-overlay-word>W</span><span data-label-box>A</span>'
+    '<span data-overlay-from>A</span><span data-arrow></span><span data-overlay-label>L</span><span data-overlay-to>B</span><span data-overlay-word>W</span><span data-label-box>A</span><div data-current-team-block>T</div>'
   document.body.appendChild(sheet)
   return sheet
 }
@@ -17,6 +17,7 @@ const REQUESTS: Record<OverlayRequest['kind'], OverlayRequest> = {
   'round-advance': { kind: 'round-advance', roundIndex: 2 },
   'multiple-answers': { kind: 'multiple-answers', optionIds: ['a', 'b', 'c'] },
   outcome: { kind: 'outcome', verdict: 'correct' },
+  'current-team': { kind: 'current-team', teamId: 'a' },
 }
 
 describe('overlay timelines', () => {

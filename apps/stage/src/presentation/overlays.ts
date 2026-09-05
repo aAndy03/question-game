@@ -17,6 +17,7 @@
  *   outcome           the half sheet rises from the bottom edge; the verdict
  *                     word punches in; a burst of `+` or `-` particles flies
  *                     up and falls under gravity (Physics2DPlugin)
+ *   current-team      sheet fades in; the block settles
  */
 
 import gsap from 'gsap'
@@ -33,9 +34,9 @@ gsap.registerPlugin(Physics2DPlugin)
 export const OVERLAY_D = {
   in: 0.45,
   /** When each enter has finished arriving; the hold counts from here. */
-  enterEnd: { 'token-handoff': 1.05, 'round-advance': 0.65, 'multiple-answers': 1.0, outcome: 0.7 } satisfies Record<OverlayRequest['kind'], number>,
+  enterEnd: { 'token-handoff': 1.05, 'round-advance': 0.65, 'multiple-answers': 1.0, outcome: 0.7, 'current-team': 0.75 } satisfies Record<OverlayRequest['kind'], number>,
   /** How long the audience reads it. */
-  hold: { 'token-handoff': 1.4, 'round-advance': 1.0, 'multiple-answers': 1.2, outcome: 1.4 } satisfies Record<OverlayRequest['kind'], number>,
+  hold: { 'token-handoff': 1.4, 'round-advance': 1.0, 'multiple-answers': 1.2, outcome: 1.4, 'current-team': 1.6 } satisfies Record<OverlayRequest['kind'], number>,
   out: 0.4,
   /** Outcome burst. */
   particles: 16,
@@ -83,6 +84,12 @@ function enterMultiple(tl: gsap.core.Timeline, sheet: HTMLElement) {
   const boxes = q(sheet, '[data-label-box]')
   if (word) tl.fromTo(word, { scale: 1.04, opacity: 0 }, { scale: 1, opacity: 1, duration: D.in, ease: EASE_OUT }, 0.1)
   if (boxes.length) tl.fromTo(boxes, { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(2)', stagger: 0.08 }, 0.4)
+}
+
+function enterCurrentTeam(tl: gsap.core.Timeline, sheet: HTMLElement) {
+  tl.fromTo(sheet, { opacity: 0 }, { opacity: 1, duration: OVERLAY_D.in * 0.6, ease: EASE_OUT }, 0)
+  const block = one(sheet, '[data-current-team-block]')
+  if (block) tl.fromTo(block, { scale: 1.04, opacity: 0 }, { scale: 1, opacity: 1, duration: D.in, ease: EASE_OUT }, 0.15)
 }
 
 function enterOutcome(tl: gsap.core.Timeline, sheet: HTMLElement, request: Extract<OverlayRequest, { kind: 'outcome' }>) {
@@ -147,6 +154,9 @@ export function buildOverlay(ctx: OverlayContext): gsap.core.Timeline {
     case 'outcome':
       enterOutcome(tl, sheet, request)
       break
+    case 'current-team':
+      enterCurrentTeam(tl, sheet)
+      break
   }
   // The burst may still be falling while the sheet leaves; that is the intent.
   const holdUntil = OVERLAY_D.enterEnd[request.kind] + OVERLAY_D.hold[request.kind]
@@ -160,7 +170,7 @@ export function runOverlay(ctx: OverlayContext, onComplete: () => void): Running
   const complete = () => {
     if (done) return
     done = true
-    clearParts(ctx.sheet, ...ctx.sheet.querySelectorAll<HTMLElement>('[data-overlay-from],[data-overlay-to],[data-overlay-label],[data-overlay-word],[data-arrow],[data-label-box]'))
+    clearParts(ctx.sheet, ...ctx.sheet.querySelectorAll<HTMLElement>('[data-overlay-from],[data-overlay-to],[data-overlay-label],[data-overlay-word],[data-arrow],[data-label-box],[data-current-team-block]'))
     for (const p of ctx.sheet.querySelectorAll('[data-overlay-particle]')) p.remove()
     onComplete()
     stageEvents.emit('anim-complete', { key })

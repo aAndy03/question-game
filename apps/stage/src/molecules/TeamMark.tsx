@@ -8,7 +8,7 @@ import { Text, insetFrame } from '@/atoms'
  */
 
 export interface TeamMarkProps {
-  nodeId?: string
+  nodeId?: string | undefined
   shortCode: string
   name: string
   /** The team colour as play-state carries it, e.g. `var(--state-accent)`. */

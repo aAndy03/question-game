@@ -56,6 +56,9 @@ export const COMMAND_GROUPS = {
     'reveal_stem',
     'reveal_next_option',
     'stage_set_monitor',
+    /** Operator calls an overlay by hand over whatever screen is up (the same
+     * request shape the automatic path enqueues). */
+    'show_overlay',
     'overlay_ack_complete',
   ],
   /** FlagService — settings and shortcuts. */

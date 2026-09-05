@@ -630,7 +630,7 @@ Showing `FinalLeaderboard` early is allowed; Play is `Completed` only when queue
 
 Base transition: every pair `(from, to)` has a `gsap.timeline()`.
 
-Overlay: handoff on the screen that is up. Queue as §2.6.
+Overlay: drawn on the screen that is up. Queue as §2.6. Kinds: `token-handoff`, `round-advance`, `multiple-answers`, `outcome` (half screen, transparent, the question stays visible), `current-team`. **Every kind is enqueued automatically when its cause occurs, and the operator may also call any of them by hand at any time, over whatever screen is up, with `show_overlay` (decided 2026-09-04).** Stage cannot tell the two apart.
 
 `overlay_animations.enabled = false` skips the queue and only updates the token.
 

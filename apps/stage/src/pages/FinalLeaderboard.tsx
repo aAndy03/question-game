@@ -1,9 +1,11 @@
+import { useRef } from 'react'
 import { leaderboard, nodeId } from '@questiongame/contract'
 import { LAYOUT, SPACE } from '@questiongame/design-stage'
 import { Rule, Text } from '@/atoms'
 import { resolveCopy } from '@/copy'
 import { hud } from '@/copy/format'
 import { LeaderboardList } from '@/organisms'
+import { useRevealPlayer } from '@/presentation'
 import type { StagePageProps } from './StageRoot'
 
 /**
@@ -22,9 +24,13 @@ export function FinalLeaderboardPage({ state }: StagePageProps) {
   const copy = resolveCopy()
   const champions = leaderboard(state).filter((t) => t.rank === 1)
   const championShown = state.leaderboardRevealedRanks.includes(1) && champions.length > 0
+  const root = useRef<HTMLElement | null>(null)
+  // Ranks arrive lowest first, each with a beat and a reveal:leader:<rank> report.
+  useRevealPlayer(state, root)
 
   return (
     <section
+      ref={root}
       data-page="finalLeaderboard"
       data-decor-solid
       style={{

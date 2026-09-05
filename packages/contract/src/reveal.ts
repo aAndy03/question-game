@@ -77,8 +77,12 @@ export function channelForRevealKey(key: RevealKey): RevealChannel | null {
  *                     (`TEAM ALPHA → TEAM BETA`, "NOW PLAYING")
  *   round-advance     full screen: a new round begins
  *   multiple-answers  full screen: the issued question takes several answers
- *   outcome           half screen: the verdict word over the bottom half, the
- *                     question staying visible above it
+ *   outcome           half screen: the verdict word over the bottom half on a
+ *                     transparent sheet, the question staying visible
+ *   current-team      full screen: the current-team block over any screen
+ *
+ * Every kind is enqueued automatically by the host when its cause occurs,
+ * and may also be called by the operator at any time with `show_overlay`.
  */
 export type OverlayRequest =
   | {
@@ -90,10 +94,11 @@ export type OverlayRequest =
   | { readonly kind: 'round-advance'; readonly roundIndex: number }
   | { readonly kind: 'multiple-answers'; readonly optionIds: readonly string[] }
   | { readonly kind: 'outcome'; readonly verdict: 'correct' | 'incorrect' | 'partial' }
+  | { readonly kind: 'current-team'; readonly teamId: string | null }
 
 export type OverlayKind = OverlayRequest['kind']
 
-export const OVERLAY_KINDS = ['token-handoff', 'round-advance', 'multiple-answers', 'outcome'] as const satisfies readonly OverlayKind[]
+export const OVERLAY_KINDS = ['token-handoff', 'round-advance', 'multiple-answers', 'outcome', 'current-team'] as const satisfies readonly OverlayKind[]
 
 /** Full-screen overlays hide the screen; half-screen ones leave it visible. */
 export const OVERLAY_COVERAGE: Record<OverlayKind, 'full' | 'half'> = {
@@ -101,6 +106,7 @@ export const OVERLAY_COVERAGE: Record<OverlayKind, 'full' | 'half'> = {
   'round-advance': 'full',
   'multiple-answers': 'full',
   outcome: 'half',
+  'current-team': 'full',
 }
 
 /**

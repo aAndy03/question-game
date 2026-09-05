@@ -103,6 +103,8 @@ Every Screen has a base transition to every other Screen (the operator can jump 
 
 Question and FinalLeaderboard have an operator-timed **reveal layer** after the transition completes (stem, then each answer individually; leaderboard from last place upward), switchable to automatic in the Control Game panel.
 
+Overlay kinds (`token-handoff`, `round-advance`, `multiple-answers`, `outcome`, `current-team`) are enqueued automatically by their cause **and** callable by the operator at any time over any screen with `show_overlay`. `outcome` is half-screen and transparent so the question stays visible.
+
 ## Design system
 
 Import the token files rather than hardcoding values. The palette is a stark black-on-white base (`--ink`, `--paper`, `--gray-500/200`) plus semantic states (`--state-correct` green, `--state-incorrect` red, `--state-info` blue, `--state-leader` gold, `--state-accent` yellow). Type is Space Grotesk (display) / Space Mono, with a very large Stage-oriented scale (up to `--text-mega` 160px) and negative tracking tokens. Spacing is an 8px base; radii are small (0/4/8px) and borders are heavy (1/2/3px).

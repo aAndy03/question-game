@@ -334,6 +334,7 @@ describe('Overlays draw over the live screen', () => {
       const { container } = render(<StageRoot state={FIXTURES[name]} />)
       const overlay = container.querySelector('[data-overlay="outcome"]') as HTMLElement
       expect(overlay.dataset.coverage).toBe('half')
+      expect(overlay.style.background).toBe('transparent')
       expect(overlay.querySelector('[data-overlay-word]')!.textContent).toBe(word)
       expect(byNode(container, nodeId('question', 'stem'))!.style.visibility).not.toBe('hidden')
       expect(byNode(container, nodeId('question', 'result'))!.style.visibility).not.toBe('hidden')
@@ -390,7 +391,7 @@ describe('Screen transitions', () => {
     const { rerender } = render(<StageRoot state={FIXTURES['question-issued']} />)
     rerender(<StageRoot state={FIXTURES['question-stem-revealed']} />)
     rerender(<StageRoot state={FIXTURES['question-locked']} />)
-    expect(events).toEqual([])
+    expect(events.filter((k) => k.startsWith('transition:'))).toEqual([])
   })
 
   it('every pair plays through the same path and reports its own key', () => {
@@ -399,6 +400,66 @@ describe('Screen transitions', () => {
     rerender(<StageRoot state={FIXTURES.scoreboard} />)
     rerender(<StageRoot state={FIXTURES.idle} />)
     expect(events).toEqual(['transition:idle>chooseDomain', 'transition:chooseDomain>scoreboard', 'transition:scoreboard>idle'])
+  })
+})
+
+describe('Reveals arrive with a beat and report reveal:<key>', () => {
+  const events: string[] = []
+  let off = () => {}
+  beforeEach(() => {
+    motionConfig.immediate = true
+    sequencer.reset()
+    events.length = 0
+    off = stageEvents.on('anim-complete', ({ key }) => events.push(key))
+  })
+  afterEach(() => {
+    off()
+    motionConfig.immediate = false
+    sequencer.reset()
+  })
+
+  it('stem, then options one by one, then the outcome, in the order they were revealed', () => {
+    const { rerender } = render(<StageRoot state={FIXTURES['question-issued']} />)
+    expect(events).toEqual([])
+    rerender(<StageRoot state={FIXTURES['question-stem-revealed']} />)
+    rerender(<StageRoot state={FIXTURES['question-options-partial']} />)
+    rerender(<StageRoot state={FIXTURES['question-locked']} />)
+    rerender(<StageRoot state={FIXTURES['question-outcome-correct']} />)
+    expect(events).toEqual(['reveal:stem', 'reveal:option:opt-a', 'reveal:option:opt-b', 'reveal:option:opt-c', 'reveal:option:opt-d', 'reveal:outcome'])
+  })
+
+  it('a key undone and revealed again plays again', () => {
+    const { rerender } = render(<StageRoot state={FIXTURES['question-issued']} />)
+    rerender(<StageRoot state={FIXTURES['question-stem-revealed']} />)
+    rerender(<StageRoot state={FIXTURES['question-issued']} />)
+    rerender(<StageRoot state={FIXTURES['question-stem-revealed']} />)
+    expect(events).toEqual(['reveal:stem', 'reveal:stem'])
+  })
+
+  it('what is already revealed at mount does not replay', () => {
+    render(<StageRoot state={FIXTURES['question-outcome-correct']} />)
+    expect(events).toEqual([])
+  })
+
+  it('leaderboard ranks report lowest first; a tie is one key for both rows', () => {
+    const base = { ...FIXTURES['final-leaderboard-partial'], leaderboardRevealedRanks: [] as number[] }
+    const { rerender } = render(<StageRoot state={base} />)
+    rerender(<StageRoot state={{ ...base, leaderboardRevealedRanks: [4] }} />)
+    rerender(<StageRoot state={{ ...base, leaderboardRevealedRanks: [4, 2] }} />)
+    rerender(<StageRoot state={{ ...base, leaderboardRevealedRanks: [4, 2, 1] }} />)
+    expect(events).toEqual(['reveal:leader:4', 'reveal:leader:2', 'reveal:leader:1'])
+  })
+
+  it('a current-team overlay draws the shared block over any screen, without node ids', () => {
+    motionConfig.immediate = false
+    const base = FIXTURES.scoreboard
+    const state = { ...base, overlay: { ...base.overlay, busy: true, active: { kind: 'current-team' as const, teamId: 'team-beta' } } }
+    const { container } = render(<StageRoot state={state} />)
+    const overlay = container.querySelector('[data-overlay="current-team"]') as HTMLElement
+    expect(overlay.dataset.coverage).toBe('full')
+    expect(overlay.textContent).toContain('TEAM BETA')
+    expect(overlay.querySelector('[data-node-id]')).toBeNull()
+    expect(byNode(container, nodeId('scoreboard', 'title'))).toBeTruthy()
   })
 })
 
