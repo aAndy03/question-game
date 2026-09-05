@@ -7,9 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **P0–P6 are done** (`docs/v1/04_ROADMAP.md`). npm workspaces monorepo, GPLv3. **The two tracks met at P6:** Stage no longer reads fixtures, it reads the host. `crates/host` holds `MatchService`, `FlagService`, `CatalogService` and `PresentationService` and is still a plain library with zero `tauri::` imports; `crates/app` is the Tauri 2 shell around it. P7 builds the Studio shell.
 
 ```bash
-npm run dev:app        # the desktop app (tauri dev) — both webviews, the real host
-npm run dev:stage      # Stage webview alone, port 5180, fixture-fed (no host)
-npm run dev:studio     # Studio webview alone, port 5181
+npm run dev:app        # the desktop app (tauri dev) — starts both dev servers itself
+npm run dev:stage      # Stage alone, http://localhost:5180/stage/ — fixture-fed
+npm run dev:studio     # Studio alone, http://localhost:5181/studio/ — says "no host"
 npm run typecheck      # tsc --build across all project references
 npm test               # vitest run (packages + jsdom projects per app)
 npm run lint           # eslint, including the atomic + design-system boundaries
@@ -20,7 +20,9 @@ npm run lint:app       # the same, for the Tauri crate
 npm run test:all       # all three suites
 ```
 
-`npm run dev:app` starts the Vite dev servers itself. `npm run dev:stage` on its own has no Rust behind it and falls back to the P2/P3 fixture strip — that is the point: screen work does not need a database.
+`npm run dev:app` starts both Vite dev servers itself (`beforeDevCommand` → `scripts/dev-webviews.mjs`). `npm run dev:stage` on its own has no Rust behind it and falls back to the P2/P3 fixture strip — that is the point: screen work does not need a database.
+
+**Both webviews are served under the path they occupy in the bundle** — `/studio/` and `/stage/` — in dev too, and Studio's dev server proxies `/stage` to Stage's so the app has **one dev origin**. This is load-bearing: Tauri's capabilities scope permissions to `URL: local`, and a webview pointed at an *external* URL is remote to the ACL **even on localhost** — a remote webview is denied every command and `event.listen`. One origin keeps both windows local and means there is no `is_dev()` branch in `crates/app`. Do not "simplify" `windows.rs` back to an external dev URL.
 
 `npm run lint` is not cosmetic here — it is where the architecture rules are enforced. See "Atomic design" below.
 

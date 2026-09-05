@@ -131,8 +131,9 @@ export default tseslint.config(
 
   ...boundaryBlocks,
 
+  // Build and dev tooling runs in Node, not the browser.
   {
-    files: ['**/*.config.{ts,js}', 'eslint.config.js'],
+    files: ['**/*.config.{ts,js}', 'eslint.config.js', 'scripts/**/*.{ts,js,mjs}'],
     languageOptions: { globals: { ...globals.node } },
   },
 )

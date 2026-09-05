@@ -34,8 +34,13 @@ pub fn stage_may_call(command: &str) -> bool {
 /// the last thing that should be allowed to move the token.
 pub fn allow(label: &str, command: &'static str) -> AppResult<()> {
     if label == MAIN || stage_may_call(command) {
+        // Every command passes through here, so this is the one place that can
+        // say what the webviews are actually asking for. Off unless asked for:
+        // `RUST_LOG=questiongame_app=debug`.
+        tracing::debug!(webview = label, command, "invoke");
         return Ok(());
     }
+    tracing::warn!(webview = label, command, "refused: stage is a projection");
     Err(AppError::NotForStage { command })
 }
 

@@ -395,7 +395,7 @@ error         what a refused command looks like on the wire
 
 **Deliverables**
 
-- ☑ Two webviews: `main` and `stage`. Stage created on **first Control Load**, not at boot — and it opens fullscreen on primary and *waits* there (§9).
+- ☑ Two webviews: `main` and `stage`. Stage created on **first Control Load**, not at boot — and it opens fullscreen on primary and *waits* there (§9). Both are served under the path they occupy in the bundle (`/studio/`, `/stage/`) in dev as well, from **one dev origin**, so both are `local` to Tauri's ACL and `crates/app` has no dev/prod branch.
 - ☑ The §13 command surface as `#[tauri::command]`; `tauri::State` holds one `Mutex<Host>` with all four services.
 - ☑ `emitTo("main", …)` full (`PlayStateForStage` + `OperatorState`); `emitTo("stage", …)` stripped.
 - ☑ Monitor seam: `availableMonitors` + `toLogical(scaleFactor)` on one side, a `Vec<MonitorInfo>` literal on the other. The unplug path is a host unit test.
@@ -435,6 +435,7 @@ error         what a refused command looks like on the wire
 - **`OverlayTarget` did not become a wire type.** A two-field tuple variant has no good JSON shape, and reshaping a P5 argument type to please serde would be the wire dictating the Rust. The payload is spelled at the boundary (`OverlaySpec` in `crates/app`), which is where a wire format belongs.
 - **The bulk question from P5 is closed: yes.** §2.19 gives a batch one confirm, so it gets one transaction and one fsync — a 200-row archive drops from ~0.8 s to one commit. Everything is validated before anything is written, so a bad row at index 199 leaves the library untouched rather than half-edited; an id that does not exist aborts an archive batch the same way.
 - **Stage's fixture strip stays as the no-host *fallback*.** The roadmap said P6 removes it; what P6 actually needs is that it never renders inside the app, and `stageHost()` returning `null` is what decides. Keeping it means screen work does not need a database, and it keeps both feeds of "renders identically fixture-fed or host-fed" alive.
+- **One dev origin, and the path matches the bundle.** A webview pointed at an *external* URL is `remote` to Tauri's ACL even on `localhost`, and a remote webview is denied every command and `event.listen` — which is exactly what an external `WebviewUrl` produced on the first run. Both Vite configs now set a `base` that matches their place under `frontendDist`, Studio proxies `/stage` to the Stage server, and both windows open with `WebviewUrl::App`. Granting a remote origin would have meant hand-writing a permission file per command (tauri-build generates none for app commands) — a third copy of the §13 list.
 - **A Restart empties the queue and then opens with its own first token.** Nothing enqueued for the old Play may play over the new one, but the new Play's opening token is a cause like any other; the rest of the diff is meaningless across two Plays, because a fresh ring is not an advance of the old one.
 - **A `MatchService` bug surfaced and was fixed:** `reveal_leaderboard_rank` refused a `completed` Play, so the final leaderboard could never be revealed — the board is exhausted before the standings go up. It now accepts `playing | paused | completed`, like `undo_turn`.
 

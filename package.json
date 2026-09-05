@@ -9,6 +9,7 @@
     "packages/*"
   ],
   "scripts": {
+    "dev:webviews": "node scripts/dev-webviews.mjs",
     "dev:stage": "npm run dev -w @questiongame/stage",
     "dev:studio": "npm run dev -w @questiongame/studio",
     "build": "npm run build --workspaces --if-present",

@@ -8,10 +8,14 @@
 //!        while the operator is still picking a game is worse than no window.
 //! ```
 //!
-//! Both are created from Rust with an explicit URL rather than declared in
-//! `tauri.conf.json`, because there are two frontends: the dev servers are two
-//! ports, and the bundle is two directories under one `frontendDist`. One
-//! function ([`webview_url`]) is where that fact lives.
+//! Both are created from Rust rather than declared in `tauri.conf.json`,
+//! because Stage's existence depends on a Play, not on boot. Both use
+//! `WebviewUrl::App`, which resolves against `devUrl` in dev and
+//! `frontendDist` in the bundle — **there is no dev/prod branch here**, and
+//! that is deliberate: a webview pointed at an *external* URL is `remote` to
+//! Tauri's ACL even when it is `localhost`, and a remote webview is denied
+//! every command and `event.listen`. The two Vite configs serve each app under
+//! the same path it occupies in the bundle so that one URL works in both.
 //!
 //! Moving Stage between displays is a three-step dance, not a `set_position`:
 //! a fullscreen window keeps its monitor, so it has to leave fullscreen, move,
@@ -24,20 +28,10 @@ use crate::error::AppResult;
 use crate::guard::{MAIN, STAGE};
 use crate::monitors;
 
-/// Vite's dev ports (`apps/studio`, `apps/stage`).
-const STUDIO_DEV_PORT: u16 = 5181;
-const STAGE_DEV_PORT: u16 = 5180;
-
-/// Dev serves each webview from its own Vite port; the bundle serves both from
-/// one `frontendDist` with a directory each.
-fn webview_url(app_path: &str, dev_port: u16) -> WebviewUrl {
-    if tauri::is_dev() {
-        let url = format!("http://localhost:{dev_port}");
-        WebviewUrl::External(url.parse().expect("a literal localhost url parses"))
-    } else {
-        WebviewUrl::App(app_path.into())
-    }
-}
+/// The two frontends, at the path each occupies under `frontendDist` — and,
+/// because both Vite configs set a matching `base`, under `devUrl` too.
+const STUDIO_PATH: &str = "studio/index.html";
+const STAGE_PATH: &str = "stage/index.html";
 
 /// Studio. A normal window: one display is a valid configuration, and then
 /// Studio is an Alt-Tab away from a fullscreen Stage (§9).
@@ -46,7 +40,7 @@ pub fn open_studio(app: &AppHandle) -> AppResult<WebviewWindow> {
         return Ok(existing);
     }
     Ok(
-        WebviewWindowBuilder::new(app, MAIN, webview_url("studio/index.html", STUDIO_DEV_PORT))
+        WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App(STUDIO_PATH.into()))
             .title("questiongame Studio")
             .inner_size(1440.0, 920.0)
             .min_inner_size(1100.0, 720.0)
@@ -61,14 +55,13 @@ pub fn ensure_stage(app: &AppHandle) -> AppResult<WebviewWindow> {
     if let Some(existing) = app.get_webview_window(STAGE) {
         return Ok(existing);
     }
-    let window =
-        WebviewWindowBuilder::new(app, STAGE, webview_url("stage/index.html", STAGE_DEV_PORT))
-            .title("questiongame Stage")
-            .decorations(false)
-            .fullscreen(true)
-            // Nobody clicks Stage; a focus steal mid-question is a lost lock.
-            .focused(false)
-            .build()?;
+    let window = WebviewWindowBuilder::new(app, STAGE, WebviewUrl::App(STAGE_PATH.into()))
+        .title("questiongame Stage")
+        .decorations(false)
+        .fullscreen(true)
+        // Nobody clicks Stage; a focus steal mid-question is a lost lock.
+        .focused(false)
+        .build()?;
     Ok(window)
 }
 

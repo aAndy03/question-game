@@ -5,6 +5,8 @@
   "identifier": "org.questiongame.app",
   "build": {
     "frontendDist": "../../dist",
+    "devUrl": "http://localhost:5181",
+    "beforeDevCommand": "npm run dev:webviews",
     "beforeBuildCommand": "npm run build"
   },
   "app": {
