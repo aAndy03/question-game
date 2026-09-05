@@ -172,8 +172,9 @@ export function runOverlay(ctx: OverlayContext, onComplete: () => void): Running
     done = true
     clearParts(ctx.sheet, ...ctx.sheet.querySelectorAll<HTMLElement>('[data-overlay-from],[data-overlay-to],[data-overlay-label],[data-overlay-word],[data-arrow],[data-label-box],[data-current-team-block]'))
     for (const p of ctx.sheet.querySelectorAll('[data-overlay-particle]')) p.remove()
-    onComplete()
+    // Report before handing on: the next timeline may start (and report) synchronously.
     stageEvents.emit('anim-complete', { key })
+    onComplete()
   }
   const tl = buildOverlay(ctx)
   tl.eventCallback('onComplete', complete)

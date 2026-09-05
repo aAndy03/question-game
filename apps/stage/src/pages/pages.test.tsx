@@ -289,6 +289,22 @@ describe('Overlays draw over the live screen', () => {
     expect((byNode(container, nodeId('question', 'option', 'opt-a')) as HTMLElement).dataset.revealed).toBe('true')
   })
 
+  it('Idle → ChooseDomain with TeamOrder skipped: the transition plays first, then the handoff overlay over the domain content (§17)', () => {
+    const { container, rerender } = render(<StageRoot state={FIXTURES.idle} />)
+    // One host emission: new screen and the enqueued handoff together.
+    rerender(<StageRoot state={FIXTURES['overlay-handoff']} />)
+    expect(events).toEqual(['transition:idle>chooseDomain', 'overlay:token-handoff'])
+    expect((container.querySelector('[data-screen-layer="current"]') as HTMLElement).dataset.screen).toBe('chooseDomain')
+    expect(byNode(container, nodeId('chooseDomain', 'card', 'dom-sci'))).toBeTruthy()
+  })
+
+  it('Idle → TeamOrder → ChooseDomain plays base transitions only (§17)', () => {
+    const { rerender } = render(<StageRoot state={FIXTURES.idle} />)
+    rerender(<StageRoot state={FIXTURES['team-order']} />)
+    rerender(<StageRoot state={FIXTURES['choose-domain']} />)
+    expect(events).toEqual(['transition:idle>teamOrder', 'transition:teamOrder>chooseDomain'])
+  })
+
   it('with overlays disabled nothing is drawn but the handshake still fires', () => {
     const base = FIXTURES['overlay-handoff']
     const state = { ...base, overlay: { ...base.overlay, enabled: false } }

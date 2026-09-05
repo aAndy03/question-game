@@ -38,6 +38,17 @@ describe('transition registry', () => {
   })
 })
 
+describe('P3 exit: no Motion on Stage', () => {
+  const sources = import.meta.glob('../**/*.{ts,tsx}', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+  it('no file under apps/stage imports motion/react or framer-motion', () => {
+    expect(Object.keys(sources).length).toBeGreaterThan(20)
+    for (const [file, src] of Object.entries(sources)) {
+      if (file.includes('.test.')) continue
+      expect(src, file).not.toMatch(/from ['"](motion|motion\/react|framer-motion)['"]/)
+    }
+  })
+})
+
 describe('runTransition', () => {
   const events: string[] = []
   let off = () => {}

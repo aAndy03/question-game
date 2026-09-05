@@ -248,7 +248,7 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 
 ---
 
-## P3 — Stage motion  ◐
+## P3 — Stage motion  ☑
 
 **Install:** [`gsap`](https://gsap.com/docs/v3), [`@gsap/react`](https://gsap.com/resources/React), [`calligraph`](https://calligraph.raphaelsalaja.com).
 
@@ -265,17 +265,17 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 
 **Test corpus — the §17 examples, against a stubbed clock**
 
-- ☐ Idle → ChooseDomain (TeamOrder skipped) plays a handoff overlay, then domain content.
-- ☐ Idle → TeamOrder → ChooseDomain plays base transitions only.
-- ☐ Wrong answer → operator opens ChooseDomain → overrides mid-overlay: current overlay finishes, then the override overlay; revealed content stays revealed.
-- ☐ Overlay while an option is revealed: still revealed afterwards, DOM node never unmounted.
-- ☐ Two rapid overrides collapse to one pending, not two.
+- ☑ Idle → ChooseDomain (TeamOrder skipped) plays a handoff overlay, then domain content — Stage plays the transition first and the handoff over the new screen when both arrive in one emission (`pages.test.tsx`). The host's side (enqueueing the handoff) is P4/P6.
+- ☑ Idle → TeamOrder → ChooseDomain plays base transitions only.
+- ☑ Wrong answer → operator opens ChooseDomain → overrides mid-overlay: current overlay finishes, then the override overlay; revealed content stays revealed. Stage side: a running overlay is never killed, a newer `active` waits (depth 1), a transition waits for the overlay (`sequencer`, verified in the browser). Host side (queue) is P4.
+- ☑ Overlay while an option is revealed: still revealed afterwards, DOM node never unmounted (`pages.test.tsx` asserts node identity).
+- ☑ Two rapid overrides collapse to one pending, not two — Stage keeps one waiting request and a newer one replaces it; the authoritative collapse is the host's queue (P4).
 
 **Exit criteria**
 
-- ☐ All 42 `(from, to)` pairs have a timeline, verified by an exhaustive test over the screen list.
-- ☐ `anim-complete` fires exactly once per timeline.
-- ☐ No `motion/react` import anywhere under `apps/stage`.
+- ☑ All 42 `(from, to)` pairs have a timeline, verified by an exhaustive test over the screen list (`presentation.test.ts`).
+- ☑ `anim-complete` fires exactly once per timeline (transitions, overlays, reveals).
+- ☑ No `motion/react` import anywhere under `apps/stage` (eslint boundary plus a source sweep in `presentation.test.ts`).
 
 ---
 

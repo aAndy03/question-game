@@ -36,8 +36,9 @@ export function runTransition(ctx: TransitionContext, onComplete: () => void): R
     // The layers are reused by the next timeline; leave no animated residue.
     clearLayer(ctx.incoming)
     clearParts(ctx.header, ctx.decor, ...ctx.incoming.querySelectorAll<HTMLElement>('[data-node-id], [data-decor-solid], [role="separator"]'))
-    onComplete()
+    // Report before handing on: releasing the lane may start (and report) the next timeline synchronously.
     stageEvents.emit('anim-complete', { key })
+    onComplete()
   }
 
   const tl = transitionFor(ctx.from, ctx.to)(ctx)

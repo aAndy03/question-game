@@ -75,6 +75,10 @@ export function StageRoot({ state }: StageRootProps) {
   const shown = useRef(screen)
   const lastState = useRef(state)
   const running = useRef<RunningTransition | null>(null)
+  // The transition lane, taken the instant a change is seen (layout effect)
+  // so an overlay arriving in the same snapshot waits for the transition
+  // rather than the other way round (child effects run before ours).
+  const reserved = useRef<(() => void) | null>(null)
   const frame = useRef<HTMLDivElement | null>(null)
   const incomingLayer = useRef<HTMLDivElement | null>(null)
   const outgoingLayer = useRef<HTMLDivElement | null>(null)
@@ -91,6 +95,8 @@ export function StageRoot({ state }: StageRootProps) {
     // A jump mid-transition: finish the running one now, then start the new pair.
     running.current?.finish()
     running.current = null
+    reserved.current?.()
+    reserved.current = sequencer.isBusy('overlay') ? null : sequencer.acquire('transition')
     setLeaving({ screen: from, state: lastState.current })
     lastState.current = state
   }, [screen, state])
@@ -106,7 +112,8 @@ export function StageRoot({ state }: StageRootProps) {
     const cancel = sequencer.whenFree('overlay', () => {
       // StrictMode runs this effect twice in dev; one timeline per pair.
       if (running.current && running.current.from === leaving.screen && running.current.to === screen) return
-      release = sequencer.acquire('transition')
+      release = reserved.current ?? sequencer.acquire('transition')
+      reserved.current = null
       const ctx = {
         from: leaving.screen,
         to: screen,
