@@ -572,3 +572,30 @@ fn the_cascade_reads_the_recipe_over_the_globals() {
         TimerLevel::new(true, 30_000)
     );
 }
+
+/// §2.15: the active operator is a global, survives a round trip through the
+/// stored document, and an older document without the field still loads.
+#[test]
+fn the_active_operator_is_a_global_setting_with_a_default() {
+    let mut flags = FlagService::default();
+    assert_eq!(flags.globals().active_operator_id, None);
+
+    flags
+        .settings_set_global(
+            GlobalSetting::ActiveOperatorId(Some("op-1".into())),
+            idle(),
+        )
+        .unwrap();
+    assert_eq!(
+        flags.globals().active_operator_id.as_ref().map(|id| id.as_str()),
+        Some("op-1")
+    );
+
+    let json = serde_json::to_value(flags.globals()).unwrap();
+    assert_eq!(json["active_operator_id"], "op-1");
+
+    let mut old = json.clone();
+    old.as_object_mut().unwrap().remove("active_operator_id");
+    let loaded: GlobalSettings = serde_json::from_value(old).unwrap();
+    assert_eq!(loaded.active_operator_id, None);
+}

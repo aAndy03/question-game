@@ -12,6 +12,7 @@
 //! a disk write, hence `(async)`.
 
 use questiongame_host::MatchError;
+use questiongame_host::catalog::CatalogKind;
 use questiongame_host::flags::{Chord, GameSetting, GlobalSetting, SettingsView};
 use tauri::{AppHandle, State, WebviewWindow};
 
@@ -47,6 +48,20 @@ pub fn settings_set_global(
     guard::allow(window.label(), "settings_set_global")?;
     let now = now_ms();
     let mut host = state.lock();
+
+    // `operator.active` must name a live operator. That is a catalog fact, so
+    // the check lives here where both services are in reach; `FlagService`
+    // stores what it is given.
+    if let GlobalSetting::ActiveOperatorId(Some(id)) = &setting {
+        let item = host.catalog.catalog_get(CatalogKind::Operator, id.as_str())?;
+        if item.as_operator().is_some_and(|o| o.stamps.is_archived()) {
+            return Err(MatchError::IllegalSettings {
+                key: "operator.active",
+                reason: "an archived operator cannot be active",
+            }
+            .into());
+        }
+    }
 
     let ctx = host.runtime();
     host.flags.settings_set_global(setting, ctx)?;

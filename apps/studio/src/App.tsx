@@ -1,276 +1,148 @@
-import { useCallback, useEffect, useState } from 'react'
-import type {
-  MonitorsChanged,
-  Notice,
-  PlayStateForMain,
-  StageScreen,
-} from '@questiongame/contract'
-import { STAGE_SCREENS } from '@questiongame/contract'
-import { THEME } from '@questiongame/design-studio'
-import { command, hasHost, isHostError, on } from '@/host/host'
+import { useEffect, useState } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Text } from '@/atoms'
+import { NoticeCollector, SidebarNav, StatusBar, TopBar } from '@/organisms'
+import {
+  ControlPage,
+  GamePage,
+  GamesPage,
+  LibraryPage,
+  OperatorPage,
+  OperatorsPage,
+  QuestionPage,
+  ScreensPage,
+  SettingsPage,
+  StatisticsPage,
+  TeamPage,
+  TeamsPage,
+} from '@/pages'
+import { ShellLayout } from '@/templates'
+import { useChromeStore } from '@/chrome/chrome'
+import { useRoute, useNavStore, type Route } from '@/chrome/nav'
+import { useApplyTheme } from '@/chrome/theme'
+import { useNoticeStore } from '@/chrome/notices'
+import { APP } from '@/copy'
+import { HostBridge } from '@/host/bridge'
+import { hasHost } from '@/host/host'
+import { isPlayOpen, peekPlayState } from '@/host/playState'
+import { useSettings } from '@/host/queries'
 
 /**
- * **P6 harness, not the Studio shell.** P7 builds the real one (sidebar, tabs,
- * library lists); this exists so the phase is runnable end to end: load a
- * recipe, start the Play, drive a turn, move Stage between displays, and watch
- * `play-state` come back.
+ * The Studio shell (P7): providers, the shell layout, and the page switch.
  *
- * It is deliberately ugly and deliberately thin — every button is one
- * `command(...)` and nothing else. Nothing here holds Play state: what it draws
- * comes from the `play-state` event, which is why there is no local score, no
- * local ring, and no cache.
+ * Nothing here holds Play state. What the pages draw comes from TanStack
+ * Query (catalog, recipes, settings — invalidated by host events) and from
+ * the `play-state` store; the chrome stores hold only chrome.
  */
+
+function makeQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false },
+    },
+  })
+}
+
 export function App() {
-  const [state, setState] = useState<PlayStateForMain | null>(null)
-  const [monitors, setMonitors] = useState<MonitorsChanged | null>(null)
-  const [notices, setNotices] = useState<Notice[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [recipeId, setRecipeId] = useState('')
+  // One cache per mount, so a test (or a hot reload) never inherits another's.
+  const [queryClient] = useState(makeQueryClient)
+  if (!hasHost()) return <NoHost />
+  return (
+    <QueryClientProvider client={queryClient}>
+      <HostBridge />
+      <Shell />
+    </QueryClientProvider>
+  )
+}
 
+function Shell() {
+  useApplyTheme()
+  const route = useRoute()
+  const settings = useSettings()
+  const setOperator = useChromeStore((s) => s.setOperator)
+  const setGuard = useNavStore((s) => s.setGuard)
+  const pushNotice = useNoticeStore((s) => s.push)
+
+  // Chrome preferences follow the active operator (host truth).
   useEffect(() => {
-    const offs: Array<() => void> = []
-    void on<PlayStateForMain>('play-state', setState).then((off) => offs.push(off))
-    void on<MonitorsChanged>('monitors-changed', setMonitors).then((off) => offs.push(off))
-    void on<Notice>('notice', (n) => setNotices((all) => [n, ...all].slice(0, 5))).then((off) =>
-      offs.push(off),
-    )
-    return () => offs.forEach((off) => off())
-  }, [])
+    setOperator(settings.data?.globals.active_operator_id ?? null)
+  }, [settings.data?.globals.active_operator_id, setOperator])
 
-  /** Every button is this: run a command, show the refusal if there is one. */
-  const run = useCallback(async (fn: () => Promise<unknown>) => {
-    setError(null)
-    try {
-      await fn()
-    } catch (caught) {
-      setError(isHostError(caught) ? `${caught.code}: ${caught.message}` : String(caught))
-    }
-  }, [])
-
+  // Screens is blocked while a Play is open (spec §12). The route stays typed;
+  // the notice offers the two actions and nothing else.
   useEffect(() => {
-    void run(async () => {
-      const list = await command<{ id: string }[]>('recipe_list', { scope: 'active' })
-      const first = list[0]
-      if (first) setRecipeId(first.id)
-      setMonitors({
-        monitors: await command('monitors_list'),
-        stageMonitorId: null,
-        stageOn: null,
+    const screensGuard = (to: Route) => {
+      if (to.tab !== 'screens' || !isPlayOpen(peekPlayState())) return true
+      pushNotice({
+        code: 'screens.blocked',
+        severity: 'warn',
+        targetPath: null,
+        actions: ['go_to_control', 'dismiss'],
+        detail: { message: 'Screens is unavailable while a Play is playing or paused.' },
       })
-    })
-  }, [run])
+      return false
+    }
+    // A dirty editor replaces this guard while it is mounted and restores
+    // nothing; re-registering on each route keeps the Screens rule in force.
+    setGuard(screensGuard)
+    return () => setGuard(null)
+  }, [route, setGuard, pushNotice])
 
-  if (!hasHost()) {
-    return (
-      <Frame>
-        <h1 style={{ margin: 0, fontSize: '1.5rem' }}>questiongame Studio</h1>
-        <p style={{ margin: 0, color: THEME.muted }}>
-          No host. Run the desktop app with <code>npm run dev:app</code>; this dev server on its
-          own has no Rust behind it.
-        </p>
-      </Frame>
-    )
+  return (
+    <ShellLayout sidebar={<SidebarNav />} top={<TopBar />} status={<StatusBar />} overlays={<NoticeCollector />}>
+      <Page route={route} />
+    </ShellLayout>
+  )
+}
+
+function Page({ route }: { route: Route }) {
+  switch (route.tab) {
+    case 'teams':
+      if ('mode' in route) {
+        if (route.mode === 'new') return <TeamPage id={null} mode="new" />
+        if (route.mode === 'edit') return <TeamPage id={route.id} mode="edit" />
+        return <TeamsPage currentId={route.id} />
+      }
+      return <TeamsPage />
+    case 'library':
+      if ('questionId' in route) {
+        if (route.mode === 'view') return <LibraryPage domainId={route.domainId ?? null} currentId={route.questionId} />
+        return <QuestionPage id={route.questionId} mode={route.mode} domainId={route.domainId} />
+      }
+      if ('mode' in route) return <QuestionPage id={null} mode="new" domainId={route.domainId} />
+      return <LibraryPage domainId={route.domainId ?? null} />
+    case 'games':
+      return 'id' in route ? <GamePage id={route.id} section={route.section} /> : <GamesPage />
+    case 'operators':
+      if ('mode' in route) {
+        if (route.mode === 'new') return <OperatorPage id={null} mode="new" />
+        if (route.mode === 'edit') return <OperatorPage id={route.id} mode="edit" />
+        return <OperatorsPage currentId={route.id} />
+      }
+      return <OperatorsPage />
+    case 'control':
+      return <ControlPage />
+    case 'screens':
+      return <ScreensPage />
+    case 'statistics':
+      return <StatisticsPage />
+    case 'settings':
+      return <SettingsPage />
   }
-
-  const play = state
-  const session = play?.session ?? null
-  return (
-    <Frame>
-      <h1 style={{ margin: 0, fontSize: '1.5rem' }}>questiongame Studio — P6 harness</h1>
-
-      <Row>
-        <input
-          value={recipeId}
-          onChange={(e) => setRecipeId(e.target.value)}
-          placeholder="recipe id"
-          style={{ padding: '0.35rem 0.5rem', borderRadius: 'var(--radius)' }}
-        />
-        <Btn
-          onClick={() =>
-            run(() =>
-              command('play_load', { recipeId, playId: `play-${Date.now()}` }),
-            )
-          }
-        >
-          Control Load
-        </Btn>
-        <Btn onClick={() => run(() => command('play_start'))}>Start</Btn>
-        <Btn
-          onClick={() =>
-            run(async () => {
-              const recipe = await command<{ id: string }>('seed_demo_library')
-              setRecipeId(recipe.id)
-            })
-          }
-        >
-          Seed demo
-        </Btn>
-        <Btn onClick={() => run(() => command('pause'))}>Pause</Btn>
-        <Btn onClick={() => run(() => command('resume'))}>Resume</Btn>
-        <Btn onClick={() => run(() => command('undo_turn'))} disabled={!play?.operator.canUndo}>
-          Undo
-        </Btn>
-        <Btn onClick={() => run(() => command('redo_turn'))} disabled={!play?.operator.canRedo}>
-          Redo
-        </Btn>
-      </Row>
-
-      <Row>
-        {STAGE_SCREENS.map((screen: StageScreen) => (
-          <Btn
-            key={screen}
-            active={play?.currentScreen === screen}
-            onClick={() => run(() => command('show_screen', { screen }))}
-          >
-            {screen}
-          </Btn>
-        ))}
-      </Row>
-
-      <Row>
-        {play?.domains.map((domain) => (
-          <Btn
-            key={domain.id}
-            disabled={domain.exhausted}
-            onClick={() => run(() => command('choose_domain', { domainId: domain.id }))}
-          >
-            {`${domain.code} (${domain.remaining})`}
-          </Btn>
-        ))}
-      </Row>
-
-      <Row>
-        {session?.options.map((option) => (
-          <Btn
-            key={option.id}
-            active={session.selectedOptionIds.includes(option.id)}
-            onClick={() => run(() => command('set_selection', { optionIds: [option.id] }))}
-          >
-            {option.text}
-          </Btn>
-        ))}
-        {session ? (
-          <>
-            <Btn onClick={() => run(() => command('reveal_stem'))}>Reveal stem</Btn>
-            <Btn onClick={() => run(() => command('reveal_next_option'))}>Reveal option</Btn>
-            <Btn onClick={() => run(() => command('start_timer'))}>Timer</Btn>
-            <Btn onClick={() => run(() => command('lock_selection'))}>Lock</Btn>
-            <Btn onClick={() => run(() => command('reveal_outcome'))}>Reveal outcome</Btn>
-          </>
-        ) : null}
-      </Row>
-
-      <Row>
-        {play?.operator.legalTokenTargets.map((teamId) => (
-          <Btn
-            key={teamId}
-            active={teamId === play.operator.defaultNextTeamId}
-            onClick={() => run(() => command('give_token', { teamId }))}
-          >
-            {`give → ${teamId}`}
-          </Btn>
-        ))}
-      </Row>
-
-      <section>
-        <h2 style={{ fontSize: '0.9rem', margin: '0 0 0.4rem' }}>Stage display</h2>
-        <Row>
-          <Btn onClick={() => run(() => command('stage_open'))}>Open Stage</Btn>
-          <Btn onClick={() => run(() => command('stage_set_monitor', { monitorId: null }))}>
-            Primary
-          </Btn>
-          {monitors?.monitors.map((m) => (
-            <Btn
-              key={m.key}
-              active={monitors.stageOn === m.key}
-              onClick={() => run(() => command('stage_set_monitor', { monitorId: m.key }))}
-            >
-              {`${m.name ?? m.key}${m.primary ? ' (primary)' : ''}`}
-            </Btn>
-          ))}
-        </Row>
-      </section>
-
-      {error ? (
-        <p style={{ margin: 0, color: THEME.danger, fontFamily: 'monospace' }}>{error}</p>
-      ) : null}
-
-      {notices.map((notice, i) => (
-        <p key={`${notice.code}-${i}`} style={{ margin: 0, color: THEME.warning, fontFamily: 'monospace' }}>
-          {`${notice.severity} ${notice.code} ${JSON.stringify(notice.detail)} [${notice.actions.join(', ')}]`}
-        </p>
-      ))}
-
-      <pre
-        style={{
-          margin: 0,
-          padding: '0.75rem',
-          borderRadius: 'var(--radius)',
-          background: THEME.muted,
-          color: THEME.background,
-          fontSize: '0.75rem',
-          maxHeight: '40vh',
-          overflow: 'auto',
-        }}
-      >
-        {play ? JSON.stringify(play, null, 2) : 'no play loaded'}
-      </pre>
-    </Frame>
-  )
 }
 
-function Frame({ children }: { children: React.ReactNode }) {
+function NoHost() {
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        padding: '1.5rem',
-        background: THEME.background,
-        color: THEME.foreground,
-        fontFamily: 'var(--font-sans)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.75rem',
-        alignItems: 'stretch',
-      }}
-    >
-      {children}
+    <div className="flex h-full flex-col items-center justify-center gap-2 p-6" style={{ background: 'var(--background)', color: 'var(--foreground)' }}>
+      <Text as="h1" variant="studio-title">
+        {`${APP.name} ${APP.studio}`}
+      </Text>
+      <Text as="p" variant="studio-body" tone="muted">
+        {APP.noHost}
+      </Text>
+      <Text as="p" variant="studio-caption" tone="muted">
+        {APP.noHostBody}
+      </Text>
     </div>
-  )
-}
-
-function Row({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>{children}</div>
-}
-
-function Btn({
-  children,
-  onClick,
-  disabled,
-  active,
-}: {
-  children: React.ReactNode
-  onClick: () => void
-  disabled?: boolean | undefined
-  active?: boolean | undefined
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        padding: '0.3rem 0.6rem',
-        borderRadius: 'var(--radius)',
-        border: `1px solid ${THEME.muted}`,
-        background: active ? THEME.accent : 'transparent',
-        color: active ? THEME.background : THEME.foreground,
-        opacity: disabled ? 0.4 : 1,
-        cursor: disabled ? 'default' : 'pointer',
-        fontSize: '0.8rem',
-      }}
-    >
-      {children}
-    </button>
   )
 }

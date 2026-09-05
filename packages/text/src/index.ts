@@ -80,9 +80,13 @@ export type TextVariant =
   | 'stage-hero'
   | 'stage-hud-large'
   | 'stage-place-label'
+  | 'studio-display'
+  | 'studio-title'
+  | 'studio-heading'
   | 'studio-body'
   | 'studio-label'
-  | 'studio-caption';
+  | 'studio-caption'
+  | 'studio-mono';
 
 /**
  * Everything a variant resolves to. Every value is a `var(--…)` reference into
@@ -136,13 +140,25 @@ const grotesk = (size: string, weight: string): VariantTokens => ({
   casing: 'var(--case-prose)',
 });
 
-const studio = (size: string): VariantTokens => ({
+/**
+ * Studio resolves to HeroUI's Tailwind-v4 theme: the `--text-studio-*` roles
+ * declared in `packages/design-studio/tokens/theme.css`, Tailwind's own weight
+ * and tracking variables, and `--font-sans` / `--font-mono`. Studio has no
+ * casing token — its chrome is sentence case everywhere — so `casing` is the
+ * literal `none`, which is still not a raw size.
+ */
+const studio = (
+  size: string,
+  weight = 'var(--font-weight-normal)',
+  family = 'var(--font-sans)',
+  tracking = 'var(--tracking-normal)',
+): VariantTokens => ({
   size,
-  family: 'var(--font-sans)',
-  weight: 'var(--weight-regular)',
-  tracking: 'var(--tracking-normal)',
-  leading: 'var(--leading-body)',
-  casing: 'var(--case-prose)',
+  family,
+  weight,
+  tracking,
+  leading: `var(${size.slice(4, -1)}--line-height)`,
+  casing: 'none',
 });
 
 const VARIANT_TOKENS: Record<TextVariant, VariantTokens> = {
@@ -192,9 +208,13 @@ const VARIANT_TOKENS: Record<TextVariant, VariantTokens> = {
   'stage-place-label': { ...grotesk('var(--text-label)', 'var(--weight-bold)'), tracking: 'var(--tracking-wide-1)', casing: 'var(--case-name)' },
   'stage-hero': { ...grotesk('var(--text-giant)', 'var(--weight-bold)'), tracking: 'var(--tracking-tight-2)', leading: 'var(--leading-display)', casing: 'var(--case-name)' },
   'stage-hud-large': { ...mono('var(--text-heading-4)', 'var(--tracking-wide-1)', 'var(--case-prose)'), leading: 'var(--leading-heading)' },
-  'studio-body': studio('var(--text-body)'),
-  'studio-label': studio('var(--text-label)'),
-  'studio-caption': studio('var(--text-caption)'),
+  'studio-display': studio('var(--text-studio-display)', 'var(--font-weight-semibold)', 'var(--font-sans)', 'var(--tracking-tight)'),
+  'studio-title': studio('var(--text-studio-title)', 'var(--font-weight-semibold)', 'var(--font-sans)', 'var(--tracking-tight)'),
+  'studio-heading': studio('var(--text-studio-heading)', 'var(--font-weight-medium)'),
+  'studio-body': studio('var(--text-studio-body)'),
+  'studio-label': studio('var(--text-studio-label)', 'var(--font-weight-medium)'),
+  'studio-caption': studio('var(--text-studio-caption)'),
+  'studio-mono': studio('var(--text-studio-mono)', 'var(--font-weight-normal)', 'var(--font-mono)'),
 };
 
 /** Resolve a variant to its tokens. Exported so tests can assert coverage. */

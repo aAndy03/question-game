@@ -447,32 +447,56 @@ error         what a refused command looks like on the wire
 
 ---
 
-## P7 — Studio shell and libraries  ☐
+## P7 — Studio shell and libraries  ☑
 
-**Install:** [`@tanstack/react-query`](https://tanstack.com/query/latest), [`@tanstack/react-table`](https://tanstack.com/table/latest), [`@tanstack/react-form`](https://tanstack.com/form/latest), [`@tanstack/react-virtual`](https://tanstack.com/virtual/latest), `@tanstack/react-pacer`, [`zustand`](https://zustand.docs.pmnd.rs), [`@iconify/react`](https://iconify.design/docs/icon-components/react), [`@phosphor-icons/react`](https://phosphoricons.com), [`motion`](https://motion.dev/docs/react).
+**Goal:** the operator app exists. Sidebar, top bar, status bar, the four library tabs, one component system, and no second writer of anything.
 
-**Read the `heroui-react` skill first.** v3 only.
+**Design file:** `05_STUDIO_DESIGN.md` — the Studio counterpart to the Stage design system: tokens, the fixed vocabularies (chips, empty states, row actions, toolbar order), the atom / molecule / organism / template / page catalog, and the interaction rules. Binding for anything rendered in the `main` webview.
 
-`@tauri-apps/api` and the host command seam (`apps/studio/src/host/host.ts`) arrived at P6; P7 builds the shell on top of them and deletes the P6 harness in `apps/studio/src/App.tsx`.
+**Installed:** `@tanstack/react-query`, `@tanstack/react-table@^8`, `@tanstack/react-virtual`, `@tanstack/react-pacer`, `zustand`, `@iconify-json/gravity-ui` (the JSON only), `motion`, `calligraph` (inside `packages/text`), `@fontsource-variable/geist`, `@heroui/react`, `@heroui/styles`, `@base-ui/react`, `tailwind-variants`; `@testing-library/user-event` for tests.
 
-**Deliverables by atomic level** (`apps/studio/src/`)
+**Deliverables by atomic level** (`apps/studio/src/`) — all ☑
 
 | Level | Components |
 | --- | --- |
-| **atoms** | Thin wrappers over HeroUI primitives that pin project variants — `Button`, `Field`, `Icon`, `Kbd`, `StatusDot`, `Text` (Studio impl) |
-| **molecules** | `SearchField` + kind filter · `RecordRow` (one row, two layouts) · `InlineNotice` · `ArchiveToggle` · `BulkBar` · `DirtyGuard` |
-| **organisms** | `LibraryList` (grid\|table, virtualised) · `RecordEditor` · `SidebarNav` · `TopBar` · `StatusBar` · `NoticeCollector` |
-| **templates** | `ShellLayout` (sidebar + content + top + status) · `LibraryTabLayout` (list → detail → edit stack) |
-| **pages** | Teams · Domains+Questions · Games (all + one) · Operators |
+| **atoms** (22) | `Button` · `IconButton` · `Icon` (generated Gravity UI bodies, no icon runtime) · `Text` (Studio impl of §2.29; Calligraph behind `@questiongame/text/studio`) · `Chip` + `MeaningChip` (the fixed vocabulary) · `StatusDot` · `Kbd` · `Avatar` / `InitialsAvatar` · `Swatch` · `Panel` · `Separator` · `Skeleton` · `Spinner` · `Tooltip` + `DisabledReason` · `TextField` · `TextAreaField` · `NumberField` · `SelectField` · `SwitchField` · `CheckboxField` · `SliderField` |
+| **molecules** (25) | `PageHeader` · the toolbar parts (`SearchField` with a 200ms Pacer debounce, `ViewSwitch`, `ArchiveToggle`) · `RecordRow` (one row, grid and table layouts) · `BulkBar` · `EmptyState` (four kinds) · `InlineNotice` (2–3 actions, stacked confirm frames inside) · `ConfirmDialog` (arm → confirm) · `DirtyGuard` · `ScopeConfirm` · `EditorFooter` · `SidebarItem` · `NavCrumbs` · `MetaList` · `StatCard` · `SettingRow` (with the host's disabled reason) · `TeamMark` · `OperatorBadge` · `PlayStatusPill` · `ActionMenu` · `DifficultyField` · `OptionRow` · `DomainForm` · `DomainPicker` (create in place, §2.22) |
+| **organisms** (17) | `HostBridge` · `SidebarNav` (expanded / rail / hidden with left-edge peek) · `TopBar` · `StatusBar` · `NoticeCollector` (+ the `block` dialog) · `LibraryList` (TanStack Table engine, `RecordRow` renderer, virtualised above 200 rows) · `TeamEditor` / `TeamDetail` · `QuestionEditor` / `QuestionDetail` · `DomainPane` · `OperatorEditor` / `OperatorDetail` · `RosterSection` · `BoardSection` · `RulesSection` · `PlaysSection` · `DevHarness` (dev builds only) |
+| **templates** (5) | `ShellLayout` · `LibraryTabLayout` (list + aside at ≥1280px) · `SplitLayout` · `RecordPageLayout` · `BlankLayout` |
+| **pages** (12) | Teams · Team · Domains+Questions · Question · Games · Game (Roster / Board / Rules / Plays rail) · Operators · Operator · Control (stub; hosts the harness in dev) · Screens · Statistics · Settings (stubs) |
 
-Sidebar has three states: expanded / icon strip / hidden with left-edge peek. Per-tab archive with Active\|Archived. grid\|table persisted per operator per tab.
+Sidebar has three states. Per-tab archive with Active | Archived. grid | table persisted per operator per tab (`localStorage`, keyed by the active operator id, which is host truth).
 
-**Exit criteria**
+**Exit criteria — all met 2026-09-06** (363 TypeScript tests: 306 + 57 Studio; 194 host + 19 app Rust.)
 
-- ☐ Renaming a team updates every surface via host events — no second store, no manual refetch.
-- ☐ Zustand holds only chrome state; a grep for score/ring/session keys in stores returns nothing.
-- ☐ `play-state` never appears in a TanStack Query key.
-- ☐ No `apps/studio` file imports `design-stage`.
+- ☑ **Renaming a team updates every surface via host events — no second store, no manual refetch.** `apps/studio/src/host/bridge.test.tsx` renders the whole `App` against the in-memory host, renames a team through the host's own verb, and asserts that the list row and the aside both show the new name with the only refetch being the bridge's invalidation.
+- ☑ **Zustand holds only chrome state.** `apps/studio/src/chrome/chrome.test.ts` walks every store's live state shape and fails on a `score|ring|session|timer|team|domain|question` key — a grep that survives a rename.
+- ☑ **`play-state` never appears in a TanStack Query key.** `apps/studio/src/host/queries.test.ts` checks every key the factory can make, and that the key roots are exactly the §13 read verbs.
+- ☑ **No `apps/studio` file imports `design-stage`.** `npm run lint` — the boundary block in `eslint.config.js`.
+
+**Also delivered**
+
+- **`GlobalSetting::ActiveOperatorId`** and `GlobalSettings.active_operator_id` (`#[serde(default)]`, so an older stored document still loads). The Tauri command refuses an unknown or archived operator; `FlagService` stores what it is given. The top bar's name and every per-operator preference key off it.
+- **`OperatorState.recipe_id`** — the Play's recipe, additive and on the `main` emission only. The top bar names the recipe and the Game page freezes itself from it instead of guessing from a Play id.
+- **An in-memory host (`apps/studio/src/host/fake.ts`)** — the second adapter behind `HostTransport`: the catalog and recipe verbs, `settings_get` / `settings_set_global`, `referenced_by`, and the events. It runs the page tests and, with `?fake` on a dev URL, lets `npm run dev:studio` show the shell with a demo library and no Rust — the Studio counterpart to Stage's fixture strip. It cannot start a Play and is unreachable inside the app.
+- **`useDraft` / `useDirtyGuard`** — one form state per editor, dirty by structural comparison, and a nav guard that holds a navigation until Save / Discard / Keep editing.
+- **The Studio type roles** `studio-display|title|heading|body|label|caption|mono` in `packages/text`, resolving to `--text-studio-*` in `design-studio/tokens/theme.css`.
+- **Geist self-hosted** (`@fontsource-variable/geist`), so the HeroUI look is the HeroUI look offline.
+
+**Decisions made while building it (2026-09-06)**
+
+- **Navigation is a typed route stack in Zustand, not a URL router.** One desktop window, no deep links, and §12's "the stack remembers the referrer" is a stack. `useRoute` / `useNavigate` are the whole surface a page sees; moving to TanStack Router later touches `chrome/nav.ts` and nothing else.
+- **Studio keeps HeroUI's own `--success` / `--danger`** rather than borrowing Stage's mint and coral (closes the "Studio theme reconciliation" question). The two surfaces agree on meaning; each keeps its hue.
+- **Fields get a hairline edge and, in dark, a lifted background.** HeroUI's shipped dark theme gives a field the same colour as a surface, so an unfocused input on a panel vanished. `studio.css` sets `--field-border` / `--field-border-width` and a dark `--field-background`; nothing else in the theme was touched.
+- **Icons are generated, not fetched.** `scripts/studio-icons.ts` writes the Gravity UI bodies for exactly the keys in `atoms/icons.ts` (`npm run studio:icons`), so `@iconify/react` is not installed and the app ships 71 icons rather than a 438 KB set.
+- **Calligraph lives inside `packages/text`** (`@questiongame/text/studio`), because the lint rule that says "nothing imports `calligraph`" is right and the Studio atom is not an exception to it.
+- **TanStack Table is pinned to v8.** v9, the current major, replaced `useReactTable` with a different API; the documented v8 API is what `LibraryList` needs and nothing more.
+- **TanStack Form is not installed.** Editors are three to eight fields with the rules on the host; a short draft hook keeps one form state with no schema to duplicate. The §7 row stays provisional; if P8's Control float or P10's Settings tab want it, it comes in then.
+- **The P6 harness stays as `DevHarness`**, under Control, dev builds only, restyled with the new atoms — so a show can still be driven end to end until P8.
+- **Board difficulty overrides use a `window.prompt`** for the value and `ScopeConfirm` for the scope. An inline number field on every board row is P8's inline-edit work; the ScopeConfirm path is what P7 had to prove.
+- **Roster order is up / down buttons.** dnd-kit arrives with P8 as planned.
+
+**Not done here, on purpose:** first run, the pin, Monitors, the Shape manager, hotkey chords, the window-close dirty guard (P12), Toasts (none in v1 unless a later phase names a use).
 
 ---
 
@@ -566,10 +590,10 @@ Wager/stake · CSV import/export · user-replaceable audio packs · `@web-kits/a
 
 | Decision | Blocks | Note |
 | --- | --- | --- |
-| **Studio theme reconciliation** | P7 | `globals.css` ships HeroUI's default blue/Geist/`0.75rem` theme. That is now the *intended* Studio look (§2.30), so the only open question is whether Studio should borrow the signal colours (mint/coral) for correct/incorrect readouts so the two surfaces agree on meaning. |
+| ~~Studio theme reconciliation~~ | ~~P7~~ | **Closed 2026-09-06: no.** Studio keeps HeroUI's `--success` / `--danger`; the surfaces agree on meaning, not hue (`05_STUDIO_DESIGN.md` §2.1). |
 | **Missing design-system files** | P2 | The design system readme indexes `styles.css`, `assets/`, `components/core/`, `ui_kits/questiongame/` (13 screens), `guidelines/`, and `SKILL.md`. **None are in this repo** — only `tokens/` and four decorative SVG folders. If they exist elsewhere, that is most of P2 already built. |
 | ~~Default Stage monitor with several externals~~ | ~~P6~~ | **Closed 2026-09-06: there is no default.** Stage is *ready* — fullscreen on primary from first Control Load — and the host never picks a display. The first send is manual (Control's top picker or Settings ▸ Monitors) and is remembered in `stage.monitor_id`; a remembered display that comes back is taken automatically outside a Play, and mid-Play `stage.reattach` decides (`ask` by default: stay put, offer a *Move Stage* notice). Two identical panels answer to one key, and that case asks rather than guessing. |
-| **Archive view visual design** | P7 | §9. |
+| ~~Archive view visual design~~ | ~~P7~~ | **Closed 2026-09-06.** Active \| Archived is a secondary `Tabs` in each library tab's toolbar; archived rows render at 70% with an `archived` chip; restore is a row action and a bulk action (`05_STUDIO_DESIGN.md` §4.2, §4.6). |
 
 ---
 

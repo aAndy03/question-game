@@ -7,9 +7,10 @@ fullscreen window on a second display.
 Offline-first, Windows and macOS, GPLv3. Built as one repo: a Rust host that
 owns every fact, and two React webviews that only draw.
 
-> **Status: P0–P6 of thirteen.** The engine, the library and the Tauri wiring
-> are done and Stage reads live state from the host. The Studio surface is
-> still a **harness**, not the shell — P7 builds that. See
+> **Status: P0–P7 of thirteen.** The engine, the library, the Tauri wiring and
+> the **Studio shell** are done: Stage reads live state from the host, and the
+> operator app has its sidebar, top bar, status bar and the four library tabs
+> (Teams, Domains+Questions, Games, Operators). Control arrives with P8. See
 > [`docs/v1/04_ROADMAP.md`](docs/v1/04_ROADMAP.md).
 
 ---
@@ -25,13 +26,15 @@ That is the whole story: `tauri dev` starts both Vite dev servers itself
 (`beforeDevCommand`), compiles the Rust host, and opens the Studio window. The
 first Rust build takes a few minutes; after that it is seconds.
 
-The Studio window is the **P6 harness** — one button per host command, no
-chrome. To see a show:
+The Studio window opens on **Teams**. Build a library in the four tabs on the
+left, then open a game and press **Load into Control**, which creates the Stage
+window fullscreen on your primary display. Until P8's Control tab lands, the
+**Control** tab carries a dev-only harness — one button per host command — so a
+show can still be driven end to end:
 
-1. **Seed demo** — writes a four-team, three-domain library through the
-   ordinary catalog commands. Dev builds only.
-2. **Control Load** — puts the recipe into Control. This is what creates the
-   Stage window, fullscreen on your primary display.
+1. **Seed demo** on the harness writes a four-team, three-domain library
+   through the ordinary catalog commands. Dev builds only.
+2. **Control Load** puts the recipe into Control and opens Stage.
 3. **Start**, then a domain, an answer, **Lock**, **Reveal outcome**.
 4. The screen buttons (`idle`, `chooseDomain`, `question`, …) drive Stage.
 
@@ -50,18 +53,21 @@ screen and every state, switchable in place, no database. That fallback is
 unreachable inside the app — if there is a host, the host wins.
 
 ```bash
-npm run dev:studio     # http://localhost:5181/studio/
+npm run dev:studio     # http://localhost:5181/studio/?fake
 ```
 
-Studio alone says "No host" and does nothing else. It is not useful without
-`dev:app` yet; P7 changes that.
+Studio alone says "No host" — unless the URL carries `?fake`, which installs an
+in-memory host with a demo library (dev builds only). Every tab, editor and
+dialog then works in a plain browser; only a Play cannot be started. That is
+the Studio counterpart to Stage's fixture strip, and it is unreachable inside
+the app: a real host always wins.
 
 ---
 
 ## Verifying
 
 ```bash
-npm run test:all       # 306 TypeScript + 193 Rust
+npm run test:all       # 363 TypeScript + 213 Rust
 npm run typecheck      # tsc --build across all project references
 npm run lint           # eslint — this is where the architecture rules live
 npm run lint:host      # clippy over the host crate
@@ -86,6 +92,9 @@ npm run tauri build     # the installer
 apps/
   stage/      the audience surface. Base UI + GSAP, questiongame tokens.
   studio/     the operator app. HeroUI v3 + Motion, HeroUI tokens.
+              host/ (the command seam, queries, play-state, the fake host),
+              chrome/ (nav, preferences, notices), copy/, then atoms →
+              molecules → organisms → templates → pages.
 packages/
   contract/   play-state, screens, node ids, reveal keys, command names.
               The only package both webviews and the Rust host share.
@@ -160,6 +169,7 @@ webview that sent it.
 | What is built, what is next, and what each phase decided | [`docs/v1/04_ROADMAP.md`](docs/v1/04_ROADMAP.md) |
 | What a word means before you name anything | [`docs/v1/03_CONTEXT.md`](docs/v1/03_CONTEXT.md) |
 | How Stage is allowed to look | [`docs/questiongame Design System/readme.md`](docs/questiongame%20Design%20System/readme.md) |
+| How Studio is allowed to look, and which component does what | [`docs/v1/05_STUDIO_DESIGN.md`](docs/v1/05_STUDIO_DESIGN.md) |
 | The conventions an agent must not undo | [`CLAUDE.md`](CLAUDE.md) |
 
 `optimized_first_spec.md` is the decision file. Where the code and that

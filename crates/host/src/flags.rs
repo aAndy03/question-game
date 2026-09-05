@@ -30,6 +30,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{MatchError, MatchResult};
+use crate::ids::OperatorId;
 use crate::monitor::StageReattach;
 use crate::play::PlayStatus;
 use crate::service::MatchService;
@@ -311,6 +312,11 @@ pub struct GlobalSettings {
     pub control: ControlSettings,
     pub features: FeatureRoots,
     pub shortcuts: ShortcutMap,
+    /// Who is at the keyboard (§2.15). The top bar shows this operator's
+    /// name; grid|table and mosaic preferences are kept per operator against
+    /// it. `None` until the first operator is created. Pin gating is P10's.
+    #[serde(default)]
+    pub active_operator_id: Option<OperatorId>,
 }
 
 impl Default for GlobalSettings {
@@ -323,6 +329,7 @@ impl Default for GlobalSettings {
             control: ControlSettings::defaults(),
             features: FeatureRoots::default(),
             shortcuts: ShortcutMap::default(),
+            active_operator_id: None,
         }
     }
 }
@@ -418,6 +425,9 @@ pub enum GlobalSetting {
     StatsMonitorId(Option<String>),
     StageReattach(StageReattach),
     Feature(FeatureRoot, bool),
+    /// `operator.active`. Whether the id names a live operator is the
+    /// catalog's to say; the command layer asks it before this lands.
+    ActiveOperatorId(Option<OperatorId>),
 }
 
 impl GlobalSetting {
@@ -435,6 +445,7 @@ impl GlobalSetting {
             GlobalSetting::StatsMonitorId(_) => "stats.monitor_id",
             GlobalSetting::StageReattach(_) => "stage.reattach",
             GlobalSetting::Feature(root, _) => root.key(),
+            GlobalSetting::ActiveOperatorId(_) => "operator.active",
         }
     }
 }
@@ -696,6 +707,7 @@ impl FlagService {
                 control.stage_reattach = v;
             }
             GlobalSetting::Feature(root, on) => globals.features.set(root, on),
+            GlobalSetting::ActiveOperatorId(v) => globals.active_operator_id = v,
         }
 
         validate_globals(&globals)?;

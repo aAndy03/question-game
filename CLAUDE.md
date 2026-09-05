@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**P0–P6 are done** (`docs/v1/04_ROADMAP.md`). npm workspaces monorepo, GPLv3. **The two tracks met at P6:** Stage no longer reads fixtures, it reads the host. `crates/host` holds `MatchService`, `FlagService`, `CatalogService` and `PresentationService` and is still a plain library with zero `tauri::` imports; `crates/app` is the Tauri 2 shell around it. P7 builds the Studio shell.
+**P0–P7 are done** (`docs/v1/04_ROADMAP.md`). npm workspaces monorepo, GPLv3. **The two tracks met at P6:** Stage no longer reads fixtures, it reads the host. `crates/host` holds `MatchService`, `FlagService`, `CatalogService` and `PresentationService` and is still a plain library with zero `tauri::` imports; `crates/app` is the Tauri 2 shell around it. **P7 built the Studio shell** — sidebar, top bar, status bar, the four library tabs (Teams, Domains+Questions, Games, Operators), one component system (`docs/v1/05_STUDIO_DESIGN.md`). P8 builds the Control tab.
 
 ```bash
 npm run dev:app        # the desktop app (tauri dev) — starts both dev servers itself
@@ -20,7 +20,7 @@ npm run lint:app       # the same, for the Tauri crate
 npm run test:all       # all three suites
 ```
 
-`npm run dev:app` starts both Vite dev servers itself (`beforeDevCommand` → `scripts/dev-webviews.mjs`). `npm run dev:stage` on its own has no Rust behind it and falls back to the P2/P3 fixture strip — that is the point: screen work does not need a database.
+`npm run dev:app` starts both Vite dev servers itself (`beforeDevCommand` → `scripts/dev-webviews.mjs`). `npm run dev:stage` on its own has no Rust behind it and falls back to the P2/P3 fixture strip — that is the point: screen work does not need a database. **`npm run dev:studio` with `?fake` on the URL** (`http://localhost:5181/studio/?fake`, dev builds only) installs the in-memory host with a demo library, so shell work does not need Rust either; without `?fake` Studio says "No host". `npm run studio:icons` regenerates `apps/studio/src/atoms/icons.generated.ts` after a key is added to `atoms/icons.ts`.
 
 **Both webviews are served under the path they occupy in the bundle** — `/studio/` and `/stage/` — in dev too, and Studio's dev server proxies `/stage` to Stage's so the app has **one dev origin**. This is load-bearing: Tauri's capabilities scope permissions to `URL: local`, and a webview pointed at an *external* URL is remote to the ACL **even on localhost** — a remote webview is denied every command and `event.listen`. One origin keeps both windows local and means there is no `is_dev()` branch in `crates/app`. Do not "simplify" `windows.rs` back to an external dev URL.
 
@@ -33,6 +33,7 @@ npm run test:all       # all three suites
 - `docs/v1/04_ROADMAP.md` — **the v1 build plan.** Thirteen phases with deliverables, per-phase installs, and testable exit criteria; plus the risk register and the decisions that block phases.
 - `docs/v1/03_CONTEXT.md` — the **vocabulary contract**. Read before writing any identifier, UI string, or doc.
 - `docs/questiongame Design System/readme.md` — the Stage visual language, derived from the Figma source. Binding for anything rendered on Stage. Its tokens and decorative SVGs now live in `packages/design-stage/`.
+- `docs/v1/05_STUDIO_DESIGN.md` — **the Studio design system** (P7): tokens and their meaning, the fixed vocabularies (chips, empty states, row actions, toolbar order), the full atom / molecule / organism / template / page catalog with props and variants, and the interaction rules. Binding for anything rendered in the `main` webview. Read it before adding a Studio component; add to its vocabularies rather than inventing at a call site.
 - `docs/v1/02_spec-v1/01..16` — a reading split of the original notes by concern. Each file ends with *This file owns / Depends on / Talks to*.
 - `docs/v1/00_first_spec.txt` — the original brain-dump prompt. **Reference only**; it has gaps and open questions, and its examples are illustrations, not rules.
 - `packages/design-stage/` — questiongame tokens, self-hosted fonts, decorative SVGs, and `stage.css` (the Stage token scope).
@@ -183,6 +184,34 @@ decor · demo · error
 - **`main` gets `PlayStateForStage` + `OperatorState`; `stage` gets the stripped shape.** A leak here is a leak on camera. The event **log** is in neither — Timeline reads it with `play_events`.
 - **Tauri does not gate app-defined commands behind capabilities**, so `guard::allow` is the §5.7 boundary: the `stage` label may call only `STAGE_COMMANDS` (`overlay_ack_complete`, `stage_ready`), and an unknown label is treated as Stage. Keep that list identical to `packages/contract`.
 - `crates/app/src/demo.rs` + `seed_demo_library` are a **dev-build harness** so P6 can be run before P7 has library tabs; §10's sample catalog replaces them.
+
+#### The Studio shell as built (`apps/studio`, P7)
+
+The design file is `docs/v1/05_STUDIO_DESIGN.md`; this is the part a later phase must not undo.
+
+```text
+host/     host.ts (command/on over an injectable HostTransport) · types.ts (wire shapes,
+          mirrored from the Rust serde attributes) · queries.ts (TanStack Query keys + hooks,
+          catalog/recipe/settings/monitors/plays only) · playState.ts (play-state as a
+          useSyncExternalStore store) · commands.ts (useHostCommand: a refusal becomes a
+          notice) · bridge.tsx (the one event subscriber) · fake.ts (in-memory host, the
+          second adapter) · devFake.ts (`?fake` on a dev URL)
+chrome/   nav.ts (typed route stack, back/forward, guard) · chrome.ts (sidebar, theme,
+          grid|table per tab — persisted per operator) · notices.ts (§14 owner) · theme.ts
+copy/     every operator-readable string
+atoms → molecules → organisms → templates → pages   (eslint-enforced, one way)
+```
+
+- **Three stores, three jobs, and none of them is the Play.** TanStack Query holds catalog reads and is invalidated by `catalog-changed` / `recipe-changed` in `bridge.tsx` — no component refetches after a write. `play-state` is `playState.ts`, read with `usePlayState()` by organisms and pages. Zustand holds chrome; `chrome.test.ts` fails on any Play-shaped key. The tests behind the P7 exit criteria are `host/bridge.test.tsx`, `host/queries.test.ts` and `chrome/chrome.test.ts`.
+- **The active operator is host truth** (`settings_get.globals.active_operator_id`, written with `settings_set_global { key: 'active_operator_id' }`). The chrome store keys its per-operator document off it. Pin gating is P10.
+- **`OperatorState.recipeId`** is how Studio knows which recipe a Play runs. The Game page freezes itself when that recipe's Play is `playing|paused`; the top bar names it.
+- **Every interactive atom takes `disabledReason`** and renders it as a tooltip on a still-visible control (§4.2). `SettingRow` turns the host's `disabled` entry into that text with `disabledReasonText`; nothing recomputes an interlock.
+- **A refused command is a notice, never a toast.** `useHostCommand` routes `CatalogError::Invalid`'s `<path>: <reason>` to the field with that path (`noticesAt`); `block` severity opens the dialog; the rest go to the collector and the status bar. There is no Toast in Studio.
+- **Editors are `useDraft` + `useDirtyGuard`** (one form state, dirty by structural comparison, a nav guard until Save / Discard / Keep editing), with `EditorFooter` pinned inside the scroll column. An organism never imports a template — that is a lint error — so editors render their own `PageHeader` and footer and the page wraps them in `RecordPageLayout`.
+- **Organisms may not import `@/templates`**, and atoms/molecules may not import `@/chrome`'s nav or host anything. `LibraryList` takes `RecordView` rows; each page maps its entity to that shape once.
+- **Icons are generated** (`npm run studio:icons` → `atoms/icons.generated.ts`) from the keys in `atoms/icons.ts`; there is no icon runtime and no `@iconify/react`. Calligraph is imported only by `packages/text/src/studio.tsx`.
+- **Fields on panels:** `studio.css` gives fields a hairline edge and, in dark, a lifted background. Do not "restore HeroUI defaults" here — the shipped dark theme makes an unfocused input on a surface invisible.
+- `DevHarness` (dev builds only, under Control) is the P6 harness restyled; P8's Control replaces it.
 
 ### Game rules that constrain the model
 

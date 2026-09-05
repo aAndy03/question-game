@@ -32,6 +32,7 @@ export default defineConfig({
         test: {
           name: 'studio',
           environment: 'jsdom',
+          setupFiles: ['./apps/studio/src/test/setup.ts'],
           include: ['apps/studio/src/**/*.test.{ts,tsx}'],
         },
       },

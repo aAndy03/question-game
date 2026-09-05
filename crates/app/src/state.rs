@@ -33,7 +33,7 @@ use questiongame_host::flags::{Disabled, FlagService, RuntimeContext};
 use questiongame_host::presentation::PresentationService;
 use questiongame_host::settings::OverrideAfterLock;
 use questiongame_host::stage::{PlayStateForStage, StageGameState, project};
-use questiongame_host::{MatchService, Play, StageDisplay, TeamId};
+use questiongame_host::{MatchService, Play, StageDisplay, RecipeId, TeamId};
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
@@ -182,6 +182,9 @@ impl Host {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OperatorState {
+    /// The recipe this Play runs, so Studio can name it in the top bar and
+    /// freeze its Game page. Snapshot truth, not a lookup.
+    pub recipe_id: RecipeId,
     /// Who may receive the token right now (§5.4). The Action Panel greys the
     /// rest rather than letting the host refuse a click.
     pub legal_token_targets: Vec<TeamId>,
@@ -206,6 +209,7 @@ impl OperatorState {
     fn of(host: &Host, play: &Play) -> OperatorState {
         let ctx = host.runtime();
         OperatorState {
+            recipe_id: play.snapshot().recipe_id.clone(),
             legal_token_targets: play.ring().legal_targets(),
             default_next_team_id: play.ring().default_next(),
             consecutive_correct: play.consecutive_correct(),

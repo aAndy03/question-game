@@ -80,4 +80,10 @@
   --text-studio-label--line-height: var(--leading-normal);
   --text-studio-caption: var(--text-xs);
   --text-studio-caption--line-height: var(--leading-tight);
+  /* One large figure on a card (a score, a count). */
+  --text-studio-display: var(--text-3xl);
+  --text-studio-display--line-height: var(--leading-none);
+  /* Ids, codes, chords, durations in ms. */
+  --text-studio-mono: var(--text-xs);
+  --text-studio-mono--line-height: var(--leading-normal);
 }

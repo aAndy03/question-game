@@ -15,12 +15,30 @@
 /* The layers HeroUI and Tailwind leave implicit, made visible and tunable. */
 @import "./tokens/theme.css";
 
-/* globals.css sets --font-sans: var(--font-geist) and expects the app to load
- * Geist. It is not installed yet (P7 decision), so this keeps text readable
- * without silently falling back to a serif. */
+/* globals.css sets --font-sans: var(--font-geist). Geist is self-hosted from
+ * @fontsource-variable/geist (P7): the app is offline-first and must never
+ * fetch a font. The system stack stays as the fallback. */
+@import "@fontsource-variable/geist";
+
 :root {
-  --font-geist: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  --font-geist: "Geist Variable", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Studio fields sit on panels (--surface), not on the page background the
+ * way HeroUI's demos do. In dark, globals.css gives fields the same colour as
+ * a surface, so an unfocused input on a panel vanishes. Lift it one step —
+ * the value of --surface-secondary — and give every field a hairline edge in
+ * both themes so a panel full of inputs still reads as a form. Recorded in
+ * docs/v1/05_STUDIO_DESIGN.md §2.1. */
+:root {
+  --field-border: var(--border);
+  --field-border-width: 1px;
+}
+
+.dark,
+[data-theme="dark"] {
+  --field-background: oklch(25.7% 0.0023 253.83);
 }
 
 html,

@@ -1,1 +1,31 @@
-export {}
+/**
+ * Studio molecules — two to five atoms bound to one job
+ * (docs/v1/05_STUDIO_DESIGN.md §4.2). Local presentational state only; no
+ * play-state, no host calls (enforced in eslint.config.js).
+ */
+
+export { PageHeader, type PageHeaderProps } from './PageHeader'
+export { ViewSwitch, type ViewSwitchProps } from './ViewSwitch'
+export { ArchiveToggle, type ArchiveToggleProps, type ArchiveView } from './ArchiveToggle'
+export { SearchField, type SearchFieldProps } from './SearchField'
+export { EmptyState, type EmptyStateProps, type EmptyKind } from './EmptyState'
+export { InlineNotice, type InlineNoticeProps, type ConfirmFrameView } from './InlineNotice'
+export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog'
+export { DirtyGuard, type DirtyGuardProps } from './DirtyGuard'
+export { ScopeConfirm, type ScopeConfirmProps } from './ScopeConfirm'
+export { SidebarItem, type SidebarItemProps } from './SidebarItem'
+export { NavCrumbs, type NavCrumbsProps, type Crumb } from './NavCrumbs'
+export { MetaList, type MetaListProps, type MetaItem } from './MetaList'
+export { StatCard, type StatCardProps } from './StatCard'
+export { SettingRow, disabledReasonText, type SettingRowProps } from './SettingRow'
+export { TeamMark, type TeamMarkProps } from './TeamMark'
+export { OperatorBadge, type OperatorBadgeProps } from './OperatorBadge'
+export { PlayStatusPill, type PlayStatusPillProps } from './PlayStatusPill'
+export { ActionMenu, type ActionMenuProps, type ActionItem } from './ActionMenu'
+export { RecordRow, type RecordRowProps, type RecordLayout } from './RecordRow'
+export { BulkBar, type BulkBarProps } from './BulkBar'
+export { DifficultyField, type DifficultyFieldProps } from './DifficultyField'
+export { OptionRow, type OptionRowProps } from './OptionRow'
+export { DomainForm, suggestDomainCode, type DomainFormProps, type DomainFormValue } from './DomainForm'
+export { DomainPicker, type DomainPickerProps, type PickableDomain } from './DomainPicker'
+export { EditorFooter, type EditorFooterProps } from './EditorFooter'

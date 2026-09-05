@@ -312,6 +312,9 @@ export const EMPTY_PLAY_STATE: PlayStateForStage = {
  * second for a countdown is not a wire format.
  */
 export interface OperatorState {
+  /** The recipe this Play runs (snapshot truth). Names the top bar; freezes
+   * the recipe's Game page while the Play is open. */
+  readonly recipeId: string
   /** Who may receive the token right now (spec §5.4). Control greys the rest
    * rather than letting the host refuse a click. */
   readonly legalTokenTargets: readonly string[]

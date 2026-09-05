@@ -1,5 +1,22 @@
+/* Tailwind first, then HeroUI's compiled styles, then the Studio token scope
+ * (globals.css overrides HeroUI's theme variables, so it has to come after). */
 @import "tailwindcss";
+@import "@heroui/styles";
 
-/* The Studio token scope. Loading design-stage here is a lint error
- * (optimized_first_spec.md §2.30). */
+/* Loading design-stage here is a lint error (optimized_first_spec.md §2.30). */
 @import "@questiongame/design-studio/studio.css";
+
+/* Tailwind only scans this app's sources; HeroUI ships compiled CSS and needs
+ * no @source. The packages below carry utilities of their own. */
+@source "../../../packages/design-studio";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
