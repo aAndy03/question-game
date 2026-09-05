@@ -333,6 +333,23 @@ describe('Screen transitions', () => {
     expect((container.querySelector('[data-decor-field]') as HTMLElement).dataset.decorField).toBe('teamOrder')
   })
 
+  it('the header is hidden again after returning to a screen without one, and stays hidden there', () => {
+    const header = (c: HTMLElement) => c.querySelector('[data-stage-header]') as HTMLElement
+    const { container, rerender } = render(<StageRoot state={FIXTURES.idle} />)
+    expect(header(container).style.visibility).toBe('hidden')
+    rerender(<StageRoot state={FIXTURES['team-order']} />)
+    expect(header(container).style.visibility).not.toBe('hidden')
+    rerender(<StageRoot state={FIXTURES.idle} />)
+    expect(header(container).style.visibility).toBe('hidden')
+    rerender(<StageRoot state={FIXTURES.scoreboard} />)
+    rerender(<StageRoot state={FIXTURES['current-team']} />)
+    expect(header(container).style.visibility).toBe('hidden')
+    rerender(<StageRoot state={FIXTURES['question-issued']} />)
+    expect(header(container).style.visibility).not.toBe('hidden')
+    rerender(<StageRoot state={FIXTURES['current-team']} />)
+    expect(header(container).style.visibility).toBe('hidden')
+  })
+
   it('a re-render with the same screen is not a transition', () => {
     const { rerender } = render(<StageRoot state={FIXTURES['question-issued']} />)
     rerender(<StageRoot state={FIXTURES['question-stem-revealed']} />)

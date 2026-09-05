@@ -10,7 +10,7 @@
 import gsap from 'gsap'
 import { animKey, type StageScreen } from '@questiongame/contract'
 import { stageEvents } from '@/host/events'
-import { clearInline } from './beats'
+import { clearLayer, clearParts, headerAcross } from './beats'
 import { transitionFor } from './transitions'
 import type { TransitionContext } from './types'
 
@@ -33,13 +33,16 @@ export function runTransition(ctx: TransitionContext, onComplete: () => void): R
   const complete = () => {
     if (done) return
     done = true
-    // The layers are reused by the next timeline; leave no inline residue.
-    clearInline(ctx.incoming, ctx.header, ctx.decor)
+    // The layers are reused by the next timeline; leave no animated residue.
+    clearLayer(ctx.incoming)
+    clearParts(ctx.header, ctx.decor, ...ctx.incoming.querySelectorAll<HTMLElement>('[data-node-id], [data-decor-solid], [role="separator"]'))
     onComplete()
     stageEvents.emit('anim-complete', { key })
   }
 
   const tl = transitionFor(ctx.from, ctx.to)(ctx)
+  // The header's show/hide belongs to the runner, not to a pair.
+  headerAcross(tl, ctx.header, ctx.from, ctx.to)
   tl.eventCallback('onComplete', complete)
   if (motionConfig.immediate) tl.progress(1, false)
 

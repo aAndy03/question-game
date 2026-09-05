@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { animKey, screenPairs } from '@questiongame/contract'
 import { stageEvents } from '@/host/events'
-import { AUTHORED, allTransitions, isAuthored, motionConfig, runTransition, transitionFor } from './index'
-import { crossfade } from './transitions'
+import { STAGE_SCREENS } from '@questiongame/contract'
+import { AUTHORED, SCREEN_MOTION, allTransitions, composed, hasHeader, isBespoke, motionConfig, runTransition, transitionFor } from './index'
 
 function layers() {
   const outgoing = document.createElement('div')
@@ -21,11 +21,20 @@ describe('transition registry', () => {
     expect(allTransitions().length).toBe(42)
   })
 
-  it('idle → teamOrder is authored; the rest fall back to the crossfade for now', () => {
-    expect(isAuthored('idle', 'teamOrder')).toBe(true)
-    expect(transitionFor('idle', 'teamOrder')).not.toBe(crossfade)
-    expect(transitionFor('teamOrder', 'idle')).toBe(crossfade)
-    expect(Object.keys(AUTHORED)).toEqual(['idle>teamOrder'])
+  it('every screen has an enter and an exit, and every pair composes them unless bespoke', () => {
+    for (const s of STAGE_SCREENS) {
+      expect(typeof SCREEN_MOTION[s].enter).toBe('function')
+      expect(typeof SCREEN_MOTION[s].exit).toBe('function')
+    }
+    expect(transitionFor('idle', 'teamOrder')).toBe(composed)
+    expect(isBespoke('idle', 'teamOrder')).toBe(false)
+    expect(Object.keys(AUTHORED)).toEqual([])
+  })
+
+  it('knows which screens carry the header', () => {
+    expect(hasHeader('idle')).toBe(false)
+    expect(hasHeader('currentTeam')).toBe(false)
+    for (const s of ['teamOrder', 'chooseDomain', 'question', 'scoreboard', 'finalLeaderboard'] as const) expect(hasHeader(s)).toBe(true)
   })
 })
 
@@ -75,9 +84,18 @@ describe('runTransition', () => {
     runTransition({ from: 'idle', to: 'teamOrder', ...l, swapDecor: () => {} }, () => {})
     for (const el of [l.incoming, l.header, l.decor]) {
       const style = el.getAttribute('style') ?? ''
-      expect(style).not.toMatch(/opacity|visibility|transform|translate/)
+      expect(style).not.toMatch(/opacity|transform|translate/)
     }
     expect(l.header.style.display).toBe('flex')
     expect(l.decor.style.position).toBe('absolute')
+  })
+
+  it('never clears a React-owned visibility: a hidden header stays hidden across pairs', () => {
+    const l = layers()
+    l.header.style.visibility = 'hidden' // React: the incoming screen has no header
+    runTransition({ from: 'teamOrder', to: 'idle', ...l, swapDecor: () => {} }, () => {})
+    expect(l.header.style.visibility).toBe('hidden')
+    runTransition({ from: 'idle', to: 'currentTeam', ...l, swapDecor: () => {} }, () => {})
+    expect(l.header.style.visibility).toBe('hidden')
   })
 })

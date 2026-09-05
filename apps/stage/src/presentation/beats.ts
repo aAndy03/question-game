@@ -8,6 +8,7 @@
  */
 
 import gsap from 'gsap'
+import { SCREEN_SLOTS, type StageScreen } from '@questiongame/contract'
 
 export const EASE_OUT = 'power3.out'
 export const EASE_IN = 'power2.in'
@@ -44,20 +45,37 @@ export function fadeIn(tl: gsap.core.Timeline, target: Target, at: gsap.Position
   tl.fromTo(target, { autoAlpha: 0 }, { autoAlpha: 1, duration, ease: EASE_OUT }, at)
 }
 
-/** Items rise into place one after another (rows, cards, options). */
+/**
+ * Items rise into place one after another (rows, cards, options). Opacity,
+ * not autoAlpha: some items are hidden-but-mounted under React's own
+ * `visibility`, and this must not override it.
+ */
 export function riseIn(tl: gsap.core.Timeline, targets: Target, at: gsap.Position = 0, distance = 32) {
   tl.fromTo(
     targets,
-    { y: distance, autoAlpha: 0 },
-    { y: 0, autoAlpha: 1, duration: D.item, ease: EASE_OUT, stagger: D.stagger },
+    { y: distance, opacity: 0 },
+    { y: 0, opacity: 1, duration: D.item, ease: EASE_OUT, stagger: D.stagger },
     at,
   )
 }
 
-/** The header drops in from above the rule. */
-export function headerIn(tl: gsap.core.Timeline, header: HTMLElement | null, at: gsap.Position = 0) {
+/** Whether a screen shows the persistent header (it has a `header` slot). */
+export function hasHeader(screen: StageScreen): boolean {
+  return 'header' in SCREEN_SLOTS[screen]
+}
+
+/**
+ * The header's own beat across a pair: it drops in when the incoming screen
+ * has one and the outgoing did not, lifts away in the opposite case, and is
+ * left alone otherwise. Opacity and position only: React owns its
+ * `visibility`, which flips with the presented screen at the decor swap.
+ */
+export function headerAcross(tl: gsap.core.Timeline, header: HTMLElement | null, from: StageScreen, to: StageScreen) {
   if (!header) return
-  tl.fromTo(header, { y: -16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: D.header, ease: EASE_OUT }, at)
+  const was = hasHeader(from)
+  const will = hasHeader(to)
+  if (!was && will) tl.fromTo(header, { y: -16, opacity: 0 }, { y: 0, opacity: 1, duration: D.header, ease: EASE_OUT }, 0.3)
+  else if (was && !will) tl.to(header, { y: -16, opacity: 0, duration: D.header, ease: EASE_IN }, 0)
 }
 
 /**
@@ -78,10 +96,19 @@ export function decorSwap(tl: gsap.core.Timeline, decor: HTMLElement | null, swa
 /**
  * Clear what a timeline animated, so a layer is clean for the next one.
  * Only the animated properties: React owns the rest of the inline style
- * (layout), and `clearProps: 'all'` would wipe that too.
+ * (layout, and `visibility` on hidden-but-mounted nodes), and clearing
+ * those would silently undo what React set, because React does not
+ * re-apply a style value it believes is unchanged.
  */
-export const ANIMATED_PROPS = 'opacity,visibility,transform,translate,rotate,scale'
+export const LAYER_PROPS = 'opacity,visibility,transform,translate,rotate,scale'
+export const PART_PROPS = 'opacity,transform,translate,rotate,scale'
 
-export function clearInline(...targets: (Target | null)[]) {
-  for (const t of targets) if (t) gsap.set(t, { clearProps: ANIMATED_PROPS })
+/** A page layer: nothing of React's is on it but layout. */
+export function clearLayer(...targets: (Target | null)[]) {
+  for (const t of targets) if (t) gsap.set(t, { clearProps: LAYER_PROPS })
+}
+
+/** A React-owned node (header, decor layer, page parts): keep its visibility. */
+export function clearParts(...targets: (Target | null)[]) {
+  for (const t of targets) if (t) gsap.set(t, { clearProps: PART_PROPS })
 }

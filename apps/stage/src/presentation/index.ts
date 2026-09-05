@@ -1,4 +1,6 @@
 export { runTransition, motionConfig, type RunningTransition } from './presentation'
-export { transitionFor, isAuthored, allTransitions, AUTHORED } from './transitions'
+export { transitionFor, isBespoke, allTransitions, AUTHORED, composed } from './transitions'
+export { SCREEN_MOTION, type ScreenMotion } from './screens'
+export { hasHeader } from './beats'
 export { pairKey, type PairKey, type TransitionContext, type TransitionFactory } from './types'
 export { D as MOTION_DURATIONS } from './beats'
