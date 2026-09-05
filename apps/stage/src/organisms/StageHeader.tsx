@@ -1,4 +1,4 @@
-import { nodeId, SCREEN_SLOTS, type PlayStateForStage } from '@questiongame/contract'
+import { nodeId, SCREEN_SLOTS, type PlayStateForStage, type StageScreen } from '@questiongame/contract'
 import { SPACE } from '@questiongame/design-stage'
 import { ClockDigits, Rule, Text, insetBorder } from '@/atoms'
 import { resolveCopy } from '@/copy'
@@ -17,11 +17,13 @@ import { resolveCopy } from '@/copy'
 
 export interface StageHeaderProps {
   state: PlayStateForStage
+  /** The screen being presented; defaults to `state.currentScreen`. */
+  screen?: StageScreen | undefined
 }
 
-export function StageHeader({ state }: StageHeaderProps) {
+export function StageHeader({ state, screen: presented }: StageHeaderProps) {
   const copy = resolveCopy()
-  const screen = state.currentScreen
+  const screen = presented ?? state.currentScreen
   const hasHeader = 'header' in SCREEN_SLOTS[screen]
   const id = hasHeader ? nodeId(screen as 'teamOrder', 'header') : undefined
 

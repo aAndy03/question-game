@@ -1,6 +1,7 @@
-import type { ComponentType } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType } from 'react'
 import { STAGE_SCREENS, type PlayStateForStage, type StageScreen } from '@questiongame/contract'
 import { Text } from '@/atoms'
+import { runTransition, type RunningTransition } from '@/presentation'
 import { DecorField, OverlayLayer, StageHeader } from '@/organisms'
 import { StageFrame } from '@/templates'
 import { IdlePage } from './Idle'
@@ -13,9 +14,17 @@ import { CurrentTeamPage } from './CurrentTeam'
 
 /**
  * The Stage tree. One frame for the life of the window; the persistent slots
- * (header, decor) mount here, outside any page, so a screen change swaps only
- * the body (contract §3). The page for the current screen comes from the
- * registry — adding a screen is one page file plus one entry.
+ * (header, decor, overlay) mount here, outside any page, so a screen change
+ * swaps only the body (contract §3). The page for the current screen comes
+ * from the registry — adding a screen is one page file plus one entry.
+ *
+ * Screen changes are transitions (presentation/): when `currentScreen` changes,
+ * the outgoing page stays mounted in a lower layer with the play-state it
+ * last had, the incoming page mounts on top, and one timeline plays over
+ * both plus the header and decor. The decor world swaps when the timeline
+ * says so, not when React renders. On completion the outgoing layer is
+ * dropped and `anim-complete` fires once. A jump during a transition
+ * finishes the running one first, then starts the next from the new pair.
  */
 
 export interface StagePageProps {
@@ -45,20 +54,100 @@ function Unbuilt({ state }: StagePageProps) {
   )
 }
 
+interface Leaving {
+  readonly screen: StageScreen
+  readonly state: PlayStateForStage
+}
+
 export interface StageRootProps {
   state: PlayStateForStage
 }
 
 export function StageRoot({ state }: StageRootProps) {
-  const Page = PAGES[state.currentScreen] ?? Unbuilt
+  const screen = state.currentScreen
+  const Page = PAGES[screen] ?? Unbuilt
+
+  // The page that is on its way out, frozen with the last state it drew.
+  const [leaving, setLeaving] = useState<Leaving | null>(null)
+  // Which screen the persistent slots present; flips mid-transition.
+  const [presented, setPresented] = useState<StageScreen>(screen)
+
+  const shown = useRef(screen)
+  const lastState = useRef(state)
+  const running = useRef<RunningTransition | null>(null)
+  const frame = useRef<HTMLDivElement | null>(null)
+  const incomingLayer = useRef<HTMLDivElement | null>(null)
+  const outgoingLayer = useRef<HTMLDivElement | null>(null)
+
+  // Detect a screen change before paint, so the outgoing layer is mounted
+  // in the same commit as the incoming one.
+  useLayoutEffect(() => {
+    if (shown.current === screen) {
+      lastState.current = state
+      return
+    }
+    const from = shown.current
+    shown.current = screen
+    // A jump mid-transition: finish the running one now, then start the new pair.
+    running.current?.finish()
+    running.current = null
+    setLeaving({ screen: from, state: lastState.current })
+    lastState.current = state
+  }, [screen, state])
+
+  // Play the transition once both layers exist.
+  useEffect(() => {
+    if (!leaving || !incomingLayer.current) return
+    const root = frame.current
+    const ctx = {
+      from: leaving.screen,
+      to: screen,
+      outgoing: outgoingLayer.current,
+      incoming: incomingLayer.current,
+      header: root?.querySelector<HTMLElement>('[data-stage-header]') ?? null,
+      decor: root?.querySelector<HTMLElement>('[data-stage-decor]') ?? null,
+      swapDecor: () => setPresented(screen),
+    }
+    const run = runTransition(ctx, () => {
+      running.current = null
+      setPresented(screen)
+      setLeaving(null)
+    })
+    running.current = run
+    return () => {
+      // Layers changed under a running timeline (another jump): it was
+      // already finished by the layout effect; nothing to do.
+    }
+  }, [leaving, screen])
+
+  const LeavingPage = leaving ? (PAGES[leaving.screen] ?? Unbuilt) : null
+  const headerState = presented === screen ? state : (leaving?.state ?? state)
+
   return (
-    <StageFrame
-      screen={state.currentScreen}
-      header={<StageHeader state={state} />}
-      decor={<DecorField state={state} />}
-      overlay={<OverlayLayer state={state} />}
-    >
-      <Page state={state} />
-    </StageFrame>
+    <div ref={frame} style={{ display: 'contents' }}>
+      <StageFrame
+        screen={screen}
+        header={<StageHeader state={headerState} screen={presented} />}
+        decor={<DecorField state={state} screen={presented} />}
+        overlay={<OverlayLayer state={state} />}
+      >
+        {leaving && LeavingPage ? (
+          <div ref={outgoingLayer} data-screen-layer="outgoing" data-screen={leaving.screen} style={LAYER}>
+            <LeavingPage state={leaving.state} />
+          </div>
+        ) : null}
+        <div key={screen} ref={incomingLayer} data-screen-layer="current" data-screen={screen} style={LAYER}>
+          <Page state={state} />
+        </div>
+      </StageFrame>
+    </div>
   )
 }
+
+/** Both page layers fill the body and stack; the incoming one is on top. */
+const LAYER = {
+  position: 'absolute',
+  inset: 0,
+  display: 'flex',
+  flexDirection: 'column',
+} as const

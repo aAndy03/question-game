@@ -12,11 +12,13 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
+    "@gsap/react": "^2.1.2",
     "@heroui/react": "^3.2.4",
     "@heroui/styles": "^3.2.4",
     "@questiongame/contract": "*",
     "@questiongame/design-stage": "*",
     "@questiongame/text": "*",
+    "gsap": "^3.15.0",
     "matter-js": "^0.20.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

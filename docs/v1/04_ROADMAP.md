@@ -248,13 +248,13 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 
 ---
 
-## P3 — Stage motion  ☐
+## P3 — Stage motion  ◐
 
 **Install:** [`gsap`](https://gsap.com/docs/v3), [`@gsap/react`](https://gsap.com/resources/React), [`calligraph`](https://calligraph.raphaelsalaja.com).
 
 **Deliverables**
 
-- Base transition for **every** `(from, to)` pair across seven screens. Shared beats authored once; each pair composes them.
+- Base transition for **every** `(from, to)` pair across seven screens. Shared beats authored once (`apps/stage/src/presentation/beats.ts`); each pair composes them. **Structure in place (2026-09-04):** a registry (`presentation/transitions/`) resolves all 42 pairs — authored pairs by key, every other pair to a default crossfade with a decor handover, so nothing is ever unanimated; `StageRoot` keeps the outgoing page mounted in a lower layer with its last play-state while the incoming one mounts on top, the decor world swaps when the timeline says so, and `runTransition` reports `anim-complete` exactly once (a jump mid-transition finishes the running one first). Authored so far: `idle>teamOrder`.
 - Overlay layer: draws over the live screen, never remounts it, never resets reveal/select/lock. Lives on organisms (rule 4 above).
 - Overlay queue: current runs to completion; pending depth exactly 1; newer pending replaces older; never `kill()` mid-beat; no base transition under a running overlay.
 - Reveal layer addressed by P1 reveal keys: stem → options one by one → outcome; leaderboard lowest rank first.

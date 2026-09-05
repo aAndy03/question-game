@@ -59,7 +59,7 @@ export function StageFrame({ header, decor, overlay, children, screen }: StageFr
         <div data-stage-header-slot style={{ flex: '0 0 auto' }}>
           {header}
         </div>
-        <div data-stage-body style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div data-stage-body style={{ position: 'relative', flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           {children}
         </div>
       </div>

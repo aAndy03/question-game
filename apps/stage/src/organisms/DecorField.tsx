@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { nodeId, type PlayStateForStage, type StageDecorSettings } from '@questiongame/contract'
+import { nodeId, type PlayStateForStage, type StageDecorSettings, type StageScreen } from '@questiongame/contract'
 import { DecorShape, type DecorShapeBody } from '@/atoms'
 import {
   decorSpecFor,
@@ -62,6 +62,9 @@ const solidsKey = (s: readonly DecorBoundary[]) => s.map((r) => `${r.x},${r.y},$
 
 export interface DecorFieldProps {
   state: PlayStateForStage
+  /** The screen whose decor to show. During a transition the timeline flips
+   * it mid-way; otherwise it is `state.currentScreen`. */
+  screen?: StageScreen | undefined
 }
 
 /** A stable identity for the settings object, so equal values share a world. */
@@ -70,8 +73,8 @@ function settingsKey(s: StageDecorSettings): string {
   return [s.mode, s.drift, s.attraction, s.bounce, s.spin, s.maxSpeed, a.enabled, a.attractSeconds, a.repelSeconds, a.strength].join('|')
 }
 
-export function DecorField({ state }: DecorFieldProps) {
-  const screen = state.currentScreen
+export function DecorField({ state, screen: presented }: DecorFieldProps) {
+  const screen = presented ?? state.currentScreen
   const seed = seedFromPlay(state)
   const settings = state.decor
   const key = settingsKey(settings)

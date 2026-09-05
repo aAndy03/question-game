@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
 import { FIXTURES, SCREEN_SLOTS, leaderboard, nodeId } from '@questiongame/contract'
 import { decorOpacity, decorSpecFor } from '@/decor'
 import { STAGE_COPY } from '@/copy'
 import { BUILT_SCREENS, StageRoot } from './index'
+import { motionConfig } from '@/presentation'
+import { stageEvents } from '@/host/events'
 
 const byNode = (root: HTMLElement, id: string) => root.querySelector(`[data-node-id="${id}"]`) as HTMLElement | null
 
@@ -302,6 +304,49 @@ describe('Overlays draw over the live screen', () => {
       expect(byNode(container, nodeId('question', 'result'))!.style.visibility).not.toBe('hidden')
     })
   }
+})
+
+describe('Screen transitions', () => {
+  const events: string[] = []
+  let off = () => {}
+  beforeEach(() => {
+    motionConfig.immediate = true
+    events.length = 0
+    off = stageEvents.on('anim-complete', ({ key }) => events.push(key))
+  })
+  afterEach(() => {
+    off()
+    motionConfig.immediate = false
+  })
+
+  it('idle → teamOrder: the incoming page mounts, the outgoing one leaves after the timeline, anim-complete fires once', () => {
+    const { container, rerender } = render(<StageRoot state={FIXTURES.idle} />)
+    expect(container.querySelector('[data-screen-layer="outgoing"]')).toBeNull()
+    rerender(<StageRoot state={FIXTURES['team-order']} />)
+    // Immediate mode: the timeline has already completed inside the effect.
+    expect(container.querySelector('[data-screen-layer="outgoing"]')).toBeNull()
+    expect((container.querySelector('[data-screen-layer="current"]') as HTMLElement).dataset.screen).toBe('teamOrder')
+    expect(byNode(container, nodeId('teamOrder', 'title'))).toBeTruthy()
+    expect(events).toEqual(['transition:idle>teamOrder'])
+    // The persistent slots follow: header visible, decor rebuilt for teamOrder.
+    expect((container.querySelector('[data-stage-header]') as HTMLElement).style.visibility).not.toBe('hidden')
+    expect((container.querySelector('[data-decor-field]') as HTMLElement).dataset.decorField).toBe('teamOrder')
+  })
+
+  it('a re-render with the same screen is not a transition', () => {
+    const { rerender } = render(<StageRoot state={FIXTURES['question-issued']} />)
+    rerender(<StageRoot state={FIXTURES['question-stem-revealed']} />)
+    rerender(<StageRoot state={FIXTURES['question-locked']} />)
+    expect(events).toEqual([])
+  })
+
+  it('every pair plays through the same path and reports its own key', () => {
+    const { rerender } = render(<StageRoot state={FIXTURES.idle} />)
+    rerender(<StageRoot state={FIXTURES['choose-domain']} />)
+    rerender(<StageRoot state={FIXTURES.scoreboard} />)
+    rerender(<StageRoot state={FIXTURES.idle} />)
+    expect(events).toEqual(['transition:idle>chooseDomain', 'transition:chooseDomain>scoreboard', 'transition:scoreboard>idle'])
+  })
 })
 
 describe('Stage root', () => {
