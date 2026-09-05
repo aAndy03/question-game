@@ -12,6 +12,12 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::{MatchError, MatchResult};
+
+fn illegal(key: &'static str, reason: &'static str) -> MatchError {
+    MatchError::IllegalSettings { key, reason }
+}
+
 /// §2.3. `LockSpeed` is the *exclusive* mode; the same speed factor also exists
 /// as an option on the other two (`ScoringSettings::lock_speed_enabled`). Never
 /// apply it twice.
@@ -52,6 +58,33 @@ pub struct DifficultyBand {
 }
 
 impl DifficultyMap {
+    /// A map has to be a map: an empty band table awards nothing at every
+    /// difficulty, and a bound outside 1-100 names a difficulty that cannot
+    /// exist (§4.1).
+    pub fn validate(&self) -> MatchResult<()> {
+        match self {
+            DifficultyMap::Linear { factor } if !factor.is_finite() || *factor < 0.0 => {
+                Err(illegal(
+                    "scoring.difficulty_map",
+                    "the linear factor must be finite and >= 0",
+                ))
+            }
+            DifficultyMap::Bands { bands } if bands.is_empty() => Err(illegal(
+                "scoring.difficulty_map",
+                "a band table needs at least one band",
+            )),
+            DifficultyMap::Bands { bands }
+                if bands.iter().any(|b| b.up_to == 0 || b.up_to > 100) =>
+            {
+                Err(illegal(
+                    "scoring.difficulty_map",
+                    "every band bound must be a difficulty, 1-100",
+                ))
+            }
+            _ => Ok(()),
+        }
+    }
+
     pub fn points(&self, difficulty: u8) -> u32 {
         match self {
             DifficultyMap::Linear { factor } => {
@@ -104,6 +137,43 @@ impl ScoringSettings {
     pub fn uses_lock_speed(&self) -> bool {
         matches!(self.mode, ScoringMode::LockSpeed) || self.lock_speed_enabled
     }
+
+    /// True when this scoring path reads `flat_points` as its base.
+    pub fn uses_flat_base(&self) -> bool {
+        match self.mode {
+            ScoringMode::Flat => true,
+            ScoringMode::Difficulty => false,
+            ScoringMode::LockSpeed => matches!(self.lock_speed_base, LockSpeedBase::Flat),
+        }
+    }
+
+    /// True when this scoring path reads `difficulty_map` as its base.
+    pub fn uses_difficulty_base(&self) -> bool {
+        match self.mode {
+            ScoringMode::Flat => false,
+            ScoringMode::Difficulty => true,
+            ScoringMode::LockSpeed => matches!(self.lock_speed_base, LockSpeedBase::Difficulty),
+        }
+    }
+
+    /// The §4.2 interlocks that live on this group. A combination that cannot
+    /// mean anything is refused; a value that is merely unused is kept, because
+    /// §4.2 says so outright ("Option off: weight slider disabled; stored weight
+    /// kept").
+    pub fn validate(&self) -> MatchResult<()> {
+        // Lock-speed is an exclusive mode *or* an option on the other two
+        // (§2.3). Both at once would apply the speed factor twice.
+        if matches!(self.mode, ScoringMode::LockSpeed) && self.lock_speed_enabled {
+            return Err(illegal(
+                "scoring.lock_speed.enabled",
+                "lock-speed is already the mode; the option would apply it twice",
+            ));
+        }
+        if !self.speed_weight.is_finite() || self.speed_weight < 0.0 {
+            return Err(illegal("scoring.speed_weight", "must be finite and >= 0"));
+        }
+        self.difficulty_map.validate()
+    }
 }
 
 /// Both default to `false` (§2.5): no partial credit, and `{A,C}` equals
@@ -132,6 +202,40 @@ pub struct TurnSettings {
     pub bonus_after_consecutive: Option<ConsecutiveBonus>,
 }
 
+impl TurnSettings {
+    /// The §4.4 interlocks between the cap and the bonus.
+    pub fn validate(&self) -> MatchResult<()> {
+        // A cap of zero would end the token before the team answered anything,
+        // and a bonus at zero corrects would pay for nothing.
+        if self.max_consecutive_correct == Some(0) {
+            return Err(illegal(
+                "turn.max_consecutive_correct",
+                "a cap of 0 would end the token before an answer; clear it instead",
+            ));
+        }
+        let Some(bonus) = self.bonus_after_consecutive else {
+            return Ok(());
+        };
+        if bonus.count == 0 {
+            return Err(illegal(
+                "turn.bonus_after_consecutive",
+                "the streak must be at least 1 answer long",
+            ));
+        }
+        // The cap ends the token *at* n corrects and the bonus lands *at*
+        // count, so count > cap is a bonus that can never be paid.
+        if let Some(cap) = self.max_consecutive_correct
+            && bonus.count > cap
+        {
+            return Err(illegal(
+                "turn.bonus_after_consecutive",
+                "the streak is longer than the cap, so the bonus can never be reached",
+            ));
+        }
+        Ok(())
+    }
+}
+
 /// One level of the §2.18 cascade. `None` means "this level says nothing";
 /// the next level down decides.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -146,6 +250,18 @@ impl TimerLevel {
             enabled: Some(enabled),
             duration_ms: Some(duration_ms),
         }
+    }
+
+    /// A countdown of zero is not operator pace. Turning `enabled` off is how
+    /// an operator asks for that, and the host will not guess (§2.18).
+    pub fn validate(&self, key: &'static str) -> MatchResult<()> {
+        if self.duration_ms == Some(0) {
+            return Err(illegal(
+                key,
+                "0 is not a countdown; turn the timer off for operator pace",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -176,6 +292,13 @@ impl Default for TimerCascade {
 }
 
 impl TimerCascade {
+    /// Both levels, each named by its own §4.2 key so a notice can point at
+    /// the field the operator actually edited.
+    pub fn validate(&self) -> MatchResult<()> {
+        self.globals.validate("globals.timer.duration_ms")?;
+        self.recipe.validate("timer.duration_ms")
+    }
+
     pub fn enabled(&self) -> bool {
         self.recipe.enabled.or(self.globals.enabled).unwrap_or(true)
     }
@@ -201,6 +324,106 @@ pub struct FrozenSettings {
     pub judging: JudgingSettings,
     pub turn: TurnSettings,
     pub timer: TimerCascade,
+}
+
+impl FrozenSettings {
+    /// The §4.2 interlocks over a resolved copy.
+    ///
+    /// `FlagService` runs the same checks before a key is ever written, so a
+    /// snapshot built through it is legal by construction. This is the second
+    /// line: `play_load` calls it, because a snapshot can also arrive from an
+    /// older database row, and a Play that starts on an illegal document would
+    /// score wrong for its whole life rather than fail loudly at the start.
+    pub fn validate(&self) -> MatchResult<()> {
+        self.scoring.validate()?;
+        self.turn.validate()?;
+        self.timer.validate()
+    }
+}
+
+/// One of the four reveal channels (§4.2). Mirrors `RevealChannel` in
+/// `packages/contract/src/reveal.ts`: `answers` covers every option, so there
+/// is no per-option mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RevealChannel {
+    Question,
+    Answers,
+    Outcome,
+    Leaderboard,
+}
+
+impl RevealChannel {
+    pub const ALL: [RevealChannel; 4] = [
+        RevealChannel::Question,
+        RevealChannel::Answers,
+        RevealChannel::Outcome,
+        RevealChannel::Leaderboard,
+    ];
+
+    /// The §4.2 settings key, which is also the notice `target_path` (§14).
+    pub fn key(self) -> &'static str {
+        match self {
+            RevealChannel::Question => "reveal.question",
+            RevealChannel::Answers => "reveal.answers",
+            RevealChannel::Outcome => "reveal.outcome",
+            RevealChannel::Leaderboard => "reveal.leaderboard",
+        }
+    }
+}
+
+/// Who advances a reveal. `Operator` is the default everywhere (§4.2): the
+/// show is operator-timed, and auto is the opt-in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RevealMode {
+    #[default]
+    Operator,
+    Auto,
+}
+
+impl RevealMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            RevealMode::Operator => "operator",
+            RevealMode::Auto => "auto",
+        }
+    }
+}
+
+/// The four channels, each independently operator or auto. Serializes as the
+/// `revealModes` record `PlayStateForStage` carries — a `Record<RevealChannel,
+/// RevealMode>`, which is exactly these four keys.
+///
+/// Both a Game default and Control-behaviour (§4.2): the recipe carries the
+/// opening value and the operator may change it mid-Play, so this is *not* in
+/// [`FrozenSettings`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct RevealSettings {
+    pub question: RevealMode,
+    pub answers: RevealMode,
+    pub outcome: RevealMode,
+    pub leaderboard: RevealMode,
+}
+
+impl RevealSettings {
+    pub fn get(&self, channel: RevealChannel) -> RevealMode {
+        match channel {
+            RevealChannel::Question => self.question,
+            RevealChannel::Answers => self.answers,
+            RevealChannel::Outcome => self.outcome,
+            RevealChannel::Leaderboard => self.leaderboard,
+        }
+    }
+
+    pub fn set(&mut self, channel: RevealChannel, mode: RevealMode) {
+        match channel {
+            RevealChannel::Question => self.question = mode,
+            RevealChannel::Answers => self.answers = mode,
+            RevealChannel::Outcome => self.outcome = mode,
+            RevealChannel::Leaderboard => self.leaderboard = mode,
+        }
+    }
 }
 
 /// §2.6. Control-behaviour, so it may change mid-Play.

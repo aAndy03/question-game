@@ -109,6 +109,19 @@ pub enum MatchError {
     #[error("{0} is frozen for the life of this play")]
     SettingFrozen(&'static str),
 
+    /// §4.2: the write would leave an illegal settings document, so it was
+    /// refused whole. `key` is the settings path, which is the notice
+    /// `target_path` (§14) — the field the operator has to look at.
+    #[error("{key}: {reason}")]
+    IllegalSettings {
+        key: &'static str,
+        reason: &'static str,
+    },
+
+    /// A Current-game settings write with no recipe in Control (§11.L L3).
+    #[error("no recipe is loaded into control")]
+    NoRecipeLoaded,
+
     /// A feature root under `feat.*` is off (§2.16). `FlagService` owns the
     /// flags; `MatchService` only reports the refusal.
     #[error("feature {0} is off")]

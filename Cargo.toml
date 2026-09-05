@@ -18,3 +18,11 @@ serde_json = "1"
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 proptest = "1"
+# P5. `bundled` compiles SQLite from source: no system library on either OS,
+# which is what offline-first and a clean install require (04_ROADMAP.md).
+rusqlite = { version = "0.37", features = ["bundled"] }
+tracing = "0.1"
+# P5. Search is `catalog_search` on `CatalogService`, not a `SearchService`:
+# one adapter exists and no second is planned (2.13), so a port would be
+# indirection rather than a seam.
+tantivy = "0.26"

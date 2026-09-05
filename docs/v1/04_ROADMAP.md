@@ -321,9 +321,9 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 - **The reveal commands live on `MatchService`.** `reveal_stem`, `reveal_next_option` and `reveal_leaderboard_rank` are Play state (they survive undo and must read identically in Stage and Viewer), so `PresentationService` will call them rather than keep its own copy.
 - **`play_start` warns, it does not refuse, at one team.** `Play::is_rehearsal` is the signal; the notice is P8's.
 
-## P5 — `CatalogService`, `FlagService`, persistence  ☐
+## P5 — `CatalogService`, `FlagService`, persistence  ☑
 
-**Install:** [`rusqlite`](https://docs.rs/rusqlite) with `features = ["bundled"]`, [`tantivy`](https://docs.rs/tantivy), `tokio`, `tracing`.
+**Install:** [`rusqlite`](https://docs.rs/rusqlite) with `features = ["bundled"]`, [`tantivy`](https://docs.rs/tantivy), `tracing`. **`tokio` was not installed** — see the decisions below.
 
 **`rusqlite`, decided 2026-09-05** (`optimized_first_spec.md` §7 no longer offers the choice). `tauri-plugin-sql` would drag Tauri into `crates/host` at P5 and break the plain-library property P4 asserts with a source sweep; its `Database.load()` / `execute` JS API is a second writer of the catalog by design; it is `sqlx`-async, so every catalog call and every test would become a future to talk to a local file; and it does nothing for Tantivy, which is Rust-side either way. Three decisions that come with it:
 
@@ -331,22 +331,42 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 2. **Migrations are handwritten and forward-only**, keyed off the `user_version` pragma: an ordered `&[&str]` applied in one transaction at boot. No migration crate — it is thirty lines, and it is exactly the kind of thing that should be readable in the diff. v1 has no downgrade story, so there are no `down` steps.
 3. **One writer connection behind a `Mutex`, owned by `CatalogService`** — the interface never hands a `Connection` out. `journal_mode = WAL` with `synchronous = FULL`: writes are human-paced (a handful per question), so the fsync costs nothing measurable and the durability claim stops depending on the kind of crash. WAL also gives readers a free lane, so the Tantivy indexer opens its **own read-only connection** rather than a pool dependency.
 
-**Deliverables**
+**Deliverables** — `crates/host/src/flags.rs` and `crates/host/src/catalog/`
 
-- Schema: `teams`, `domains`, `questions`, `domain_questions`, `operators`, `assets`, `recipes`, `plays`, `events`, `globals`.
-- `catalog_*` / `recipe_*` / `recipe_set_overlay` behind one interface. Archive is `archived_at`; no hard delete; a row referenced by a recipe or open Play cannot be purged.
-- Recipe overlays (stem, options, difficulty, per-question duration, domain name, team marks) and `ScopeConfirm` semantics at the data layer.
-- Atomic writes: events append first, projections rebuild on boot, `recipe_upsert` is one transaction.
-- Tantivy behind `catalog_search` — not a separate service.
-- In-memory adapter for tests; the storage seam stays internal.
-- `FlagService`: three flag kinds, the §2.18 cascade, the §4.2 interlock table, the `play_start` freeze.
+- ☑ `flags` — `FlagService`: the §4.2 settings document, the three flag kinds (`feat.*` roots resolved through the subgraph, policy keys, runtime flags derived from the Play), the §2.18 cascade, the §4.2 interlock table, the `play_start` freeze, and the shortcut map with its conflict rule.
+- ☑ Schema: `assets`, `teams`, `domains`, `questions`, `question_options`, `domain_questions`, `operators`, `recipes`, `recipe_teams`, `recipe_domains`, `recipe_questions`, `recipe_overlays`, `events`, `plays`, `globals`.
+- ☑ `catalog_*` / `recipe_*` / `recipe_set_overlay` behind one interface. Archive is `archived_at`; there is no hard-delete path in the crate; `referenced_by` reports what a row is used by.
+- ☑ Recipe overlays (stem, options, difficulty, per-question duration, domain name, team marks) and `ScopeConfirm` semantics at the data layer — `EditScope::ThisGame | Original`.
+- ☑ Atomic writes: events append first, projections rebuild at `CatalogService::open`, `recipe_upsert` is one transaction.
+- ☑ Tantivy behind `catalog_search` — not a separate service, and not a `SearchService` port.
+- ☑ In-memory adapter for tests (`CatalogLocation::Memory`); the storage seam stays internal — `store.rs` is `pub(super)` and no interface returns a `Connection`.
 
-**Exit criteria**
+**Exit criteria — all met 2026-09-05** (143 tests: 62 unit, 27 `catalog_service`, 25 `match_service`, 23 `flag_service`, 4 `stage_contract`, 2 property)
 
-- ☐ The same suite passes against both SQLite and in-memory adapters.
-- ☐ Kill the process mid-write; boot replays events and loses nothing.
-- ☐ A catalog edit during an open Play leaves that Play's snapshot byte-identical.
-- ☐ Every illegal settings combination in §4.2 is rejected by the host, not merely disabled in UI.
+- ☑ **The same suite passes against both SQLite and in-memory adapters.** `tests/catalog_service.rs` has an `each_adapter` harness that runs a body twice — once in memory, once against a real file with WAL and `synchronous = FULL`.
+- ☑ **Kill the process mid-write; boot replays events and loses nothing.** Dropping a `CatalogService` with no clean shutdown is what a kill looks like from the file's point of view; reopening replays the log and `resume_open_play` hands back a byte-identical Play. A second test kills *between* two commands and asserts that exactly the unpersisted ones are missing and nothing else is.
+- ☑ **A catalog edit during an open Play leaves that Play's snapshot byte-identical** — asserted against an upsert, an archive **and** a new recipe overlay, on both adapters. The settings half is asserted separately in `tests/flag_service.rs`.
+- ☑ **Every illegal settings combination in §4.2 is rejected by the host, not merely disabled in UI.** `every_game_affecting_key_is_refused_while_a_play_is_open` walks the whole frozen block and cross-checks it against `GAME_AFFECTING_KEYS`, so a key added to §4.2 and not to the test fails the suite.
+
+**Also delivered**
+
+- **`FrozenSettings::validate` on `MatchService::play_load`.** P4 accepted whatever settings it was handed. The interlocks now live on the settings types themselves, so `FlagService` runs them before a key is written *and* `play_load` runs them over a snapshot that may have come from an older database row. A Play that would score wrong for its whole life fails at the door instead.
+- **`FlagService::disabled`** — the §4.2 sentence "UI disables the illegal sibling first" as data: every key that is frozen, inert, or under an off feature root, with the reason. Computed once by the flag reader instead of four times in Studio.
+- **`FlagService::flag`** — one lookup over all three flag kinds, with `FLAG_KEYS` enumerating what resolves. `None` is an unknown key, never a false.
+- **`CatalogError::PlayAlreadyOpen`** — §4.3's "two Plays of one recipe cannot be `playing`" enforced in the store, so it survives a restart of the process instead of holding only inside one `MatchService`.
+- **Prefix search.** Each query term matches exactly or as a prefix, so an operator typing `sci` finds `Science`. The frontend debounces; it does not compose queries.
+
+**Decisions made while building it (2026-09-05)**
+
+- **`tokio` was not installed.** Nothing in the host is asynchronous: `rusqlite` is sync, Tantivy's writer is sync, and the whole point of choosing `rusqlite` over `tauri-plugin-sql` was to keep catalog calls and their tests from becoming futures to talk to a local file. A runtime with no user is weight, not readiness — it belongs with P6's Tauri wiring, where something actually awaits.
+- **The search index lives in RAM and is rebuilt at open.** A v1 library is thousands of rows; rebuilding costs milliseconds and removes the entire class of "the index disagrees with the database" bugs an on-disk index has to defend against. The read-only lane WAL reserves is still the right home for indexing the moment it moves off-thread. Commits are lazy — a write marks the index dirty and the next search commits — so a bulk edit (§2.19) pays for one commit, not one per row.
+- **Recipes are not reachable through `catalog_*`.** §11.A and §11.B are two families with two verb lists, and a row writable through both `catalog_upsert` and `recipe_upsert` would be two ways to do one thing. `CatalogKind::Recipe` exists for `catalog-changed` and the archive plumbing; `catalog_list` and `catalog_get` refuse it.
+- **Every §4.2 write is validated on a clone and committed whole.** A refused settings write changes nothing — the same discipline `MatchService` keeps for commands, and the reason `settings_set_*` can be per key while the *document* stays legal.
+- **An unreachable bonus is an illegal document.** `turn.bonus_after_consecutive.count > turn.max_consecutive_correct` is refused: the cap ends the token *at* n corrects and the bonus lands *at* count, so a larger count is a setting that can never take effect. §4.4 does not spell this out; it follows from the two keys' definitions, and a silently dead award is worse than a notice.
+- **`reveal.*` is the one Game-tab key that does not freeze.** §4.2 lists it as a Game default *and* Control live, so writing it during a Play is legal and moves the live copy `PresentationService` will read, not just the recipe's default.
+- **A board naming an archived or missing row refuses to build a snapshot.** A show that quietly loses a question is worse than one that will not start until the operator has looked at it — which is the Shape manager's job at P8.
+- **`EditScope::Original` drops the editing recipe's own overlay for that target** so the operator sees the change they just made, and leaves every *other* recipe's overlay standing (§2.17). A per-question duration has no original to apply to, and says so.
+- **Catalog metadata is host-owned.** `created_at` is carried from the stored row and `updated_at` moves to `now_ms` whatever the caller sent, so a client cannot backdate a row. Writes take `now_ms` like every other command — there is still no clock inside the host.
 
 ---
 

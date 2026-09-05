@@ -626,6 +626,46 @@ fn score(service: &MatchService, team: usize) -> u32 {
     service.get_state().unwrap().score(&team_id(team))
 }
 
+#[test]
+fn play_load_refuses_a_snapshot_whose_settings_are_illegal() {
+    // A row written by an older build is not automatically legal today. The
+    // §4.2 table is checked at the door, so a Play never runs on a document
+    // that would score wrong for its whole life.
+    let illegal = FrozenSettings {
+        scoring: ScoringSettings {
+            mode: ScoringMode::LockSpeed,
+            lock_speed_enabled: true,
+            ..ScoringSettings::default()
+        },
+        ..FrozenSettings::default()
+    };
+    let mut service = MatchService::new();
+    assert!(matches!(
+        service.play_load(snapshot(2, 1, 2, illegal), 0),
+        Err(MatchError::IllegalSettings {
+            key: "scoring.lock_speed.enabled",
+            ..
+        })
+    ));
+    assert!(service.get_state().is_none(), "nothing was loaded");
+
+    let unreachable_bonus = FrozenSettings {
+        turn: TurnSettings {
+            max_consecutive_correct: Some(2),
+            bonus_after_consecutive: Some(ConsecutiveBonus {
+                count: 5,
+                award: 100,
+            }),
+        },
+        ..FrozenSettings::default()
+    };
+    assert!(
+        service
+            .play_load(snapshot(2, 1, 2, unreachable_bonus), 0)
+            .is_err()
+    );
+}
+
 // -------------------------------------------------------------------- property
 
 /// The exit criterion at the service level: random command sequences over 1–12

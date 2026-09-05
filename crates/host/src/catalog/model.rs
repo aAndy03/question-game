@@ -1,0 +1,717 @@
+//! The library entities (§4.1), the recipe (§11.B), and the per-recipe
+//! overlays (§2.17).
+//!
+//! Two conventions run through the whole file:
+//!
+//! - **No clock inside**, same as the Play. Every write takes the millisecond
+//!   it happened at, and `created_at` / `updated_at` are set from that. Nothing
+//!   here calls `SystemTime::now`.
+//! - **Metadata is host-owned.** `created_at`, `updated_at`, `play_count` and
+//!   `last_play_at` are overwritten by `catalog_upsert` from the stored row;
+//!   whatever a caller puts in those fields is ignored rather than trusted.
+//!
+//! **Archive is `archived_at`**, never a delete (§4.1). There is no hard-delete
+//! path in v1, which is why the interface has `catalog_archive` /
+//! `catalog_restore` and no `catalog_delete`.
+
+use std::collections::BTreeMap;
+
+use serde::{Deserialize, Serialize};
+
+use crate::flags::GameSettings;
+use crate::ids::{AssetId, DomainId, OperatorId, OptionId, QuestionId, RecipeId, TeamId};
+use crate::snapshot::AnswerMode;
+
+use super::error::{CatalogError, CatalogResult};
+
+/// Which rows a list or a search should see. Each library tab owns its own
+/// archive view (§2.24), so the scope is a parameter, never a global mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ArchiveScope {
+    #[default]
+    Active,
+    Archived,
+    All,
+}
+
+impl ArchiveScope {
+    /// The `WHERE` fragment. Written once so no query can invent a third
+    /// meaning for "archived".
+    pub(crate) fn sql(self) -> &'static str {
+        match self {
+            ArchiveScope::Active => "archived_at IS NULL",
+            ArchiveScope::Archived => "archived_at IS NOT NULL",
+            ArchiveScope::All => "1 = 1",
+        }
+    }
+}
+
+/// Created / updated / archived, in epoch milliseconds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Stamps {
+    pub created_at: u64,
+    pub updated_at: u64,
+    /// `Some` means archived — soft, restorable, never a delete (§4.1).
+    pub archived_at: Option<u64>,
+}
+
+impl Stamps {
+    pub fn is_archived(&self) -> bool {
+        self.archived_at.is_some()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Team {
+    pub id: TeamId,
+    pub name: String,
+    pub short_code: String,
+    /// A design-system token where possible (`var(--ink)`), otherwise a literal.
+    pub color: String,
+    pub logo_asset_id: Option<AssetId>,
+    pub notes: Option<String>,
+    #[serde(flatten)]
+    pub stamps: Stamps,
+    /// Host-owned counters, bumped when a Play that used this team completes.
+    pub play_count: u32,
+    pub last_play_at: Option<u64>,
+}
+
+impl Team {
+    pub fn new(
+        id: impl Into<TeamId>,
+        name: impl Into<String>,
+        short_code: impl Into<String>,
+    ) -> Self {
+        Team {
+            id: id.into(),
+            name: name.into(),
+            short_code: short_code.into(),
+            color: "var(--ink)".to_owned(),
+            logo_asset_id: None,
+            notes: None,
+            stamps: Stamps::default(),
+            play_count: 0,
+            last_play_at: None,
+        }
+    }
+
+    pub(crate) fn validate(&self) -> CatalogResult<()> {
+        if self.name.trim().is_empty() {
+            return Err(CatalogError::invalid(
+                format!("team.{}.name", self.id),
+                "a team needs a name",
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// One question's place in one domain. The sort key belongs to the membership,
+/// not to the question: a difficulty edit must not reorder a domain (§4.1).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DomainMember {
+    pub question_id: QuestionId,
+    pub sort_key: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Domain {
+    pub id: DomainId,
+    pub name: String,
+    /// The part-number style code the Stage card shows, e.g. `TEC_881`.
+    pub code: String,
+    pub description: Option<String>,
+    /// Membership in authored order. A question may sit in many domains.
+    pub questions: Vec<DomainMember>,
+    #[serde(flatten)]
+    pub stamps: Stamps,
+}
+
+impl Domain {
+    pub fn new(id: impl Into<DomainId>, name: impl Into<String>, code: impl Into<String>) -> Self {
+        Domain {
+            id: id.into(),
+            name: name.into(),
+            code: code.into(),
+            description: None,
+            questions: Vec::new(),
+            stamps: Stamps::default(),
+        }
+    }
+
+    pub(crate) fn validate(&self) -> CatalogResult<()> {
+        if self.name.trim().is_empty() {
+            return Err(CatalogError::invalid(
+                format!("domain.{}.name", self.id),
+                "a domain needs a name",
+            ));
+        }
+        let mut seen: Vec<&QuestionId> = Vec::new();
+        for member in &self.questions {
+            if seen.contains(&&member.question_id) {
+                return Err(CatalogError::invalid(
+                    format!("domain.{}.questions", self.id),
+                    "a question sits in a domain once",
+                ));
+            }
+            seen.push(&member.question_id);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuestionOption {
+    pub id: OptionId,
+    pub text: String,
+    pub correct: bool,
+}
+
+impl QuestionOption {
+    pub fn new(id: impl Into<OptionId>, text: impl Into<String>, correct: bool) -> Self {
+        QuestionOption {
+            id: id.into(),
+            text: text.into(),
+            correct,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Question {
+    pub id: QuestionId,
+    pub stem: String,
+    pub media_asset_id: Option<AssetId>,
+    /// Authored order. Stage reveals them in it (§2.6).
+    pub options: Vec<QuestionOption>,
+    /// 1–100 (§4.1).
+    pub difficulty: u8,
+    pub explanation: Option<String>,
+    #[serde(flatten)]
+    pub stamps: Stamps,
+}
+
+impl Question {
+    pub fn new(id: impl Into<QuestionId>, stem: impl Into<String>, difficulty: u8) -> Self {
+        Question {
+            id: id.into(),
+            stem: stem.into(),
+            media_asset_id: None,
+            options: Vec::new(),
+            difficulty,
+            explanation: None,
+            stamps: Stamps::default(),
+        }
+    }
+
+    pub fn with_options(mut self, options: Vec<QuestionOption>) -> Self {
+        self.options = options;
+        self
+    }
+
+    /// Derived from the correct ticks, never authored (§2.17).
+    pub fn answer_mode(&self) -> AnswerMode {
+        if self.options.iter().filter(|o| o.correct).count() > 1 {
+            AnswerMode::Multiple
+        } else {
+            AnswerMode::Single
+        }
+    }
+
+    pub fn correct_option_ids(&self) -> Vec<OptionId> {
+        self.options
+            .iter()
+            .filter(|o| o.correct)
+            .map(|o| o.id.clone())
+            .collect()
+    }
+
+    /// §4.1: options ≥ 2, the last correct mark cannot be removed, difficulty
+    /// 1–100. These are the rules the Questions editor disables buttons for;
+    /// the host refuses the write regardless.
+    pub(crate) fn validate(&self) -> CatalogResult<()> {
+        let path = format!("question.{}", self.id);
+        if self.stem.trim().is_empty() {
+            return Err(CatalogError::invalid(
+                path + ".stem",
+                "a question needs a stem",
+            ));
+        }
+        if self.options.len() < 2 {
+            return Err(CatalogError::invalid(
+                path + ".options",
+                "a question needs at least two options",
+            ));
+        }
+        let mut seen: Vec<&OptionId> = Vec::new();
+        for option in &self.options {
+            if seen.contains(&&option.id) {
+                return Err(CatalogError::invalid(
+                    path + ".options",
+                    "two options share an id",
+                ));
+            }
+            seen.push(&option.id);
+        }
+        if !self.options.iter().any(|o| o.correct) {
+            return Err(CatalogError::invalid(
+                path + ".options",
+                "a question needs at least one correct mark",
+            ));
+        }
+        if self.difficulty == 0 || self.difficulty > 100 {
+            return Err(CatalogError::invalid(
+                path + ".difficulty",
+                "difficulty is 1-100",
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Operator {
+    pub id: OperatorId,
+    pub display_name: String,
+    /// Optional and hashed (§2.15). The host never stores a pin in the clear
+    /// and never shows this field in metadata or the status bar.
+    pub pin_hash: Option<String>,
+    pub last_active_at: Option<u64>,
+    pub plays_run: u32,
+    #[serde(flatten)]
+    pub stamps: Stamps,
+}
+
+impl Operator {
+    pub fn new(id: impl Into<OperatorId>, display_name: impl Into<String>) -> Self {
+        Operator {
+            id: id.into(),
+            display_name: display_name.into(),
+            pin_hash: None,
+            last_active_at: None,
+            plays_run: 0,
+            stamps: Stamps::default(),
+        }
+    }
+
+    pub(crate) fn validate(&self) -> CatalogResult<()> {
+        if self.display_name.trim().is_empty() {
+            return Err(CatalogError::invalid(
+                format!("operator.{}.name", self.id),
+                "an operator needs a display name",
+            ));
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Asset {
+    pub id: AssetId,
+    /// A path under user data. The webview reaches it through
+    /// `convertFileSrc`; the host never hands out a raw file URL (§4.1).
+    pub path: String,
+    /// `image`, `audio`, `video` — the frontend decides how to render it.
+    pub kind: String,
+    #[serde(flatten)]
+    pub stamps: Stamps,
+}
+
+impl Asset {
+    pub fn new(id: impl Into<AssetId>, path: impl Into<String>, kind: impl Into<String>) -> Self {
+        Asset {
+            id: id.into(),
+            path: path.into(),
+            kind: kind.into(),
+            stamps: Stamps::default(),
+        }
+    }
+
+    pub(crate) fn validate(&self) -> CatalogResult<()> {
+        if self.path.trim().is_empty() {
+            return Err(CatalogError::invalid(
+                format!("asset.{}.path", self.id),
+                "an asset needs a path",
+            ));
+        }
+        Ok(())
+    }
+}
+
+// --------------------------------------------------------------------- overlays
+
+/// A per-recipe patch of a team's marks (§2.17). `None` means "not
+/// overridden" — the catalog value shows through.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamOverlay {
+    pub name: Option<String>,
+    pub short_code: Option<String>,
+    pub color: Option<String>,
+    pub logo_asset_id: Option<AssetId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DomainOverlay {
+    pub name: Option<String>,
+    pub code: Option<String>,
+}
+
+/// Stem, options, difficulty and the per-question duration — the top of the
+/// §2.18 timer cascade lives here and nowhere else, because a duration is a
+/// property of *this show's* use of the question, not of the question.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuestionOverlay {
+    pub stem: Option<String>,
+    pub options: Option<Vec<QuestionOption>>,
+    pub difficulty: Option<u8>,
+    pub duration_ms: Option<u32>,
+}
+
+impl QuestionOverlay {
+    pub fn is_empty(&self) -> bool {
+        *self == QuestionOverlay::default()
+    }
+}
+
+/// Every overlay a recipe carries, by target.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct RecipeOverlays {
+    pub teams: BTreeMap<TeamId, TeamOverlay>,
+    pub domains: BTreeMap<DomainId, DomainOverlay>,
+    pub questions: BTreeMap<QuestionId, QuestionOverlay>,
+}
+
+/// Which side of `ScopeConfirm` an inline edit landed on (§2.17).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EditScope {
+    /// Overlay on the recipe item. The original does not move.
+    ThisGame,
+    /// Write the catalog row. Other recipes that already have their own
+    /// overlay keep it — an overlay is a decision, not a cache.
+    Original,
+}
+
+// ----------------------------------------------------------------------- recipe
+
+/// One domain on the board, with the questions this show uses from it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BoardDomain {
+    pub domain_id: DomainId,
+    /// Authored order. The snapshot re-sorts to `difficulty ASC, id ASC`
+    /// anyway (§4.3 step 5) — this order is what the Game tab shows.
+    pub question_ids: Vec<QuestionId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Recipe {
+    pub id: RecipeId,
+    pub name: String,
+    pub folder: Option<String>,
+    pub tags: Vec<String>,
+    /// Roster in play order — this *is* the opening ring (§4.3 step 7).
+    pub teams: Vec<TeamId>,
+    pub board: Vec<BoardDomain>,
+    /// The B5 document. Validated against the §4.2 interlocks on write, so a
+    /// recipe row can never be the place an illegal document hides.
+    pub settings: GameSettings,
+    /// Screens-tab layout overrides. P9 owns the shape; the catalog stores it.
+    pub layout: serde_json::Value,
+    pub overlays: RecipeOverlays,
+    /// Bumped by every `recipe_upsert`. `recipe-changed { id, rev }` carries it
+    /// and a Play records the rev it ran (§2.8).
+    pub rev: u32,
+    #[serde(flatten)]
+    pub stamps: Stamps,
+}
+
+impl Recipe {
+    pub fn new(id: impl Into<RecipeId>, name: impl Into<String>, settings: GameSettings) -> Self {
+        Recipe {
+            id: id.into(),
+            name: name.into(),
+            folder: None,
+            tags: Vec::new(),
+            teams: Vec::new(),
+            board: Vec::new(),
+            settings,
+            layout: serde_json::Value::Object(serde_json::Map::new()),
+            overlays: RecipeOverlays::default(),
+            rev: 0,
+            stamps: Stamps::default(),
+        }
+    }
+
+    /// What `catalog_search` finds a show by (§12: Games are a record list too).
+    pub(crate) fn search_text(&self) -> String {
+        let mut parts = vec![self.name.clone()];
+        if let Some(folder) = &self.folder {
+            parts.push(folder.clone());
+        }
+        parts.extend(self.tags.iter().cloned());
+        parts.join(" ")
+    }
+
+    pub(crate) fn validate(&self) -> CatalogResult<()> {
+        let path = format!("recipe.{}", self.id);
+        if self.name.trim().is_empty() {
+            return Err(CatalogError::invalid(
+                path + ".name",
+                "a recipe needs a name",
+            ));
+        }
+        crate::flags::validate(&self.settings)?;
+
+        let mut seen_teams: Vec<&TeamId> = Vec::new();
+        for team in &self.teams {
+            if seen_teams.contains(&team) {
+                return Err(CatalogError::invalid(
+                    path + ".teams",
+                    "a team plays once per recipe",
+                ));
+            }
+            seen_teams.push(team);
+        }
+        let mut seen_domains: Vec<&DomainId> = Vec::new();
+        for domain in &self.board {
+            if seen_domains.contains(&&domain.domain_id) {
+                return Err(CatalogError::invalid(
+                    path + ".board",
+                    "a domain sits on the board once",
+                ));
+            }
+            seen_domains.push(&domain.domain_id);
+            let mut seen_questions: Vec<&QuestionId> = Vec::new();
+            for question in &domain.question_ids {
+                if seen_questions.contains(&question) {
+                    return Err(CatalogError::invalid(
+                        path + ".board",
+                        "a question sits in a board domain once",
+                    ));
+                }
+                seen_questions.push(question);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A Play as the library remembers it: derived from the event log, rebuilt at
+/// boot, and never a place a rule is read from (§5.10).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayRecord {
+    pub id: crate::ids::PlayId,
+    pub recipe_id: RecipeId,
+    /// `PlayStatus` as it serializes in `play-state`.
+    pub status: String,
+    pub started_at_ms: Option<u64>,
+    pub ended_at_ms: Option<u64>,
+    pub event_count: u64,
+    pub questions_consumed: u32,
+    pub scores: BTreeMap<TeamId, u32>,
+}
+
+/// One row of a `catalog_list` / `catalog_get`. §13 has one command with a
+/// `kind` parameter, so this is its one return type.
+///
+/// Recipes are deliberately absent: §11.A and §11.B are two families with two
+/// verb lists, and a recipe reachable through both `catalog_upsert` and
+/// `recipe_upsert` would be two ways to do one thing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind", content = "item")]
+pub enum CatalogItem {
+    Team(Box<Team>),
+    Domain(Box<Domain>),
+    Question(Box<Question>),
+    Operator(Box<Operator>),
+    Asset(Box<Asset>),
+}
+
+impl CatalogItem {
+    pub fn kind(&self) -> super::error::CatalogKind {
+        use super::error::CatalogKind as K;
+        match self {
+            CatalogItem::Team(_) => K::Team,
+            CatalogItem::Domain(_) => K::Domain,
+            CatalogItem::Question(_) => K::Question,
+            CatalogItem::Operator(_) => K::Operator,
+            CatalogItem::Asset(_) => K::Asset,
+        }
+    }
+
+    pub fn id(&self) -> String {
+        match self {
+            CatalogItem::Team(t) => t.id.to_string(),
+            CatalogItem::Domain(d) => d.id.to_string(),
+            CatalogItem::Question(q) => q.id.to_string(),
+            CatalogItem::Operator(o) => o.id.to_string(),
+            CatalogItem::Asset(a) => a.id.to_string(),
+        }
+    }
+
+    pub fn as_team(&self) -> Option<&Team> {
+        match self {
+            CatalogItem::Team(team) => Some(team),
+            _ => None,
+        }
+    }
+
+    pub fn as_domain(&self) -> Option<&Domain> {
+        match self {
+            CatalogItem::Domain(domain) => Some(domain),
+            _ => None,
+        }
+    }
+
+    pub fn as_question(&self) -> Option<&Question> {
+        match self {
+            CatalogItem::Question(question) => Some(question),
+            _ => None,
+        }
+    }
+
+    pub fn as_operator(&self) -> Option<&Operator> {
+        match self {
+            CatalogItem::Operator(operator) => Some(operator),
+            _ => None,
+        }
+    }
+
+    pub fn as_asset(&self) -> Option<&Asset> {
+        match self {
+            CatalogItem::Asset(asset) => Some(asset),
+            _ => None,
+        }
+    }
+
+    /// Everything `catalog_search` should be able to find this row by. One
+    /// place, so a field added to an entity is one edit away from being
+    /// searchable rather than two.
+    pub(crate) fn search_text(&self) -> String {
+        let parts: Vec<&str> = match self {
+            CatalogItem::Team(team) => vec![
+                &team.name,
+                &team.short_code,
+                team.notes.as_deref().unwrap_or(""),
+            ],
+            CatalogItem::Domain(domain) => vec![
+                &domain.name,
+                &domain.code,
+                domain.description.as_deref().unwrap_or(""),
+            ],
+            CatalogItem::Question(question) => {
+                let mut parts = vec![
+                    question.stem.as_str(),
+                    question.explanation.as_deref().unwrap_or(""),
+                ];
+                parts.extend(question.options.iter().map(|o| o.text.as_str()));
+                return parts.join(" ");
+            }
+            CatalogItem::Operator(operator) => vec![&operator.display_name],
+            CatalogItem::Asset(asset) => vec![&asset.path, &asset.kind],
+        };
+        parts.join(" ")
+    }
+
+    pub(crate) fn is_archived(&self) -> bool {
+        match self {
+            CatalogItem::Team(team) => team.stamps.is_archived(),
+            CatalogItem::Domain(domain) => domain.stamps.is_archived(),
+            CatalogItem::Question(question) => question.stamps.is_archived(),
+            CatalogItem::Operator(operator) => operator.stamps.is_archived(),
+            CatalogItem::Asset(asset) => asset.stamps.is_archived(),
+        }
+    }
+
+    pub(crate) fn validate(&self) -> CatalogResult<()> {
+        match self {
+            CatalogItem::Team(team) => team.validate(),
+            CatalogItem::Domain(domain) => domain.validate(),
+            CatalogItem::Question(question) => question.validate(),
+            CatalogItem::Operator(operator) => operator.validate(),
+            CatalogItem::Asset(asset) => asset.validate(),
+        }
+    }
+}
+
+impl From<Team> for CatalogItem {
+    fn from(team: Team) -> Self {
+        CatalogItem::Team(Box::new(team))
+    }
+}
+impl From<Domain> for CatalogItem {
+    fn from(domain: Domain) -> Self {
+        CatalogItem::Domain(Box::new(domain))
+    }
+}
+impl From<Question> for CatalogItem {
+    fn from(question: Question) -> Self {
+        CatalogItem::Question(Box::new(question))
+    }
+}
+impl From<Operator> for CatalogItem {
+    fn from(operator: Operator) -> Self {
+        CatalogItem::Operator(Box::new(operator))
+    }
+}
+impl From<Asset> for CatalogItem {
+    fn from(asset: Asset) -> Self {
+        CatalogItem::Asset(Box::new(asset))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn question() -> Question {
+        Question::new("q-1", "Which one?", 40).with_options(vec![
+            QuestionOption::new("opt-a", "A", true),
+            QuestionOption::new("opt-b", "B", false),
+        ])
+    }
+
+    #[test]
+    fn answer_mode_follows_the_correct_ticks() {
+        let mut q = question();
+        assert_eq!(q.answer_mode(), AnswerMode::Single);
+        q.options[1].correct = true;
+        assert_eq!(q.answer_mode(), AnswerMode::Multiple);
+    }
+
+    #[test]
+    fn the_last_correct_mark_cannot_be_removed() {
+        let mut q = question();
+        q.options[0].correct = false;
+        assert!(q.validate().is_err());
+    }
+
+    #[test]
+    fn a_question_needs_two_options_and_a_real_difficulty() {
+        let mut q = question();
+        q.options.pop();
+        assert!(q.validate().is_err());
+
+        let mut q = question();
+        q.difficulty = 0;
+        assert!(q.validate().is_err());
+        q.difficulty = 101;
+        assert!(q.validate().is_err());
+        q.difficulty = 100;
+        assert!(q.validate().is_ok());
+    }
+}

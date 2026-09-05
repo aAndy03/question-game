@@ -61,7 +61,15 @@ impl MatchService {
 
     /// `play_load` — put a recipe into Control (§5.1). Refused while another
     /// Play is open, so two Plays of one recipe can never be `playing` (§4.3).
+    ///
+    /// The snapshot's frozen settings are checked against the §4.2 interlocks
+    /// on the way in. `FlagService` already refuses an illegal write, so a
+    /// snapshot built by this host is legal by construction — but one can also
+    /// arrive from a database row written by an older build, and a Play that
+    /// started on an illegal document would score wrong for its whole life
+    /// instead of failing at the door.
     pub fn play_load(&mut self, snapshot: PlaySnapshot, now_ms: u64) -> MatchResult<()> {
+        snapshot.settings.validate()?;
         if let Some(open) = self.play.as_ref().filter(|p| p.status().is_open()) {
             return Err(MatchError::WrongStatus {
                 actual: open.status(),

@@ -79,6 +79,15 @@ id_type!(
     RecipeId
 );
 id_type!(
+    /// A user-data file the catalog points at — logo, question media (§4.1).
+    /// The row survives a missing file; Stage falls back to a plate.
+    AssetId
+);
+id_type!(
+    /// Whoever is running the show (§4.1). Never part of a Play's truth.
+    OperatorId
+);
+id_type!(
     /// One appended fact. `<play id>:<seq>` — deterministic, so a replay
     /// rebuilds the same log rather than a fresh set of uuids.
     EventId

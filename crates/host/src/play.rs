@@ -40,6 +40,20 @@ impl PlayStatus {
     pub fn is_open(self) -> bool {
         matches!(self, PlayStatus::Playing | PlayStatus::Paused)
     }
+
+    /// The wire spelling, identical to the serde one and to `PlayStatus` in
+    /// `packages/contract`. Stored in the `plays` projection, so it has to
+    /// match what a query filters on.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            PlayStatus::Loaded => "loaded",
+            PlayStatus::Playing => "playing",
+            PlayStatus::Paused => "paused",
+            PlayStatus::Completed => "completed",
+            PlayStatus::Abandoned => "abandoned",
+            PlayStatus::Restarted => "restarted",
+        }
+    }
 }
 
 /// How long the Play has been running, paused time excluded. Same shape as the
