@@ -49,14 +49,13 @@ export function TopBar() {
       </div>
       <div className="flex items-center gap-1">
         <Dropdown>
-          <Dropdown.Trigger>
-            <IconButton
-              icon={theme === 'dark' ? 'themeDark' : theme === 'light' ? 'themeLight' : 'themeSystem'}
-              label={CHROME.theme}
-              size="sm"
-              hideTooltip
-            />
-          </Dropdown.Trigger>
+          {/* The button *is* the trigger. `Dropdown.Trigger` renders a
+            * `<button>` around its child, so wrapping one nests two buttons —
+            * invalid HTML and a React error on every boot. HeroUI v3's own
+            * usage example puts the Button directly under `Dropdown`. */}
+          <HeroButton variant="ghost" size="sm" isIconOnly aria-label={CHROME.theme}>
+            <Icon name={theme === 'dark' ? 'themeDark' : theme === 'light' ? 'themeLight' : 'themeSystem'} size="sm" />
+          </HeroButton>
           <Dropdown.Popover placement="bottom end">
             <Dropdown.Menu
               selectionMode="single"
@@ -82,12 +81,10 @@ export function TopBar() {
           </Dropdown.Popover>
         </Dropdown>
         <Dropdown>
-          <Dropdown.Trigger>
-            <HeroButton variant="ghost" size="sm" aria-label={CHROME.operator} className="rounded-full pl-1 pr-2">
-              <OperatorBadge name={active?.displayName ?? null} isActive={active !== null} />
-              <Icon name="chevronDown" size="sm" className="opacity-60" />
-            </HeroButton>
-          </Dropdown.Trigger>
+          <HeroButton variant="ghost" size="sm" aria-label={CHROME.operator} className="rounded-full pl-1 pr-2">
+            <OperatorBadge name={active?.displayName ?? null} isActive={active !== null} />
+            <Icon name="chevronDown" size="sm" className="opacity-60" />
+          </HeroButton>
           <Dropdown.Popover placement="bottom end">
             <Dropdown.Menu
               onAction={(key) => {

@@ -23,7 +23,7 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 use crate::error::AppResult;
 use crate::error::AppError;
 use crate::state::{AppState, Host, now_ms};
-use crate::{emit, guard};
+use crate::{emit, guard, windows};
 
 /// The whole document as one read. Synchronous — it is a borrow and a small
 /// computation over keys already in memory.
@@ -68,8 +68,29 @@ pub fn settings_set_global(
         }
     }
 
+    // §13.6: Statistics never shares a display with Stage. The refusal is
+    // here rather than in `FlagService`, because "which display Stage is on"
+    // is this crate's knowledge, not the settings document's.
+    if let GlobalSetting::StatsMonitorId(Some(id)) = &setting
+        && host.flags.control().stage_monitor_id.as_deref() == Some(id.as_str())
+    {
+        return Err(MatchError::IllegalSettings {
+            key: "stats.monitor_id",
+            reason: "that display is showing Stage",
+        }
+        .into());
+    }
+
     let ctx = host.runtime();
+    let places_stats = matches!(setting, GlobalSetting::StatsMonitorId(_));
     host.flags.settings_set_global(setting, ctx)?;
+
+    // The Statistics window is a consequence of the setting, not a command of
+    // its own (§11.K): pick a display and it opens there, clear it and it
+    // closes. Nothing about a Play is involved either way.
+    if places_stats {
+        windows::place_stats(&app, &host)?;
+    }
 
     // Control-behaviour keys are live for the whole Play (§2.5), so the copy
     // `MatchService` holds moves with them. No frozen key can reach here.

@@ -1,4 +1,4 @@
-//! The two webviews, and where the Stage one stands.
+//! The webviews, and where each one stands.
 //!
 //! ```text
 //! main   Studio. Created at boot, a normal window.
@@ -6,6 +6,10 @@
 //!        Load**, not at boot (§9) — there is nothing to show before a recipe
 //!        is in Control, and an empty black fullscreen window on the projector
 //!        while the operator is still picking a game is worse than no window.
+//! stats  Optional, off unless the operator picks a display (§11.K, P11).
+//!        **Studio's Statistics page, in a window of its own** — same bundle,
+//!        same tokens, `?stats` on the URL — so it can never become a second
+//!        Stage. `guard::STATS_COMMANDS` is what it may ask for: reads.
 //! ```
 //!
 //! Both are created from Rust rather than declared in `tauri.conf.json`,
@@ -25,13 +29,15 @@ use questiongame_host::{MonitorKey, StageMove};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::error::AppResult;
-use crate::guard::{MAIN, STAGE};
+use crate::guard::{MAIN, STAGE, STATS};
 use crate::monitors;
 
 /// The two frontends, at the path each occupies under `frontendDist` — and,
 /// because both Vite configs set a matching `base`, under `devUrl` too.
 const STUDIO_PATH: &str = "studio/index.html";
 const STAGE_PATH: &str = "stage/index.html";
+/// Studio again, told by its query string to render Statistics alone.
+const STATS_PATH: &str = "studio/index.html?stats";
 
 /// Studio. A normal window: one display is a valid configuration, and then
 /// Studio is an Alt-Tab away from a fullscreen Stage (§9).
@@ -65,6 +71,52 @@ pub fn ensure_stage(app: &AppHandle) -> AppResult<WebviewWindow> {
     Ok(window)
 }
 
+/// The Statistics window on `key`, created if it is not there yet (§11.K).
+///
+/// Fullscreen like Stage, because it is a wall display too — but decorated
+/// and focusable: this one is for the room, and closing it by hand is a
+/// legitimate thing to do.
+pub fn ensure_stats(app: &AppHandle, key: &MonitorKey) -> AppResult<()> {
+    let window = match app.get_webview_window(STATS) {
+        Some(existing) => existing,
+        None => WebviewWindowBuilder::new(app, STATS, WebviewUrl::App(STATS_PATH.into()))
+            .title("questiongame Statistics")
+            .inner_size(1280.0, 800.0)
+            .focused(false)
+            .build()?,
+    };
+    let Some(origin) = monitors::physical_origin(app, key) else {
+        tracing::warn!("statistics was sent to a display that is no longer listed");
+        return Ok(());
+    };
+    window.set_fullscreen(false)?;
+    window.set_position(origin)?;
+    window.set_fullscreen(true)?;
+    Ok(())
+}
+
+/// Close the Statistics window if it is open. Closing it changes nothing about
+/// the Play — there is nothing on the other side of it but numbers.
+pub fn close_stats(app: &AppHandle) -> AppResult<()> {
+    if let Some(window) = app.get_webview_window(STATS) {
+        window.close()?;
+    }
+    Ok(())
+}
+
+/// Put the Statistics window where `stats.monitor_id` says, or close it when
+/// that is `None` or names a display that is not there.
+pub fn place_stats(app: &AppHandle, host: &crate::state::Host) -> AppResult<()> {
+    let Some(id) = host.flags.control().stats_monitor_id.clone() else {
+        return close_stats(app);
+    };
+    let key = MonitorKey::new(id);
+    if !crate::monitors::list(app).iter().any(|m| m.key == key) {
+        return close_stats(app);
+    }
+    ensure_stats(app, &key)
+}
+
 /// Re-read the OS display list, run the §9 policy over it, and **act on the
 /// result** — move the window, raise the notice, tell `main`.
 ///
@@ -87,6 +139,31 @@ pub fn refresh(app: &AppHandle, host: &mut crate::state::Host) -> AppResult<()> 
         crate::emit::notice(app, notice);
     }
 
+    // The Statistics window follows its own display, and unplugging it is a
+    // one-line story: the window goes, the numbers are still in Studio, and
+    // nothing about the Play changes (§11.K).
+    let stats_wanted = host.flags.control().stats_monitor_id.clone();
+    if let Some(id) = stats_wanted {
+        let key = MonitorKey::new(id.clone());
+        let still_there = crate::monitors::list(app).iter().any(|m| m.key == key);
+        if still_there {
+            ensure_stats(app, &key)?;
+        } else if app.get_webview_window(STATS).is_some() {
+            close_stats(app)?;
+            crate::emit::notice(
+                app,
+                &questiongame_host::notice::Notice::new(
+                    "stats.monitor_lost",
+                    questiongame_host::notice::Severity::Warn,
+                    &["pick_monitor"],
+                )
+                .at("stats.monitor_id")
+                .with("monitor", id),
+            );
+        }
+    } else {
+        close_stats(app)?;
+    }
     crate::emit::monitors_changed(app, host);
     Ok(())
 }
@@ -123,3 +200,20 @@ fn move_to(app: &AppHandle, window: &WebviewWindow, target: Option<&MonitorKey>)
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// P11 exit criterion: the Statistics window is never a second Stage. It
+    /// loads Studio's bundle with `?stats`, so it has Studio's tokens, Studio's
+    /// chrome and no screen at all — and `guard::STATS_COMMANDS` keeps it from
+    /// asking for anything but reads.
+    #[test]
+    fn the_statistics_window_is_studio_not_stage() {
+        assert!(STATS_PATH.starts_with("studio/"), "{STATS_PATH}");
+        assert!(STATS_PATH.ends_with("?stats"), "{STATS_PATH}");
+        assert_ne!(STATS_PATH, STAGE_PATH);
+        assert!(!crate::guard::stats_may_call("show_screen"));
+        assert!(!crate::guard::stats_may_call("overlay_ack_complete"));
+    }
+}

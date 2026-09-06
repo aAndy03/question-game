@@ -24,6 +24,7 @@ use questiongame_host::catalog::{
 };
 use questiongame_host::flags::{FlagService, GameSetting, GameSettings};
 use questiongame_host::settings::{FrozenSettings, ScoringMode};
+use questiongame_host::stats::{StatsFilter, StatsQuery};
 use questiongame_host::{DomainId, MatchService, PlayId, QuestionId, RecipeId, TeamId};
 
 use support::option_id;
@@ -721,6 +722,62 @@ fn a_play_persists_and_replays_to_the_same_state() {
             service.play_events(&PlayId::from("play-1")).unwrap().len(),
             before
         );
+    });
+}
+
+/// P11 exit criterion, the host half: `stats_query` reads the logs and
+/// answers; nothing about it can write, and the numbers are the Play's own.
+#[test]
+fn stats_query_reads_the_logs_and_writes_nothing() {
+    each_adapter("stats", |service| {
+        let recipe = seed(service);
+        let play = played(service, &recipe.id);
+        service.play_persist(play.get_state().unwrap()).unwrap();
+
+        let before = service.play_events(&PlayId::from("play-1")).unwrap().len();
+        let result = service.stats_query(&StatsQuery::default()).unwrap();
+        assert_eq!(
+            service.play_events(&PlayId::from("play-1")).unwrap().len(),
+            before,
+            "a query grew the log"
+        );
+
+        // One resolved turn, and it is the one the scoreboard shows.
+        assert_eq!(result.turn_count, 1);
+        assert_eq!(result.play_count, 1);
+        let row = result
+            .rows
+            .iter()
+            .find(|row| row.key == "team-a")
+            .expect("the team that answered");
+        assert_eq!(row.label, "TEAM team-a");
+        assert_eq!(row.values[0], Some(1.0), "turns");
+        assert_eq!(row.values[3], Some(100.0), "points, as in the projection");
+        assert_eq!(
+            service.play_list(None).unwrap()[0].scores[&TeamId::from("team-a")],
+            100,
+            "the projection and the statistics agree"
+        );
+
+        // §12: renaming the team renames the row, without touching the log.
+        let mut renamed = team("team-a");
+        renamed.name = "The Reds".to_owned();
+        service.catalog_upsert(&renamed.into(), 2_000).unwrap();
+        let after = service.stats_query(&StatsQuery::default()).unwrap();
+        assert_eq!(
+            after.rows.iter().find(|r| r.key == "team-a").unwrap().label,
+            "The Reds"
+        );
+
+        // A filter that names a Play reads only that Play's log.
+        let elsewhere = StatsQuery {
+            filter: StatsFilter {
+                play_ids: vec![PlayId::from("play-none")],
+                ..StatsFilter::default()
+            },
+            ..StatsQuery::default()
+        };
+        assert_eq!(service.stats_query(&elsewhere).unwrap().turn_count, 0);
     });
 }
 

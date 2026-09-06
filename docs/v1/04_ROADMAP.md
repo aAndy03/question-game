@@ -607,16 +607,25 @@ dev-only `crates/app/src/demo.rs`.
 
 ---
 
-## P11 — Statistics  ☐
+## P11 — Statistics  ☑
 
-**Install:** EvilCharts / [ECharts](https://echarts.apache.org), isolated under Statistics only.
+**Install:** [ECharts](https://echarts.apache.org) (`echarts` in `apps/studio`), isolated under Statistics only. **EvilCharts is not installed** — it is a Recharts component collection, and one themed wrapper over ECharts is less surface than a second chart runtime.
 
 **Deliverables:** Live view of the current Play; All-data view with compound filters (variables + time); optional Statistics window on a second monitor; results table default with optional entity cards.
 
 **Exit criteria**
 
-- ☐ Statistics issues no writing command at all — verified by a grep of its imports.
-- ☐ The Statistics window is never a second Stage.
+- ☑ Statistics issues no writing command at all — `pages/statistics.test.tsx`
+  greps the whole surface for the command hook and for `@tauri-apps/api`, and
+  a run of both views asserts every command it issued is a read. The host side
+  is `guard::STATS_COMMANDS`.
+- ☑ The Statistics window is never a second Stage —
+  `windows::the_statistics_window_is_studio_not_stage` pins it to Studio's
+  bundle (`studio/index.html?stats`), and `guard::statistics_may_only_read`
+  refuses every write *and* Stage's own `stage_ready` /
+  `overlay_ack_complete`.
+
+**As built:** the design section is `05_STUDIO_DESIGN.md` §13. `stats_query` is one command over one document: `crates/host/src/stats.rs` folds a Play log into `TurnFact`s and aggregates them (pure, ten unit tests), and `CatalogService::stats_query` decides which logs to read and relabels rows from the current catalog (§12's rename rule). There is no `StatsService` — Statistics owns no state. The window is a consequence of `stats.monitor_id`, not a command of its own, so the §13 command list is unchanged.
 
 ---
 

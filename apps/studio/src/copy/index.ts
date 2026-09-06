@@ -309,6 +309,10 @@ export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Read
     title: 'The remembered Stage display is back.',
     actions: { move_stage: 'Move Stage', stay: 'Stay' },
   },
+  'stats.monitor_lost': {
+    title: 'The Statistics display was unplugged. That window is closed; the Play is untouched.',
+    actions: { pick_monitor: 'Pick a display', dismiss: 'Dismiss' },
+  },
   'stage.contract_mismatch': {
     title: 'Stage was built against another contract version.',
     actions: { reinstall: 'Reinstall', dismiss: 'Dismiss' },

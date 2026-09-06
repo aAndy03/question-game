@@ -24,9 +24,11 @@ export interface ActionMenuProps {
 export function ActionMenu({ items, onAction, label = LIST.open, size = 'sm' }: ActionMenuProps) {
   return (
     <Dropdown>
-      <Dropdown.Trigger>
-        <IconButton icon="moreVertical" label={label} size={size} hideTooltip />
-      </Dropdown.Trigger>
+      {/* The trigger is the button itself: `Dropdown.Trigger` renders a
+        * `<button>` of its own around whatever it wraps, which nests two
+        * buttons and is invalid HTML. HeroUI v3's own usage example puts the
+        * Button directly under `Dropdown`. */}
+      <IconButton icon="moreVertical" label={label} size={size} hideTooltip />
       <Dropdown.Popover placement="bottom end">
         <Dropdown.Menu
           onAction={(key) => onAction(String(key))}

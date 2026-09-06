@@ -8,6 +8,7 @@
 //! recipe_set_membership | set_settings | set_layout | set_overlay
 //! build_snapshot                                              §4.3
 //! play_persist | play_events | play_replay | play_list        the log
+//! stats_query                                                 §11.K, read-only
 //! wipe_plays                                                  §12.3, pin-gated
 //! seed_demo | seed_status                                     §12.1 (`seed.rs`)
 //! settings_load | settings_store                              §11.L L1/L2
@@ -37,6 +38,7 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
 use crate::event::Event;
+use crate::stats::{self, StatsDimension, StatsQuery, StatsResult, TurnFact};
 use crate::flags::{GameSettings, GlobalSettings};
 use crate::ids::{AssetId, DomainId, OperatorId, PlayId, QuestionId, RecipeId, TeamId};
 use crate::play::Play;
@@ -796,6 +798,40 @@ impl CatalogService {
         store::play_list(&self.conn(), recipe)
     }
 
+    /// `stats_query` (§11.K) — the one Statistics command.
+    ///
+    /// Statistics is a projector: this reads logs and writes nothing, not even
+    /// a cache. The arithmetic lives in [`crate::stats`], which is a pure
+    /// function of the events it is handed; all this does is decide which logs
+    /// to hand it. A filter that names Plays reads only those, so the Live
+    /// view costs one log rather than the whole history.
+    ///
+    /// The rows come back labelled as the Play knew them (a Play is
+    /// self-contained by §4.3). §12 wants a renamed team renamed everywhere,
+    /// so the caller may relabel a row from the catalog — that is a lookup on
+    /// `row.key`, not a second aggregation.
+    pub fn stats_query(&self, query: &StatsQuery) -> CatalogResult<StatsResult> {
+        let guard = self.conn();
+        let ids: Vec<PlayId> = match query.filter.play_scope() {
+            Some(named) => named.to_vec(),
+            None => store::play_list(&guard, None)?
+                .into_iter()
+                .filter(|record| {
+                    query.filter.recipe_ids.is_empty()
+                        || query.filter.recipe_ids.contains(&record.recipe_id)
+                })
+                .map(|record| record.id)
+                .collect(),
+        };
+        let mut facts: Vec<TurnFact> = Vec::new();
+        for id in &ids {
+            facts.extend(stats::facts(&store::events_read(&guard, id)?));
+        }
+        let mut result = stats::aggregate(&facts, query);
+        relabel(&guard, &mut result);
+        Ok(result)
+    }
+
     /// `wipe_plays` (§12.3) — every **closed** Play and its log, in one
     /// transaction. A Play that is loaded, playing or paused is left standing:
     /// the command layer refuses the call while one exists, and this keeps the
@@ -904,6 +940,41 @@ fn record_of(play: &Play) -> PlayRecord {
             .iter()
             .map(|team| (team.id.clone(), play.score(&team.id)))
             .collect(),
+    }
+}
+
+/// §12: a renamed team is renamed *everywhere*, Statistics included. The fold
+/// labels a row as the Play knew it (a Play is self-contained), so this is the
+/// one place the current catalog name wins. A row whose subject was archived
+/// or is gone keeps the Play's label — the number still happened.
+fn relabel(conn: &Connection, result: &mut StatsResult) {
+    for row in result.rows.iter_mut() {
+        let current = match result.group_by {
+            StatsDimension::Team => store::team_get(conn, &TeamId::from(row.key.as_str()))
+                .ok()
+                .map(|item| item.name),
+            StatsDimension::Domain => store::domain_get(conn, &DomainId::from(row.key.as_str()))
+                .ok()
+                .map(|item| item.name),
+            StatsDimension::Question => {
+                store::question_get(conn, &QuestionId::from(row.key.as_str()))
+                    .ok()
+                    .map(|item| item.stem)
+            }
+            StatsDimension::Operator => {
+                store::operator_get(conn, &OperatorId::from(row.key.as_str()))
+                    .ok()
+                    .map(|item| item.display_name)
+            }
+            StatsDimension::Recipe => store::recipe_get(conn, &RecipeId::from(row.key.as_str()))
+                .ok()
+                .map(|item| item.name),
+            // A difficulty band, a day and a Play id label themselves.
+            _ => None,
+        };
+        if let Some(name) = current {
+            row.label = name;
+        }
     }
 }
 

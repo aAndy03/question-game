@@ -38,6 +38,7 @@
 //! monitor   where the Stage window lives; the OS list arrives as data
 //! notice    the §14 `{ code, severity, target_path, actions[] }` shape
 //! stage     `play-state`, checked against the P1 fixtures
+//! stats     the §11.K fold: a log becomes turn facts, facts become rows
 //! operator  pins: argon2id in, PHC string out, never the digits (§2.15)
 //! health    the §12.6 report over inputs the app crate measures
 //! ```
@@ -65,6 +66,7 @@ pub mod session;
 pub mod settings;
 pub mod snapshot;
 pub mod stage;
+pub mod stats;
 pub mod timer;
 
 pub use catalog::{CatalogError, CatalogKind, CatalogLocation, CatalogService};

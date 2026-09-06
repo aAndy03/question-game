@@ -15,6 +15,7 @@ import {
   ScreensPage,
   SettingsPage,
   StatisticsPage,
+  type StatsView,
   TeamPage,
   TeamsPage,
 } from '@/pages'
@@ -45,6 +46,17 @@ function makeQueryClient() {
   })
 }
 
+/**
+ * `?stats` on the URL: the Statistics window (§11.K, 05_STUDIO_DESIGN.md
+ * §13.3). Studio's own bundle and tokens, the Statistics page alone — no
+ * sidebar, no route stack, nothing that could write. The host refuses a write
+ * from this webview regardless (`guard::STATS_COMMANDS`); this is the half
+ * that means it never asks.
+ */
+export function isStatsWindow(): boolean {
+  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('stats')
+}
+
 export function App() {
   // One cache per mount, so a test (or a hot reload) never inherits another's.
   const [queryClient] = useState(makeQueryClient)
@@ -52,8 +64,20 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <HostBridge />
-      <Shell />
+      {isStatsWindow() ? <StatsWindow /> : <Shell />}
     </QueryClientProvider>
+  )
+}
+
+/** The Statistics page on its own display, Live by default. */
+function StatsWindow() {
+  useApplyTheme()
+  // Its own view state: this window has no route stack to keep it in.
+  const [view, setView] = useState<StatsView>('live')
+  return (
+    <div className="h-full min-h-0 overflow-hidden" data-stats-window>
+      <StatisticsPage view={view} onView={setView} />
+    </div>
   )
 }
 
@@ -162,7 +186,7 @@ function Page({ route }: { route: Route }) {
     case 'screens':
       return <ScreensPage />
     case 'statistics':
-      return <StatisticsPage />
+      return <StatisticsPage view={route.view} />
     case 'settings':
       return <SettingsPage inner={route.inner} />
   }

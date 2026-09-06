@@ -16,6 +16,7 @@ import type {
   CueKey,
   HealthReport,
   HealthStatus,
+  OutcomeVerdict,
   RevealChannel,
   RevealMode,
   StageReattach,
@@ -405,4 +406,85 @@ export function difficultyBand(difficulty: number): DifficultyBandName {
   if (difficulty <= 33) return 'easy'
   if (difficulty <= 66) return 'medium'
   return 'hard'
+}
+
+// ------------------------------------------------------------------ statistics
+
+/** What one row of a `stats_query` answer stands for (§11.K). */
+export type StatsDimension = 'team' | 'domain' | 'question' | 'difficulty' | 'operator' | 'recipe' | 'play' | 'day'
+
+/** A column. The unit is the metric's, so a table and a chart agree. */
+export type StatsMetric =
+  | 'turns'
+  | 'correct'
+  | 'incorrect'
+  | 'partial'
+  | 'accuracy'
+  | 'points'
+  | 'bonus'
+  | 'avg_points'
+  | 'avg_lock_ms'
+  | 'fastest_lock_ms'
+  | 'plays'
+
+export type StatsUnit = 'count' | 'points' | 'ratio' | 'milliseconds'
+
+/** §11.K's compound filter: every variable, and time. An empty list is "any". */
+export interface StatsFilter {
+  readonly fromMs?: number | null
+  readonly toMs?: number | null
+  readonly playIds?: readonly string[]
+  readonly recipeIds?: readonly string[]
+  readonly operatorIds?: readonly string[]
+  readonly teamIds?: readonly string[]
+  readonly domainIds?: readonly string[]
+  readonly questionIds?: readonly string[]
+  readonly verdicts?: readonly OutcomeVerdict[]
+  readonly minDifficulty?: number | null
+  readonly maxDifficulty?: number | null
+  /** A one-team Play is legal and skews an average; off unless asked for. */
+  readonly includeRehearsal?: boolean
+}
+
+export interface StatsQuery {
+  readonly filter?: StatsFilter
+  readonly groupBy?: StatsDimension
+  /** The columns, in order. Empty means the host's defaults. */
+  readonly metrics?: readonly StatsMetric[]
+  readonly limit?: number | null
+}
+
+export interface StatsRow {
+  readonly key: string
+  readonly label: string
+  /** One per requested metric, same order. `null` = nothing to average. */
+  readonly values: readonly (number | null)[]
+  readonly turns: number
+  readonly plays: number
+}
+
+export interface StatsResult {
+  readonly groupBy: StatsDimension
+  readonly metrics: readonly StatsMetric[]
+  readonly rows: readonly StatsRow[]
+  readonly totals: StatsRow
+  readonly playCount: number
+  readonly turnCount: number
+}
+
+/** The metric's unit, mirroring `StatsMetric::unit` in the host. */
+export function statsUnit(metric: StatsMetric): StatsUnit {
+  switch (metric) {
+    case 'accuracy':
+      return 'ratio'
+    case 'points':
+    case 'bonus':
+    case 'avg_points':
+      return 'points'
+    case 'avg_lock_ms':
+    case 'fastest_lock_ms':
+      return 'milliseconds'
+    default:
+      return 'count'
+  }
 }

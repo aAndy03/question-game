@@ -170,6 +170,27 @@ describe('commands and events', () => {
     expect(Object.keys(EMPTY_PLAY_STATE).sort()).toEqual(Object.keys(FIXTURES.idle).sort())
   })
 
+  it('registers exactly this list in the Tauri shell', () => {
+    // `generate_handler!` is the real command surface, and nothing in Rust
+    // can compare itself with a TypeScript array — so the comparison lives
+    // here, where both are readable. A command added on one side and not the
+    // other is the failure this catches: an `invoke` that answers "command
+    // not found" at runtime, or a handler no caller can reach.
+    // Vite's glob, not `node:fs`: this package is shared by both webviews and
+    // its tsconfig has no Node types (the same trick as Stage's synth grep).
+    const sources = import.meta.glob('../../../crates/app/src/lib.rs', {
+      query: '?raw',
+      import: 'default',
+      eager: true,
+    }) as Record<string, string>
+    const lib = Object.values(sources)[0] ?? ''
+    expect(lib).toContain('generate_handler!')
+    const handler = lib.slice(lib.indexOf('generate_handler!'))
+    const registered = [...handler.matchAll(/commands::\w+::(\w+)/g)].map((m) => m[1])
+    expect(new Set(registered).size).toBe(registered.length)
+    expect([...registered].sort()).toEqual([...COMMANDS].sort())
+  })
+
   it('lets Stage report on itself and nothing else', () => {
     // Stage is a projection, not a controller (spec §5.7). Both of these are
     // Stage reporting its own state — a finished timeline, and "I have mounted,

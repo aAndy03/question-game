@@ -17,7 +17,7 @@
 import { FIXTURES, type FixtureName, type PlayStateForMain } from '@questiongame/contract'
 import { createFakeHost, DEFAULT_GAME_SETTINGS, type FakeHost } from './fake'
 import { hasTauri, setHostTransport } from './host'
-import type { CatalogItem, Recipe } from './types'
+import type { CatalogItem, Recipe, StatsResult } from './types'
 
 export function installDevFakeIfAsked(): FakeHost | null {
   if (!import.meta.env.DEV || hasTauri()) return null
@@ -34,6 +34,9 @@ export function installDevFakeIfAsked(): FakeHost | null {
   // half; the operator half is synthesised here and nowhere else.
   const fixture = params.get('play')
   if (fixture && fixture in FIXTURES) fake.playState = demoPlay(fixture as FixtureName)
+  // Statistics reads a fold the fake does not do (§13.1); a canned answer is
+  // what lets the tab be worked on in a browser, the way `play=` does Control.
+  fake.stats = demoStats()
   setHostTransport(fake)
   return fake
 }
@@ -116,5 +119,23 @@ export function demoRecipe(): Recipe {
     createdAt: t0,
     updatedAt: t0 + 86_400_000 * 10,
     archivedAt: null,
+  }
+}
+
+/** A plausible `stats_query` answer for `?fake`: four teams, one season. */
+export function demoStats(): StatsResult {
+  const rows = [
+    { key: 'team-alpha', label: 'Alpha Squad', values: [24, 18, 0.75, 620], turns: 24, plays: 4 },
+    { key: 'team-bravo', label: 'Bravo Company', values: [23, 14, 0.61, 480], turns: 23, plays: 4 },
+    { key: 'team-charlie', label: 'Charlie Crew', values: [22, 11, 0.5, 390], turns: 22, plays: 4 },
+    { key: 'team-delta', label: 'Delta Force', values: [21, 7, 0.33, 240], turns: 21, plays: 3 },
+  ]
+  return {
+    groupBy: 'team',
+    metrics: ['turns', 'correct', 'accuracy', 'points'],
+    rows,
+    totals: { key: '', label: '', values: [90, 50, 0.556, 1730], turns: 90, plays: 4 },
+    playCount: 4,
+    turnCount: 90,
   }
 }

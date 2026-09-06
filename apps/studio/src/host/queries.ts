@@ -3,7 +3,7 @@
  *
  * Keys mirror the §13 verbs and nothing else: `catalog_*`, `recipe_*`,
  * `settings_get`, `monitors_list`, `play_list`, `play_events`, `paths_get`,
- * `catalog_seed_status`. **No key names a Play's live state** — `play-state`
+ * `catalog_seed_status`, `stats_query`. **No key names a Play's live state** — `play-state`
  * is `playState.ts`, and a test asserts the word `play-state` never appears in
  * a key. (`plays` is the closed-Play *history*, `play_list`, which is a
  * catalog-shaped read: it changes on a host event, never on a tick.)
@@ -29,6 +29,8 @@ import type {
   SearchQuery,
   SeedStatus,
   SettingsView,
+  StatsQuery,
+  StatsResult,
 } from './types'
 
 export const keys = {
@@ -55,6 +57,14 @@ export const keys = {
     list: (recipeId: string | null) => ['plays', 'list', recipeId] as const,
     events: (playId: string) => ['plays', 'events', playId] as const,
   },
+  /**
+   * `stats_query` (§11.K). The query document *is* the key, plus a liveness
+   * token — the open Play's event count for the Live view, `null` for All
+   * data. That is the Timeline's trick (§10.3): a Play that grew refetches,
+   * a countdown that ticked does not. The Play is still not cached here —
+   * what is cached is an answer about a log, keyed by how long that log was.
+   */
+  stats: (query: StatsQuery, liveness: number | null) => ['stats', query, liveness] as const,
 } as const
 
 const enabled = () => hasHost()
@@ -161,6 +171,24 @@ export function useSeedStatus() {
     queryKey: keys.seedStatus,
     queryFn: () => command<SeedStatus>('catalog_seed_status'),
     enabled: enabled(),
+  })
+}
+
+/**
+ * One `stats_query`. Read-only by construction: Statistics has no write verb
+ * to call (§11.K), and this hook is the only door it needs.
+ */
+export function useStats(query: StatsQuery, liveness: number | null = null, isEnabled = true) {
+  return useQuery({
+    queryKey: keys.stats(query, liveness),
+    queryFn: () => command<StatsResult>('stats_query', { query }),
+    // An empty `playIds` means *every* Play to the host, so a Live view with
+    // no Play must not ask at all — it would read the whole history to draw
+    // an empty state.
+    enabled: enabled() && isEnabled,
+    // A previous answer stays on screen while the next one loads, so the
+    // Live table does not blink on every resolved turn.
+    placeholderData: (previous) => previous,
   })
 }
 

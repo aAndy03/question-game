@@ -2,7 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    // `vite/client` only — for `import.meta.glob` in the tests. Not `node`:
+    // this package is shared by both webviews and must stay runtime-free.
+    "types": ["vite/client"]
   },
   "include": ["src/**/*"]
 }

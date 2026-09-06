@@ -33,4 +33,9 @@ if (typeof window !== 'undefined') {
   if (typeof Element.prototype.scrollIntoView !== 'function') {
     Element.prototype.scrollIntoView = () => {}
   }
+  // The Web Animations API: `motion` and HeroUI's exit transitions ask an
+  // element what it is animating before they remove it.
+  if (typeof Element.prototype.getAnimations !== 'function') {
+    Element.prototype.getAnimations = () => []
+  }
 }

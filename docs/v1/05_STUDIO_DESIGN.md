@@ -1127,3 +1127,175 @@ The section shipped as proposed. What a later phase should know:
   pin prompt, the unskippable operator step), `copy/notices.test.ts` (the
   ≤ 3-action audit), `apps/stage/src/audio/*` (cue mapping, the Howler
   adapter, the no-synth source grep) and the host suites named in §12.9.
+
+---
+
+## 13. Statistics (P11)
+
+Status: **as built, P11, 2026-09-06.** Two jobs — the Play on the desk right
+now, and everything that ever happened — from one host command. Rules that
+hold across the section: **Statistics writes nothing** (§11.K "reads
+projections, never writes rules"), so no file under `statistics/` imports
+`useHostCommand`, and a test greps for it; a number shown here is the number
+the scoreboard showed, because both fold the same log; the optional second
+window is Studio on another display, never a second Stage.
+
+### 13.1 One command, one document
+
+`stats_query` is the whole family (§13). The host answers it from the Play
+logs — `crates/host/src/stats.rs` is a pure fold, `CatalogService::stats_query`
+is the thin thing that decides which logs to read:
+
+```text
+events ──facts()──▶ [TurnFact] ──aggregate(query)──▶ StatsResult
+```
+
+**A resolved turn is the unit.** One issued-answered-revealed question is one
+`TurnFact` carrying who, what, which domain, how hard, how fast and what it
+was worth, so every metric is a fold over one row set and one command feeds
+the Live tiles, the table, the cards and the charts.
+
+```ts
+interface StatsQuery {
+  filter: StatsFilter          // §11.K's "all variables + time"
+  groupBy: StatsDimension      // team | domain | question | difficulty
+                               // | operator | recipe | play | day
+  metrics: StatsMetric[]       // the columns, in order; [] = the defaults
+  limit?: number
+}
+interface StatsResult {
+  groupBy: StatsDimension
+  metrics: StatsMetric[]
+  rows: StatsRow[]             // { key, label, values, turns, plays }
+  totals: StatsRow
+  playCount: number
+  turnCount: number
+}
+```
+
+Three rules that keep the arithmetic honest and are covered by tests:
+
+- **An undone turn is not a fact.** `TurnInverted` takes a span out of the
+  projection (§2.7) and out of statistics, so the table and the Stage
+  scoreboard can never disagree.
+- **A metric with nothing to average is `null`, not `0`.** An operator-pace
+  Play has no lock time; a zero there would be a lie about speed.
+- **A rehearsal (one active team, §4.3) is excluded** from All data unless
+  `includeRehearsal` asks for it — it is legal and it skews an average. Live
+  includes it, because a rehearsal is what the operator is looking at.
+
+Labels come from the Play's own snapshot, then the current catalog row wins
+where one exists (`relabel` in `CatalogService`): §12 says a renamed team is
+renamed in Statistics too, and a Play whose team was archived afterwards still
+reads correctly.
+
+### 13.2 The page
+
+```text
+┌ Statistics ──────────────────────────────────────────────────────────┐
+│ Live | All data                                    [grid|table]      │
+├──────────────────────────────────────────────────────────────────────┤
+│ Live:      tiles (score · turns · accuracy · questions left)         │
+│            leaderboard table, domain table, one chart                │
+│ All data:  FilterBar (time · game · team · domain · verdict …)       │
+│            group-by + metric picker · StatsTable | StatsCards        │
+│            one StatsChart under it                                   │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- **Live** is `stats_query` scoped to the open Play, refreshed on
+  `operator.eventCount` — the Timeline's trick (§10.3), not a clock. The
+  tiles that need no arithmetic (scores, questions left, round) come straight
+  off `play-state`; nothing is recomputed from a second source.
+- **All data** is the same command with the filter document the FilterBar
+  builds. The table is the default view and the cards are the option (§12);
+  the preference is chrome, per operator, like every other list.
+- **The chart is one molecule** (`StatsChart`) and the only file that imports
+  `echarts`. Bars for a categorical dimension, a line for `day`, themed from
+  the Studio CSS variables so it follows light and dark like everything else.
+  EvilCharts is not installed: it is a Recharts component collection, and one
+  themed wrapper over ECharts is less surface than a second chart runtime.
+- **No Play open** is an empty state that points at Control, not an error.
+
+### 13.3 The Statistics window (§9)
+
+Optional, off by default, `stats.monitor_id` in Settings ▸ Monitors — the row
+that has said `feature_off · statistics (P11)` since P10. Choosing a display
+opens a third webview labelled `stats` at `/studio/?stats`, which renders the
+Statistics page alone: **Studio's bundle, Studio's tokens, Studio's chrome.**
+
+- It is not a second Stage: it never receives `play-state` for Stage, has no
+  screen, no overlay queue and no `anim-complete`, and closing it changes
+  nothing about the show.
+- `guard.rs` gains `STATS_COMMANDS` — `stats_query`, `get_state`,
+  `settings_get`, `monitors_list`, `play_list`, `catalog_list`, `catalog_get`,
+  `recipe_list` — and the `stats` label may call nothing else, Stage's own
+  `stage_ready` / `overlay_ack_complete` included. An unknown label is still
+  treated as Stage.
+- **The window is a consequence of the setting, not a command.** Picking a
+  display in Settings ▸ Monitors writes `stats.monitor_id`, and
+  `settings_set_global` opens, moves or closes the window from there; there is
+  no `stats_set_monitor`, so the §13 command list is unchanged. Stage's own
+  display is refused with `stats.monitor_id: that display is showing Stage`.
+- Unplugging its display closes it with a `stats.monitor_lost` notice. It
+  never pulls a Play.
+
+### 13.4 Components
+
+| Level | New | Notes |
+| --- | --- | --- |
+| atoms | — | the tiles are P7's `StatCard`; a `StatTile` would have been the same component twice |
+| molecules | `StatsTable` · `StatsCards` · `StatsChart` · `StatsFilterBar` | `StatsChart` is the only ECharts importer; the metric picker is the filter bar's last row, not a component of its own |
+| organisms | `LiveStats` · `AllDataStats` | both read-only; neither imports the command hook |
+| pages | `StatisticsPage` | Live \| All data, the view toggle, the empty state. Takes `onView` so the Statistics window, which has no route stack, can hold the view itself |
+
+Formatting lives on the metric, not the call site: `formatMetric` reads
+`statsUnit(metric)` (a ratio is a percentage, milliseconds are seconds to one
+decimal, `null` is an em dash), so the table, the cards and the chart tooltip
+cannot disagree.
+
+### 13.5 Tests
+
+- `crates/host`: the fold (names and difficulty off the snapshot, an undone
+  turn is not a fact, `None` where nothing can be averaged, every dimension
+  groups, filters intersect, the UTC day) and `stats_query` through both
+  catalog adapters, including that a query grows no log and that a renamed
+  team renames the row.
+- `packages/contract`: the registered Tauri handlers are exactly `COMMANDS`
+  (this is what would have caught a `stats_query` that existed on one side
+  only).
+- `apps/studio`: `pages/statistics.test.tsx` — the empty state points at
+  Control and asks nothing at all (an empty `playIds` means *every* Play to
+  the host); Live scopes every query to the open Play; it refetches when
+  `eventCount` grows and not when the countdown ticks; All data asks for the
+  dimension the operator picked; every command the surface issued in a run is
+  a read; and the source grep: **no file under the Statistics surface imports
+  the command hook**, and only `StatsChart` imports ECharts.
+- `crates/app`: `guard::statistics_may_only_read` walks `STATS_COMMANDS` and a
+  list of writes, and `windows::the_statistics_window_is_studio_not_stage`
+  pins the URL to Studio's bundle.
+
+### 13.6 Not in P11, decided
+
+Saved filter presets · CSV export (explicitly not in v1) · per-question
+answer-distribution charts (they need option-level facts the log does not
+carry: `SelectionLocked` records the set, not the miss) · cross-Play
+"form guide" trends beyond the day series · a stats window on the same
+display as Stage (the picker refuses it).
+
+### 13.7 As built — departures worth knowing
+
+- **The tab list gained `statistics`.** grid | table is per operator like every
+  other list tab (§12), so `ListTab` and the persisted `view` document carry
+  one more key; an older document falls back to `table`.
+- **`useStats(query, liveness, isEnabled)`.** The third argument exists because
+  an empty `playIds` means *every* Play to the host: a Live view with no Play
+  would have read the whole history to draw an empty state.
+- **Three fixes landed alongside**, all pre-existing and all visible here
+  first: `Dropdown.Trigger` wrapping a `Button` nests two `<button>`s (HeroUI
+  v3's own example puts the Button directly under `Dropdown` — `ActionMenu`
+  and both top-bar menus now do); `[role='tab']` no longer wraps to two lines;
+  and the jsdom setup stubs `Element.prototype.getAnimations`.
+- **`?fake` carries a canned `stats_query` answer** (`demoStats`), the way
+  `&play=<fixture>` carries a Play — the fake host does not fold events, and
+  the tab needs something to draw in a browser.

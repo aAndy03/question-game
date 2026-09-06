@@ -45,7 +45,7 @@ export type Route =
   | { readonly tab: 'operators'; readonly mode: 'new' }
   | { readonly tab: 'control' }
   | { readonly tab: 'screens' }
-  | { readonly tab: 'statistics' }
+  | { readonly tab: 'statistics'; readonly view?: 'live' | 'all' }
   | { readonly tab: 'settings'; readonly inner?: SettingsInner }
 
 export type GameSection = 'roster' | 'board' | 'rules' | 'plays'

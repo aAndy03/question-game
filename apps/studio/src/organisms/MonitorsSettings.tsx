@@ -1,10 +1,10 @@
 import { Button, Text } from '@/atoms'
-import { MonitorCard, SettingRow, SettingsGroup, disabledReasonText } from '@/molecules'
+import { DisplayPicker, MonitorCard, SettingRow, SettingsGroup } from '@/molecules'
 import { CONTROL } from '@/copy'
 import { SETTINGS } from '@/copy/settings'
+import { STATS } from '@/copy/stats'
 import { useHostCommand } from '@/host/commands'
 import { useMonitors, useSettings } from '@/host/queries'
-import type { Disabled } from '@/host/types'
 import { SettingsForm } from './SettingsForm'
 
 /**
@@ -21,7 +21,9 @@ export function MonitorsSettings() {
   const remembered = settings.data?.control.stage_monitor_id ?? null
   const rememberedConnected = remembered !== null && list.some((m) => m.key === remembered)
   const single = list.length === 1
-  const statsOff: Disabled = { key: 'stats.monitor_id', reason: 'feature_off', detail: 'statistics (P11)' }
+  // §13.3: the Statistics window is a consequence of this pick — the host
+  // opens it, moves it and closes it. Stage's display is refused there.
+  const stats = settings.data?.control.stats_monitor_id ?? null
 
   const send = (key: string | null) => {
     void run('stage_open')
@@ -62,10 +64,14 @@ export function MonitorsSettings() {
             </Button>
           ) : null}
         </div>
-        <SettingRow label={SETTINGS.monitors.statsDisplay} description={CONTROL.statsDisplay} disabled={statsOff}>
-          <Text variant="studio-body" tone="muted">
-            {disabledReasonText(statsOff)}
-          </Text>
+        <SettingRow label={SETTINGS.monitors.statsDisplay} description={STATS.window.displayHint}>
+          <DisplayPicker
+            label={SETTINGS.monitors.statsDisplay}
+            monitors={list}
+            value={stats}
+            onChange={(value) => void run('settings_set_global', { setting: { key: 'stats_monitor_id', value } }, { targetPath: 'stats.monitor_id' })}
+            {...(single ? { isDisabled: true, disabledReason: SETTINGS.monitors.single } : {})}
+          />
         </SettingRow>
       </SettingsGroup>
       <SettingsForm groups={['control']} compact />

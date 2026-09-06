@@ -39,6 +39,8 @@ import type {
   SeedResult,
   SeedStatus,
   SettingsView,
+  StatsQuery,
+  StatsResult,
 } from './types'
 import { SEED_RECIPE_ID, sameBody, seedLibrary, seedRecipe } from './fake/seed'
 
@@ -59,6 +61,13 @@ export interface FakeHost extends HostTransport {
   playState: PlayStateForMain | null
   /** What `health_get` answers; a test sets it and then `emit('health', …)`. */
   health: HealthReport
+  /**
+   * What `stats_query` answers (§11.K). A canned result, not a second fold:
+   * the arithmetic is the host's and is tested there, so what a Studio test
+   * needs from the fake is *an* answer plus the query that asked for it —
+   * which `calls` already records.
+   */
+  stats: StatsResult
   /** Set by `uninstall_data` — the fake cannot quit, so it leaves a flag. */
   uninstalled: boolean
 }
@@ -100,6 +109,16 @@ const GAME_AFFECTING_KEYS = [
   'timer.enabled',
   'timer.duration_ms',
 ] as const
+
+/** The empty answer: what a fresh library has to say about a Play nobody ran. */
+const EMPTY_STATS: StatsResult = {
+  groupBy: 'team',
+  metrics: ['turns', 'correct', 'accuracy', 'points'],
+  rows: [],
+  totals: { key: '', label: '', values: [0, 0, null, 0], turns: 0, plays: 0 },
+  playCount: 0,
+  turnCount: 0,
+}
 
 const PIN = /^[0-9]{4,8}$/
 /** The fake's "hash" — never shown, only compared. */
@@ -506,6 +525,15 @@ export function createFakeHost(): FakeHost {
     paths_get: () => FAKE_PATHS,
     paths_reveal: () => null,
     health_get: () => fake.health,
+    // Read-only by construction: there is no stats verb that writes (§11.K).
+    stats_query: (a) => {
+      const query = (a.query ?? {}) as StatsQuery
+      return {
+        ...fake.stats,
+        groupBy: query.groupBy ?? fake.stats.groupBy,
+        metrics: query.metrics?.length ? query.metrics : fake.stats.metrics,
+      }
+    },
     settings_get: () => settingsView(),
     settings_set_shortcut: (a) => {
       const cmd = a.command as string
@@ -595,6 +623,7 @@ export function createFakeHost(): FakeHost {
     plays: [],
     playState: null,
     health: { status: 'ok', items: [] },
+    stats: EMPTY_STATS,
     uninstalled: false,
     emit,
     seed(items, seededRecipes = []) {

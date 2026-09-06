@@ -104,3 +104,10 @@ body {
     scrollbar-color: var(--scrollbar) transparent;
   }
 }
+
+/* A tab label is a name, not a paragraph: HeroUI sizes the tab to its content,
+ * and a two-word label ("All data", "Keyboard shortcuts") otherwise wraps to
+ * two lines and pulls the row's baseline with it. */
+[role='tab'] {
+  white-space: nowrap;
+}

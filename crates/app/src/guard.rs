@@ -15,6 +15,8 @@ use crate::error::{AppError, AppResult};
 pub const MAIN: &str = "main";
 /// The label Tauri gives the Stage webview.
 pub const STAGE: &str = "stage";
+/// The label of the optional Statistics window (§11.K, P11).
+pub const STATS: &str = "stats";
 
 /// Mirrors `STAGE_COMMANDS` in `packages/contract`.
 ///
@@ -24,8 +26,29 @@ pub const STAGE: &str = "stage";
 /// opinion about the Play.
 pub const STAGE_COMMANDS: [&str; 3] = ["overlay_ack_complete", "stage_ready", "stage_report"];
 
+/// What the Statistics window may ask for: reads, and only reads.
+///
+/// §11.K — "reads projections, never writes rules". Statistics on a second
+/// display is Studio's Statistics page in a window of its own, so it needs the
+/// same reads that page makes and nothing else. A write reaching the host from
+/// this label is a bug in Studio, and this is where it stops.
+pub const STATS_COMMANDS: [&str; 8] = [
+    "stats_query",
+    "get_state",
+    "settings_get",
+    "monitors_list",
+    "play_list",
+    "catalog_list",
+    "catalog_get",
+    "recipe_list",
+];
+
 pub fn stage_may_call(command: &str) -> bool {
     STAGE_COMMANDS.contains(&command)
+}
+
+pub fn stats_may_call(command: &str) -> bool {
+    STATS_COMMANDS.contains(&command)
 }
 
 /// Refuse a command that reached the host from the wrong webview.
@@ -33,6 +56,14 @@ pub fn stage_may_call(command: &str) -> bool {
 /// An unknown label is treated as Stage: a window this build did not create is
 /// the last thing that should be allowed to move the token.
 pub fn allow(label: &str, command: &'static str) -> AppResult<()> {
+    if label == STATS {
+        if stats_may_call(command) {
+            tracing::debug!(webview = label, command, "invoke");
+            return Ok(());
+        }
+        tracing::warn!(webview = label, command, "refused: statistics is a projector");
+        return Err(AppError::NotForStage { command });
+    }
     if label == MAIN || stage_may_call(command) {
         // Every command passes through here, so this is the one place that can
         // say what the webviews are actually asking for. Off unless asked for:
@@ -47,6 +78,31 @@ pub fn allow(label: &str, command: &'static str) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// P11 exit criterion: the Statistics window is never a second Stage, and
+    /// it cannot write. It is Studio's page on another display — reads only.
+    #[test]
+    fn statistics_may_only_read() {
+        for command in STATS_COMMANDS {
+            assert!(allow(STATS, command).is_ok(), "{command} is a read");
+        }
+        for command in [
+            "give_token",
+            "play_start",
+            "catalog_upsert",
+            "settings_set_global",
+            "show_screen",
+            // Not a writer of the Play, but Stage's own handshake: this window
+            // has no overlay queue to acknowledge.
+            "overlay_ack_complete",
+            "stage_ready",
+        ] {
+            assert!(
+                allow(STATS, command).is_err(),
+                "statistics called {command}"
+            );
+        }
+    }
 
     #[test]
     fn stage_may_only_report_on_itself() {
