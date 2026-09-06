@@ -89,6 +89,15 @@ export const ICONS = {
   shuffle: 'shuffle',
   flag: 'flag',
 
+  // settings, first run (P10)
+  volume: 'volume',
+  volumeMuted: 'volume-slash',
+  pinOff: 'pin-slash',
+  reveal: 'arrow-up-right-from-square',
+  wizardDone: 'circle-check-fill',
+  wipe: 'broom-motion',
+  trash: 'trash-bin',
+
   // control
   listCheck: 'list-check',
   timeline: 'list-timeline',

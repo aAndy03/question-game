@@ -1,0 +1,262 @@
+/**
+ * Settings tab copy (P10, 05_STUDIO_DESIGN.md §12.2–§12.6): the grouped
+ * global document, monitors, keyboard shortcuts, pins, audio cues, the data
+ * actions. Vocabulary from docs/v1/03_CONTEXT.md — Play, Game, Operator,
+ * Stage, Studio.
+ *
+ * This module has no imports on purpose: atoms (`PinField`, `ChordField`)
+ * read it, and an atom may depend on nothing but other atoms.
+ */
+
+export type SettingsGroupId = 'award' | 'turn' | 'judging' | 'timer' | 'reveal' | 'control' | 'audio' | 'library' | 'data'
+
+export interface SettingsGroupCopy {
+  readonly id: SettingsGroupId
+  readonly title: string
+  readonly description: string
+  /** The host keys this group renders, in row order. */
+  readonly keys: readonly string[]
+}
+
+/**
+ * One table, three surfaces (§12.2.2): the Settings tab, the Control float's
+ * Global tab and the first-run Defaults step render these groups in this order.
+ */
+export const SETTINGS_GROUPS: readonly SettingsGroupCopy[] = [
+  {
+    id: 'award',
+    title: 'Award',
+    description: 'What a correct answer is worth. Defaults for new games; a game may set its own.',
+    keys: [
+      'scoring.mode',
+      'scoring.flat_points',
+      'scoring.difficulty_map',
+      'scoring.lock_speed_base',
+      'scoring.lock_speed.enabled',
+      'scoring.speed_weight',
+    ],
+  },
+  {
+    id: 'turn',
+    title: 'Turn',
+    description: 'How long a team keeps the token.',
+    keys: ['turn.max_consecutive_correct', 'turn.bonus_after_consecutive'],
+  },
+  {
+    id: 'judging',
+    title: 'Judging',
+    description: 'How a locked answer is compared with the correct set.',
+    keys: ['judging.partial_credit', 'judging.order_matters'],
+  },
+  {
+    id: 'timer',
+    title: 'Timer',
+    description: 'The all-games countdown. A game or a question may override it.',
+    keys: ['globals.timer.enabled', 'globals.timer.duration_ms'],
+  },
+  {
+    id: 'reveal',
+    title: 'Reveal',
+    description: 'Operator-timed or automatic, per channel. Live during a Play.',
+    keys: ['reveal.question', 'reveal.answers', 'reveal.outcome', 'reveal.leaderboard'],
+  },
+  {
+    id: 'control',
+    title: 'Control',
+    description: 'How Control behaves. Live during a Play.',
+    keys: ['override.after_lock', 'overlay_animations.enabled', 'viewer.hit_targets', 'control.mosaic_density', 'stage.reattach'],
+  },
+  {
+    id: 'audio',
+    title: 'Audio',
+    description: 'Cues play on the Stage window only. Live during a Play.',
+    keys: ['audio.volume', 'audio.muted', 'audio.cues', 'feat.audio', 'feat.audio.synth'],
+  },
+  {
+    id: 'library',
+    title: 'Library',
+    description: 'The sample catalog.',
+    keys: ['library.restore_demo'],
+  },
+  {
+    id: 'data',
+    title: 'Data',
+    description: 'Generated files on this computer. Nothing here can reach an open Play.',
+    keys: ['data.wipe_plays', 'data.uninstall'],
+  },
+]
+
+export const SETTINGS = {
+  title: 'Settings',
+  description: 'Displays, defaults, shortcuts.',
+  inner: {
+    monitors: 'Monitors',
+    settings: 'Settings',
+    shortcuts: 'Keyboard shortcuts',
+  } as const,
+  /** The permanent info banner above the form (§12.2.2). */
+  banner: {
+    title: 'Open Plays keep their frozen copy.',
+    body: 'A global award default does not rewrite a game that already set its own. Award, Turn, Judging and Timer seed new games only.',
+  },
+
+  rows: {
+    'scoring.mode': { label: 'Award mode', description: 'What a correct answer is worth.' },
+    'scoring.flat_points': { label: 'Points per correct answer', description: 'The flat base.' },
+    'scoring.difficulty_map': { label: 'Difficulty map', description: 'Points from difficulty: a factor, or bands.' },
+    'scoring.lock_speed_base': { label: 'Base for lock speed', description: 'Lock speed multiplies this base.' },
+    'scoring.lock_speed.enabled': { label: 'Add lock-speed bonus', description: 'Faster locks earn more, on top of the base.' },
+    'scoring.speed_weight': { label: 'Speed weight', description: 'points = floor(base × (1 + weight × remaining ÷ duration)).' },
+    'turn.max_consecutive_correct': { label: 'Cap after consecutive correct', description: 'The token ends after this many correct answers in a row. Off means no cap.' },
+    'turn.bonus_after_consecutive': { label: 'Bonus after consecutive correct', description: 'Extra points once a team answers this many in a row.' },
+    'judging.partial_credit': { label: 'Partial credit', description: 'Off: a multiple-answer question is correct only when the locked set equals the correct set.' },
+    'judging.order_matters': { label: 'Option order matters', description: 'Off: {A, C} equals {C, A}.' },
+    'globals.timer.enabled': { label: 'Timer', description: 'Off means operator pace: no countdown, no auto-lock, Stage clock hidden.' },
+    'globals.timer.duration_ms': { label: 'Duration', description: 'Seconds per question when no game or question overrides it.' },
+    'reveal': { label: 'Reveal', description: 'Operator presses, or Stage advances on its own.' },
+    'override.after_lock': { label: 'Override after lock', description: 'Whether Give token is offered while a locked question waits for its reveal.' },
+    'overlay_animations.enabled': { label: 'Overlay animations', description: 'Turn handoffs and outcomes drawn over the current Screen.' },
+    'viewer.hit_targets': { label: 'Viewer hit targets', description: 'Click the Viewer to choose, select and lock.' },
+    'control.mosaic_density': { label: 'Control density', description: 'How tight the Control panels sit.' },
+    'stage.reattach': { label: 'Stage reattach', description: 'When the remembered display reappears mid-Play.' },
+    'audio.volume': { label: 'Volume', description: 'Stage cue volume.' },
+    'audio.muted': { label: 'Muted', description: 'Silences every cue on Stage.' },
+    'audio.cues': { label: 'Cue map', description: 'Which file each cue plays, from the bundled pack.' },
+    'feat.audio': { label: 'Audio', description: 'The audio feature. Off silences Stage regardless of the pack.' },
+    'feat.audio.synth': { label: 'Generated tones', description: 'No generated tones in v1.' },
+    'library.restore_demo': { label: 'Sample game', description: 'The Demo game: two teams, two domains, six questions.' },
+    'data.wipe_plays': { label: 'Wipe Plays', description: 'Deletes every closed Play and its events. Games and the library stay.' },
+    'data.uninstall': { label: 'Remove generated data', description: 'Deletes the catalog, search index, assets and per-operator files, then quits.' },
+  } as const satisfies Readonly<Record<string, { label: string; description: string }>>,
+
+  scoringMode: { flat: 'Flat', difficulty: 'By difficulty', lock_speed: 'Lock speed' } as const,
+  lockSpeedBase: { flat: 'Flat', difficulty: 'By difficulty' } as const,
+  difficultyMap: {
+    kind: 'Map kind',
+    linear: 'Linear',
+    bands: 'Bands',
+    factor: 'Points per difficulty point',
+    upTo: 'Up to difficulty',
+    points: 'Points',
+    band: (i: number) => `Band ${i + 1}`,
+    addBand: 'Add band',
+    removeBand: 'Remove band',
+    lastBand: 'At least one band.',
+  } as const,
+  bonus: { count: 'After', award: 'Award' } as const,
+  revealMode: { operator: 'Operator', auto: 'Auto' } as const,
+  revealChannel: { question: 'Question', answers: 'Answers', outcome: 'Outcome', leaderboard: 'Leaderboard' } as const,
+  overrideAfterLock: { allow: 'Allow', refuse_until_reveal: 'Refuse until reveal' } as const,
+  mosaicDensity: { compact: 'Compact', comfortable: 'Comfortable', spacious: 'Spacious' } as const,
+  stageReattach: { ask: 'Ask', auto: 'Move Stage', stay: 'Stay' } as const,
+  seconds: 's',
+  on: 'On',
+  off: 'Off',
+
+  cue: {
+    lock: 'Lock',
+    correct: 'Correct answer',
+    wrong: 'Wrong answer',
+    overlay_start: 'Overlay start',
+    play_start: 'Play start',
+    timer_start: 'Timer start',
+    timer_pause: 'Timer pause',
+    timer_expired: 'Timer expired',
+  } as const,
+  cueMuted: 'Muted',
+  cuePreview: 'Preview',
+  cueStopPreview: 'Stop preview',
+  cueFile: (cue: string) => `${cue} file`,
+
+  monitors: {
+    title: (n: number) => (n === 1 ? 'Displays (1)' : `Displays (${n})`),
+    primary: 'Primary',
+    stage: 'Stage',
+    notConnected: 'Not connected',
+    sendStage: 'Send Stage here',
+    resolution: (w: number, h: number) => `${w}×${h}`,
+    unnamed: 'Display',
+    single: 'One display: Stage fullscreen on this display; Studio is an Alt-Tab away.',
+    standsOn: 'Stage stands on',
+    remembered: 'Remembered',
+    statsDisplay: 'Statistics display',
+    none: 'None',
+  } as const,
+
+  shortcuts: {
+    command: 'Command',
+    chord: 'Chord',
+    default: 'Default',
+    pressKeys: 'Press keys…',
+    none: 'None',
+    record: 'Record a chord',
+    reset: 'Reset to default',
+    resetAll: 'Reset all',
+    resetAllTitle: 'Reset every shortcut?',
+    resetAllBody: 'Every command goes back to its default chord.',
+    fixed: 'fixed',
+    positional: 'Pick domain / answer by position',
+    positionalRange: '1–9',
+    hint: 'Esc cancels. Backspace clears.',
+    conflictKeep: 'Keep',
+    conflictReassign: (command: string) => `Reassign to ${command}`,
+  } as const,
+
+  pin: {
+    label: 'Pin',
+    confirm: 'Confirm pin',
+    hint: '4–8 digits.',
+    invalid: 'A pin is 4–8 digits.',
+    mismatch: 'The pins differ.',
+    show: 'Show pin',
+    hide: 'Hide pin',
+    unlock: 'Unlock',
+    promptTitle: 'Enter pin',
+    promptBody: (who: string) => `${who} has a pin.`,
+    current: 'Current pin',
+    none: 'No pin',
+    set: 'Set a pin',
+    change: 'Change pin',
+    remove: 'Remove pin',
+    isSet: 'Pin set',
+    optional: 'Optional. Asked when switching to this operator and before wiping data.',
+  } as const,
+
+  paths: {
+    title: 'Where things live',
+    userData: 'User data',
+    catalog: 'Catalog',
+    cuePack: 'Cue pack',
+    reveal: (mac: boolean) => (mac ? 'Reveal in Finder' : 'Reveal in Explorer'),
+  } as const,
+
+  library: {
+    restoreDemo: 'Restore Demo',
+    restoreDemoHint: 'Inserts the missing sample rows and restores archived ones. Your edits stay.',
+    loadDemo: 'Load Demo',
+    overwrite: 'Overwrite edits',
+    keepEdits: 'Keep edits',
+    editedTitle: (n: number) => (n === 1 ? '1 sample row was edited' : `${n} sample rows were edited`),
+    editedBody: 'Overwrite rewrites every sample row to the shipped Demo. Keep edits inserts only what is missing.',
+    restored: (n: number) => (n === 1 ? '1 sample row restored' : `${n} sample rows restored`),
+    rebuildSearch: 'Rebuild search index',
+  } as const,
+
+  data: {
+    wipePlays: 'Wipe Plays',
+    wipeTitle: (n: number) => (n === 1 ? 'Wipe 1 Play?' : `Wipe ${n} Plays?`),
+    wipeBody: 'Every closed Play and its events are deleted. Games, teams, domains and questions stay.',
+    wipeArm: 'Wipe',
+    wipeArmed: 'Confirm wipe',
+    wiped: (n: number) => (n === 1 ? '1 Play wiped' : `${n} Plays wiped`),
+    uninstall: 'Remove generated data',
+    uninstallTitle: 'Remove generated data and quit?',
+    uninstallBody: 'These folders are deleted and Studio quits. App files stay installed.',
+    uninstallArm: 'Remove',
+    uninstallArmed: 'Remove and quit',
+    playOpen: 'A Play is open',
+    pinFrame: 'Enter the operator pin to continue.',
+  } as const,
+} as const
+
+export type SettingsRowKey = keyof typeof SETTINGS.rows

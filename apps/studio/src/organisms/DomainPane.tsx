@@ -42,6 +42,7 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
       ? { ...existing, name: draft.name.trim(), code: draft.code.trim() || existing.code, description: draft.description.trim() || null }
       : {
           id: `dom-${crypto.randomUUID().slice(0, 8)}`,
+          origin: 'operator',
           name: draft.name.trim(),
           code: draft.code.trim() || suggestDomainCode(draft.name),
           description: draft.description.trim() || null,

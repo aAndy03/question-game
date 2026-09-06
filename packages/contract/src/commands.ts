@@ -38,10 +38,20 @@ export const COMMAND_GROUPS = {
     'recipe_set_settings',
     'recipe_set_layout',
     'recipe_set_overlay',
-    /** **Dev builds only.** Writes a demo library through the ordinary verbs so
-     * P6 can be run before P7 has library tabs; spec §10's optional sample
-     * catalog at first run is what replaces it. */
-    'seed_demo_library',
+    /** The sample catalog `"Demo"` (spec §2.27, §2.28), written through the
+     * ordinary verbs. `mode: 'missing'` inserts what is absent and keeps
+     * edits; `'overwrite'` rewrites every seed row. First run, the Games empty
+     * state and Settings ▸ Library ▸ Restore Demo are its three call sites. */
+    'catalog_seed_demo',
+    /** How many seed rows are present, missing and edited — what Restore
+     * Demo's confirm names before it overwrites anything. */
+    'catalog_seed_status',
+    /** Rebuild the in-memory Tantivy index from the catalog (a health action). */
+    'catalog_rebuild_search',
+    /** Delete every closed Play and its events (spec §2.15). Refused while a
+     * Play is open; asks the active operator's pin when one is set. Never a
+     * library row: Archive is the only thing that happens to those. */
+    'wipe_plays',
   ],
   /** MatchService — the only writer of a Play. */
   match: [
@@ -86,6 +96,9 @@ export const COMMAND_GROUPS = {
      * request shape the automatic path enqueues). */
     'show_overlay',
     'overlay_ack_complete',
+    /** Stage reporting a fault on itself (a cue file that failed to load). The
+     * host turns it into a health item; Stage never shows a notice (§5.7). */
+    'stage_report',
   ],
   /** FlagService — settings and shortcuts. */
   flags: [
@@ -93,6 +106,20 @@ export const COMMAND_GROUPS = {
     'settings_set_global',
     'settings_set_current_game',
     'settings_set_shortcut',
+    /** Set, change or clear an operator's pin. Digits go over the wire; the
+     * host hashes (spec §2.15) — Studio never sees or makes a hash. */
+    'operator_set_pin',
+    /** Switch the active operator, with the pin when the target is pinned. */
+    'operator_activate',
+    /** Where the user data, the catalog and the cue pack live (first run). */
+    'paths_get',
+    /** Open one of those directories in the OS file manager. */
+    'paths_reveal',
+    /** Remove every generated user file and quit (spec §17 platform). Refused
+     * while a Play is open; pin-gated. App files are the installer's (P12). */
+    'uninstall_data',
+    /** The current health report — what `health` last emitted. */
+    'health_get',
   ],
   /** Read-only projections. */
   stats: ['stats_query'],
@@ -123,7 +150,7 @@ export function groupOf(command: Command): CommandGroup | null {
  * `overlay_ack_complete` carries **every** `AnimKey`, not only overlay ones:
  * one door for the whole `anim-complete` handshake (spec §11.G).
  */
-export const STAGE_COMMANDS = ['overlay_ack_complete', 'stage_ready'] as const
+export const STAGE_COMMANDS = ['overlay_ack_complete', 'stage_ready', 'stage_report'] as const
 export type StageCommand = (typeof STAGE_COMMANDS)[number]
 
 export function isStageCommand(command: string): command is StageCommand {
@@ -217,3 +244,17 @@ export interface MonitorsChanged {
  * show to disturb.
  */
 export type StageReattach = 'ask' | 'auto' | 'stay'
+
+/**
+ * `health` (spec §11.J, 05_STUDIO_DESIGN.md §12.6). Silent until there is
+ * something to say: the host emits a report only when it changed, and an `ok`
+ * after a `warn` is a change too, so the status-bar dot clears. Every item is
+ * a §14 notice with at least one action — a message is always paired with a
+ * suggestion.
+ */
+export type HealthStatus = 'ok' | 'warn' | 'error'
+
+export interface HealthReport {
+  readonly status: HealthStatus
+  readonly items: readonly Notice[]
+}

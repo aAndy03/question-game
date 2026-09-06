@@ -20,8 +20,8 @@ use crate::ids::{AssetId, DomainId, OperatorId, OptionId, PlayId, QuestionId, Re
 
 use super::error::{CatalogError, CatalogKind, CatalogResult};
 use super::model::{
-    ArchiveScope, Asset, BoardDomain, Domain, DomainMember, DomainOverlay, Operator, Question,
-    QuestionOption, QuestionOverlay, Recipe, RecipeOverlays, Stamps, Team, TeamOverlay,
+    ArchiveScope, Asset, BoardDomain, Domain, DomainMember, DomainOverlay, Operator, Origin,
+    Question, QuestionOption, QuestionOverlay, Recipe, RecipeOverlays, Stamps, Team, TeamOverlay,
 };
 
 fn ms(value: u64) -> i64 {
@@ -38,6 +38,10 @@ fn read_u64(row: &Row<'_>, index: &str) -> rusqlite::Result<u64> {
 
 fn read_opt_u64(row: &Row<'_>, index: &str) -> rusqlite::Result<Option<u64>> {
     Ok(row.get::<_, Option<i64>>(index)?.map(|v| v as u64))
+}
+
+fn origin(row: &Row<'_>) -> rusqlite::Result<Origin> {
+    Ok(Origin::parse(&row.get::<_, String>("origin")?))
 }
 
 fn stamps(row: &Row<'_>) -> rusqlite::Result<Stamps> {
@@ -75,6 +79,7 @@ pub(super) fn team_row(row: &Row<'_>) -> rusqlite::Result<Team> {
             .get::<_, Option<String>>("logo_asset_id")?
             .map(AssetId::new),
         notes: row.get("notes")?,
+        origin: origin(row)?,
         stamps: stamps(row)?,
         play_count: row.get::<_, i64>("play_count")? as u32,
         last_play_at: read_opt_u64(row, "last_play_at")?,
@@ -104,16 +109,17 @@ pub(super) fn team_list(conn: &Connection, scope: ArchiveScope) -> CatalogResult
 pub(super) fn team_upsert(tx: &Transaction<'_>, team: &Team, now_ms: u64) -> CatalogResult<()> {
     let created_at = carried_created_at(tx, "teams", team.id.as_str(), now_ms)?;
     tx.execute(
-        "INSERT INTO teams (id, name, short_code, color, logo_asset_id, notes,
+        "INSERT INTO teams (id, name, short_code, color, logo_asset_id, notes, origin,
                             created_at, updated_at, archived_at, play_count, last_play_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
                  COALESCE((SELECT archived_at FROM teams WHERE id = ?1), NULL),
                  COALESCE((SELECT play_count FROM teams WHERE id = ?1), 0),
                  (SELECT last_play_at FROM teams WHERE id = ?1))
          ON CONFLICT(id) DO UPDATE SET
              name = excluded.name, short_code = excluded.short_code,
              color = excluded.color, logo_asset_id = excluded.logo_asset_id,
-             notes = excluded.notes, updated_at = excluded.updated_at",
+             notes = excluded.notes, origin = excluded.origin,
+             updated_at = excluded.updated_at",
         params![
             team.id.as_str(),
             team.name,
@@ -121,6 +127,7 @@ pub(super) fn team_upsert(tx: &Transaction<'_>, team: &Team, now_ms: u64) -> Cat
             team.color,
             team.logo_asset_id.as_ref().map(|a| a.as_str()),
             team.notes,
+            team.origin.as_str(),
             ms(created_at),
             ms(now_ms),
         ],
@@ -137,6 +144,7 @@ fn domain_row(row: &Row<'_>) -> rusqlite::Result<Domain> {
         code: row.get("code")?,
         description: row.get("description")?,
         questions: Vec::new(),
+        origin: origin(row)?,
         stamps: stamps(row)?,
     })
 }
@@ -190,17 +198,20 @@ pub(super) fn domain_upsert(
 ) -> CatalogResult<()> {
     let created_at = carried_created_at(tx, "domains", domain.id.as_str(), now_ms)?;
     tx.execute(
-        "INSERT INTO domains (id, name, code, description, created_at, updated_at, archived_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6,
+        "INSERT INTO domains (id, name, code, description, origin,
+                              created_at, updated_at, archived_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
                  (SELECT archived_at FROM domains WHERE id = ?1))
          ON CONFLICT(id) DO UPDATE SET
              name = excluded.name, code = excluded.code,
-             description = excluded.description, updated_at = excluded.updated_at",
+             description = excluded.description, origin = excluded.origin,
+             updated_at = excluded.updated_at",
         params![
             domain.id.as_str(),
             domain.name,
             domain.code,
             domain.description,
+            domain.origin.as_str(),
             ms(created_at),
             ms(now_ms),
         ],
@@ -234,6 +245,7 @@ fn question_row(row: &Row<'_>) -> rusqlite::Result<Question> {
         options: Vec::new(),
         difficulty: row.get::<_, i64>("difficulty")? as u8,
         explanation: row.get("explanation")?,
+        origin: origin(row)?,
         stamps: stamps(row)?,
     })
 }
@@ -291,20 +303,21 @@ pub(super) fn question_upsert(
 ) -> CatalogResult<()> {
     let created_at = carried_created_at(tx, "questions", question.id.as_str(), now_ms)?;
     tx.execute(
-        "INSERT INTO questions (id, stem, media_asset_id, difficulty, explanation,
+        "INSERT INTO questions (id, stem, media_asset_id, difficulty, explanation, origin,
                                 created_at, updated_at, archived_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
                  (SELECT archived_at FROM questions WHERE id = ?1))
          ON CONFLICT(id) DO UPDATE SET
              stem = excluded.stem, media_asset_id = excluded.media_asset_id,
              difficulty = excluded.difficulty, explanation = excluded.explanation,
-             updated_at = excluded.updated_at",
+             origin = excluded.origin, updated_at = excluded.updated_at",
         params![
             question.id.as_str(),
             question.stem,
             question.media_asset_id.as_ref().map(|a| a.as_str()),
             i64::from(question.difficulty),
             question.explanation,
+            question.origin.as_str(),
             ms(created_at),
             ms(now_ms),
         ],
@@ -451,6 +464,7 @@ fn recipe_row(row: &Row<'_>) -> CatalogResult<Recipe> {
         layout: serde_json::from_str(&row.get::<_, String>("layout_json")?)?,
         overlays: RecipeOverlays::default(),
         rev: row.get::<_, i64>("rev")? as u32,
+        origin: origin(row)?,
         stamps: stamps(row)?,
     })
 }
@@ -547,13 +561,13 @@ pub(super) fn recipe_upsert(
 
     tx.execute(
         "INSERT INTO recipes (id, name, folder, tags_json, settings_json, layout_json, rev,
-                              created_at, updated_at, archived_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
+                              origin, created_at, updated_at, archived_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
                  (SELECT archived_at FROM recipes WHERE id = ?1))
          ON CONFLICT(id) DO UPDATE SET
              name = excluded.name, folder = excluded.folder, tags_json = excluded.tags_json,
              settings_json = excluded.settings_json, layout_json = excluded.layout_json,
-             rev = excluded.rev, updated_at = excluded.updated_at",
+             rev = excluded.rev, origin = excluded.origin, updated_at = excluded.updated_at",
         params![
             id,
             recipe.name,
@@ -562,6 +576,7 @@ pub(super) fn recipe_upsert(
             serde_json::to_string(&recipe.settings)?,
             serde_json::to_string(&recipe.layout)?,
             rev,
+            recipe.origin.as_str(),
             ms(created_at),
             ms(now_ms),
         ],
@@ -990,6 +1005,38 @@ pub(super) fn open_play_id(conn: &Connection) -> CatalogResult<Option<PlayId>> {
             |row| Ok(PlayId::new(row.get::<_, String>(0)?)),
         )
         .optional()?)
+}
+
+/// Every closed Play — completed, abandoned or restarted — with the recipe it
+/// ran, oldest first. A `loaded`, `playing` or `paused` row is not in the list:
+/// the operator may be about to sit down at it.
+pub(super) fn closed_plays(conn: &Connection) -> CatalogResult<Vec<(PlayId, RecipeId)>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, recipe_id FROM plays
+         WHERE status IN ('completed', 'abandoned', 'restarted')
+         ORDER BY started_at_ms, id",
+    )?;
+    Ok(stmt
+        .query_map([], |row| {
+            Ok((
+                PlayId::new(row.get::<_, String>(0)?),
+                RecipeId::new(row.get::<_, String>(1)?),
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// The one delete in the Play log (§12.3, *Wipe Plays*). `events` is
+/// append-only for the life of a Play; this removes whole closed Plays, log and
+/// projection together, and is the operator's explicit, pin-gated choice — not
+/// a path any command reaches on its own.
+pub(super) fn play_delete(tx: &Transaction<'_>, play: &PlayId) -> CatalogResult<()> {
+    tx.execute(
+        "DELETE FROM events WHERE play_id = ?1",
+        params![play.as_str()],
+    )?;
+    tx.execute("DELETE FROM plays WHERE id = ?1", params![play.as_str()])?;
+    Ok(())
 }
 
 /// Any *other* open Play of the same recipe. §4.3: two Plays of one recipe

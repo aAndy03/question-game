@@ -4,6 +4,14 @@
  * library, so the shell can be worked on in a plain browser the way Stage's
  * fixture strip lets screens be worked on. It is unreachable inside the app:
  * a real host is detected first and wins.
+ *
+ * The library here is "Season opener" — richer than the shipped Demo, and
+ * `origin: 'operator'` so it reads as the operator's own work. The Demo itself
+ * is one `catalog_seed_demo` away (`host/fake/seed.ts`), which is how the
+ * Games empty state and Settings ▸ Library ▸ Restore Demo are exercised.
+ *
+ * `?fake&firstrun` seeds no operators and no active operator, so the
+ * first-run flow (§12.1) can be walked in a browser too.
  */
 
 import { FIXTURES, type FixtureName, type PlayStateForMain } from '@questiongame/contract'
@@ -15,11 +23,16 @@ export function installDevFakeIfAsked(): FakeHost | null {
   if (!import.meta.env.DEV || hasTauri()) return null
   if (typeof window === 'undefined' || !new URLSearchParams(window.location.search).has('fake')) return null
   const fake = createFakeHost()
-  fake.seed(demoLibrary(), [demoRecipe()])
-  void fake.invoke('settings_set_global', { setting: { key: 'active_operator_id', value: 'op-andy' } })
+  const params = new URLSearchParams(window.location.search)
+  const firstRun = params.has('firstrun')
+  fake.seed(
+    firstRun ? demoLibrary().filter((row) => row.kind !== 'operator') : demoLibrary(),
+    [demoRecipe()],
+  )
+  if (!firstRun) void fake.invoke('settings_set_global', { setting: { key: 'active_operator_id', value: 'op-andy' } })
   // `&play=<fixture>` also hands Control a Play to draw. The fixture is Stage's
   // half; the operator half is synthesised here and nowhere else.
-  const fixture = new URLSearchParams(window.location.search).get('play')
+  const fixture = params.get('play')
   if (fixture && fixture in FIXTURES) fake.playState = demoPlay(fixture as FixtureName)
   setHostTransport(fake)
   return fake
@@ -56,6 +69,7 @@ export function demoLibrary(): CatalogItem[] {
     kind: 'question',
     item: {
       id,
+      origin: 'operator',
       stem,
       mediaAssetId: null,
       options: options.map(([text, correct], i) => ({ id: `${id}-${i}`, text, correct })),
@@ -65,13 +79,13 @@ export function demoLibrary(): CatalogItem[] {
     },
   })
   return [
-    { kind: 'team', item: { id: 'team-alpha', name: 'Alpha', shortCode: 'ALPHA', color: '#2563eb', logoAssetId: null, notes: 'Returning champions', playCount: 3, lastPlayAt: t0 + 86_400_000 * 9, ...stamps(1) } },
-    { kind: 'team', item: { id: 'team-bravo', name: 'Bravo', shortCode: 'BRAVO', color: '#16a34a', logoAssetId: null, notes: null, playCount: 1, lastPlayAt: t0 + 86_400_000 * 9, ...stamps(2) } },
-    { kind: 'team', item: { id: 'team-charlie', name: 'Charlie', shortCode: 'CHARL', color: '#dc2626', logoAssetId: null, notes: null, playCount: 0, lastPlayAt: null, ...stamps(3) } },
-    { kind: 'team', item: { id: 'team-delta', name: 'Delta', shortCode: 'DELTA', color: '#d97706', logoAssetId: null, notes: 'New this season', playCount: 0, lastPlayAt: null, ...stamps(4) } },
-    { kind: 'domain', item: { id: 'dom-history', name: 'History', code: 'HIS_204', description: 'From antiquity to 1990.', questions: [{ questionId: 'q-h1', sortKey: 1 }, { questionId: 'q-h2', sortKey: 2 }, { questionId: 'q-h3', sortKey: 3 }], ...stamps(1) } },
-    { kind: 'domain', item: { id: 'dom-tech', name: 'Technology', code: 'TEC_881', description: null, questions: [{ questionId: 'q-t1', sortKey: 1 }, { questionId: 'q-t2', sortKey: 2 }], ...stamps(2) } },
-    { kind: 'domain', item: { id: 'dom-sport', name: 'Sport', code: 'SPO_117', description: null, questions: [{ questionId: 'q-s1', sortKey: 1 }], ...stamps(3) } },
+    { kind: 'team', item: { id: 'team-alpha', origin: 'operator', name: 'Alpha', shortCode: 'ALPHA', color: '#2563eb', logoAssetId: null, notes: 'Returning champions', playCount: 3, lastPlayAt: t0 + 86_400_000 * 9, ...stamps(1) } },
+    { kind: 'team', item: { id: 'team-bravo', origin: 'operator', name: 'Bravo', shortCode: 'BRAVO', color: '#16a34a', logoAssetId: null, notes: null, playCount: 1, lastPlayAt: t0 + 86_400_000 * 9, ...stamps(2) } },
+    { kind: 'team', item: { id: 'team-charlie', origin: 'operator', name: 'Charlie', shortCode: 'CHARL', color: '#dc2626', logoAssetId: null, notes: null, playCount: 0, lastPlayAt: null, ...stamps(3) } },
+    { kind: 'team', item: { id: 'team-delta', origin: 'operator', name: 'Delta', shortCode: 'DELTA', color: '#d97706', logoAssetId: null, notes: 'New this season', playCount: 0, lastPlayAt: null, ...stamps(4) } },
+    { kind: 'domain', item: { id: 'dom-history', origin: 'operator', name: 'History', code: 'HIS_204', description: 'From antiquity to 1990.', questions: [{ questionId: 'q-h1', sortKey: 1 }, { questionId: 'q-h2', sortKey: 2 }, { questionId: 'q-h3', sortKey: 3 }], ...stamps(1) } },
+    { kind: 'domain', item: { id: 'dom-tech', origin: 'operator', name: 'Technology', code: 'TEC_881', description: null, questions: [{ questionId: 'q-t1', sortKey: 1 }, { questionId: 'q-t2', sortKey: 2 }], ...stamps(2) } },
+    { kind: 'domain', item: { id: 'dom-sport', origin: 'operator', name: 'Sport', code: 'SPO_117', description: null, questions: [{ questionId: 'q-s1', sortKey: 1 }], ...stamps(3) } },
     q('q-h1', 'Which empire built the road network that reached Britain?', 20, [['Roman', true], ['Ottoman', false], ['Persian', false], ['Mongol', false]], 1),
     q('q-h2', 'In which year did the Berlin Wall fall?', 45, [['1987', false], ['1989', true], ['1991', false]], 2),
     q('q-h3', 'Which two of these were signatories of the Treaty of Westphalia?', 80, [['France', true], ['Sweden', true], ['Portugal', false], ['Russia', false]], 3),
@@ -79,13 +93,14 @@ export function demoLibrary(): CatalogItem[] {
     q('q-t2', 'Which of these is not a sorting algorithm?', 60, [['Quicksort', false], ['Heapsort', false], ['Dijkstra', true], ['Mergesort', false]], 5),
     q('q-s1', 'How many players are on a water polo team in the water?', 35, [['6', false], ['7', true], ['8', false]], 6),
     { kind: 'operator', item: { id: 'op-andy', displayName: 'Andy M.', pinHash: null, lastActiveAt: t0 + 86_400_000 * 11, playsRun: 4, ...stamps(0) } },
-    { kind: 'operator', item: { id: 'op-guest', displayName: 'Guest operator', pinHash: 'x', lastActiveAt: null, playsRun: 0, ...stamps(6) } },
+    { kind: 'operator', item: { id: 'op-guest', displayName: 'Guest operator', pinHash: 'fake:1234', lastActiveAt: null, playsRun: 0, ...stamps(6) } },
   ]
 }
 
 export function demoRecipe(): Recipe {
   return {
     id: 'recipe-demo',
+    origin: 'operator',
     name: 'Season opener',
     folder: 'Season 3',
     tags: ['demo', 'four teams'],

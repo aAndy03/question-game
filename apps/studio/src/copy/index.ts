@@ -53,6 +53,12 @@ export const CHROME = {
   forward: 'Forward',
   health: 'Health',
   healthUnknown: 'No health data yet',
+  healthOk: 'All good',
+  healthWarn: 'Something needs attention',
+  healthError: 'Something is wrong',
+  mute: 'Mute Stage audio',
+  unmute: 'Unmute Stage audio',
+  loadDemo: 'Load the Demo game',
   displays: (n: number) => (n === 1 ? '1 display' : `${n} displays`),
   notices: 'Notices',
   openCollector: 'Open notices',
@@ -192,7 +198,7 @@ export const OPERATOR = {
   displayName: 'Display name',
   pinned: 'Pin set',
   notPinned: 'No pin',
-  pinHint: 'Pins are set in P10. Switching is free until then.',
+  pinHint: 'Optional. Asked when switching to this operator and before wiping data. Never shown anywhere.',
   playsRun: 'Plays run',
   runOne: 'play run',
   runMany: 'plays run',
@@ -287,6 +293,13 @@ export const STUB = {
   settings: { title: 'Settings', body: 'Monitors, grouped globals and keyboard shortcuts arrive with P10.' },
 } as const
 
+/**
+ * Copy for every notice code in the project (05_STUDIO_DESIGN.md §12.4). The
+ * host emits ids and `detail`; titles interpolate `{key}` from `detail`, and
+ * `actions` maps action ids to labels. `dismiss` copy may appear here without
+ * counting as an action — the three-action cap is on solve actions, and
+ * `copy/notices.test.ts` walks this table to hold it.
+ */
 export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Readonly<Record<string, string>> }>> = {
   'stage.monitor_lost': {
     title: 'The Stage display was unplugged. Stage is back on the primary display; the Play continues.',
@@ -298,7 +311,59 @@ export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Read
   },
   'stage.contract_mismatch': {
     title: 'Stage was built against another contract version.',
-    actions: { dismiss: 'Dismiss' },
+    actions: { reinstall: 'Reinstall', dismiss: 'Dismiss' },
+  },
+  'play.roster_empty': {
+    title: 'The roster is empty. Add at least one team before loading this game into Control.',
+    actions: { open_section: 'Open roster' },
+  },
+  'play.board_empty': {
+    title: 'The board has no questions. Add a domain and pick its questions first.',
+    actions: { open_section: 'Open board' },
+  },
+  'shortcuts.conflict': {
+    title: '{chord} is already bound to {other}.',
+    actions: { keep: 'Keep', reassign: 'Reassign' },
+  },
+  'operator.pin_required': {
+    title: 'This operator has a pin.',
+    actions: {},
+  },
+  'operator.pin_wrong': {
+    title: 'Wrong pin.',
+    actions: {},
+  },
+  'data.play_open': {
+    title: 'A Play is open. Stop it before touching Play data.',
+    actions: { go_to_control: 'Go to Control' },
+  },
+  'seed.edited_rows': {
+    title: '{edited} Demo rows were edited. Overwrite them with the shipped Demo, or keep the edits?',
+    actions: { overwrite: 'Overwrite', keep_edits: 'Keep edits' },
+  },
+  'health.disk_low': {
+    title: '{freeMb} MB free on the data volume. Make room or move the data folder.',
+    actions: { open_data_folder: 'Open data folder' },
+  },
+  'health.persist_failed': {
+    title: 'The last save failed: {message}. The Play continues in memory until a save succeeds.',
+    actions: { open_data_folder: 'Open data folder' },
+  },
+  'health.search_degraded': {
+    title: 'Search is out of step with the library.',
+    actions: { rebuild_search: 'Rebuild index' },
+  },
+  'health.stage_not_ready': {
+    title: 'The Stage window has not reported in.',
+    actions: { open_stage: 'Open Stage' },
+  },
+  'health.contract_mismatch': {
+    title: 'Stage speaks contract {stage}; the host speaks {host}.',
+    actions: { reinstall: 'Reinstall' },
+  },
+  'health.audio_missing_cue': {
+    title: 'The {cue} cue file ({file}) is missing from the cue pack.',
+    actions: { open_cue_folder: 'Open cue folder' },
   },
   match: { title: 'The host refused the command.', actions: {} },
   catalog: { title: 'The library refused the write.', actions: {} },
@@ -308,8 +373,15 @@ export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Read
   'screens.blocked': { title: 'Screens is unavailable while a Play is playing or paused.', actions: { go_to_control: 'Go to Control', stop_playing: 'Stop playing', abandon_confirm: 'Stop playing', dismiss: 'Dismiss' } },
 }
 
+/**
+ * The title for a code, with `{key}` placeholders filled from `detail`. A
+ * placeholder `detail` does not carry is left as its key, so a missing value
+ * is visible rather than silent.
+ */
 export function noticeTitle(code: string, detail: Readonly<Record<string, string>>): string {
-  return NOTICE_COPY[code]?.title ?? detail.message ?? code
+  const title = NOTICE_COPY[code]?.title
+  if (title === undefined) return detail.message ?? code
+  return title.replace(/\{(\w+)\}/g, (_, k: string) => detail[k] ?? k)
 }
 
 export function noticeAction(code: string, action: string): string {
@@ -336,3 +408,5 @@ export const fmt = {
 
 export * from './control'
 export * from './screens'
+export * from './settings'
+export * from './firstRun'

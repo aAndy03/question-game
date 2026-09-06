@@ -394,7 +394,8 @@ fn the_host_never_picks_a_display() {
 #[test]
 fn the_demo_library_seeds_a_playable_show() {
     let mut host = Host::open(CatalogLocation::Memory).unwrap();
-    let (items, recipe) = questiongame_app::demo::library(host.flags.new_recipe_settings());
+    let (items, recipe) =
+        questiongame_host::catalog::seed::demo_document(host.flags.new_recipe_settings());
 
     host.catalog.catalog_upsert_many(&items, 1_000).unwrap();
     host.catalog.recipe_upsert(&recipe, 1_000).unwrap();
@@ -406,10 +407,10 @@ fn the_demo_library_seeds_a_playable_show() {
     let state = host.stage_state(2_000).unwrap();
     assert_eq!(
         state.game.teams.len(),
-        4,
-        "enough teams for the ring to turn"
+        2,
+        "the Demo has two teams (§2.27)"
     );
-    assert_eq!(state.game.domains.len(), 3);
+    assert_eq!(state.game.domains.len(), 2);
     assert_eq!(
         state.game.domains[0].next_difficulty,
         Some(10),
@@ -418,10 +419,13 @@ fn the_demo_library_seeds_a_playable_show() {
 
     // And a whole turn resolves through it.
     host.write(3_000, |h| {
-        Ok(h.play.choose_domain(&DomainId::from("dom-sci"), 3_000)?)
+        Ok(h.play.choose_domain(&DomainId::from("seed-dom-sci"), 3_000)?)
     })
     .unwrap();
-    host.write(4_000, |h| Ok(h.play.set_selection(&[opt('a')], 4_000)?))
+    host.write(4_000, |h| {
+        Ok(h.play
+            .set_selection(&[OptionId::new("seed-q-sci-1-a")], 4_000)?)
+    })
         .unwrap();
     host.write(5_000, |h| Ok(h.play.lock_selection(5_000)?))
         .unwrap();

@@ -117,8 +117,39 @@ pub fn stage_ready(
         );
     }
     let now = now_ms();
-    let mut host = state.lock();
-    emit::play_state(&app, &mut host, now, true);
+    {
+        let mut host = state.lock();
+        host.health.stage_ready(contract_version);
+        emit::play_state(&app, &mut host, now, true);
+    }
+    crate::tick::health_once(&app);
+    Ok(())
+}
+
+/// Stage reporting a fault on itself — a cue file that would not load. Stage
+/// shows no notice (§5.7); the fact becomes a health item the operator sees in
+/// Studio. An unknown code or cue is ignored: Stage is a projection and cannot
+/// be allowed to invent findings.
+#[tauri::command(async)]
+pub fn stage_report(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    code: String,
+    detail: Option<std::collections::BTreeMap<String, String>>,
+) -> AppResult<()> {
+    guard::allow(window.label(), "stage_report")?;
+    let detail = detail.unwrap_or_default();
+    if code == "audio_missing_cue" || code == "audio_failed" {
+        let cue = detail
+            .get("cue")
+            .and_then(|c| questiongame_host::CueKey::ALL.into_iter().find(|k| k.as_str() == c));
+        if let Some(cue) = cue {
+            let file = detail.get("file").cloned().unwrap_or_default();
+            state.lock().health.missing_cue(cue, file);
+        }
+    }
+    crate::tick::health_once(&app);
     Ok(())
 }
 

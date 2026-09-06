@@ -63,9 +63,10 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
   }
   const load = async () => {
     setLoading(true)
-    const ok = await run('play_load', { recipeId: r.id, playId: `play-${Date.now()}` })
+    // `play_load` answers `()`, so the verdict is the only signal here.
+    const ok = await run.ok('play_load', { recipeId: r.id, playId: `play-${Date.now()}` })
     setLoading(false)
-    if (ok !== null) {
+    if (ok) {
       toast.success(`${r.name} is in Control`, 'Stage is open on the primary display.')
       void go({ tab: 'control' })
     }

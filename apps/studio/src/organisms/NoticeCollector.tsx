@@ -44,6 +44,29 @@ export function NoticeCollector() {
         await go({ tab: 'control' })
         dismiss(notice.id)
         return
+      // §12.4 / §12.6: every health item's suggestion is a command or a route.
+      case 'open_data_folder':
+        await run('paths_reveal', { which: 'userData' })
+        return
+      case 'open_cue_folder':
+        await run('paths_reveal', { which: 'cuePack' })
+        return
+      case 'rebuild_search':
+        await run('catalog_rebuild_search')
+        dismiss(notice.id)
+        return
+      case 'open_stage':
+        await run('stage_open')
+        dismiss(notice.id)
+        return
+      case 'open_section': {
+        // `recipe.<id>.roster` / `recipe.<id>.board` → that Game section.
+        const match = /^recipe\.([^.]+)\.(roster|board)$/.exec(notice.targetPath ?? '')
+        setOpen(false)
+        if (match?.[1] && (match[2] === 'roster' || match[2] === 'board')) await go({ tab: 'games', id: match[1], section: match[2] })
+        dismiss(notice.id)
+        return
+      }
       // Screens while playing (spec §12): Stop playing stacks "Are you sure?"
       // in the same notice; only the confirm frame abandons.
       case 'stop_playing':

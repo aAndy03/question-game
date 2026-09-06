@@ -10,9 +10,14 @@
     ".": "./src/index.ts",
     "./stage.css": "./stage.css",
     "./tokens/*": "./tokens/*",
-    "./assets/*": "./assets/*"
+    "./assets/*": "./assets/*",
+    "./audio/manifest": "./audio/manifest.ts",
+    "./audio/*": "./audio/*"
   },
   "scripts": {
     "typecheck": "tsc --build"
+  },
+  "dependencies": {
+    "@questiongame/contract": "*"
   }
 }

@@ -4,8 +4,9 @@
  * P6: `play-state` arrives from the Rust host over Tauri's event bus, and Stage
  * renders it. **Nothing above this file synthesises a state** — a visual
  * changes because the backend changed it (spec §5.7) — and the only thing Stage
- * ever sends back is `anim-complete`, as `overlay_ack_complete`, the one
- * command the host accepts from this webview.
+ * ever sends back is about itself: `anim-complete` as `overlay_ack_complete`,
+ * its version as `stage_ready`, and a fault of its own as `stage_report` — the
+ * three commands the host accepts from this webview.
  *
  * Outside the desktop app there is no host, and [`stageHost`] says so by
  * returning `null`. That is what keeps `npm run dev:stage` useful for screen
@@ -42,6 +43,12 @@ export interface StageHost {
   snapshot(): PlayStateForStage
   /** Report a finished timeline (spec §11.G). */
   animComplete(key: AnimKey): void
+  /**
+   * Report a fault on Stage itself — a cue file that would not load. Stage
+   * never shows a notice (spec §5.7); the host folds this into the health
+   * report and the operator sees it in Studio (`health.audio_missing_cue`).
+   */
+  report(code: string, detail?: Record<string, string>): void
 }
 
 /**
@@ -96,6 +103,9 @@ function tauriHost(): StageHost {
     animComplete(key) {
       void call('overlay_ack_complete', { key })
     },
+    report(code, detail = {}) {
+      void call('stage_report', { code, detail })
+    },
   }
 }
 
@@ -138,6 +148,9 @@ function viewerHost(): StageHost {
     snapshot: () => last,
     animComplete() {
       // The Viewer never writes (spec §5.7).
+    },
+    report() {
+      // Nor does it play a cue, so it has nothing to report.
     },
   }
 }

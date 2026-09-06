@@ -20,11 +20,3 @@ export function StatisticsPage() {
     </BlankLayout>
   )
 }
-
-export function SettingsPage() {
-  return (
-    <BlankLayout header={<PageHeader title={TABS.settings.label} description={TABS.settings.hint} />}>
-      <Stub body={STUB.settings.body} />
-    </BlankLayout>
-  )
-}

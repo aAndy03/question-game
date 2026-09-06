@@ -39,3 +39,11 @@ tauri-build = { version = "2", features = [] }
 # async commands are what finally await. `rt-multi-thread` moves every command
 # that touches the database off the main thread; `time` drives the 100ms tick.
 tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
+# P10. Operator pins are hashed in the host and never in the webview (§2.15).
+# argon2id with a random salt, stored as a PHC string; `rand_core`'s
+# `getrandom` is what makes `OsRng` available to the salt.
+argon2 = { version = "0.5", features = ["std", "password-hash"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+# P10. Free space on the user-data volume, for `health.disk_low`. Only the app
+# crate names it: the host takes the number as an input (§12.6).
+fs4 = { version = "0.13", default-features = false, features = ["sync"] }

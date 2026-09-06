@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { App } from '@/App'
+import { useHealthStore } from '@/chrome/health'
 import { HOME, useNavStore } from '@/chrome/nav'
 import { useNoticeStore } from '@/chrome/notices'
 import { createFakeHost, type FakeHost } from './fake'
@@ -22,8 +23,48 @@ describe('host bridge', () => {
     setHostTransport(fake)
     useNavStore.setState({ route: HOME, back: [], forward: [], guard: null })
     useNoticeStore.setState({ notices: [] })
+    useHealthStore.setState({ report: null })
   })
   afterEach(() => setHostTransport(null))
+
+  /** A `health` item, as the host emits one (§12.6). */
+  const healthItem = (code: string, actions: string[]) => ({
+    code,
+    severity: 'warn' as const,
+    targetPath: null,
+    actions,
+    detail: {},
+  })
+
+  it('a health report replaces the previous one and leaves other notices alone', async () => {
+    render(<App />)
+    await screen.findByText('Alpha')
+    await waitFor(() => expect(fake.calls.some((c) => c.name === 'health_get')).toBe(true))
+
+    act(() => {
+      useNoticeStore.getState().pushError('match', 'the host refused')
+      fake.emit('health', {
+        status: 'warn',
+        items: [healthItem('health.disk_low', ['open_data_folder']), healthItem('health.search_degraded', ['rebuild_search'])],
+      })
+    })
+    const isHealth = (n: { detail: Readonly<Record<string, string>> }) => n.detail.source === 'health'
+    expect(useNoticeStore.getState().notices.filter(isHealth)).toHaveLength(2)
+    expect(useHealthStore.getState().report?.status).toBe('warn')
+
+    act(() => {
+      fake.emit('health', { status: 'error', items: [healthItem('health.persist_failed', ['retry_persist', 'open_data_folder'])] })
+    })
+    const notices = useNoticeStore.getState().notices
+    expect(notices.filter(isHealth).map((n) => n.code)).toEqual(['health.persist_failed'])
+    expect(notices.filter((n) => !isHealth(n)).map((n) => n.code)).toEqual(['match'])
+    expect(useHealthStore.getState().report?.status).toBe('error')
+
+    // An `ok` after a `warn` clears the list and the dot (§12.6).
+    act(() => fake.emit('health', { status: 'ok', items: [] }))
+    expect(useNoticeStore.getState().notices.filter(isHealth)).toHaveLength(0)
+    expect(useHealthStore.getState().report?.status).toBe('ok')
+  })
 
   it('a renamed team reaches the list and the aside through catalog-changed alone', async () => {
     render(<App />)

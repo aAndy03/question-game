@@ -33,7 +33,9 @@ export function NodeHandle({ id, x, y, width, height, isSelected, isOverridden, 
       data-node-handle={isSelected ? 'selected' : isOverridden ? 'overridden' : 'rest'}
       onPointerDown={(e) => {
         e.preventDefault()
-        ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+        // Capture on the handle, not on whatever child was hit, and only where
+        // the environment has the API — jsdom does not.
+        e.currentTarget.setPointerCapture?.(e.pointerId)
         drag.current = { x: e.clientX, y: e.clientY, moved: false }
         onSelect()
       }}

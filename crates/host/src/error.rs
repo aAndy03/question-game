@@ -126,6 +126,12 @@ pub enum MatchError {
     /// flags; `MatchService` only reports the refusal.
     #[error("feature {0} is off")]
     FeatureOff(&'static str),
+
+    /// A maintenance command that reaches stored Plays — *Wipe Plays*, *Remove
+    /// generated data* — arrived while a Play is loaded or open (§12.3). Refused
+    /// before any pin is looked at: the pin is not what protects the show.
+    #[error("a Play is open")]
+    PlayOpen,
 }
 
 pub type MatchResult<T> = Result<T, MatchError>;

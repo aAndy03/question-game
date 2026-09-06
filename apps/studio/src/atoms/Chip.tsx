@@ -40,6 +40,10 @@ export const CHIP_TONES = {
   frozen: 'warning',
   active: 'accent',
   pinned: 'default',
+  // monitors (P10, §12.2.1)
+  primary: 'default',
+  stage: 'accent',
+  disconnected: 'warning',
 } as const satisfies Record<string, ChipTone>
 
 export type ChipMeaning = keyof typeof CHIP_TONES

@@ -36,12 +36,31 @@ pub(super) struct Bodies {
 /// An archived row still on the board is refused rather than silently dropped:
 /// a show that quietly loses a question is worse than one that will not start
 /// until the operator has looked at it (§11.B, the Shape manager's job).
+///
+/// An empty roster or an empty board is refused here too, with a `target_path`
+/// that points at the Game section to fix (§12.4 `play.roster_empty` /
+/// `play.board_empty`). `MatchService::play_start` keeps its own `BoardEmpty`
+/// as the second line; this is the first, and it lands on the operator's
+/// screen before a Stage window is created for nothing.
 pub(super) fn build(
     recipe: &Recipe,
     bodies: &Bodies,
     play_id: PlayId,
     settings: FrozenSettings,
 ) -> CatalogResult<PlaySnapshot> {
+    if recipe.teams.is_empty() {
+        return Err(CatalogError::invalid(
+            format!("recipe.{}.roster", recipe.id),
+            "the roster is empty",
+        ));
+    }
+    if recipe.board.iter().all(|board| board.question_ids.is_empty()) {
+        return Err(CatalogError::invalid(
+            format!("recipe.{}.board", recipe.id),
+            "the board has no questions",
+        ));
+    }
+
     // 1. Participating teams, display fields only, in roster order.
     let teams = recipe
         .teams
@@ -267,6 +286,42 @@ mod tests {
         let question = &snapshot.domains[0].questions[0];
         assert_eq!(question.options.len(), 2);
         assert_eq!(question.correct_option_ids, vec!["opt-y".into()]);
+    }
+
+    #[test]
+    fn an_empty_roster_and_an_empty_board_are_refused_with_the_section_to_fix() {
+        let (mut recipe, bodies) = fixture();
+        recipe.teams.clear();
+        let error = build(
+            &recipe,
+            &bodies,
+            PlayId::from("play-1"),
+            FrozenSettings::default(),
+        )
+        .unwrap_err();
+        assert_eq!(error.to_string(), "recipe.recipe-1.roster: the roster is empty");
+
+        let (mut recipe, bodies) = fixture();
+        recipe.board[0].question_ids.clear();
+        let error = build(
+            &recipe,
+            &bodies,
+            PlayId::from("play-1"),
+            FrozenSettings::default(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "recipe.recipe-1.board: the board has no questions"
+        );
+
+        // A board with no domains at all is the same empty board.
+        let (mut recipe, bodies) = fixture();
+        recipe.board.clear();
+        assert!(matches!(
+            build(&recipe, &bodies, PlayId::from("play-1"), FrozenSettings::default()),
+            Err(CatalogError::Invalid { target_path, .. }) if target_path == "recipe.recipe-1.board"
+        ));
     }
 
     #[test]

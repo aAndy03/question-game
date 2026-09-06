@@ -15,6 +15,7 @@ mod support;
 
 use std::path::PathBuf;
 
+use questiongame_host::flags::AudioSettings;
 use questiongame_host::presentation::PresentationService;
 use questiongame_host::settings::{FrozenSettings, RevealSettings};
 use questiongame_host::stage::{CONTRACT_VERSION, StageScreen, project};
@@ -23,7 +24,7 @@ use serde_json::Value;
 use support::*;
 
 /// Owned by `PresentationService`, merged into the emission.
-const PRESENTATION_KEYS: [&str; 5] = ["currentScreen", "decor", "layout", "overlay", "revealModes"];
+const PRESENTATION_KEYS: [&str; 6] = ["audio", "currentScreen", "decor", "layout", "overlay", "revealModes"];
 
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures")
@@ -109,7 +110,7 @@ fn emitted(with_session: bool) -> Value {
         .show_screen(StageScreen::Question, Some(PlayStatus::Playing))
         .unwrap();
     let game = project(service.get_state().unwrap(), 10_000);
-    let state = presentation.play_state(game, RevealSettings::default(), true);
+    let state = presentation.play_state(game, RevealSettings::default(), true, AudioSettings::default());
     serde_json::to_value(state).expect("the emission serializes")
 }
 

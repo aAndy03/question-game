@@ -20,7 +20,7 @@ import type { StageLayoutNodes } from './layout'
  * not bump it. Stage compares this against its own build so a host/webview
  * mismatch surfaces as a notice instead of a blank screen.
  */
-export const CONTRACT_VERSION = 3
+export const CONTRACT_VERSION = 4
 
 /** Spec §5.1. */
 export type PlayStatus =
@@ -234,6 +234,51 @@ export const DEFAULT_DECOR_SETTINGS: StageDecorSettings = {
   maxSpeed: 40,
 }
 
+/**
+ * The eight cue keys of spec §2.25. The audio seam's interface is the key,
+ * never a file: Stage maps a key to a bundled file through the cue map that
+ * arrives in `PlayStateForStage.audio`, and nothing above that names a file.
+ */
+export const CUE_KEYS = [
+  'lock',
+  'correct',
+  'wrong',
+  'overlay_start',
+  'play_start',
+  'timer_start',
+  'timer_pause',
+  /** The countdown reached zero with no reveal yet. */
+  'timer_expired',
+] as const
+export type CueKey = (typeof CUE_KEYS)[number]
+
+/**
+ * Control-behaviour audio (spec §2.5, §2.25): live for the whole Play, so a
+ * mute or a volume change lands on Stage on the next emission. `cues` maps
+ * every key to a file name inside the bundled pack, or `null` for a key the
+ * operator muted. Volume is 0–100.
+ */
+export interface StageAudio {
+  readonly volume: number
+  readonly muted: boolean
+  readonly cues: Readonly<Record<CueKey, string | null>>
+}
+
+export const DEFAULT_AUDIO: StageAudio = {
+  volume: 80,
+  muted: false,
+  cues: {
+    lock: 'lock.wav',
+    correct: 'correct.wav',
+    wrong: 'wrong.wav',
+    overlay_start: 'overlay_start.wav',
+    play_start: 'play_start.wav',
+    timer_start: 'timer_start.wav',
+    timer_pause: 'timer_pause.wav',
+    timer_expired: 'timer_expired.wav',
+  },
+}
+
 export interface PlayStateForStage {
   readonly contractVersion: number
   /** Identifies the Play so Stage can detect a Restart rather than a redraw. */
@@ -276,6 +321,9 @@ export interface PlayStateForStage {
    * next beat itself once `anim-complete` fires.
    */
   readonly revealModes: Readonly<Record<RevealChannel, RevealMode>>
+
+  /** Live cue volume, mute and cue map (P10, spec §2.25). Control-behaviour. */
+  readonly audio: StageAudio
 }
 
 /**
@@ -308,6 +356,7 @@ export const EMPTY_PLAY_STATE: PlayStateForStage = {
     outcome: 'operator',
     leaderboard: 'operator',
   },
+  audio: DEFAULT_AUDIO,
 }
 
 /**

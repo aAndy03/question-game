@@ -9,6 +9,7 @@ import { toast } from '@/chrome/toast'
 import { useCatalogItem } from '@/host/queries'
 import type { Operator } from '@/host/types'
 import { useDirtyGuard, useDraft } from './useDraft'
+import { OperatorPinPanel } from './OperatorPinPanel'
 
 export interface OperatorEditorProps {
   id: string | null
@@ -85,10 +86,13 @@ export function OperatorEditor({ id }: OperatorEditorProps) {
           autoFocus={!id}
           error={inline.find((n) => n.targetPath === `${path}.name`)?.detail.message ?? null}
         />
-        <Text variant="studio-caption" tone="muted">
-          {OPERATOR.pinHint}
-        </Text>
+        {id ? null : (
+          <Text variant="studio-caption" tone="muted">
+            {OPERATOR.pinHint}
+          </Text>
+        )}
       </Panel>
+      {id && source.data ? <OperatorPinPanel operator={source.data} /> : null}
       <EditorFooter canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={cancel} />
       <DirtyGuard
         isOpen={guard.isOpen}

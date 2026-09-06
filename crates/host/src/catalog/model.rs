@@ -47,6 +47,37 @@ impl ArchiveScope {
     }
 }
 
+/// Who put a row in the library (§12.1). `Seed` rows are the shipped Demo
+/// document, and the only thing the mark buys is that *Restore sample game*
+/// can tell a seed row the operator edited from one they never touched —
+/// nothing else reads it, and a seed row is an ordinary row everywhere else.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Origin {
+    Seed,
+    #[default]
+    Operator,
+}
+
+impl Origin {
+    /// The stored spelling, and the wire one.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Origin::Seed => "seed",
+            Origin::Operator => "operator",
+        }
+    }
+
+    /// A value this build does not know reads as `Operator`: the safe side,
+    /// because it means "do not overwrite this row".
+    pub(crate) fn parse(value: &str) -> Origin {
+        match value {
+            "seed" => Origin::Seed,
+            _ => Origin::Operator,
+        }
+    }
+}
+
 /// Created / updated / archived, in epoch milliseconds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,6 +104,8 @@ pub struct Team {
     pub color: String,
     pub logo_asset_id: Option<AssetId>,
     pub notes: Option<String>,
+    #[serde(default)]
+    pub origin: Origin,
     #[serde(flatten)]
     pub stamps: Stamps,
     /// Host-owned counters, bumped when a Play that used this team completes.
@@ -93,6 +126,7 @@ impl Team {
             color: "var(--ink)".to_owned(),
             logo_asset_id: None,
             notes: None,
+            origin: Origin::Operator,
             stamps: Stamps::default(),
             play_count: 0,
             last_play_at: None,
@@ -129,6 +163,8 @@ pub struct Domain {
     pub description: Option<String>,
     /// Membership in authored order. A question may sit in many domains.
     pub questions: Vec<DomainMember>,
+    #[serde(default)]
+    pub origin: Origin,
     #[serde(flatten)]
     pub stamps: Stamps,
 }
@@ -141,6 +177,7 @@ impl Domain {
             code: code.into(),
             description: None,
             questions: Vec::new(),
+            origin: Origin::Operator,
             stamps: Stamps::default(),
         }
     }
@@ -195,6 +232,8 @@ pub struct Question {
     /// 1–100 (§4.1).
     pub difficulty: u8,
     pub explanation: Option<String>,
+    #[serde(default)]
+    pub origin: Origin,
     #[serde(flatten)]
     pub stamps: Stamps,
 }
@@ -208,6 +247,7 @@ impl Question {
             options: Vec::new(),
             difficulty,
             explanation: None,
+            origin: Origin::Operator,
             stamps: Stamps::default(),
         }
     }
@@ -436,6 +476,8 @@ pub struct Recipe {
     /// Bumped by every `recipe_upsert`. `recipe-changed { id, rev }` carries it
     /// and a Play records the rev it ran (§2.8).
     pub rev: u32,
+    #[serde(default)]
+    pub origin: Origin,
     #[serde(flatten)]
     pub stamps: Stamps,
 }
@@ -453,6 +495,7 @@ impl Recipe {
             layout: serde_json::Value::Object(serde_json::Map::new()),
             overlays: RecipeOverlays::default(),
             rev: 0,
+            origin: Origin::Operator,
             stamps: Stamps::default(),
         }
     }

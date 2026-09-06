@@ -86,6 +86,7 @@ pub fn refresh(app: &AppHandle, host: &mut crate::state::Host) -> AppResult<()> 
     if let Some(notice) = &mv.notice {
         crate::emit::notice(app, notice);
     }
+
     crate::emit::monitors_changed(app, host);
     Ok(())
 }
@@ -121,3 +122,4 @@ fn move_to(app: &AppHandle, window: &WebviewWindow, target: Option<&MonitorKey>)
     window.set_fullscreen(true)?;
     Ok(())
 }
+

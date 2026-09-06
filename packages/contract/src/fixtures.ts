@@ -21,7 +21,7 @@ import type {
   StageSession,
   StageTeam,
 } from './play-state'
-import { CONTRACT_VERSION, DEFAULT_DECOR_SETTINGS } from './play-state'
+import { CONTRACT_VERSION, DEFAULT_AUDIO, DEFAULT_DECOR_SETTINGS } from './play-state'
 
 const PLAY_ID = 'play-fixture-1'
 
@@ -89,6 +89,7 @@ function base(overrides: Partial<PlayStateForStage> = {}): PlayStateForStage {
       outcome: 'operator',
       leaderboard: 'operator',
     },
+    audio: DEFAULT_AUDIO,
     ...overrides,
   }
 }

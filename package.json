@@ -26,7 +26,8 @@
     "dev:app": "tauri dev",
     "fixtures": "vite-node scripts/emit-fixtures.ts",
     "decor:hulls": "vite-node scripts/decor-hulls.ts",
-    "studio:icons": "vite-node scripts/studio-icons.ts"
+    "studio:icons": "vite-node scripts/studio-icons.ts",
+    "audio:placeholders": "vite-node scripts/audio-placeholders.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

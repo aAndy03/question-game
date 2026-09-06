@@ -20,6 +20,7 @@ export const TEAM_PALETTE = ['#111827', '#2563eb', '#16a34a', '#dc2626', '#d9770
 function emptyTeam(): Team {
   return {
     id: `team-${crypto.randomUUID().slice(0, 8)}`,
+    origin: 'operator',
     name: '',
     shortCode: '',
     color: TEAM_PALETTE[0] ?? '#111827',

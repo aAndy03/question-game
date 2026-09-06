@@ -5,7 +5,8 @@ import { LibraryList, useArchive, type RecordView } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
-import { fmt, GAME, LIST, TABS } from '@/copy'
+import { CHROME, fmt, GAME, LIST, TABS } from '@/copy'
+import type { SeedResult } from '@/host/types'
 import { useHostCommand } from '@/host/commands'
 import { usePlayState } from '@/host/playState'
 import { useRecipeList, useSearch } from '@/host/queries'
@@ -103,9 +104,22 @@ export function GamesPage() {
         emptyKind={text ? 'noResults' : archivedView ? 'archivedEmpty' : 'empty'}
         emptyAction={
           !text && !archivedView ? (
-            <Button variant="primary" icon="add" onPress={() => void create()}>
-              {LIST.new(GAME.one)}
-            </Button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button variant="primary" icon="add" onPress={() => void create()}>
+                {LIST.new(GAME.one)}
+              </Button>
+              <Button
+                variant="secondary"
+                icon="games"
+                onPress={() => {
+                  void run<SeedResult>('catalog_seed_demo', { mode: 'missing' }).then((r) => {
+                    if (r) void go({ tab: 'games', id: r.recipeId })
+                  })
+                }}
+              >
+                {CHROME.loadDemo}
+              </Button>
+            </div>
           ) : null
         }
         onOpen={(id) => void go({ tab: 'games', id })}

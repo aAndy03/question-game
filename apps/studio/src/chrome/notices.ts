@@ -1,9 +1,10 @@
 /**
  * The notice family's one owner (spec §14).
  *
- * Two sources land here: `notice` events from the host and refused commands
- * (`HostError`). Both become an `OpenNotice`. Where it renders is decided by
- * the notice, not by the caller:
+ * Three sources land here: `notice` events from the host, refused commands
+ * (`HostError`), and the `health` report's items (stamped `detail.source =
+ * 'health'` and replaced as a set, never accumulated — §12.6). All become an
+ * `OpenNotice`. Where it renders is decided by the notice, not by the caller:
  *
  *   targetPath set     → inline, on the field or row that caused it
  *   severity 'block'   → the destructive dialog, which cannot be clicked away
@@ -41,6 +42,11 @@ interface NoticeState {
   push(notice: Notice): number
   pushError(code: string, message: string, targetPath?: string | null): number
   dismiss(id: number): void
+  /**
+   * Replace every notice whose `detail.source` is `source` with `notices`,
+   * stamping the source on each. Other notices keep their ids and order.
+   */
+  replaceSource(source: string, notices: readonly Notice[]): void
   pushFrame(id: number, frame: ConfirmFrame): void
   popFrame(id: number): void
   setCollectorOpen(open: boolean): void
@@ -75,6 +81,23 @@ export const useNoticeStore = create<NoticeState>((set, get) => ({
 
   dismiss(id) {
     set((s) => ({ notices: s.notices.filter((n) => n.id !== id) }))
+  },
+
+  replaceSource(source, notices) {
+    for (const notice of notices) {
+      if (notice.actions.length > MAX_ACTIONS) {
+        throw new Error(`notice ${notice.code} carries ${notice.actions.length} actions; §14 allows ${MAX_ACTIONS}`)
+      }
+    }
+    const at = Date.now()
+    const fresh: OpenNotice[] = notices.map((n) => ({
+      ...n,
+      detail: { ...n.detail, source },
+      id: nextId++,
+      at,
+      frames: [],
+    }))
+    set((s) => ({ notices: [...fresh, ...s.notices.filter((n) => n.detail.source !== source)] }))
   },
 
   pushFrame(id, frame) {

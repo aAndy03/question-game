@@ -2,27 +2,45 @@
  * An in-memory host for tests and for the browser-only dev server.
  *
  * It is the second adapter behind `HostTransport`: the same verbs, the same
- * events, a library kept in maps. It implements only what the library tabs
- * need — `catalog_*`, `recipe_*`, `referenced_by`, `settings_get`,
- * `settings_set_global`, `monitors_list`, `play_list`, `get_state` — and
- * refuses everything else with a `HostError`, the way the real host refuses a
- * command it will not run.
+ * events, a library kept in maps. It implements what the library tabs, the
+ * Settings tab and first run call — `catalog_*` (the Demo seed included),
+ * `recipe_*`, `referenced_by`, the settings document, shortcuts, pins,
+ * `operator_activate`, the gated data commands, paths, health, monitors,
+ * `play_list`, `get_state` — and refuses everything else with a `HostError`,
+ * the way the real host refuses a command it will not run.
  *
  * It is not a second engine: no Play can be started here. `play-state` is
- * only ever what a test hands to `emit`.
+ * only ever what a test hands to `emit` or sets on `playState`; the gated
+ * commands read that field for "a Play is open" (§12.3).
+ *
+ * Pins: the host hashes with argon2id; the fake stores `fake:<pin>`. Neither
+ * ever reaches the webview as anything but "pinned" (§2.15).
  */
 
-import type { Command, EventName, PlayStateForMain } from '@questiongame/contract'
+import { DEFAULT_AUDIO, type Command, type EventName, type PlayStateForMain } from '@questiongame/contract'
 import type { HostError, HostTransport } from './host'
 import type {
+  AppPaths,
   ArchiveScope,
+  AudioSettings,
   CatalogItem,
-  GlobalSetting,
-  LibraryKind,
-  Recipe,
-  SettingsView,
+  ControlSettings,
+  Disabled,
+  FeatureRoots,
+  GameSetting,
   GameSettings,
+  GlobalSetting,
+  HealthReport,
+  LibraryKind,
+  Operator,
+  PlayRecord,
+  Recipe,
+  SeedMode,
+  SeedResult,
+  SeedStatus,
+  SettingsView,
 } from './types'
+import { SEED_RECIPE_ID, sameBody, seedLibrary, seedRecipe } from './fake/seed'
 
 type Handler = (payload: unknown) => void
 
@@ -36,10 +54,56 @@ export interface FakeHost extends HostTransport {
   /** The current documents, for assertions. */
   readonly library: Map<string, CatalogItem>
   readonly recipes: Map<string, Recipe>
+  /** Closed Plays — what `play_list` returns and `wipe_plays` removes. */
+  plays: PlayRecord[]
   playState: PlayStateForMain | null
+  /** What `health_get` answers; a test sets it and then `emit('health', …)`. */
+  health: HealthReport
+  /** Set by `uninstall_data` — the fake cannot quit, so it leaves a flag. */
+  uninstalled: boolean
 }
 
 const now = () => Date.now()
+
+export const FAKE_PATHS: AppPaths = {
+  userData: 'C:\\Users\\operator\\AppData\\Roaming\\com.questiongame.app',
+  catalog: 'C:\\Users\\operator\\AppData\\Roaming\\com.questiongame.app\\catalog.sqlite',
+  cuePack: 'C:\\Program Files\\questiongame\\resources\\stage\\audio',
+}
+
+const DEFAULT_CONTROL: ControlSettings = {
+  override_after_lock: 'refuse_until_reveal',
+  reveal: { question: 'operator', answers: 'operator', outcome: 'operator', leaderboard: 'operator' },
+  overlay_animations_enabled: true,
+  viewer_hit_targets: true,
+  mosaic_density: 'comfortable',
+  stage_monitor_id: null,
+  stats_monitor_id: null,
+  stage_reattach: 'ask',
+  audio: DEFAULT_AUDIO,
+}
+
+const DEFAULT_FEATURES: FeatureRoots = { audio: true, audio_synth: false, search: true, statistics: true }
+
+/** The keys §4.2 marks *Game, frozen* — the same list as `flags::GAME_AFFECTING_KEYS`. */
+const GAME_AFFECTING_KEYS = [
+  'scoring.mode',
+  'scoring.flat_points',
+  'scoring.difficulty_map',
+  'scoring.speed_weight',
+  'scoring.lock_speed.enabled',
+  'scoring.lock_speed_base',
+  'turn.max_consecutive_correct',
+  'turn.bonus_after_consecutive',
+  'judging.partial_credit',
+  'judging.order_matters',
+  'timer.enabled',
+  'timer.duration_ms',
+] as const
+
+const PIN = /^[0-9]{4,8}$/
+/** The fake's "hash" — never shown, only compared. */
+const hashPin = (pin: string) => `fake:${pin}`
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
   scoring: {
@@ -76,6 +140,10 @@ export function createFakeHost(): FakeHost {
   const calls: FakeHost['calls'] = []
   let activeOperatorId: string | null = null
   let globalsTimer = { enabled: true as boolean | null, duration_ms: 30_000 as number | null }
+  let gameDefaults: GameSettings = DEFAULT_GAME_SETTINGS
+  let control: ControlSettings = DEFAULT_CONTROL
+  let features: FeatureRoots = DEFAULT_FEATURES
+  let shortcuts: Record<string, string> = {}
 
   const emit = (name: EventName, payload: unknown) => {
     for (const h of listeners.get(name) ?? []) h(payload)
@@ -109,38 +177,64 @@ export function createFakeHost(): FakeHost {
     library.set(k, { kind: row.kind, item: { ...row.item, archivedAt: at } } as CatalogItem)
   }
 
+  /** The gated commands' first check (§12.3): nothing here can reach a Play. */
+  const playOpen = () => {
+    const status = fake.playState?.status
+    return status === 'loaded' || status === 'playing' || status === 'paused'
+  }
+
+  const operatorRow = (id: string): Operator => {
+    const row = library.get(key('operator', id))
+    if (!row || row.kind !== 'operator') refuse('catalog', `operator ${id} not found`)
+    return row.item
+  }
+
+  /** `PinRequired` / wrong pin, spelled as the host does (`operator.<id>.pin`). */
+  const verifyPin = (operator: Operator, pin: string | null | undefined) => {
+    if (operator.pinHash === null) return
+    if (!pin) refuse('catalog', `operator.${operator.id}.pin: a pin is required`)
+    if (operator.pinHash !== hashPin(pin)) refuse('catalog', `operator.${operator.id}.pin: wrong pin`)
+  }
+
+  /** Wipe and uninstall ask the *active* operator's pin, when one is set. */
+  const verifyActivePin = (pin: string | null | undefined) => {
+    if (activeOperatorId === null) return
+    const row = library.get(key('operator', activeOperatorId))
+    if (row?.kind === 'operator') verifyPin(row.item, pin)
+  }
+
   const settingsView = (): SettingsView => ({
     globals: {
       timer: globalsTimer,
-      game_defaults: DEFAULT_GAME_SETTINGS,
-      control: {
-        override_after_lock: 'refuse_until_reveal',
-        reveal: DEFAULT_GAME_SETTINGS.reveal,
-        overlay_animations_enabled: true,
-        viewer_hit_targets: true,
-        mosaic_density: 'comfortable',
-        stage_monitor_id: null,
-        stats_monitor_id: null,
-        stage_reattach: 'ask',
-      },
-      features: { audio: true, audio_synth: false, search: true, statistics: true },
-      shortcuts: {},
+      game_defaults: gameDefaults,
+      control,
+      features,
+      shortcuts,
       active_operator_id: activeOperatorId,
     },
     currentGame: null,
-    control: {
-      override_after_lock: 'refuse_until_reveal',
-      reveal: DEFAULT_GAME_SETTINGS.reveal,
-      overlay_animations_enabled: true,
-      viewer_hit_targets: true,
-      mosaic_density: 'comfortable',
-      stage_monitor_id: null,
-      stats_monitor_id: null,
-      stage_reattach: 'ask',
-    },
-    gameAffectingFrozen: false,
-    disabled: [],
+    control,
+    gameAffectingFrozen: playOpen(),
+    disabled: disabledKeys(),
   })
+
+  /**
+   * The §4.2 `disabled` list, as much of it as a host with no recipe in
+   * Control can have: the freeze while a Play is open, and the audio feature
+   * graph. The inert interlocks need `currentGame`, which the fake never
+   * loads — Studio reads the reason, it never recomputes one, so what matters
+   * here is that a reason arrives at all.
+   */
+  const disabledKeys = (): Disabled[] => {
+    const out: Disabled[] = []
+    if (!features.audio) out.push({ key: 'feat.audio.synth', reason: 'feature_off', detail: 'feat.audio' })
+    if (playOpen()) for (const key of GAME_AFFECTING_KEYS) out.push({ key, reason: 'frozen' })
+    return out
+  }
+
+  const setAudio = (patch: Partial<AudioSettings>) => {
+    control = { ...control, audio: { ...control.audio, ...patch } }
+  }
 
   const bumpRecipe = (recipe: Recipe): Recipe => {
     const existing = recipes.get(recipe.id)
@@ -238,6 +332,7 @@ export function createFakeHost(): FakeHost {
     recipe_new: (a) => {
       const recipe: Recipe = {
         id: a.id as string,
+        origin: 'operator',
         name: a.name as string,
         folder: null,
         tags: [],
@@ -323,27 +418,172 @@ export function createFakeHost(): FakeHost {
       const next = bumpRecipe({ ...r, overlays })
       return { id: next.id, rev: next.rev }
     },
+    catalog_seed_demo: (a) => {
+      const mode = a.mode as SeedMode
+      let inserted = 0
+      let overwritten = 0
+      for (const item of seedLibrary()) {
+        const k = key(item.kind, item.item.id)
+        const existing = library.get(k)
+        if (!existing) {
+          upsert(item)
+          inserted += 1
+        } else if (mode === 'overwrite') {
+          upsert(item)
+          setArchived(item.kind as LibraryKind, item.item.id, null)
+          overwritten += 1
+        } else if (existing.item.archivedAt !== null) {
+          // `missing` restores an archived seed row and keeps its edits.
+          setArchived(item.kind as LibraryKind, item.item.id, null)
+        } else {
+          continue
+        }
+        emit('catalog-changed', { kind: item.kind, id: item.item.id, op: 'upserted' })
+      }
+      const recipe = seedRecipe(gameDefaults)
+      const existing = recipes.get(recipe.id)
+      if (!existing) {
+        bumpRecipe(recipe)
+        inserted += 1
+      } else if (mode === 'overwrite') {
+        bumpRecipe({ ...recipe, archivedAt: null })
+        overwritten += 1
+      } else if (existing.archivedAt !== null) {
+        bumpRecipe({ ...existing, archivedAt: null })
+      }
+      return { recipeId: SEED_RECIPE_ID, inserted, overwritten } satisfies SeedResult
+    },
+    catalog_seed_status: () => {
+      const status = { present: 0, missing: 0, edited: 0 }
+      const count = (stored: unknown, shipped: unknown) => {
+        if (!stored) status.missing += 1
+        else {
+          status.present += 1
+          if (!sameBody(stored, shipped)) status.edited += 1
+        }
+      }
+      for (const item of seedLibrary()) count(library.get(key(item.kind, item.item.id))?.item, item.item)
+      count(recipes.get(SEED_RECIPE_ID), seedRecipe(gameDefaults))
+      return status satisfies SeedStatus
+    },
+    catalog_rebuild_search: () => ({ indexed: library.size }),
+    wipe_plays: (a) => {
+      if (playOpen()) refuse('match', 'a Play is open')
+      verifyActivePin(a.pin as string | null | undefined)
+      const removed = fake.plays.length
+      const touched = new Set(fake.plays.map((p) => p.recipeId))
+      fake.plays = []
+      touched.forEach((id) => emit('catalog-changed', { kind: 'recipe', id, op: 'upserted' }))
+      return { removed }
+    },
+    operator_set_pin: (a) => {
+      const id = a.id as string
+      const pin = a.pin as string | null
+      const operator = operatorRow(id)
+      if (pin !== null && !PIN.test(pin)) refuse('catalog', `operator.${id}.pin: a pin is 4-8 digits`)
+      // Changing or clearing an existing pin proves the old one first.
+      verifyPin(operator, a.currentPin as string | null | undefined)
+      upsert({ kind: 'operator', item: { ...operator, pinHash: pin === null ? null : hashPin(pin) } })
+      emit('catalog-changed', { kind: 'operator', id, op: 'upserted' })
+      return null
+    },
+    operator_activate: (a) => {
+      const id = a.id as string
+      const operator = operatorRow(id)
+      if (operator.archivedAt !== null) refuse('match', 'an archived operator cannot be active')
+      verifyPin(operator, a.pin as string | null | undefined)
+      activeOperatorId = id
+      upsert({ kind: 'operator', item: { ...operator, lastActiveAt: now() } })
+      emit('catalog-changed', { kind: 'operator', id, op: 'upserted' })
+      return null
+    },
+    uninstall_data: (a) => {
+      if (playOpen()) refuse('match', 'a Play is open')
+      verifyActivePin(a.pin as string | null | undefined)
+      fake.uninstalled = true
+      return null
+    },
+    paths_get: () => FAKE_PATHS,
+    paths_reveal: () => null,
+    health_get: () => fake.health,
     settings_get: () => settingsView(),
+    settings_set_shortcut: (a) => {
+      const cmd = a.command as string
+      const chord = a.chord as string | null
+      if (chord === null) {
+        shortcuts = Object.fromEntries(Object.entries(shortcuts).filter(([other]) => other !== cmd))
+        return null
+      }
+      const taken = Object.entries(shortcuts).find(([other, bound]) => other !== cmd && bound === chord)
+      if (taken) refuse('catalog', 'shortcuts: that chord is already bound to another command')
+      shortcuts = { ...shortcuts, [cmd]: chord }
+      return null
+    },
     settings_set_global: (a) => {
       const setting = a.setting as GlobalSetting
-      if (setting.key === 'active_operator_id') {
-        if (setting.value !== null) {
-          const row = library.get(key('operator', setting.value))
-          if (!row) refuse('catalog', `operator ${setting.value} not found`)
-          if (row.item.archivedAt !== null) refuse('match', 'an archived operator cannot be active')
+      switch (setting.key) {
+        case 'active_operator_id': {
+          if (setting.value !== null) {
+            const row = library.get(key('operator', setting.value))
+            if (!row) refuse('catalog', `operator ${setting.value} not found`)
+            if (row.item.archivedAt !== null) refuse('match', 'an archived operator cannot be active')
+          }
+          activeOperatorId = setting.value
+          break
         }
-        activeOperatorId = setting.value
-      } else if (setting.key === 'timer_enabled') {
-        globalsTimer = { ...globalsTimer, enabled: setting.value }
-      } else if (setting.key === 'timer_duration_ms') {
-        globalsTimer = { ...globalsTimer, duration_ms: setting.value }
+        case 'timer_enabled':
+          globalsTimer = { ...globalsTimer, enabled: setting.value }
+          break
+        case 'timer_duration_ms':
+          globalsTimer = { ...globalsTimer, duration_ms: setting.value }
+          break
+        case 'game':
+          gameDefaults = applyGameSetting(gameDefaults, setting.value)
+          break
+        case 'reveal':
+          control = { ...control, reveal: { ...control.reveal, [setting.value[0]]: setting.value[1] } }
+          break
+        case 'override_after_lock':
+        case 'overlay_animations_enabled':
+        case 'viewer_hit_targets':
+        case 'mosaic_density':
+        case 'stage_monitor_id':
+        case 'stats_monitor_id':
+        case 'stage_reattach':
+          control = { ...control, [setting.key]: setting.value }
+          break
+        case 'feature': {
+          // `feat.audio.synth` and `audio_synth` name the same root.
+          const root = setting.value[0].replace(/^feat\./, '').replace(/\./g, '_') as keyof FeatureRoots
+          if (!(root in features)) refuse('catalog', `feature ${setting.value[0]} not found`)
+          features = { ...features, [root]: setting.value[1] }
+          break
+        }
+        case 'audio_volume':
+          if (setting.value < 0 || setting.value > 100) refuse('catalog', 'audio.volume: volume is 0-100')
+          setAudio({ volume: setting.value })
+          break
+        case 'audio_muted':
+          setAudio({ muted: setting.value })
+          break
+        case 'audio_cue':
+          setAudio({ cues: { ...control.audio.cues, [setting.value[0]]: setting.value[1] } })
+          break
       }
       return null
     },
     monitors_list: () => [
       { key: 'primary', name: 'Built-in display', primary: true, position: [0, 0], size: [1920, 1080], scaleFactor: 1 },
     ],
-    play_list: () => [],
+    stage_set_monitor: (a) => {
+      control = { ...control, stage_monitor_id: (a.monitorId as string | null | undefined) ?? null }
+      return null
+    },
+    stage_open: () => null,
+    play_list: (a) => {
+      const recipeId = (a.recipeId as string | null | undefined) ?? null
+      return recipeId === null ? fake.plays : fake.plays.filter((p) => p.recipeId === recipeId)
+    },
     play_events: () => [],
     get_state: () => fake.playState,
   }
@@ -352,7 +592,10 @@ export function createFakeHost(): FakeHost {
     calls,
     library,
     recipes,
+    plays: [],
     playState: null,
+    health: { status: 'ok', items: [] },
+    uninstalled: false,
     emit,
     seed(items, seededRecipes = []) {
       items.forEach((i) => library.set(key(i.kind, i.item.id), i))
@@ -373,6 +616,38 @@ export function createFakeHost(): FakeHost {
     },
   }
   return fake
+}
+
+/** One `settings_set_current_game` key applied to a B5 document (`game_defaults`). */
+function applyGameSetting(g: GameSettings, s: GameSetting): GameSettings {
+  switch (s.key) {
+    case 'scoring_mode':
+      return { ...g, scoring: { ...g.scoring, mode: s.value } }
+    case 'flat_points':
+      return { ...g, scoring: { ...g.scoring, flat_points: s.value } }
+    case 'difficulty_map':
+      return { ...g, scoring: { ...g.scoring, difficulty_map: s.value } }
+    case 'speed_weight':
+      return { ...g, scoring: { ...g.scoring, speed_weight: s.value } }
+    case 'lock_speed_enabled':
+      return { ...g, scoring: { ...g.scoring, lock_speed_enabled: s.value } }
+    case 'lock_speed_base':
+      return { ...g, scoring: { ...g.scoring, lock_speed_base: s.value } }
+    case 'max_consecutive_correct':
+      return { ...g, turn: { ...g.turn, max_consecutive_correct: s.value } }
+    case 'bonus_after_consecutive':
+      return { ...g, turn: { ...g.turn, bonus_after_consecutive: s.value } }
+    case 'partial_credit':
+      return { ...g, judging: { ...g.judging, partial_credit: s.value } }
+    case 'order_matters':
+      return { ...g, judging: { ...g.judging, order_matters: s.value } }
+    case 'timer_enabled':
+      return { ...g, timer: { ...g.timer, enabled: s.value } }
+    case 'timer_duration_ms':
+      return { ...g, timer: { ...g.timer, duration_ms: s.value } }
+    case 'reveal':
+      return { ...g, reveal: { ...g.reveal, [s.value[0]]: s.value[1] } }
+  }
 }
 
 /** The host's §4.1 rules, mirrored so a page test sees the same refusals. */

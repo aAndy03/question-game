@@ -76,7 +76,7 @@ npm i @base-ui/react (unstyled components are used by the AI to create custom ne
 
 
 skills or agents.md
-npx skills add https://github.com/anthropics/skills --skill frontend-design
+
 npx heroui-cli@latest agents-md --react
 
 1.4

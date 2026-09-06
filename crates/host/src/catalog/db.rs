@@ -196,6 +196,15 @@ pub(crate) const MIGRATIONS: &[&str] = &[
         value_json TEXT NOT NULL
     );
     "#,
+    // 2 — P10: who put a row in the library. Every row that already exists
+    // was typed in by an operator, so the default is the right history, not
+    // a guess.
+    r#"
+    ALTER TABLE teams     ADD COLUMN origin TEXT NOT NULL DEFAULT 'operator';
+    ALTER TABLE domains   ADD COLUMN origin TEXT NOT NULL DEFAULT 'operator';
+    ALTER TABLE questions ADD COLUMN origin TEXT NOT NULL DEFAULT 'operator';
+    ALTER TABLE recipes   ADD COLUMN origin TEXT NOT NULL DEFAULT 'operator';
+    "#,
 ];
 
 /// Open the writer connection and bring the schema up to date.

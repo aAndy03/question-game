@@ -10,7 +10,7 @@
 mod support;
 
 use questiongame_host::error::MatchError;
-use questiongame_host::flags::{
+use questiongame_host::flags::{AudioSettings, CueKey, 
     Chord, ControlSettings, Disabled, DisabledReason, FLAG_KEYS, FeatureRoot, FlagService,
     FlagValue, GAME_AFFECTING_KEYS, GameSetting, GameSettings, GlobalSetting, GlobalSettings,
     MosaicDensity, RuntimeContext,
@@ -461,6 +461,7 @@ fn a_control_behaviour_write_takes_effect_immediately_and_is_remembered() {
         stage_monitor_id: Some("monitor-2".to_owned()),
         stats_monitor_id: Some("monitor-3".to_owned()),
         stage_reattach: StageReattach::Auto,
+        audio: AudioSettings::default(),
     };
     assert_eq!(flags.control(), &expected);
     assert_eq!(
@@ -598,4 +599,39 @@ fn the_active_operator_is_a_global_setting_with_a_default() {
     old.as_object_mut().unwrap().remove("active_operator_id");
     let loaded: GlobalSettings = serde_json::from_value(old).unwrap();
     assert_eq!(loaded.active_operator_id, None);
+}
+
+/// P10 exit criterion 3: muting and volume take effect mid-Play; scoring
+/// settings cannot. Both halves on the same open Play, through the same
+/// service.
+#[test]
+fn audio_is_live_mid_play_and_scoring_is_not() {
+    let mut flags = FlagService::default();
+    flags.load_recipe(GameSettings::default()).unwrap();
+
+    flags
+        .settings_set_global(GlobalSetting::AudioMuted(true), playing())
+        .expect("mute is Control-behaviour");
+    flags
+        .settings_set_global(GlobalSetting::AudioVolume(35), playing())
+        .expect("volume is Control-behaviour");
+    flags
+        .settings_set_global(GlobalSetting::AudioCue(CueKey::Lock, None), playing())
+        .expect("a cue map entry is Control-behaviour");
+    let audio = flags.audio();
+    assert!(audio.muted);
+    assert_eq!(audio.volume, 35);
+    assert_eq!(audio.cues[&CueKey::Lock], None);
+
+    let refused = flags.settings_set_current_game(
+        GameSetting::ScoringMode(ScoringMode::Flat),
+        playing(),
+    );
+    assert!(
+        matches!(refused, Err(MatchError::SettingFrozen { .. })),
+        "scoring is frozen at play_start: {refused:?}"
+    );
+
+    let over = flags.settings_set_global(GlobalSetting::AudioVolume(101), playing());
+    assert!(matches!(over, Err(MatchError::IllegalSettings { key: "audio.volume", .. })));
 }

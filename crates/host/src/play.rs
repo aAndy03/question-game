@@ -406,6 +406,10 @@ impl Play {
                 self.clock.stop(at);
             }
 
+            // Who is at the keyboard is a fact about the show, not about the
+            // game: nothing in the projection reads it.
+            EventKind::OperatorSwitched { .. } => {}
+
             EventKind::TurnInverted { .. } | EventKind::TurnReapplied { .. } => {}
         }
         Ok(())

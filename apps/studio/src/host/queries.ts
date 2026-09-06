@@ -2,9 +2,11 @@
  * TanStack Query over the catalog read seam.
  *
  * Keys mirror the §13 verbs and nothing else: `catalog_*`, `recipe_*`,
- * `settings_get`, `monitors_list`, `play_list`, `play_events`. **No key names a
- * Play's live state** — `play-state` is `playState.ts`, and a test asserts the
- * word `play-state` never appears in a key.
+ * `settings_get`, `monitors_list`, `play_list`, `play_events`, `paths_get`,
+ * `catalog_seed_status`. **No key names a Play's live state** — `play-state`
+ * is `playState.ts`, and a test asserts the word `play-state` never appears in
+ * a key. (`plays` is the closed-Play *history*, `play_list`, which is a
+ * catalog-shaped read: it changes on a host event, never on a tick.)
  *
  * Nothing here refetches on a timer or after a write. `bridge.tsx` invalidates
  * on `catalog-changed` / `recipe-changed`, so a rename lands on every surface
@@ -15,6 +17,7 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import type { MonitorInfo } from '@questiongame/contract'
 import { command, hasHost } from './host'
 import type {
+  AppPaths,
   ArchiveScope,
   CatalogItem,
   ItemOf,
@@ -24,6 +27,7 @@ import type {
   Recipe,
   SearchHit,
   SearchQuery,
+  SeedStatus,
   SettingsView,
 } from './types'
 
@@ -43,6 +47,10 @@ export const keys = {
   },
   settings: ['settings'] as const,
   monitors: ['monitors'] as const,
+  /** `paths_get` — fixed for the life of the process. */
+  paths: ['paths'] as const,
+  /** `catalog_seed_status` — invalidated by every catalog/recipe change. */
+  seedStatus: ['seed-status'] as const,
   plays: {
     list: (recipeId: string | null) => ['plays', 'list', recipeId] as const,
     events: (playId: string) => ['plays', 'events', playId] as const,
@@ -132,6 +140,30 @@ export function usePlayList(recipeId: string | null) {
   })
 }
 
+/** Every closed Play — what Wipe Plays' confirm counts (§12.3). */
+export function usePlays() {
+  return usePlayList(null)
+}
+
+/** Where the generated files live (§12.1, §12.3). */
+export function usePaths() {
+  return useQuery({
+    queryKey: keys.paths,
+    queryFn: () => command<AppPaths>('paths_get'),
+    enabled: enabled(),
+    staleTime: Infinity,
+  })
+}
+
+/** Seed rows present / missing / edited — Restore Demo's confirm (§12.1). */
+export function useSeedStatus() {
+  return useQuery({
+    queryKey: keys.seedStatus,
+    queryFn: () => command<SeedStatus>('catalog_seed_status'),
+    enabled: enabled(),
+  })
+}
+
 export function usePlayEvents(playId: string | null) {
   return useQuery({
     queryKey: keys.plays.events(playId ?? ''),
@@ -146,8 +178,11 @@ export function invalidateForCatalogChange(
   kind: string,
   id: string,
 ): void {
+  void client.invalidateQueries({ queryKey: keys.seedStatus })
   if (kind === 'recipe') {
     void client.invalidateQueries({ queryKey: keys.recipes.all })
+    // `wipe_plays` reports through this event too (§12.3).
+    void client.invalidateQueries({ queryKey: ['plays', 'list'] })
     return
   }
   void client.invalidateQueries({ queryKey: keys.catalog.kind(kind as LibraryKind) })
@@ -160,6 +195,7 @@ export function invalidateForCatalogChange(
 }
 
 export function invalidateForRecipeChange(client: QueryClient, id: string): void {
+  void client.invalidateQueries({ queryKey: keys.seedStatus })
   void client.invalidateQueries({ queryKey: keys.recipes.list('active') })
   void client.invalidateQueries({ queryKey: keys.recipes.list('archived') })
   void client.invalidateQueries({ queryKey: keys.recipes.list('all') })

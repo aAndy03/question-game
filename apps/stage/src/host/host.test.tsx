@@ -29,6 +29,7 @@ function stubHost() {
     animComplete: (key) => {
       acked.push(key)
     },
+    report: () => {},
   }
   return {
     host,

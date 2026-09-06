@@ -13,7 +13,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{DomainId, EventId, OptionId, PlayId, QuestionId, TeamId};
+use crate::ids::{DomainId, EventId, OperatorId, OptionId, PlayId, QuestionId, TeamId};
 use crate::rules::Verdict;
 use crate::snapshot::PlaySnapshot;
 
@@ -106,6 +106,13 @@ pub enum EventKind {
     /// Redo: puts an inverted span back (§5.8).
     TurnReapplied {
         target_event_id: EventId,
+    },
+
+    /// Another operator sat down mid-Play (§2.26). Metadata for the Timeline
+    /// and Statistics: it changes nothing in the projection, the timer keeps
+    /// running, and it is Control-only — never on Stage.
+    OperatorSwitched {
+        operator_id: OperatorId,
     },
 
     PlayCompleted,

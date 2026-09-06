@@ -22,7 +22,7 @@ pub const STAGE: &str = "stage";
 /// mounted, and this is the contract version I was built against";
 /// `overlay_ack_complete` says "that timeline finished". Neither carries an
 /// opinion about the Play.
-pub const STAGE_COMMANDS: [&str; 2] = ["overlay_ack_complete", "stage_ready"];
+pub const STAGE_COMMANDS: [&str; 3] = ["overlay_ack_complete", "stage_ready", "stage_report"];
 
 pub fn stage_may_call(command: &str) -> bool {
     STAGE_COMMANDS.contains(&command)

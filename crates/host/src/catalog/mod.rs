@@ -6,6 +6,7 @@
 //! model     the §4.1 entities, the recipe, and the §2.17 overlays
 //! snapshot  the §4.3 copy: catalog bodies with overlays applied
 //! search    Tantivy, inside the service — there is no `SearchService`
+//! seed      the shipped Demo document, and Restore sample game (§12.1)
 //! store     every SQL statement in the project
 //! db        the connection, the pragmas, the forward-only migrations
 //! error     the reject table for stored data
@@ -21,6 +22,7 @@ pub mod db;
 pub mod error;
 pub mod model;
 pub mod search;
+pub mod seed;
 pub mod service;
 mod snapshot;
 mod store;
@@ -30,8 +32,11 @@ pub use db::CatalogLocation;
 pub use error::{CatalogError, CatalogKind, CatalogResult};
 pub use model::{
     ArchiveScope, Asset, BoardDomain, CatalogItem, Domain, DomainMember, DomainOverlay, EditScope,
-    Operator, PlayRecord, Question, QuestionOption, QuestionOverlay, Recipe, RecipeOverlays,
-    Stamps, Team, TeamOverlay,
+    Operator, Origin, PlayRecord, Question, QuestionOption, QuestionOverlay, Recipe,
+    RecipeOverlays, Stamps, Team, TeamOverlay,
 };
 pub use search::{SearchHit, SearchQuery};
-pub use service::{CatalogChange, CatalogService, ChangeOp, OverlayTarget, RecipeChange};
+pub use seed::{SeedMode, SeedResult, SeedStatus};
+pub use service::{
+    CatalogChange, CatalogService, ChangeOp, OverlayTarget, RecipeChange, WipedPlays,
+};

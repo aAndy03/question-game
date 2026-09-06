@@ -1,5 +1,6 @@
 import { Icon, StatusDot, Text, Tooltip } from '@/atoms'
 import { latestForStatusBar, useNoticeStore } from '@/chrome/notices'
+import { healthTone, useHealthStore } from '@/chrome/health'
 import { CHROME, fmt, noticeTitle } from '@/copy'
 import { usePlayState } from '@/host/playState'
 import { useMonitors } from '@/host/queries'
@@ -14,6 +15,9 @@ export function StatusBar() {
   const notices = useNoticeStore((s) => s.notices)
   const setCollectorOpen = useNoticeStore((s) => s.setCollectorOpen)
   const latest = latestForStatusBar(notices)
+  const health = useHealthStore((s) => s.report)
+  const tone = healthTone(health)
+  const healthText = health === null ? CHROME.healthUnknown : health.status === 'ok' ? CHROME.healthOk : health.status === 'warn' ? CHROME.healthWarn : CHROME.healthError
   const timer = play?.session?.timer ?? null
   const showTimer = play?.status === 'playing' && timer !== null
 
@@ -22,13 +26,19 @@ export function StatusBar() {
       className="flex h-7 shrink-0 items-center gap-4 border-t border-[var(--border)] px-3"
       style={{ background: 'var(--surface)' }}
     >
-      <Tooltip content={CHROME.healthUnknown} placement="top">
-        <span className="inline-flex items-center gap-1.5">
-          <StatusDot tone="neutral" label={CHROME.health} />
+      <Tooltip content={healthText} placement="top">
+        <button
+          type="button"
+          onClick={() => setCollectorOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded px-1 outline-none hover:bg-[var(--surface-secondary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
+          aria-label={`${CHROME.health}: ${healthText}`}
+          data-health={health?.status ?? 'unknown'}
+        >
+          <StatusDot tone={tone} label={CHROME.health} />
           <Text variant="studio-caption" tone="muted">
             {CHROME.health}
           </Text>
-        </span>
+        </button>
       </Tooltip>
       <span className="inline-flex items-center gap-1.5">
         <Icon name="displays" size="sm" className="opacity-60" />

@@ -29,7 +29,8 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use questiongame_host::catalog::{CatalogLocation, CatalogService};
-use questiongame_host::flags::{Disabled, FlagService, RuntimeContext};
+use questiongame_host::flags::{CueKey, Disabled, FlagService, RuntimeContext};
+use questiongame_host::health::{self, HealthInputs, HealthReport};
 use questiongame_host::presentation::PresentationService;
 use questiongame_host::settings::OverrideAfterLock;
 use questiongame_host::stage::{PlayStateForStage, StageGameState, project};
@@ -57,6 +58,8 @@ pub struct Host {
     pub play: MatchService,
     pub presentation: PresentationService,
     pub display: StageDisplay,
+    /// The §12.6 inputs the app crate measures, and the last report it emitted.
+    pub health: HealthState,
     /// What was last sent to `stage`. The 100ms tick emits only on a change, so
     /// an idle Play costs nothing on the wire.
     last_emitted: Option<PlayStateForStage>,
@@ -82,6 +85,8 @@ impl Host {
 
         let flags = FlagService::new(globals);
         play.set_live_settings(flags.live());
+        let mut health = HealthState::default();
+        health.inputs.search_ok = true;
 
         Ok(Host {
             catalog,
@@ -89,6 +94,7 @@ impl Host {
             play,
             presentation: PresentationService::new(),
             display: StageDisplay::new(),
+            health,
             last_emitted: None,
         })
     }
@@ -129,7 +135,15 @@ impl Host {
         if self.event_count() > seq_before
             && let Some(play) = self.play.get_state()
         {
-            self.catalog.play_persist(play)?;
+            // A failed save is a health finding until a save succeeds; the
+            // command still fails so the operator hears about it now too.
+            match self.catalog.play_persist(play) {
+                Ok(()) => self.health.inputs.last_persist_error = None,
+                Err(error) => {
+                    self.health.inputs.last_persist_error = Some(error.to_string());
+                    return Err(error.into());
+                }
+            }
         }
         Ok(out)
     }
@@ -148,7 +162,7 @@ impl Host {
         let game = self.game_state(now_ms)?;
         Some(
             self.presentation
-                .play_state(game, self.flags.reveal_modes(), self.overlays_enabled()),
+                .play_state(game, self.flags.reveal_modes(), self.overlays_enabled(), self.flags.audio()),
         )
     }
 
@@ -174,6 +188,48 @@ impl Host {
         }
         self.last_emitted = Some(next.clone());
         true
+    }
+}
+
+/// What the app crate knows about the machine and the Stage window, kept for
+/// `health::check` (§12.6). Nothing here is Play state; a report is a pure
+/// function of these inputs, emitted only when it changed.
+#[derive(Debug, Default)]
+pub struct HealthState {
+    pub inputs: HealthInputs,
+    last_report: Option<HealthReport>,
+}
+
+impl HealthState {
+    /// Stage announced itself with a contract version.
+    pub fn stage_ready(&mut self, contract_version: u32) {
+        self.inputs.stage_ready = true;
+        self.inputs.stage_contract_version = Some(contract_version);
+    }
+
+    /// Stage could not load a cue file. One entry per key.
+    pub fn missing_cue(&mut self, cue: CueKey, file: String) {
+        self.inputs.missing_cues.retain(|(k, _)| *k != cue);
+        self.inputs.missing_cues.push((cue, file));
+    }
+
+    /// The current report, and whether it differs from the last one handed
+    /// out — the tick emits only on a change, so an idle app is silent.
+    pub fn report(
+        &mut self,
+        stage_window_exists: bool,
+        free_bytes: Option<u64>,
+    ) -> (HealthReport, bool) {
+        self.inputs.stage_window_exists = stage_window_exists;
+        self.inputs.free_bytes = free_bytes;
+        let report = health::check(&self.inputs);
+        let changed = self.last_report.as_ref() != Some(&report);
+        self.last_report = Some(report.clone());
+        (report, changed)
+    }
+
+    pub fn last(&self) -> Option<&HealthReport> {
+        self.last_report.as_ref()
     }
 }
 
@@ -267,4 +323,12 @@ pub fn catalog_location(app: &tauri::AppHandle) -> AppResult<CatalogLocation> {
     std::fs::create_dir_all(&dir)
         .map_err(|e| AppError::Window(format!("cannot create {}: {e}", dir.display())))?;
     Ok(CatalogLocation::File(dir.join("questiongame.sqlite3")))
+}
+
+/// The user-data directory, where the catalog and everything generated live.
+pub fn user_data_dir(app: &tauri::AppHandle) -> AppResult<std::path::PathBuf> {
+    use tauri::Manager;
+    app.path()
+        .app_data_dir()
+        .map_err(|e| AppError::Window(format!("no app data directory: {e}")))
 }

@@ -10,3 +10,5 @@ export { RecordPageLayout, type RecordPageLayoutProps } from './RecordPageLayout
 export { BlankLayout, type BlankLayoutProps } from './BlankLayout'
 export { MosaicLayout, type MosaicLayoutProps } from './MosaicLayout'
 export { WorkshopLayout, type WorkshopLayoutProps } from './WorkshopLayout'
+export { WizardLayout, type WizardLayoutProps } from './WizardLayout'
+export { SettingsLayout, type SettingsLayoutProps } from './SettingsLayout'

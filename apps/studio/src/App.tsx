@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { Text } from '@/atoms'
 import { NoticeCollector, SidebarNav, StatusBar, TopBar } from '@/organisms'
 import {
   ControlPage,
+  FirstRunPage,
   GamePage,
   GamesPage,
   LibraryPage,
@@ -26,7 +27,7 @@ import { APP, SCREENS_TAB } from '@/copy'
 import { HostBridge } from '@/host/bridge'
 import { hasHost } from '@/host/host'
 import { isPlayOpen, peekPlayState } from '@/host/playState'
-import { useSettings } from '@/host/queries'
+import { useCatalogList, useSettings } from '@/host/queries'
 
 /**
  * The Studio shell (P7): providers, the shell layout, and the page switch.
@@ -60,8 +61,12 @@ function Shell() {
   useApplyTheme()
   const route = useRoute()
   const settings = useSettings()
+  const operators = useCatalogList('operator', 'all')
   const setOperator = useChromeStore((s) => s.setOperator)
   const setGuard = useNavStore((s) => s.setGuard)
+  // First run, latched: see below.
+  const inWizard = useRef(false)
+  const [wizardDone, setWizardDone] = useState(false)
   const pushNotice = useNoticeStore((s) => s.push)
   const { theme } = usePrefs()
 
@@ -89,6 +94,26 @@ function Shell() {
     setGuard(screensGuard)
     return () => setGuard(null)
   }, [route, setGuard, pushNotice])
+
+  // First run (§12.1): no operator has ever been created, so the shell is not
+  // shown at all. A library with operators but no active one is the top bar's
+  // operator menu, not first run.
+  //
+  // The condition **latches**: the operator step creates and activates a row,
+  // which would otherwise flip this false and drop the operator into the shell
+  // before the sample and defaults steps ever rendered. The wizard leaves by
+  // its own Finish, which is what `onDone` reports.
+  const firstRun =
+    !wizardDone &&
+    (inWizard.current ||
+      (settings.data !== undefined &&
+        settings.data.globals.active_operator_id === null &&
+        operators.data !== undefined &&
+        operators.data.length === 0))
+  if (firstRun) {
+    inWizard.current = true
+    return <FirstRunPage onDone={() => setWizardDone(true)} />
+  }
 
   return (
     <ShellLayout
@@ -139,7 +164,7 @@ function Page({ route }: { route: Route }) {
     case 'statistics':
       return <StatisticsPage />
     case 'settings':
-      return <SettingsPage />
+      return <SettingsPage inner={route.inner} />
   }
 }
 

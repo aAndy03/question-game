@@ -17,6 +17,8 @@ uuid = { workspace = true }
 rusqlite = { workspace = true }
 tracing = { workspace = true }
 tantivy = { workspace = true }
+argon2 = { workspace = true }
+rand_core = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

@@ -10,7 +10,7 @@
 //! `CatalogKind::Recipe` and recipes have their own commands. That refusal
 //! comes from the host; nothing here re-implements it.
 
-use questiongame_host::catalog::{
+use questiongame_host::catalog::{SeedMode, SeedResult, SeedStatus, ChangeOp, 
     ArchiveScope, Asset, BoardDomain, CatalogChange, CatalogItem, CatalogKind, DomainOverlay,
     EditScope, OverlayTarget, QuestionOverlay, Recipe, RecipeChange, SearchHit, SearchQuery,
     TeamOverlay,
@@ -356,31 +356,107 @@ pub fn recipe_new(
     Ok(host.catalog.recipe_get(&recipe.id)?)
 }
 
-/// Write the demo library (`crates/app/src/demo.rs`) through the ordinary
-/// verbs. **Dev builds only** — §10's optional sample catalog at first run is
-/// P10's job, and this goes with the P6 harness that calls it.
+/// The sample catalog `"Demo"` (§2.27, §12.1), written through the ordinary
+/// verbs. `missing` inserts what is absent and restores archived seed rows;
+/// `overwrite` rewrites every seed row to the shipped body. Three call sites
+/// — first run, the Games empty state, Settings ▸ Library — one command.
 #[tauri::command(async)]
-pub fn seed_demo_library(
+pub fn catalog_seed_demo(
     window: WebviewWindow,
     app: AppHandle,
     state: State<'_, AppState>,
-) -> AppResult<Recipe> {
-    guard::allow(window.label(), "seed_demo_library")?;
-    if !tauri::is_dev() {
-        return Err(crate::error::AppError::Window(
-            "the demo library is a dev-build harness".to_owned(),
-        ));
-    }
+    mode: SeedMode,
+) -> AppResult<SeedResult> {
+    guard::allow(window.label(), "catalog_seed_demo")?;
     let now = crate::state::now_ms();
     let host = state.lock();
+    let result = host
+        .catalog
+        .seed_demo(mode, host.flags.new_recipe_settings(), now)?;
+    // The seed touches up to a dozen rows and one recipe; one invalidation per
+    // kind is enough for Studio and cheaper than one per row.
+    for kind in [CatalogKind::Team, CatalogKind::Domain, CatalogKind::Question] {
+        emit::catalog_changed(
+            &app,
+            &CatalogChange {
+                kind,
+                id: String::new(),
+                op: ChangeOp::Upserted,
+            },
+        );
+    }
+    let recipe = host.catalog.recipe_get(&result.recipe_id)?;
+    emit::recipe_changed(
+        &app,
+        &RecipeChange {
+            id: recipe.id.clone(),
+            rev: recipe.rev,
+        },
+    );
+    Ok(result)
+}
 
-    let (items, recipe) = crate::demo::library(host.flags.new_recipe_settings());
-    let changes = host.catalog.catalog_upsert_many(&items, now)?;
-    let change = host.catalog.recipe_upsert(&recipe, now)?;
+/// How many seed rows are present, missing and edited — what Restore Demo's
+/// confirm names before an `overwrite` throws an edit away (§12.4).
+#[tauri::command(async)]
+pub fn catalog_seed_status(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+) -> AppResult<SeedStatus> {
+    guard::allow(window.label(), "catalog_seed_status")?;
+    let host = state.lock();
+    Ok(host
+        .catalog
+        .seed_status(host.flags.new_recipe_settings())?)
+}
 
-    emit::catalog_changed_many(&app, &changes);
-    emit::recipe_changed(&app, &change);
-    Ok(host.catalog.recipe_get(&recipe.id)?)
+/// Rebuild the in-memory search index from the catalog — the action behind
+/// `health.search_degraded`.
+#[tauri::command(async)]
+pub fn catalog_rebuild_search(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> AppResult<serde_json::Value> {
+    guard::allow(window.label(), "catalog_rebuild_search")?;
+    let indexed = {
+        let mut host = state.lock();
+        let indexed = host.catalog.rebuild_search_index()?;
+        host.health.inputs.search_ok = true;
+        indexed
+    };
+    crate::tick::health_once(&app);
+    Ok(serde_json::json!({ "indexed": indexed }))
+}
+
+/// Delete every closed Play and its events (§2.15, §12.3). Refused while a
+/// Play is loaded or open — before any pin is looked at, because the pin is
+/// not what protects the show — and pin-gated when the active operator has one.
+/// Library rows are never touched: Archive is the only thing that happens to
+/// those.
+#[tauri::command(async)]
+pub fn wipe_plays(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    pin: Option<String>,
+) -> AppResult<serde_json::Value> {
+    guard::allow(window.label(), "wipe_plays")?;
+    let host = state.lock();
+    super::flags::refuse_while_play_loaded(&host)?;
+    super::flags::require_active_operator_pin(&host, pin.as_deref())?;
+    let wiped = host.catalog.wipe_plays()?;
+    for id in &wiped.recipe_ids {
+        emit::catalog_changed(
+            &app,
+            &CatalogChange {
+                kind: CatalogKind::Recipe,
+                id: id.to_string(),
+                op: ChangeOp::Upserted,
+            },
+        );
+    }
+    Ok(serde_json::json!({ "removed": wiped.removed }))
 }
 
 /// ScopeConfirm at the wire (§2.17). Spelled here rather than reusing

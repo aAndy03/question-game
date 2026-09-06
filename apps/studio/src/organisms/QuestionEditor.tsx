@@ -41,6 +41,7 @@ function newOption(index: number): QuestionOption {
 function emptyQuestion(): Question {
   return {
     id: `q-${crypto.randomUUID().slice(0, 8)}`,
+    origin: 'operator',
     stem: '',
     mediaAssetId: null,
     options: [newOption(0), newOption(1)],
@@ -135,6 +136,7 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
   const createDomain = async (value: DomainFormValue): Promise<string | null> => {
     const domain: Domain = {
       id: `dom-${crypto.randomUUID().slice(0, 8)}`,
+      origin: 'operator',
       name: value.name.trim(),
       code: value.code.trim(),
       description: value.description.trim() || null,

@@ -25,16 +25,22 @@ export type ViewMode = 'grid' | 'table'
 /** Tabs that show a record list and so carry a view preference (§12). */
 export type ListTab = 'teams' | 'library' | 'games' | 'operators'
 
+/** The Settings tab's inner tab, in its fixed order (§12.2). */
+export type SettingsInner = 'monitors' | 'settings' | 'shortcuts'
+
 export interface OperatorPrefs {
   readonly sidebar: SidebarMode
   readonly theme: ThemeChoice
   readonly view: Readonly<Record<ListTab, ViewMode>>
+  /** Per operator like the rest; a route's `inner` wins when present. */
+  readonly settingsInner: SettingsInner
 }
 
 export const DEFAULT_PREFS: OperatorPrefs = {
   sidebar: 'expanded',
   theme: 'system',
   view: { teams: 'grid', library: 'table', games: 'grid', operators: 'table' },
+  settingsInner: 'monitors',
 }
 
 interface ChromeState {
@@ -43,7 +49,6 @@ interface ChromeState {
   readonly prefs: Readonly<Record<string, OperatorPrefs>>
   /** Session-only: not persisted. */
   readonly archiveScope: Readonly<Partial<Record<Tab, ArchiveScope>>>
-  readonly settingsInner: 'monitors' | 'settings' | 'shortcuts'
   /** True while the pointer is over the left-edge peek strip (sidebar hidden). */
   readonly peeking: boolean
 
@@ -53,7 +58,7 @@ interface ChromeState {
   setTheme(theme: ThemeChoice): void
   setView(tab: ListTab, view: ViewMode): void
   setArchiveScope(tab: Tab, scope: ArchiveScope): void
-  setSettingsInner(inner: 'monitors' | 'settings' | 'shortcuts'): void
+  setSettingsInner(inner: SettingsInner): void
   setPeeking(peeking: boolean): void
 }
 
@@ -72,7 +77,6 @@ export const useChromeStore = create<ChromeState>()(
         operatorId: '',
         prefs: {},
         archiveScope: {},
-        settingsInner: 'monitors',
         peeking: false,
 
         setOperator(id) {
@@ -96,7 +100,7 @@ export const useChromeStore = create<ChromeState>()(
           set((s) => ({ archiveScope: { ...s.archiveScope, [tab]: scope } }))
         },
         setSettingsInner(settingsInner) {
-          set({ settingsInner })
+          update({ settingsInner })
         },
         setPeeking(peeking) {
           set({ peeking })
@@ -114,6 +118,11 @@ export const useChromeStore = create<ChromeState>()(
 /** The active operator's preferences. */
 export function usePrefs(): OperatorPrefs {
   return useChromeStore((s) => s.prefs[s.operatorId] ?? DEFAULT_PREFS)
+}
+
+/** Older persisted documents predate `settingsInner`; the default fills it. */
+export function useSettingsInner(): SettingsInner {
+  return useChromeStore((s) => s.prefs[s.operatorId]?.settingsInner ?? DEFAULT_PREFS.settingsInner)
 }
 
 export function useArchiveScope(tab: Tab): ArchiveScope {

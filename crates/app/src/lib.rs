@@ -13,7 +13,6 @@
 //! monitors      the real end of the monitor seam
 //! tick          the 100ms show loop and the monitor watch
 //! decor         `StageDecorSettings` out of the recipe's layout document
-//! demo          a demo library for running P6 before P7 has library tabs
 //! error         what a refused command looks like on the wire
 //! ```
 //!
@@ -24,7 +23,6 @@
 
 pub mod commands;
 pub mod decor;
-pub mod demo;
 pub mod emit;
 pub mod error;
 pub mod guard;
@@ -54,6 +52,7 @@ pub fn run() {
             app.manage(AppState::new(host));
 
             windows::open_studio(&handle)?;
+            tick::health_once(&handle);
             tick::spawn(handle);
             Ok(())
         })
@@ -102,7 +101,10 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::catalog::recipe_set_layout,
         commands::catalog::recipe_set_overlay,
         commands::catalog::recipe_new,
-        commands::catalog::seed_demo_library,
+        commands::catalog::catalog_seed_demo,
+        commands::catalog::catalog_seed_status,
+        commands::catalog::catalog_rebuild_search,
+        commands::catalog::wipe_plays,
         // MatchService
         commands::play::play_load,
         commands::play::play_start,
@@ -135,10 +137,17 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::presentation::monitors_list,
         commands::presentation::stage_set_monitor,
         commands::presentation::stage_open,
+        commands::presentation::stage_report,
         // FlagService
         commands::flags::settings_get,
         commands::flags::settings_set_global,
         commands::flags::settings_set_current_game,
         commands::flags::settings_set_shortcut,
+        commands::flags::operator_set_pin,
+        commands::flags::operator_activate,
+        commands::flags::paths_get,
+        commands::flags::paths_reveal,
+        commands::flags::uninstall_data,
+        commands::flags::health_get,
     ]
 }

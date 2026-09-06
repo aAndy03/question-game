@@ -34,9 +34,40 @@ const TICK: Duration = Duration::from_millis(100);
 /// A cable is a human-scale event.
 const MONITOR_POLL: Duration = Duration::from_secs(1);
 
+/// §12.6: health is a human-scale concern too. Thirty seconds between reports;
+/// a failed save and a Stage report re-run it at once through [`health_once`].
+const HEALTH_POLL: Duration = Duration::from_secs(30);
+
 pub fn spawn(app: AppHandle) {
     spawn_show_loop(app.clone());
-    spawn_monitor_watch(app);
+    spawn_monitor_watch(app.clone());
+    spawn_health_watch(app);
+}
+
+/// Compute the health report now and emit it if it changed. Called at boot,
+/// by the 30 s watch, and by the commands that change an input.
+pub fn health_once(app: &AppHandle) {
+    let state: tauri::State<'_, AppState> = tauri::Manager::state(app);
+    let free = crate::state::user_data_dir(app)
+        .ok()
+        .and_then(|dir| fs4::available_space(&dir).ok());
+    let stage_exists = tauri::Manager::get_webview_window(app, crate::guard::STAGE).is_some();
+    let mut host = state.lock();
+    let (report, changed) = host.health.report(stage_exists, free);
+    if changed {
+        emit::health(app, &report);
+    }
+}
+
+fn spawn_health_watch(app: AppHandle) {
+    async_runtime::spawn(async move {
+        let mut ticker = tokio::time::interval(HEALTH_POLL);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            ticker.tick().await;
+            health_once(&app);
+        }
+    });
 }
 
 fn spawn_show_loop(app: AppHandle) {
@@ -55,6 +86,8 @@ fn spawn_show_loop(app: AppHandle) {
                 // A tick cannot be refused by a rule; if it failed, the write
                 // behind it did, and the operator has to hear about it.
                 tracing::error!(%error, "tick");
+                drop(host);
+                health_once(&app);
                 continue;
             }
             emit::play_state(&app, &mut host, now, false);

@@ -2,9 +2,9 @@ import { Button, InitialsAvatar, MeaningChip, Panel, Skeleton, Text } from '@/at
 import { EmptyState, MetaList, NavCrumbs, PageHeader, StatCard } from '@/molecules'
 import { useNavStore } from '@/chrome/nav'
 import { fmt, LIST, OPERATOR, TABS } from '@/copy'
-import { useHostCommand } from '@/host/commands'
 import { useCatalogItem, useSettings } from '@/host/queries'
-import { isArchived, type GlobalSetting } from '@/host/types'
+import { isArchived } from '@/host/types'
+import { useActivateOperator } from './useActivateOperator'
 import { useArchive } from './useArchive'
 
 export interface OperatorDetailProps {
@@ -17,7 +17,7 @@ export function OperatorDetail({ id, compact }: OperatorDetailProps) {
   const op = useCatalogItem('operator', id)
   const settings = useSettings()
   const go = useNavStore((s) => s.go)
-  const run = useHostCommand()
+  const { activate, prompt } = useActivateOperator()
   const archive = useArchive()
 
   if (op.isLoading) return <Skeleton shape="card" count={2} />
@@ -26,10 +26,7 @@ export function OperatorDetail({ id, compact }: OperatorDetailProps) {
   const archived = isArchived(o)
   const active = settings.data?.globals.active_operator_id === o.id
 
-  const makeActive = () => {
-    const setting: GlobalSetting = { key: 'active_operator_id', value: o.id }
-    void run('settings_set_global', { setting })
-  }
+  const makeActive = () => activate(o)
 
   const actions = (
     <>
@@ -111,6 +108,7 @@ export function OperatorDetail({ id, compact }: OperatorDetailProps) {
       </Panel>
       {compact ? <div className="flex flex-wrap justify-end gap-2">{actions}</div> : null}
       {archive.dialog}
+      {prompt}
     </div>
   )
 }

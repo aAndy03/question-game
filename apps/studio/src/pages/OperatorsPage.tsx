@@ -1,14 +1,13 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Button, InitialsAvatar, MeaningChip } from '@/atoms'
 import { ActionMenu, ArchiveToggle, PageHeader, SearchField, ViewSwitch, type ArchiveView } from '@/molecules'
-import { LibraryList, OperatorDetail, useArchive, type RecordView } from '@/organisms'
+import { LibraryList, OperatorDetail, useActivateOperator, useArchive, type RecordView } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { fmt, LIST, OPERATOR, TABS } from '@/copy'
-import { useHostCommand } from '@/host/commands'
 import { useCatalogList, useSearch, useSettings } from '@/host/queries'
-import { isArchived, type GlobalSetting } from '@/host/types'
+import { isArchived } from '@/host/types'
 
 export interface OperatorsPageProps {
   currentId?: string | null | undefined
@@ -20,7 +19,7 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
   const { view } = usePrefs()
   const setView = useChromeStore((s) => s.setView)
   const go = useNavStore((s) => s.go)
-  const run = useHostCommand()
+  const { activate, prompt } = useActivateOperator()
   const archive = useArchive()
   const settings = useSettings()
   const activeId = settings.data?.globals.active_operator_id ?? null
@@ -54,8 +53,8 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
   )
 
   const makeActive = (id: string) => {
-    const setting: GlobalSetting = { key: 'active_operator_id', value: id }
-    void run('settings_set_global', { setting })
+    const target = list.data?.find((o) => o.id === id)
+    if (target) activate(target)
   }
 
   const archivedView = scope === 'archived'
@@ -120,6 +119,7 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
         onRetry={() => void list.refetch()}
       />
       {archive.dialog}
+      {prompt}
     </LibraryTabLayout>
   )
 }

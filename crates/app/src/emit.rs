@@ -6,6 +6,7 @@
 //! recipe-changed    a recipe moved; carries the new rev
 //! monitors-changed  the OS display list moved
 //! notice            §14 { code, severity, target_path, actions[] }
+//! health            §12.6 { status, items[] }, only when the report changed
 //! anim-complete     forwarded from Stage to main
 //! ```
 //!
@@ -90,4 +91,10 @@ pub fn notice(app: &AppHandle, notice: &Notice) {
 /// beats the audience is watching.
 pub fn anim_complete(app: &AppHandle, key: &str) {
     let _ = app.emit_to(MAIN, "anim-complete", serde_json::json!({ "key": key }));
+}
+
+/// §12.6. Operator-facing; emitted only when the report changed, so a quiet
+/// machine says nothing and an `ok` after a `warn` clears the dot.
+pub fn health(app: &AppHandle, report: &questiongame_host::HealthReport) {
+    let _ = app.emit_to(MAIN, "health", report);
 }

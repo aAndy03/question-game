@@ -7,6 +7,9 @@ import {
   type PlayStateForStage,
 } from '@questiongame/contract'
 import { STAGE_FRAME, VIEWER_SOURCE, isViewerMessage, type StageToViewer, type ViewerNodeRect } from '@questiongame/contract'
+import { CUE_PACK_BASE } from '@questiongame/design-stage/audio/manifest'
+import { howlerAudio } from '@/audio/howler'
+import { useAudio } from '@/audio/useAudio'
 import { stageEvents } from '@/host/events'
 import { isViewerMode, stageHost, type StageHost } from '@/host/host'
 import { StageRoot } from '@/pages'
@@ -34,6 +37,16 @@ function HostFed({ host }: { host: StageHost }) {
   // someone is filming. Until the first emission this is `EMPTY_PLAY_STATE` —
   // the Idle screen, which reads nothing off the Play.
   const state = useSyncExternalStore(host.subscribe, host.snapshot, host.snapshot)
+  // Cues are heard from this window only (05_STUDIO_DESIGN.md §12.5): the
+  // Viewer and the fixture strip mount no audio at all. The port is memoised
+  // on the host so a re-render never rebuilds the loaded sounds; `useAudio`
+  // owns load and dispose, and a file that fails to load goes back to the
+  // host as `stage_report` — never as a notice on the surface being filmed.
+  const audio = useMemo(
+    () => howlerAudio(host.snapshot().audio.cues, CUE_PACK_BASE, (code, detail) => host.report(code, detail)),
+    [host],
+  )
+  useAudio(host, audio)
   return <StageRoot state={state} />
 }
 

@@ -16,6 +16,8 @@ describe('query keys', () => {
     keys.recipes.item('r'),
     keys.settings,
     keys.monitors,
+    keys.paths,
+    keys.seedStatus,
     keys.plays.list(null),
     keys.plays.events('p'),
   ]
@@ -29,7 +31,7 @@ describe('query keys', () => {
 
   it('mirror the §13 read verbs and nothing else', () => {
     const roots = new Set(every.map((k) => k[0]))
-    expect([...roots].sort()).toEqual(['catalog', 'monitors', 'plays', 'recipes', 'search', 'settings'])
+    expect([...roots].sort()).toEqual(['catalog', 'monitors', 'paths', 'plays', 'recipes', 'search', 'seed-status', 'settings'])
   })
 })
 
@@ -38,8 +40,14 @@ describe('targetPathOf', () => {
     expect(targetPathOf('team.t-1.name: a team needs a name')).toBe('team.t-1.name')
     expect(targetPathOf('question.q-9.options: a question needs at least two options')).toBe('question.q-9.options')
   })
+  it('reads the bare settings paths (§12.2)', () => {
+    expect(targetPathOf('audio.volume: volume is 0-100')).toBe('audio.volume')
+    expect(targetPathOf('shortcuts: that chord is already bound to another command')).toBe('shortcuts')
+    expect(targetPathOf('operator.op-1.pin: wrong pin')).toBe('operator.op-1.pin')
+  })
   it('has no path for anything else', () => {
     expect(targetPathOf('recipe r already has an open play, p')).toBeNull()
     expect(targetPathOf('stage may not call play_start')).toBeNull()
+    expect(targetPathOf('a Play is open')).toBeNull()
   })
 })

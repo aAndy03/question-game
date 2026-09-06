@@ -1,5 +1,5 @@
 {
-  "contractVersion": 3,
+  "contractVersion": 4,
   "playId": "play-fixture-1",
   "status": "loaded",
   "teams": [
@@ -144,5 +144,19 @@
     "answers": "operator",
     "outcome": "operator",
     "leaderboard": "operator"
+  },
+  "audio": {
+    "volume": 80,
+    "muted": false,
+    "cues": {
+      "lock": "lock.wav",
+      "correct": "correct.wav",
+      "wrong": "wrong.wav",
+      "overlay_start": "overlay_start.wav",
+      "play_start": "play_start.wav",
+      "timer_start": "timer_start.wav",
+      "timer_pause": "timer_pause.wav",
+      "timer_expired": "timer_expired.wav"
+    }
   }
 }

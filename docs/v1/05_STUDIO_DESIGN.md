@@ -683,3 +683,447 @@ Stage tests are the proof.
 - **Colour** is a token name (`ink`, `paper`, `muted`, `correct`,
   `incorrect`, `info`, `leader`, `accent`) or a CSS literal; the wordmark
   follows `currentColor` for named fills so it recolours like text.
+
+## 12. Settings, first run, notices, audio, health (P10)
+
+Status: **as built, P10, 2026-09-06.** Everything the operator sets up
+*around* a show, and the three infrastructure families every tab already
+leans on. Rules that hold across the section: the host owns every value on
+this page and Studio projects it (§4.2 through `settings_get.disabled`, never
+recomputed); a pin is hashed in the host and never in the webview (§2.15); a
+notice carries two, at most three, solve actions and stacks its confirms in
+the same component (§14); a Control-behaviour key takes effect mid-Play and a
+game-affecting key cannot (§2.5); no generated tone exists while
+`feat.audio.synth` is off (§2.25).
+
+### 12.1 First run
+
+The shell is not shown until an operator exists. `App` reads
+`settings_get.globals.active_operator_id`; while it is `null` **and** the
+operator list is empty, the page switch renders `FirstRunPage` inside
+`WizardLayout` (no sidebar, no top bar, no status bar) instead of
+`ShellLayout`. A library with operators but no active one is not first run —
+that is the top bar's operator menu.
+
+```text
+┌──────────────────────────────────────────────────────────────────────┐
+│  questiongame Studio                                                  │
+│                                                                       │
+│   ● Where things live   ○ Operator   ○ Sample game   ○ Defaults      │
+│  ─────────────────────────────────────────────────────────────────── │
+│                                                                       │
+│   [step body — one Panel, ≤ 560px wide, centred]                      │
+│                                                                       │
+│                                                     [Skip]  [Next →]  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+| Step | Reads | Writes | Skip? |
+| --- | --- | --- | --- |
+| **Where things live** | `paths_get` → user-data directory, catalog file, cue pack directory | — | no skip; *Next* only. `PathRow`s are read-only with a *Reveal in Explorer / Finder* icon button (`paths_reveal`). |
+| **Operator** | — | `catalog_upsert` (operator) then `operator_activate` | **cannot skip** (§2.27: required before Play). Display name required; pin optional (`PinField`, confirm field, §12.3). |
+| **Sample game** | — | `catalog_seed_demo { mode: 'missing' }` | *Skip* leaves an empty library; the Games empty state and Settings ▸ Library keep offering **Load Demo** (§2.28). |
+| **Defaults** | `settings_get` | `settings_set_global` | *Skip* keeps the shipped defaults. The step is the Award, Timer and Reveal groups of §12.2.2 rendered by the same `SettingsGroup`s — not a second form. |
+
+*Finish* goes to Teams (or to the Demo game when the sample was loaded).
+Progress is component state: closing the app mid-wizard lands on the same
+first step next boot, except that a created operator stays created (the
+operator step is skipped once one exists).
+
+**Demo defaults** are the shipped `GlobalSettings::default()` (already in
+the host since P5): award `difficulty` (linear ×10), lock-speed off, timer on
+at 30 s, cap and bonus off, every reveal operator-timed, override
+`refuse_until_reveal`.
+
+#### The sample catalog `"Demo"` (§2.27, §2.28)
+
+Built in the host (`crates/host/src/catalog/seed.rs`, a plain function over
+the catalog types) and written through the ordinary bulk verbs, exactly as
+`crates/app/src/demo.rs` does today. **It replaces `demo.rs`,
+`seed_demo_library` and the `?fake` demo library's hand-written rows**: the
+fake host seeds the same document from a TypeScript mirror
+(`host/fake/seed.ts`) so dev and app show the same Demo.
+
+| | |
+| --- | --- |
+| Teams | `Red` (`RED`, `--state-incorrect`) · `Blue` (`BLUE`, `--state-info`) |
+| Domains | `Geography` (`GEO_101`) · `Science` (`SCI_204`), three questions each at difficulty 10 / 20 / 30, four options, one correct |
+| Recipe | `"Demo"`, roster Red → Blue, board both domains, settings = the globals' `game_defaults`, timer inherit (30 s), layout empty |
+| Marker | every row `origin: 'seed'`; everything the operator makes is `origin: 'operator'`. `origin` is a new column with a migration, shown as the existing `seed` chip (§4.6) |
+
+`catalog_seed_demo { mode }`: `missing` inserts only the seed rows that are
+absent (archived ones are restored, edits are kept); `overwrite` rewrites
+every seed row to the shipped body. **Restore Demo** in Settings ▸ Library
+calls `missing` outright and offers `overwrite` behind a `ConfirmDialog`
+that names the count of edited seed rows (§2.28: "overwrite of edits needs
+confirm"). A seed row is a normal row after insert — archive, edit and
+overlay work on it like any other.
+
+#### Play is blocked until there is something to play
+
+`CatalogService::build_snapshot` refuses an empty roster (`RosterEmpty`,
+`target_path: recipe.<id>.roster`) and an empty board (`BoardEmpty`,
+`recipe.<id>.board`) at **Load into Control**, not only at `play_start`. The
+Game page disables *Load into Control* with the same reason first; the host's
+refusal is the enforcement and lands inline on the Roster or Board section.
+`RosterEmpty` is new; `BoardEmpty` moves up from `play_start`.
+
+### 12.2 Settings tab
+
+Route `{ tab: 'settings', inner?: 'monitors' | 'settings' | 'shortcuts' }`;
+the inner tab is chrome (`chrome.settingsInner`, per operator), the route's
+`inner` wins when present so a notice can deep-link (`pick_monitor`).
+`SettingsPage` renders `PageHeader` + HeroUI `Tabs variant="secondary"` in
+the fixed order **Monitors | Settings | Keyboard shortcuts** (§2.20).
+
+```text
+┌ Settings ────────────────────────────────────────────────────────────┐
+│ Settings                                                             │
+│ Monitors · Settings · Keyboard shortcuts                             │
+├──────────────────────────────────────────────────────────────────────┤
+│ [inner tab body, one scrolling column, page padding]                 │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+#### 12.2.1 Monitors
+
+Reads `monitors_list` (kept fresh by `monitors-changed`) and
+`settings_get.control.stage_monitor_id / stats_monitor_id / stage_reattach`.
+Writes `stage_set_monitor` and `settings_set_global { stage_reattach }`.
+
+```text
+┌ Displays (2) ────────────────────────────────────────────────────────┐
+│ ┌────────────────────┐  ┌────────────────────┐                        │
+│ │ ▣ DELL U2720Q       │  │ ▣ Built-in         │   ← MonitorCard        │
+│ │ 2560×1440 · primary │  │ 1920×1080          │                        │
+│ │ [Stage]             │  │ [Send Stage here]  │                        │
+│ └────────────────────┘  └────────────────────┘                        │
+│ Stage stands on: DELL U2720Q · remembered: DELL U2720Q               │
+├──────────────────────────────────────────────────────────────────────┤
+│ SettingRow  Stage reattach   [Ask ▾]                                 │
+│ SettingRow  Statistics display  [None ▾]   (feature_off until P11)  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- `MonitorCard` (molecule): a proportional rectangle drawn from
+  `size`, name, resolution, `primary` chip, and one of three states —
+  `stage` (Stage stands here; `accent` border), `remembered` (the pick,
+  currently unplugged; `warning` chip *Not connected*), `free` (button
+  *Send Stage here*). The Stage window is created if it does not exist
+  yet (`stage_open` then `stage_set_monitor`).
+- One display is a valid setup and says so: a single card, *Stage
+  fullscreen on this display; Studio is an Alt-Tab away* (§2.28).
+- The Statistics display row is disabled with `feature_off` (`stats`) until
+  P11; the key stays visible (§4.2 "visible but disabled").
+- Nothing here touches a Play (§9). The `stage.monitor_*` notices stay the
+  host's; this tab is where `pick_monitor` lands.
+
+#### 12.2.2 Settings (the global document)
+
+One `SettingsForm` organism, grouped, every row a `SettingRow` whose control
+carries the host's `disabled` entry (`disabledFor(key)`), so a key frozen by
+an open Play, made inert by a sibling, or switched off by a feature root is
+visible with its reason. Writes are live: one `settings_set_global` per
+change, no Save. The group order is fixed and shared with the Control float
+and the first-run Defaults step (`SettingsGroup` + `SETTINGS_GROUPS` in
+`copy/settings.ts` — one table, three surfaces).
+
+| Group | Rows (key) | Control | Nesting |
+| --- | --- | --- | --- |
+| **Award** | `scoring.mode` | `SegmentedField` flat / difficulty / lock-speed | parent |
+| | `scoring.flat_points` | `NumberField` | nested, shown when a flat base is in use |
+| | `scoring.difficulty_map` | `DifficultyMapField` (linear factor, or a band table) | nested, shown when a difficulty base is in use |
+| | `scoring.lock_speed_base` | `SegmentedField` | nested, exclusive mode only |
+| | `scoring.lock_speed.enabled` | `SwitchField` | nested, flat / difficulty only |
+| | `scoring.speed_weight` | `SliderField` 0–2, step 0.05 | nested; `inert` from the host when the option is off |
+| **Turn** | `turn.max_consecutive_correct` | `OptionalNumberField` (switch + number) | |
+| | `turn.bonus_after_consecutive` | `OptionalNumberField` ×2 (count · award) | nested under the cap |
+| **Judging** | `judging.partial_credit` · `judging.order_matters` | `SwitchField` | |
+| **Timer** | `globals.timer.enabled` | `SwitchField` | parent |
+| | `globals.timer.duration_ms` | `DurationField` (seconds in, ms out) | nested |
+| **Reveal** | `reveal.question/answers/outcome/leaderboard` | `SegmentedField` operator / auto | one row, four segments; live |
+| **Control** | `override.after_lock` · `overlay_animations.enabled` · `viewer.hit_targets` · `control.mosaic_density` · `stage.reattach` | as in the float | live |
+| **Audio** | `audio.volume` (0–100) · `audio.muted` | `SliderField` · `SwitchField` | live (§12.5) |
+| | `audio.cues.<key>` | `CueMapRow` ×8 | nested under a *Cue map* row |
+| | `feat.audio` · `feat.audio.synth` | `SwitchField` | synth row carries description *No generated tones in v1* and stays off |
+| **Library** | Restore Demo | `Button` secondary → `catalog_seed_demo` | + edited-count confirm |
+| **Data** | Wipe Plays · Remove generated data | `Button danger` → §12.3 gated actions | disabled with reason while a Play is open |
+
+Above the form, a permanent `InlineNotice severity=info` with no actions:
+*Open Plays keep their frozen copy; a global award default does not rewrite
+a game that already set its own* (§12 banner). The Award, Turn, Judging and
+Timer groups write `game_defaults`, which seed **new** recipes only.
+
+**Control float parity.** `SettingsFloat` (P8) stops listing rows by hand
+and renders `SettingsGroup`s for Control, Audio and Reveal on its Global tab.
+The Game tab keeps its own rows (they write `settings_set_current_game`).
+
+#### 12.2.3 Keyboard shortcuts
+
+Reads `settings_get.globals.shortcuts` merged over `HOTKEYS.defaults`;
+writes `settings_set_shortcut { command, chord }`. `useControlHotkeys`
+already reads that same merge, so a saved chord is live on the next keydown
+(§2.20 "live during Play"). Not shown on Stage.
+
+```text
+┌ Keyboard shortcuts ─────────────────────────────────────  [Reset all] ┐
+│ Command                          Chord            Default             │
+│ Start / pause timer              [ Space      ]   Space               │
+│ Lock                             [ Enter      ]   Enter               │
+│ Reveal outcome                   [ R          ]   R                   │
+│ …                                                                     │
+│ Pick domain / answer by position  1 – 9 (fixed)                       │
+│ ┌ InlineNotice warn ─────────────────────────────────────────────────┐│
+│ │ R is already bound to Reveal outcome.   [Keep]  [Reassign to Lock] ││
+│ └────────────────────────────────────────────────────────────────────┘│
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+- `ChordField` (atom): a button that reads *Press keys…* while recording,
+  captures one keydown, normalises it to the host's spelling
+  (`mod+shift+z`), renders it as `Kbd`s. Esc cancels; Backspace clears
+  (`chord: null`).
+- **Conflicts** are the host's call: `settings_set_shortcut` refuses a chord
+  bound elsewhere; the refusal lands inline under the row as a two-action
+  notice, *Keep* (dismiss) and *Reassign* (clear the other command, then set
+  this one — two commands, one press). Studio never resolves the conflict on
+  its own.
+- *Reset to default* per row (clears the override); *Reset all* is one
+  `ConfirmDialog`.
+- The `1`–`9` positional row is display-only (fixed in `useControlHotkeys`).
+
+### 12.3 Operators — pin gating and the gated actions
+
+Pin rules (§2.15): optional, set on the Operators tab only, hashed by the
+host, never in metadata or the status bar. Required to switch **to** a pinned
+operator, and for Wipe Plays / Remove generated data. **Live Play commands
+never ask for the pin** — none of the gated commands can reach a Play, and
+every one of them is refused by the host while a Play is `playing|paused`.
+
+| Command (new) | Args | Host rule |
+| --- | --- | --- |
+| `operator_set_pin` | `{ id, pin: string \| null, currentPin?: string }` | hash with argon2id (`argon2` crate, PHC string in `pin_hash`); changing or clearing an existing pin needs `currentPin`; pins are 4–8 digits |
+| `operator_activate` | `{ id, pin?: string }` | replaces `settings_set_global { active_operator_id }` for the switch path; verifies the pin when the target is pinned; appends `OperatorSwitched` to an open Play (§2.26); stamps `last_active_at` |
+| `wipe_plays` | `{ pin?: string }` | refused while a Play is open; deletes every closed Play and its events; `catalog-changed` per recipe so Plays sections refresh |
+| `uninstall_data` | `{ pin?: string }` | refused while a Play is open; closes the catalog, removes the user-data directory (catalog, search sidecar, assets, per-operator files) and quits. App files are P12's installer |
+| `paths_get` · `paths_reveal` | — · `{ which }` | read-only; the OS file manager opens the directory |
+
+`pin?` is the active operator's pin when one is set; the host decides whether
+one is needed (`PinRequired` refusal, `target_path: operator.<id>.pin`).
+
+- `PinField` (atom): `TextField type=password inputMode=numeric` with the
+  eye toggle, 4–8 digits enforced client-side for the message only.
+- `PinPrompt` (molecule): **a confirm frame, not a dialog.** Where the gated
+  action was already inside an `InlineNotice` or `ConfirmDialog`, the pin is
+  the last frame (§14 "Pin may be the last frame, depth 3"). Where it was a
+  plain press (the top bar switch), `PinPrompt` is a small HeroUI `Popover`
+  anchored to the trigger with the `PinField`, *Cancel*, *Unlock*. A wrong
+  pin lands inline on the field; three wrong pins close the prompt (no
+  lockout — the host is local and the pin is not a security boundary).
+- `OperatorEditor` gains a **Pin** `Panel`: state `none` (*Set a pin*) →
+  `setting` (pin + confirm) → `set` (*Change* · *Remove*, both asking the
+  current pin). It calls `operator_set_pin` after the row saved, never as
+  part of `catalog_upsert` (which keeps `pin_hash` opaque and untouched).
+- `TopBar`'s operator menu calls `operator_activate`; a pinned target opens
+  `PinPrompt` first. `OperatorDetail`'s *Make active* does the same.
+- Settings ▸ Data: *Wipe Plays* → `ConfirmDialog` (arm → confirm, wording
+  carries the Play count from `play_list`) → pin frame if set → `wipe_plays`.
+  *Remove generated data* → the same shape, with the paths listed, final
+  frame **Remove and quit**. Both buttons are disabled with reason *A Play
+  is open* whenever `play-state` says so; the host refuses regardless.
+
+### 12.4 The notice family — audit and rules
+
+Every notice in the project, by producer. None exceeds three actions;
+`Notice::new` debug-asserts it in Rust and the store throws in Studio.
+
+| Code | Producer | Severity | Surface | Actions |
+| --- | --- | --- | --- | --- |
+| `stage.monitor_lost` | host `monitor` | warn | inline → Monitors | `pick_monitor` |
+| `stage.monitor_ambiguous` | host `monitor` | warn | inline → Monitors | `pick_monitor` |
+| `stage.monitor_restored` | host `monitor` | info | collector | — |
+| `stage.monitor_available` | host `monitor` | info | collector | `move_stage` `stay` |
+| `stage.contract_mismatch` | app `stage_ready` | error | collector | `reinstall` |
+| `screens.blocked` | Studio nav guard | warn | collector | `go_to_control` `stop_playing` (+ frame `abandon_confirm`) |
+| `play.roster_empty` · `play.board_empty` | host `build_snapshot` | error | inline → Game roster / board | `open_section` |
+| `shortcuts.conflict` | host `settings_set_shortcut` | warn | inline → shortcut row | `keep` `reassign` |
+| `operator.pin_required` · `operator.pin_wrong` | host | error | inline → pin field | — |
+| `data.play_open` | host gated commands | error | inline → the button | `go_to_control` |
+| `seed.edited_rows` | Studio (from `catalog_seed_demo` dry-run count) | warn | dialog frame | `overwrite` `keep_edits` |
+| `health.*` (§12.6) | host `health` | warn / error | collector | one suggestion action + optional second |
+| `match` `catalog` `monitor` `window` | any refused command | error | inline when the message carries a path, else collector | — |
+
+Rules that the audit makes explicit:
+
+- **Dismiss is not an action.** It always exists (the × on inline, *Dismiss*
+  in the dialog) and is not counted; the three-action cap is on *solve*
+  actions. `NOTICE_COPY` may name `dismiss` copy without it being in
+  `actions`.
+- **Confirms stack; dialogs do not open dialogs.** A second question is a
+  `pushFrame` on the same notice (depth ≤ 3, the third may be the pin).
+  `ConfirmDialog` gains `frames` to carry the same stack for arm → confirm →
+  pin, so the one component that is not a notice follows the same rule.
+- **Surfaces stay the three of §14**: inline (has `targetPath`), dialog
+  (`block`), collector (everything else); the status bar shows the latest
+  non-inline one-liner. Toasts remain success-only (§10.8).
+- **A health item is a notice.** There is no fourth surface; the status
+  bar's health dot is a summary of the same list (§12.6).
+- **No notice on Stage, ever.** Audio failures on Stage are reported to the
+  host by Stage (`stage_report { code }`, a third Stage command) and become
+  `health.audio_*` notices in Studio.
+
+### 12.5 Audio
+
+The interface is the **cue key**; nothing above it names a file (§2.25).
+
+```text
+packages/design-stage/audio/
+  manifest.ts        CUE_KEYS · the shipped file per key · export type CueKey
+  lock.wav correct.wav wrong.wav overlay_start.wav play_start.wav
+  timer_start.wav timer_pause.wav timer_expired.wav
+scripts/audio-placeholders.ts   `npm run audio:placeholders` — writes the
+  eight files above (short PCM WAV, one distinct pitch and envelope per key)
+  so a real pack can overwrite them file for file with no other change
+```
+
+| Layer | Where | Job |
+| --- | --- | --- |
+| `AudioSettings` | host `flags.rs` → `ControlSettings.audio { volume: u8, muted: bool, cues: BTreeMap<CueKey, CueBinding> }` | Control-behaviour keys (§2.5); `CueBinding = { file: Option<String> }`, `None` mutes that key. Written by `settings_set_global { audio_volume \| audio_muted \| audio_cue }` |
+| `play-state.audio` | `PresentationService::play_state` merges `{ volume, muted, cues }` from `FlagService::audio()` (passed in per call, like `revealModes`) | Stage reads the live values from the same emission everything else arrives in; **`CONTRACT_VERSION` bumps** |
+| `cuesFor(prev, next)` | `apps/stage/src/audio/cues.ts` | pure diff of two `PlayStateForStage` → `CueKey[]`: a lock appeared → `lock`; outcome `correct` / `incorrect` appeared → `correct` / `wrong`; `overlay.active` changed key → `overlay_start`; status `loaded → playing` → `play_start`; timer `running` flipped on / off → `timer_start` / `timer_pause`; `remainingMs` reached 0 with `outcome === null` → `timer_expired` |
+| `AudioPort` | `apps/stage/src/audio/port.ts` | `{ play(cue): void; set(volume, muted): void }` — the seam. Two adapters: `howlerAudio(manifest)` (the Stage window, `howler` installed here) and `silentAudio()` (the Viewer iframe, tests, `dev:stage` fixtures) |
+| Synth | **absent** | `feat.audio.synth` is a switch with no adapter behind it. A Stage test greps `apps/stage/src` for `AudioContext`, `OscillatorNode` and `@web-kits/audio` and fails on a hit; `require_feature(AudioSynth)` guards nothing yet because nothing asks |
+
+- Cues play on the **Stage window only**. The Viewer iframe gets
+  `silentAudio()` from `viewerHost()`; Studio plays nothing.
+- `feat.audio` off → `silentAudio()` regardless of the pack.
+- Volume and mute are live: `set()` runs on every `play-state` whose `audio`
+  changed, and Howler's global volume follows — mid-Play, mid-cue.
+- Control gets a **mute toggle** in `ControlTopBar` next to ⚙
+  (`IconButton icon=volume|volumeMuted`) → `settings_set_global {
+  audio_muted }`. Same command as the Settings row.
+- `CueMapRow` (molecule, Settings ▸ Audio ▸ Cue map): cue label · `Select`
+  over the bundled files plus *Muted* · a *Preview* icon button that plays
+  the file **in Studio through a throwaway `Howl`** — the one place Studio
+  makes a sound, and it is the operator auditioning a file, not a cue.
+- A missing or unreadable file at load is `health.audio_missing_cue`
+  (warn, suggestion *Run npm run audio:placeholders* in dev / *Reinstall*).
+
+### 12.6 Health
+
+Silent until it has something to say (§11.J). One producer, one event, one
+family.
+
+- **`HealthService`** (`crates/host/src/health.rs`, a plain module): `check(inputs)
+  -> HealthReport { status: ok \| warn \| error, items: Vec<Notice> }` over
+  values the app crate hands it — free bytes on the user-data volume, the
+  catalog's last write error, the search index state, whether the Stage
+  window is created and has called `stage_ready`, Stage's contract version,
+  the cue files Stage reported missing. The inputs are parameters, not a
+  trait (the monitor seam's discipline).
+- **Cadence:** at boot, after every refused persist, and every 30 s from
+  `tick.rs` (the 100 ms show loop is not touched). `health` is emitted only
+  when the report **changed**; an `ok` after a `warn` is emitted so the dot
+  clears.
+- **Every item is a suggestion.** A `health.*` notice has ≥ 1 action, and
+  the copy table pairs the message with what to do:
+  `health.disk_low` → *Open data folder* · `health.persist_failed` (error) →
+  *Retry* · *Open data folder* · `health.search_degraded` → *Rebuild index*
+  (`catalog_rebuild_search`) · `health.stage_not_ready` → *Open Stage* ·
+  `health.audio_missing_cue` → *Reinstall*.
+- **Studio:** `bridge.tsx` subscribes to `health`, replaces the previous
+  report's items in the notice store (health notices carry
+  `detail.source = 'health'` and are replaced, never accumulated), and the
+  `StatusBar` dot reads `status` — `success` ok, `warning` warn, `danger`
+  error, `neutral` before the first report — and opens the collector.
+
+### 12.7 Components
+
+| Level | Components |
+| --- | --- |
+| atoms | `PinField` (password, numeric, eye toggle) · `ChordField` (record one chord, renders `Kbd`s) · `SegmentedField` (HeroUI `ToggleButtonGroup` single-select, `label` `hideLabel` `disabledReason`) · `DurationField` (`NumberField` in seconds, value in ms) · `OptionalNumberField` (`Switch` + `NumberField`, `null` when off) |
+| molecules | `SettingsGroup` (title · description · `SettingRow`s from a `SETTINGS_GROUPS` entry) · `DifficultyMapField` (linear factor ⇄ band table) · `CueMapRow` · `MonitorCard` (`stage` `remembered` `free`) · `PathRow` (label · path `studio-mono` · reveal) · `PinPrompt` (popover or frame) · `ShortcutRow` (label · `ChordField` · default · reset) · `WizardSteps` (the step rail, `done` `current` `todo`) |
+| organisms | `FirstRunFlow` (the four steps, state, finish) · `MonitorsSettings` · `SettingsForm` · `ShortcutsEditor` · `DataActions` (Wipe Plays / Remove generated data with frames) · `HealthDot` (status-bar summary, replaces the placeholder) · `OperatorPinPanel` (inside `OperatorEditor`) |
+| templates | `WizardLayout` (rail · body · footer, no chrome) · `SettingsLayout` (header · inner tabs · scrolling column) |
+| pages | `FirstRunPage` · `SettingsPage` (replaces the stub) |
+
+New `ICONS` keys: `volume` `volumeMuted` `keyboard` `pin` `pinOff` `folder`
+`reveal` `health` `eye` `eyeOff` `wizardDone`. New chip meaning: none
+(`seed` and `pinned` exist). New empty state: none.
+
+### 12.8 Host and contract changes
+
+| Where | Change |
+| --- | --- |
+| `crates/host` | `catalog/seed.rs` (the Demo document, `Origin` enum + column + migration) · `RosterEmpty` in `build_snapshot`, `BoardEmpty` moved there · `health.rs` · `AudioSettings` + `CueKey` in `flags.rs`, `GlobalSetting::{AudioVolume, AudioMuted, AudioCue}` · `PresentationService::play_state` takes `AudioSettings` · `operator::{hash_pin, verify_pin}` (argon2) · `CatalogService::{seed_demo, wipe_plays, edited_seed_count}` · `stage::CONTRACT_VERSION` bump |
+| `crates/app` | `demo.rs` and `seed_demo_library` **deleted** · commands `catalog_seed_demo` `operator_set_pin` `operator_activate` `wipe_plays` `uninstall_data` `paths_get` `paths_reveal` `health_get` `catalog_rebuild_search` `stage_report` · `health` emission from `tick.rs` (30 s) · `STAGE_COMMANDS` += `stage_report` |
+| `packages/contract` | `PlayStateForStage.audio` · `CueKey` · `CONTRACT_VERSION` · `COMMAND_GROUPS` additions · `HealthReport` · `STAGE_COMMANDS` |
+| `packages/design-stage` | `audio/` (manifest + eight placeholder files) |
+| `apps/stage` | `audio/{port,cues,howler,silent}.ts` · `stage_report` on a failed load · `App` wires `useAudio(host)` |
+| `apps/studio` | everything in §12.7 · `copy/settings.ts` `copy/firstRun.ts` · `NOTICE_COPY` for §12.4 · `chrome.settingsInner` · fake host: seed mirror, pin, shortcuts, audio, health |
+
+### 12.9 Tests
+
+- `crates/host`: `build_snapshot` refuses an empty roster and an empty
+  board with the right `target_path` (exit criterion 1) · `seed_demo`
+  `missing` keeps an edited row and restores an archived one, `overwrite`
+  rewrites it · `hash_pin`/`verify_pin` round-trip and reject · a gated
+  command with a Play open is refused before any pin check · `health::check`
+  is `ok` with no findings and pairs every item with ≥ 1 action ·
+  `settings_set_global(AudioMuted)` succeeds while playing and
+  `settings_set_current_game(ScoringMode)` is refused (exit criterion 3) ·
+  `stage_contract.rs` carries `audio` in every fixture.
+- `packages/contract`: every `Notice` fixture and every `NOTICE_COPY` key has
+  ≤ 3 actions (a test walks the copy table — exit criterion 2).
+- `apps/stage`: `cuesFor` over fixture pairs yields exactly the listed cues
+  and nothing on an identical pair · `howlerAudio.set` is called when
+  `audio` changes and not otherwise · the source grep for
+  `AudioContext|OscillatorNode|@web-kits/audio` finds nothing (exit
+  criterion 4) · the Viewer host installs `silentAudio`.
+- `apps/studio`: `FirstRunPage` renders when the operator list is empty and
+  the shell otherwise · the operator step cannot be skipped · Settings
+  renders every `SETTINGS_GROUPS` key through a `SettingRow` and shows the
+  host's reason for a frozen key · a recorded chord issues one
+  `settings_set_shortcut`; a refusal renders *Keep* / *Reassign* and
+  *Reassign* issues two · switching to a pinned operator opens `PinPrompt`
+  and sends the pin to `operator_activate` (never hashes) · *Wipe Plays* is
+  disabled with a reason while `play-state` is open · `health` replaces
+  rather than accumulates and the dot follows `status` · `chrome.test.ts`
+  still finds no Play-shaped key.
+
+### 12.10 Not in P10, decided
+
+Per-operator `control_layout.json` on disk (stays in `localStorage` keyed by
+operator; nothing else reads it) · Statistics display assignment (row
+present, `feature_off` until P11) · user-replaceable cue packs and Stage
+beds (v2) · a synth adapter (§2.25) · app-file removal (P12's installer;
+`uninstall_data` removes generated data only) · window-close dirty guard
+(P12) · a lockout after wrong pins.
+
+### 12.11 As built
+
+The section shipped as proposed. What a later phase should know:
+
+- **First run latches.** The operator step creates and activates a row, so
+  the "no operator exists" condition that raised the wizard goes false
+  halfway through it. `App` therefore latches the decision and leaves the
+  wizard only when `FirstRunPage` reports `onDone` — its own Finish. Without
+  the latch the sample and defaults steps never render.
+- **`run.ok` is the verdict, `run` is the payload.** Most §13 commands answer
+  `()`, which reaches the webview as `null` — the same `null` a refusal
+  returns, so `await run('play_load', …) !== null` is always false.
+  `useHostCommand()` now exposes `run.ok(…)`, and every call site of a `()`
+  command (`operator_activate`, `operator_set_pin`, `uninstall_data`,
+  `play_load`) asks it. A command that answers with a value
+  (`wipe_plays`, `catalog_upsert`, `catalog_seed_demo`) still reads `run(…)`.
+- **The fake host answers `settings_get.disabled`.** It carries the freeze
+  (`GAME_AFFECTING_KEYS` while a Play is open) and the audio feature graph,
+  mirroring `flags::disabled`; the inert interlocks need a recipe in Control,
+  which the fake never loads. A test that wants a frozen key sets both
+  `fake.playState` (what the host sees) and `receivePlayState` (what Studio
+  reads).
+- **Tests** landed as `pages/settings.test.tsx` (groups, the frozen reason,
+  the gated data actions, chord recording and the conflict's two actions, the
+  pin prompt, the unskippable operator step), `copy/notices.test.ts` (the
+  ≤ 3-action audit), `apps/stage/src/audio/*` (cue mapping, the Howler
+  adapter, the no-synth source grep) and the host suites named in §12.9.

@@ -9,26 +9,30 @@
  *   recipe-changed   → invalidate that recipe's queries
  *   monitors-changed → replace the monitors query data
  *   notice           → the notice store
- *   health           → (P10) the notice store, when it has a producer
+ *   health           → the health store's headline, and the notice store's
+ *                      `health` source replaced with the report's items
  *
  * Because every invalidation lives here, no component ever refetches after a
  * write. "Renaming a team updates every surface via host events" is this file
  * plus TanStack Query, and nothing else.
  *
- * On mount it also asks for the current state once (`get_state`): the host's
- * emission is deduplicated, so a webview that mounts after the last change
- * would otherwise wait for the next one.
+ * On mount it also asks for the current state once (`get_state`) and the
+ * current health report once (`health_get`): both emissions are deduplicated,
+ * so a webview that mounts after the last change would otherwise wait for the
+ * next one.
  */
 
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type {
   CatalogChange,
+  HealthReport,
   MonitorsChanged,
   Notice,
   PlayStateForMain,
   RecipeChange,
 } from '@questiongame/contract'
+import { useHealthStore } from '@/chrome/health'
 import { useNoticeStore } from '@/chrome/notices'
 import { command, hasHost, on } from './host'
 import { receivePlayState } from './playState'
@@ -37,24 +41,34 @@ import { invalidateForCatalogChange, invalidateForRecipeChange, keys } from './q
 export function HostBridge() {
   const client = useQueryClient()
   const pushNotice = useNoticeStore((s) => s.push)
+  const replaceSource = useNoticeStore((s) => s.replaceSource)
+  const setReport = useHealthStore((s) => s.setReport)
 
   useEffect(() => {
     if (!hasHost()) return
     const offs: Array<() => void> = []
     const add = (p: Promise<() => void>) => void p.then((off) => offs.push(off))
+    const receiveHealth = (report: HealthReport) => {
+      setReport(report)
+      replaceSource('health', report.items)
+    }
 
     add(on<PlayStateForMain>('play-state', receivePlayState))
     add(on<CatalogChange>('catalog-changed', (c) => invalidateForCatalogChange(client, c.kind, c.id)))
     add(on<RecipeChange>('recipe-changed', (c) => invalidateForRecipeChange(client, c.id)))
     add(on<MonitorsChanged>('monitors-changed', (m) => client.setQueryData(keys.monitors, m.monitors)))
     add(on<Notice>('notice', pushNotice))
+    add(on<HealthReport>('health', receiveHealth))
 
     void command<PlayStateForMain | null>('get_state')
       .then(receivePlayState)
       .catch(() => receivePlayState(null))
+    void command<HealthReport>('health_get')
+      .then(receiveHealth)
+      .catch(() => setReport(null))
 
     return () => offs.forEach((off) => off())
-  }, [client, pushNotice])
+  }, [client, pushNotice, replaceSource, setReport])
 
   return null
 }

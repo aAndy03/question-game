@@ -34,6 +34,7 @@
 //! part of `reveal_outcome`, which is the only thing that scores (§2.4). The
 //! channel still reaches Stage, which is where the outcome's arrival animates.
 
+use crate::flags::AudioSettings;
 use crate::error::{MatchError, MatchResult};
 use crate::play::PlayStatus;
 use crate::service::MatchService;
@@ -384,6 +385,7 @@ impl PresentationService {
         game: StageGameState,
         modes: RevealSettings,
         overlay_enabled: bool,
+        audio: AudioSettings,
     ) -> PlayStateForStage {
         PlayStateForStage {
             game,
@@ -397,6 +399,7 @@ impl PresentationService {
                 enabled: overlay_enabled,
             },
             reveal_modes: modes,
+            audio,
         }
     }
 }

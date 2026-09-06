@@ -19,6 +19,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::flags::AudioSettings;
 use crate::ids::{DomainId, OptionId, QuestionId, TeamId};
 use crate::play::{Play, PlayStatus};
 use crate::rules::Verdict;
@@ -28,7 +29,7 @@ use crate::snapshot::AnswerMode;
 
 /// Must equal `CONTRACT_VERSION` in `packages/contract/src/play-state.ts`.
 /// A mismatch is a notice, not a blank screen — see the P1 exit criteria.
-pub const CONTRACT_VERSION: u32 = 3;
+pub const CONTRACT_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -477,4 +478,7 @@ pub struct PlayStateForStage {
     /// needs them because `auto` makes Stage drive the next beat itself once
     /// `anim-complete` fires.
     pub reveal_modes: RevealSettings,
+    /// Live cue volume, mute and cue map, from `FlagService::audio` (§12.5).
+    /// Control-behaviour, so Stage hears a mute on the next emission.
+    pub audio: AudioSettings,
 }

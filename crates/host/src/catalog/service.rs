@@ -8,6 +8,8 @@
 //! recipe_set_membership | set_settings | set_layout | set_overlay
 //! build_snapshot                                              §4.3
 //! play_persist | play_events | play_replay | play_list        the log
+//! wipe_plays                                                  §12.3, pin-gated
+//! seed_demo | seed_status                                     §12.1 (`seed.rs`)
 //! settings_load | settings_store                              §11.L L1/L2
 //! ```
 //!
@@ -78,6 +80,15 @@ pub struct CatalogChange {
     pub kind: CatalogKind,
     pub id: String,
     pub op: ChangeOp,
+}
+
+/// What `wipe_plays` removed. The recipe ids are what the app emits
+/// `catalog-changed` for, so every Plays section that listed one refreshes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WipedPlays {
+    pub removed: usize,
+    pub recipe_ids: Vec<RecipeId>,
 }
 
 /// `recipe-changed { id, rev }` (§11.B).
@@ -785,6 +796,34 @@ impl CatalogService {
         store::play_list(&self.conn(), recipe)
     }
 
+    /// `wipe_plays` (§12.3) — every **closed** Play and its log, in one
+    /// transaction. A Play that is loaded, playing or paused is left standing:
+    /// the command layer refuses the call while one exists, and this keeps the
+    /// same rule even if it were reached another way.
+    ///
+    /// The one delete in the Play log. It is the operator's explicit, pin-gated
+    /// choice, never a side effect of anything else.
+    pub fn wipe_plays(&self) -> CatalogResult<WipedPlays> {
+        let mut guard = self.conn();
+        let closed = store::closed_plays(&guard)?;
+        let tx = guard.transaction()?;
+        for (play, _) in &closed {
+            store::play_delete(&tx, play)?;
+        }
+        tx.commit()?;
+
+        let mut recipe_ids: Vec<RecipeId> = Vec::new();
+        for (_, recipe) in closed.iter() {
+            if !recipe_ids.contains(recipe) {
+                recipe_ids.push(recipe.clone());
+            }
+        }
+        Ok(WipedPlays {
+            removed: closed.len(),
+            recipe_ids,
+        })
+    }
+
     /// The Play that was still open when the process stopped, replayed from
     /// its log. This is what "kill the process mid-write; boot loses nothing"
     /// hands back to `MatchService`.
@@ -822,6 +861,7 @@ impl CatalogService {
     pub fn settings_store(&self, settings: &GlobalSettings) -> CatalogResult<()> {
         crate::flags::validate(&settings.game_defaults)?;
         settings.timer.validate("globals.timer.duration_ms")?;
+        settings.control.audio.validate()?;
         store::global_set(&self.conn(), GLOBALS_KEY, &serde_json::to_string(settings)?)
     }
 }

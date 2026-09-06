@@ -1,7 +1,7 @@
 import { Button, IconButton, Text } from '@/atoms'
 import { DisplayPicker } from '@/molecules'
 import { useControlLayoutStore } from '@/chrome/control'
-import { CONTROL } from '@/copy'
+import { CHROME, CONTROL } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import { useMonitors, useSettings } from '@/host/queries'
@@ -33,6 +33,12 @@ export function ControlTopBar() {
         <DisplayPicker label={CONTROL.statsDisplay} monitors={list} value={settings.data?.control.stats_monitor_id ?? null} onChange={(value) => void run('settings_set_global', { setting: { key: 'stats_monitor_id', value } })} />
       </div>
       <div className="flex-1" />
+      <IconButton
+        icon={settings.data?.control.audio.muted ? 'volumeMuted' : 'volume'}
+        label={settings.data?.control.audio.muted ? CHROME.unmute : CHROME.mute}
+        size="sm"
+        onPress={() => void run('settings_set_global', { setting: { key: 'audio_muted', value: !(settings.data?.control.audio.muted ?? false) } })}
+      />
       <IconButton
         icon="layout"
         label={CONTROL.resetLayout}

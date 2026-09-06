@@ -13,6 +13,7 @@
 
 mod support;
 
+use questiongame_host::flags::AudioSettings;
 use questiongame_host::presentation::PresentationService;
 use questiongame_host::settings::{FrozenSettings, RevealMode, RevealSettings};
 use questiongame_host::stage::{OverlayRequest, StageGameState, StageScreen, project};
@@ -114,7 +115,7 @@ fn one_overlay_runs_at_a_time_and_a_newer_pending_replaces_an_older_one() {
     assert!(presentation.overlay_busy());
 
     // The middle one never plays: queue depth is one, newest wins (§2.6).
-    let state = presentation.play_state(dummy_game(), auto(false), ON);
+    let state = presentation.play_state(dummy_game(), auto(false), ON, AudioSettings::default());
     assert_eq!(state.overlay.pending.as_ref(), Some(&third));
 }
 
@@ -176,7 +177,7 @@ fn overlays_off_skips_the_queue_and_the_token_still_moves() {
     );
 
     // And the emission still reports the setting, so Stage knows why.
-    let state = presentation.play_state(after, auto(false), OFF);
+    let state = presentation.play_state(after, auto(false), OFF, AudioSettings::default());
     assert!(!state.overlay.enabled);
 }
 
@@ -201,14 +202,14 @@ fn a_resolve_enqueues_the_outcome_and_the_next_token_enqueues_the_handoff() {
     // A wrong answer ends the token and moves it nowhere: the ring is empty
     // between a resolve and the next token, so there is no handoff to draw yet
     // (§2.6 — Stage does not auto-advance).
-    let state = presentation.play_state(snap(&service, 20), auto(false), ON);
+    let state = presentation.play_state(snap(&service, 20), auto(false), ON, AudioSettings::default());
     assert_eq!(state.overlay.pending, None);
     assert_eq!(state.game.ring.current_team_id, None);
 
     observed(&mut presentation, &mut service, 30, |s| {
         s.give_token(&team_id(1), 30).unwrap()
     });
-    let state = presentation.play_state(snap(&service, 30), auto(false), ON);
+    let state = presentation.play_state(snap(&service, 30), auto(false), ON, AudioSettings::default());
     assert_eq!(
         state.overlay.pending,
         Some(OverlayRequest::TokenHandoff {
@@ -334,7 +335,7 @@ fn a_restart_empties_the_queue_and_opens_the_new_play_with_its_first_token() {
     );
     assert_eq!(
         presentation
-            .play_state(snap(&service, 20), auto(false), ON)
+            .play_state(snap(&service, 20), auto(false), ON, AudioSettings::default())
             .overlay
             .pending,
         None,

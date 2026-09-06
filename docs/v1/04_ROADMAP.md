@@ -578,7 +578,7 @@ Density: each panel branches on the density `MosaicPanel` measures (`comfortable
 
 ---
 
-## P10 — Settings, first run, notices, audio, health  ☐
+## P10 — Settings, first run, notices, audio, health  ☑
 
 **Install:** [`howler`](https://howlerjs.com).
 
@@ -586,10 +586,24 @@ Density: each panel branches on the density `MosaicPanel` measures (`comfortable
 
 **Exit criteria**
 
-- ☐ Play is blocked until at least one team and one board question exist.
-- ☐ No notice anywhere offers more than three actions.
-- ☐ Muting and volume take effect mid-Play; scoring settings cannot.
-- ☐ No generated tone is ever produced with the synth flag off.
+- ☑ Play is blocked until at least one team and one board question exist —
+  `build_snapshot` refuses both with a `target_path`, and the Games page
+  turns each into its own notice.
+- ☑ No notice anywhere offers more than three actions — `notice::new`
+  asserts it in the host, `chrome/notices.ts` throws on a wider one, and
+  `copy/notices.test.ts` walks the whole copy table.
+- ☑ Muting and volume take effect mid-Play; scoring settings cannot —
+  `flag_service.rs::audio_is_live_mid_play_and_scoring_is_not`.
+- ☑ No generated tone is ever produced with the synth flag off — there is no
+  synth adapter to switch off, and `apps/stage/src/audio/no-synth.test.ts`
+  greps the whole Stage tree for the synthesis APIs.
+
+**As built:** the design section is `05_STUDIO_DESIGN.md` §12, with §12.11
+recording the three departures — first run latches so the wizard survives
+creating its own operator, `useHostCommand().run.ok` reports the verdict of
+the many commands that answer `()`, and the fake host now answers
+`settings_get.disabled`. `crates/host/src/catalog/seed.rs` replaced the P6
+dev-only `crates/app/src/demo.rs`.
 
 ---
 

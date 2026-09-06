@@ -46,7 +46,10 @@ describe('pages', () => {
     for (const route of ROUTES) {
       it(`${JSON.stringify(route)} renders ${seeded ? 'with' : 'without'} a library`, async () => {
         const fake = createFakeHost()
+        // "Without a library" still has an operator: no operator at all is
+        // first run (§12.1), which renders the wizard instead of the shell.
         if (seeded) fake.seed(demoLibrary(), [demoRecipe()])
+        else fake.seed(demoLibrary().filter((row) => row.kind === 'operator'))
         setHostTransport(fake)
         render(<App />)
         await act(async () => {
@@ -57,6 +60,26 @@ describe('pages', () => {
       })
     }
   }
+
+  it('renders first run instead of the shell while no operator exists (§12.1)', async () => {
+    const fake = createFakeHost()
+    setHostTransport(fake)
+    render(<App />)
+    expect(await screen.findByLabelText('Setup steps')).toBeTruthy()
+    expect(screen.queryByLabelText('Sections')).toBeNull()
+  })
+
+  it('opens the Settings inner tab the route names', async () => {
+    const fake = createFakeHost()
+    fake.seed(demoLibrary(), [demoRecipe()])
+    setHostTransport(fake)
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'shortcuts' })
+    })
+    expect(await screen.findByText('Keyboard shortcuts', { selector: '[role="tab"]' })).toBeTruthy()
+    expect(document.querySelector('[data-shortcuts-editor]')).not.toBeNull()
+  })
 
   it('blocks Screens while a Play is open, with a two-action notice', async () => {
     const fake = createFakeHost()

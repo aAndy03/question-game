@@ -229,6 +229,102 @@ impl ShortcutMap {
     }
 }
 
+
+// ----------------------------------------------------------------------- audio
+
+/// The eight cue keys of §2.25. The audio seam's interface is the key, never a
+/// file: what a key plays is a Settings choice that travels to Stage inside
+/// `play-state.audio`, and nothing above the Stage adapter names a file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CueKey {
+    Lock,
+    Correct,
+    Wrong,
+    OverlayStart,
+    PlayStart,
+    TimerStart,
+    TimerPause,
+    /// The countdown reached zero with no reveal yet.
+    TimerExpired,
+}
+
+impl CueKey {
+    pub const ALL: [CueKey; 8] = [
+        CueKey::Lock,
+        CueKey::Correct,
+        CueKey::Wrong,
+        CueKey::OverlayStart,
+        CueKey::PlayStart,
+        CueKey::TimerStart,
+        CueKey::TimerPause,
+        CueKey::TimerExpired,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            CueKey::Lock => "lock",
+            CueKey::Correct => "correct",
+            CueKey::Wrong => "wrong",
+            CueKey::OverlayStart => "overlay_start",
+            CueKey::PlayStart => "play_start",
+            CueKey::TimerStart => "timer_start",
+            CueKey::TimerPause => "timer_pause",
+            CueKey::TimerExpired => "timer_expired",
+        }
+    }
+
+    /// The shipped pack's file for this key. The name is the contract: a real
+    /// pack overwrites the placeholder file for file and nothing else changes.
+    pub fn default_file(self) -> String {
+        format!("{}.wav", self.as_str())
+    }
+}
+
+/// Control-behaviour audio (§2.5, §2.25): live for the whole Play, so a mute
+/// lands on Stage on the next emission. `cues` carries **every** key; `None`
+/// is a key the operator muted. Serialized as-is into `play-state.audio`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AudioSettings {
+    /// 0–100.
+    pub volume: u8,
+    pub muted: bool,
+    pub cues: BTreeMap<CueKey, Option<String>>,
+}
+
+impl Default for AudioSettings {
+    fn default() -> Self {
+        AudioSettings {
+            volume: 80,
+            muted: false,
+            cues: CueKey::ALL
+                .into_iter()
+                .map(|k| (k, Some(k.default_file())))
+                .collect(),
+        }
+    }
+}
+
+impl AudioSettings {
+    /// A volume over 100 is not a louder Stage, and a missing key would leave
+    /// Stage guessing what to play — both are refused rather than clamped.
+    pub fn validate(&self) -> MatchResult<()> {
+        if self.volume > 100 {
+            return Err(MatchError::IllegalSettings {
+                key: "audio.volume",
+                reason: "volume is 0-100",
+            });
+        }
+        if CueKey::ALL.iter().any(|k| !self.cues.contains_key(k)) {
+            return Err(MatchError::IllegalSettings {
+                key: "audio.cues",
+                reason: "every cue key needs an entry (a muted key is null)",
+            });
+        }
+        Ok(())
+    }
+}
+
 // ------------------------------------------------------------------- documents
 
 /// How dense the Control mosaic packs its panels (§4.2 `control.mosaic_density`).
@@ -285,6 +381,9 @@ pub struct ControlSettings {
     /// What happens when the remembered display reappears **during a Play**.
     /// Outside a Play, Stage always goes back to it.
     pub stage_reattach: StageReattach,
+    /// Cue volume, mute and the cue map (§2.25). Live mid-Play.
+    #[serde(default)]
+    pub audio: AudioSettings,
 }
 
 impl ControlSettings {
@@ -424,6 +523,12 @@ pub enum GlobalSetting {
     StageMonitorId(Option<String>),
     StatsMonitorId(Option<String>),
     StageReattach(StageReattach),
+    /// `audio.volume`, 0–100. Control-behaviour.
+    AudioVolume(u8),
+    /// `audio.muted`. Control-behaviour.
+    AudioMuted(bool),
+    /// `audio.cues.<key>`: a file in the bundled pack, or `None` to mute the key.
+    AudioCue(CueKey, Option<String>),
     Feature(FeatureRoot, bool),
     /// `operator.active`. Whether the id names a live operator is the
     /// catalog's to say; the command layer asks it before this lands.
@@ -433,6 +538,9 @@ pub enum GlobalSetting {
 impl GlobalSetting {
     pub fn key(&self) -> &'static str {
         match self {
+            GlobalSetting::AudioVolume(_) => "audio.volume",
+            GlobalSetting::AudioMuted(_) => "audio.muted",
+            GlobalSetting::AudioCue(..) => "audio.cues",
             GlobalSetting::TimerEnabled(_) => "globals.timer.enabled",
             GlobalSetting::TimerDurationMs(_) => "globals.timer.duration_ms",
             GlobalSetting::Game(setting) => setting.key(),
@@ -706,6 +814,18 @@ impl FlagService {
                 globals.control.stage_reattach = v;
                 control.stage_reattach = v;
             }
+            GlobalSetting::AudioVolume(v) => {
+                globals.control.audio.volume = v;
+                control.audio.volume = v;
+            }
+            GlobalSetting::AudioMuted(v) => {
+                globals.control.audio.muted = v;
+                control.audio.muted = v;
+            }
+            GlobalSetting::AudioCue(cue, file) => {
+                globals.control.audio.cues.insert(cue, file.clone());
+                control.audio.cues.insert(cue, file);
+            }
             GlobalSetting::Feature(root, on) => globals.features.set(root, on),
             GlobalSetting::ActiveOperatorId(v) => globals.active_operator_id = v,
         }
@@ -812,6 +932,12 @@ impl FlagService {
     /// The `revealModes` record `PresentationService` merges into `play-state`.
     pub fn reveal_modes(&self) -> RevealSettings {
         self.control.reveal
+    }
+
+    /// The `audio` record `PresentationService` merges into `play-state`
+    /// (§12.5). Passed in per call like `reveal_modes`, never stored twice.
+    pub fn audio(&self) -> AudioSettings {
+        self.control.audio.clone()
     }
 
     /// The §2.18 cascade as it stands now — what a Play *would* freeze.
@@ -1032,6 +1158,7 @@ pub fn validate(game: &GameSettings) -> MatchResult<()> {
 
 fn validate_globals(globals: &GlobalSettings) -> MatchResult<()> {
     validate(&globals.game_defaults)?;
+    globals.control.audio.validate()?;
     globals.timer.validate("globals.timer.duration_ms")
 }
 

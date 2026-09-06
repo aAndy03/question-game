@@ -19,7 +19,7 @@
 use crate::award::award_points;
 use crate::error::{MatchError, MatchResult};
 use crate::event::{EventKind, active_inversions, is_inverted};
-use crate::ids::{DomainId, OptionId, PlayId, TeamId};
+use crate::ids::{DomainId, OperatorId, PlayId, OptionId, TeamId};
 use crate::play::{Play, PlayStatus};
 use crate::rules::{Verdict, judge};
 use crate::session::Session;
@@ -169,6 +169,18 @@ impl MatchService {
     /// and Statistics all read this, and none of them writes.
     pub fn get_state(&self) -> Option<&Play> {
         self.play.as_ref()
+    }
+
+    /// Another operator took the keyboard (§2.26). Appended only while a Play
+    /// is open — with no Play there is no log for the fact to land in, and that
+    /// is not a refusal: the switch itself is a settings write that already
+    /// happened. Nothing in the projection changes, and the timer keeps running.
+    pub fn operator_switched(&mut self, operator_id: OperatorId, now_ms: u64) -> MatchResult<()> {
+        if self.require_open().is_err() {
+            return Ok(());
+        }
+        self.play_mut()?
+            .append(EventKind::OperatorSwitched { operator_id }, now_ms)
     }
 
     // ------------------------------------------------------------------ session

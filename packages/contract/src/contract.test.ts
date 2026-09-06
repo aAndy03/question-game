@@ -176,7 +176,7 @@ describe('commands and events', () => {
     // and this is my contract version". Neither carries an opinion about the
     // Play. The host enforces the same list in `crates/app/src/guard.rs`,
     // because Tauri does not gate app-defined commands behind capabilities.
-    expect(STAGE_COMMANDS).toEqual(['overlay_ack_complete', 'stage_ready'])
+    expect(STAGE_COMMANDS).toEqual(['overlay_ack_complete', 'stage_ready', 'stage_report'])
     for (const command of STAGE_COMMANDS) {
       expect(COMMANDS).toContain(command)
     }

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DEFAULT_PREFS, useChromeStore } from './chrome'
+import { useHealthStore } from './health'
 import { useNavStore, HOME } from './nav'
 import { useNoticeStore } from './notices'
 
@@ -23,14 +24,22 @@ describe('chrome stores hold chrome only', () => {
     useChromeStore.setState({ operatorId: '', prefs: {}, archiveScope: {} })
     useNavStore.setState({ route: HOME, back: [], forward: [], guard: null })
     useNoticeStore.setState({ notices: [] })
+    useHealthStore.setState({ report: null })
   })
 
   it('no store state key names a Play field', () => {
-    for (const store of [useChromeStore, useNavStore, useNoticeStore]) {
+    // Populate every optional shape so the walk sees the full document.
+    useChromeStore.getState().setOperator('op-a')
+    useChromeStore.getState().setSettingsInner('shortcuts')
+    useHealthStore.getState().setReport({ status: 'warn', items: [] })
+    for (const store of [useChromeStore, useNavStore, useNoticeStore, useHealthStore]) {
       const state = Object.fromEntries(
         Object.entries(store.getState()).filter(([, v]) => typeof v !== 'function'),
       )
       for (const key of keysDeep(state)) {
+        // `view.teams` is the Teams *tab's* grid|table preference, keyed by
+        // tab name — chrome about a list, not a roster.
+        if (/\.view\.[a-z]+$/.test(key)) continue
         expect(key, `${key} looks like Play state`).not.toMatch(FORBIDDEN)
       }
     }
@@ -45,6 +54,16 @@ describe('chrome stores hold chrome only', () => {
     s.setOperator('op-a')
     expect(useChromeStore.getState().prefs['op-a']?.view.teams).toBe('table')
     expect(DEFAULT_PREFS.view.teams).toBe('grid')
+  })
+
+  it('keeps the Settings inner tab per operator (§12.2)', () => {
+    const s = useChromeStore.getState()
+    s.setOperator('op-a')
+    s.setSettingsInner('shortcuts')
+    expect(useChromeStore.getState().prefs['op-a']?.settingsInner).toBe('shortcuts')
+    s.setOperator('op-b')
+    expect(useChromeStore.getState().prefs['op-b']?.settingsInner).toBeUndefined()
+    expect(DEFAULT_PREFS.settingsInner).toBe('monitors')
   })
 
   it('cycles the sidebar through its three states', () => {
@@ -100,6 +119,19 @@ describe('notices', () => {
         detail: {},
       }),
     ).toThrow()
+  })
+
+  it('replaces one source wholesale and leaves the rest alone', () => {
+    const s = useNoticeStore.getState()
+    s.pushError('match', 'no')
+    const health = (code: string) => ({ code, severity: 'warn' as const, targetPath: null, actions: ['open_data_folder'], detail: { source: 'health' } })
+    s.replaceSource('health', [health('health.disk_low'), health('health.search_degraded')])
+    expect(useNoticeStore.getState().notices).toHaveLength(3)
+    s.replaceSource('health', [health('health.disk_low')])
+    const after = useNoticeStore.getState().notices
+    expect(after).toHaveLength(2)
+    expect(after.filter((n) => n.detail.source === 'health').map((n) => n.code)).toEqual(['health.disk_low'])
+    expect(after.some((n) => n.code === 'match')).toBe(true)
   })
 
   it('stacks confirm frames to depth three and pops one at a time', () => {

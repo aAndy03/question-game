@@ -12,9 +12,16 @@
  * change a field on both sides in one commit.
  */
 
-import type { RevealChannel, RevealMode, StageReattach } from '@questiongame/contract'
+import type {
+  CueKey,
+  HealthReport,
+  HealthStatus,
+  RevealChannel,
+  RevealMode,
+  StageReattach,
+} from '@questiongame/contract'
 
-export type { RevealChannel, RevealMode, StageReattach }
+export type { CueKey, HealthReport, HealthStatus, RevealChannel, RevealMode, StageReattach }
 
 // --------------------------------------------------------------------- catalog
 
@@ -23,6 +30,13 @@ export type CatalogKind = 'team' | 'domain' | 'question' | 'operator' | 'asset' 
 export type LibraryKind = Exclude<CatalogKind, 'recipe'>
 
 export type ArchiveScope = 'active' | 'archived' | 'all'
+
+/**
+ * Who wrote the row: the shipped Demo (`seed`, §2.27) or the operator. A
+ * seed row is a normal row after insert; the marker is what `catalog_seed_demo`
+ * and the `seed` chip key on.
+ */
+export type Origin = 'seed' | 'operator'
 
 export interface Stamps {
   readonly createdAt: number
@@ -33,6 +47,7 @@ export interface Stamps {
 
 export interface Team extends Stamps {
   readonly id: string
+  readonly origin: Origin
   readonly name: string
   readonly shortCode: string
   /** A design-system token where possible, otherwise a literal. */
@@ -50,6 +65,7 @@ export interface DomainMember {
 
 export interface Domain extends Stamps {
   readonly id: string
+  readonly origin: Origin
   readonly name: string
   /** `TEC_881` — what the Stage card shows. */
   readonly code: string
@@ -65,6 +81,7 @@ export interface QuestionOption {
 
 export interface Question extends Stamps {
   readonly id: string
+  readonly origin: Origin
   readonly stem: string
   readonly mediaAssetId: string | null
   readonly options: readonly QuestionOption[]
@@ -154,6 +171,7 @@ export interface BoardDomain {
 
 export interface Recipe extends Stamps {
   readonly id: string
+  readonly origin: Origin
   readonly name: string
   readonly folder: string | null
   readonly tags: readonly string[]
@@ -248,6 +266,17 @@ export interface GameSettings {
 export type OverrideAfterLock = 'allow' | 'refuse_until_reveal'
 export type MosaicDensity = 'compact' | 'comfortable' | 'spacious'
 
+/**
+ * Control-behaviour audio (§2.25, §12.5). `cues` maps every key to a file in
+ * the bundled pack, or `null` for a cue the operator muted. Live mid-Play.
+ */
+export interface AudioSettings {
+  /** 0–100. */
+  readonly volume: number
+  readonly muted: boolean
+  readonly cues: Readonly<Record<CueKey, string | null>>
+}
+
 export interface ControlSettings {
   readonly override_after_lock: OverrideAfterLock
   readonly reveal: RevealSettings
@@ -257,6 +286,7 @@ export interface ControlSettings {
   readonly stage_monitor_id: string | null
   readonly stats_monitor_id: string | null
   readonly stage_reattach: StageReattach
+  readonly audio: AudioSettings
 }
 
 export interface FeatureRoots {
@@ -323,6 +353,39 @@ export type GlobalSetting =
   | { readonly key: 'stage_reattach'; readonly value: StageReattach }
   | { readonly key: 'feature'; readonly value: readonly [string, boolean] }
   | { readonly key: 'active_operator_id'; readonly value: string | null }
+  | { readonly key: 'audio_volume'; readonly value: number }
+  | { readonly key: 'audio_muted'; readonly value: boolean }
+  | { readonly key: 'audio_cue'; readonly value: readonly [CueKey, string | null] }
+
+// ---------------------------------------------------------- seed · data · paths
+
+/** `catalog_seed_demo`: insert what is absent, or rewrite every seed row (§2.28). */
+export type SeedMode = 'missing' | 'overwrite'
+
+/** `catalog_seed_status` — what Restore Demo's confirm names. */
+export interface SeedStatus {
+  readonly present: number
+  readonly missing: number
+  /** Present, but the body differs from the shipped Demo. */
+  readonly edited: number
+}
+
+/** `catalog_seed_demo`'s answer. */
+export interface SeedResult {
+  readonly recipeId: string
+  readonly inserted: number
+  readonly overwritten: number
+}
+
+/** `paths_get` — where the generated files live (§12.1, §12.3). */
+export interface AppPaths {
+  readonly userData: string
+  readonly catalog: string
+  readonly cuePack: string
+}
+
+/** `paths_reveal { which }` — the directories the OS file manager can open. */
+export type PathKind = 'userData' | 'cuePack'
 
 // ------------------------------------------------------------------ helpers
 

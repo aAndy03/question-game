@@ -1,13 +1,12 @@
 import { Button as HeroButton, Dropdown, Label } from '@heroui/react'
 import { IconButton, Icon, Text } from '@/atoms'
 import { OperatorBadge, PlayStatusPill } from '@/molecules'
+import { useActivateOperator } from './useActivateOperator'
 import { useChromeStore, usePrefs, type ThemeChoice } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { CHROME } from '@/copy'
-import { useHostCommand } from '@/host/commands'
 import { usePlayState } from '@/host/playState'
 import { useCatalogList, useRecipe, useSettings } from '@/host/queries'
-import type { GlobalSetting } from '@/host/types'
 
 /**
  * Recipe name if loaded · play status · current operator (spec §11.I), plus
@@ -24,7 +23,7 @@ export function TopBar() {
   const go = useNavStore((s) => s.go)
   const { theme } = usePrefs()
   const setTheme = useChromeStore((s) => s.setTheme)
-  const run = useHostCommand()
+  const { activate, prompt } = useActivateOperator()
 
   const recipe = useRecipe(play?.operator.recipeId ?? null)
   const operators = useCatalogList('operator', 'active')
@@ -32,8 +31,8 @@ export function TopBar() {
   const active = operators.data?.find((o) => o.id === activeId) ?? null
 
   const switchOperator = (id: string) => {
-    const setting: GlobalSetting = { key: 'active_operator_id', value: id }
-    void run('settings_set_global', { setting })
+    const target = operators.data?.find((o) => o.id === id)
+    if (target) activate(target)
   }
 
   return (
@@ -113,6 +112,7 @@ export function TopBar() {
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown>
+        {prompt}
       </div>
     </header>
   )

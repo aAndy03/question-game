@@ -11,6 +11,10 @@
 //!                      it writes reveals *through* `MatchService`.
 //! ```
 //!
+//! Two plain modules sit beside them (P10): `operator` hashes and verifies
+//! pins, `health` turns a handful of inputs into a report. Neither holds
+//! state; the app crate hands them values.
+//!
 //! They compose without knowing about each other: `FlagService::freeze` hands
 //! `CatalogService::build_snapshot` the resolved settings, the snapshot goes
 //! into `MatchService::play_load`, and the Play's log goes back to
@@ -34,6 +38,8 @@
 //! monitor   where the Stage window lives; the OS list arrives as data
 //! notice    the §14 `{ code, severity, target_path, actions[] }` shape
 //! stage     `play-state`, checked against the P1 fixtures
+//! operator  pins: argon2id in, PHC string out, never the digits (§2.15)
+//! health    the §12.6 report over inputs the app crate measures
 //! ```
 //!
 //! Section references (`§5.4`) point at `docs/v1/optimized_first_spec.md`,
@@ -45,9 +51,11 @@ pub mod catalog;
 pub mod error;
 pub mod event;
 pub mod flags;
+pub mod health;
 pub mod ids;
 pub mod monitor;
 pub mod notice;
+pub mod operator;
 pub mod play;
 pub mod presentation;
 pub mod ring;
@@ -62,7 +70,10 @@ pub mod timer;
 pub use catalog::{CatalogError, CatalogKind, CatalogLocation, CatalogService};
 pub use error::{MatchError, MatchResult};
 pub use event::{Event, EventKind};
-pub use flags::{FeatureRoot, FlagService, GameSettings, GlobalSettings, RuntimeContext};
+pub use flags::{
+    AudioSettings, CueKey, FeatureRoot, FlagService, GameSettings, GlobalSettings, RuntimeContext,
+};
+pub use health::{HealthInputs, HealthReport, HealthStatus};
 pub use ids::{
     AssetId, DomainId, EventId, OperatorId, OptionId, PlayId, QuestionId, RecipeId, TeamId,
 };
