@@ -17,7 +17,7 @@
  * ever reaches the webview as anything but "pinned" (§2.15).
  */
 
-import { DEFAULT_AUDIO, type Command, type EventName, type PlayStateForMain } from '@questiongame/contract'
+import { DEFAULT_AUDIO, type Command, type EventName, type MonitorInfo, type PlayStateForMain } from '@questiongame/contract'
 import type { HostError, HostTransport } from './host'
 import type {
   AppPaths,
@@ -70,6 +70,8 @@ export interface FakeHost extends HostTransport {
   stats: StatsResult
   /** Set by `uninstall_data` — the fake cannot quit, so it leaves a flag. */
   uninstalled: boolean
+  /** The Statistics window: the fake has no desktop, so it has a boolean. */
+  statsOpen: boolean
 }
 
 const now = () => Date.now()
@@ -88,6 +90,7 @@ const DEFAULT_CONTROL: ControlSettings = {
   mosaic_density: 'comfortable',
   stage_monitor_id: null,
   stats_monitor_id: null,
+  stats_fullscreen: true,
   stage_reattach: 'ask',
   audio: DEFAULT_AUDIO,
 }
@@ -119,6 +122,11 @@ const EMPTY_STATS: StatsResult = {
   playCount: 0,
   turnCount: 0,
 }
+
+/** The one display a browser-only fake has. */
+const FAKE_MONITORS: MonitorInfo[] = [
+  { key: 'primary', name: 'Built-in display', primary: true, position: [0, 0], size: [1920, 1080], scaleFactor: 1 },
+]
 
 const PIN = /^[0-9]{4,8}$/
 /** The fake's "hash" — never shown, only compared. */
@@ -525,6 +533,19 @@ export function createFakeHost(): FakeHost {
     paths_get: () => FAKE_PATHS,
     paths_reveal: () => null,
     health_get: () => fake.health,
+    // `stats_window` opens or closes a window of numbers and writes nothing
+    // else; the fake reports it the way the host does, through the event.
+    stats_window: (a) => {
+      fake.statsOpen = a.open === true
+      emit('monitors-changed', {
+        monitors: FAKE_MONITORS,
+        stageMonitorId: control.stage_monitor_id,
+        stageOn: null,
+        statsMonitorId: control.stats_monitor_id,
+        statsOpen: fake.statsOpen,
+      })
+      return null
+    },
     // Read-only by construction: there is no stats verb that writes (§11.K).
     stats_query: (a) => {
       const query = (a.query ?? {}) as StatsQuery
@@ -577,6 +598,7 @@ export function createFakeHost(): FakeHost {
         case 'mosaic_density':
         case 'stage_monitor_id':
         case 'stats_monitor_id':
+        case 'stats_fullscreen':
         case 'stage_reattach':
           control = { ...control, [setting.key]: setting.value }
           break
@@ -600,9 +622,7 @@ export function createFakeHost(): FakeHost {
       }
       return null
     },
-    monitors_list: () => [
-      { key: 'primary', name: 'Built-in display', primary: true, position: [0, 0], size: [1920, 1080], scaleFactor: 1 },
-    ],
+    monitors_list: () => FAKE_MONITORS,
     stage_set_monitor: (a) => {
       control = { ...control, stage_monitor_id: (a.monitorId as string | null | undefined) ?? null }
       return null
@@ -625,6 +645,7 @@ export function createFakeHost(): FakeHost {
     health: { status: 'ok', items: [] },
     stats: EMPTY_STATS,
     uninstalled: false,
+    statsOpen: false,
     emit,
     seed(items, seededRecipes = []) {
       items.forEach((i) => library.set(key(i.kind, i.item.id), i))

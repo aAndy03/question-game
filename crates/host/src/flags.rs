@@ -377,7 +377,16 @@ pub struct ControlSettings {
     /// belongs. `None` means Stage stays on primary — the host never picks a
     /// display for the operator (§9, decided 2026-09-05).
     pub stage_monitor_id: Option<String>,
+    /// Where the Statistics window opens **when the operator asks for it**
+    /// (§11.K, P11). Remembering a display is not the same as showing one:
+    /// nothing in the host opens this window, and a display coming back does
+    /// not either — `stats_window` is the only door (revised 2026-09-07).
     pub stats_monitor_id: Option<String>,
+    /// Fullscreen the Statistics window, or leave it a normal window the
+    /// operator can size and move. Fullscreen is right on a wall display and
+    /// wrong on the one display a single-monitor setup has.
+    #[serde(default = "default_true")]
+    pub stats_fullscreen: bool,
     /// What happens when the remembered display reappears **during a Play**.
     /// Outside a Play, Stage always goes back to it.
     pub stage_reattach: StageReattach,
@@ -386,12 +395,19 @@ pub struct ControlSettings {
     pub audio: AudioSettings,
 }
 
+/// serde default for a flag that ships on. An older stored document has no
+/// `stats_fullscreen` key, and `false` there would be a silent change.
+fn default_true() -> bool {
+    true
+}
+
 impl ControlSettings {
     /// §4.2 defaults: overlays on, hit targets on, reveals operator-timed.
     pub fn defaults() -> Self {
         ControlSettings {
             overlay_animations_enabled: true,
             viewer_hit_targets: true,
+            stats_fullscreen: true,
             ..ControlSettings::default()
         }
     }
@@ -522,6 +538,9 @@ pub enum GlobalSetting {
     MosaicDensity(MosaicDensity),
     StageMonitorId(Option<String>),
     StatsMonitorId(Option<String>),
+    /// `stats.fullscreen`. Control-behaviour; takes effect the next time the
+    /// window is opened, and on an open window straight away.
+    StatsFullscreen(bool),
     StageReattach(StageReattach),
     /// `audio.volume`, 0–100. Control-behaviour.
     AudioVolume(u8),
@@ -551,6 +570,7 @@ impl GlobalSetting {
             GlobalSetting::MosaicDensity(_) => "control.mosaic_density",
             GlobalSetting::StageMonitorId(_) => "stage.monitor_id",
             GlobalSetting::StatsMonitorId(_) => "stats.monitor_id",
+            GlobalSetting::StatsFullscreen(_) => "stats.fullscreen",
             GlobalSetting::StageReattach(_) => "stage.reattach",
             GlobalSetting::Feature(root, _) => root.key(),
             GlobalSetting::ActiveOperatorId(_) => "operator.active",
@@ -809,6 +829,10 @@ impl FlagService {
             GlobalSetting::StatsMonitorId(v) => {
                 globals.control.stats_monitor_id.clone_from(&v);
                 control.stats_monitor_id = v;
+            }
+            GlobalSetting::StatsFullscreen(v) => {
+                globals.control.stats_fullscreen = v;
+                control.stats_fullscreen = v;
             }
             GlobalSetting::StageReattach(v) => {
                 globals.control.stage_reattach = v;

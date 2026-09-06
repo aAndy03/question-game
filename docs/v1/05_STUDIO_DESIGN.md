@@ -1228,26 +1228,58 @@ reads correctly.
 
 ### 13.3 The Statistics window (§9)
 
-Optional, off by default, `stats.monitor_id` in Settings ▸ Monitors — the row
-that has said `feature_off · statistics (P11)` since P10. Choosing a display
-opens a third webview labelled `stats` at `/studio/?stats`, which renders the
-Statistics page alone: **Studio's bundle, Studio's tokens, Studio's chrome.**
+Optional, off by default, and **opened only by the operator** (revised
+2026-09-07). Settings ▸ Monitors carries its own group — the display it would
+use, a Fullscreen switch, whether it is up right now, and the one button that
+shows or closes it — and Control's top bar carries the same picker and the same
+button, because mid-show is exactly when the numbers go up and come down.
 
-- It is not a second Stage: it never receives `play-state` for Stage, has no
-  screen, no overlay queue and no `anim-complete`, and closing it changes
-  nothing about the show.
+```text
+Settings ▸ Monitors ─ Statistics window                   [Show Statistics]
+  Statistics display   [ Primary display ▾ ]   where it opens
+  Fullscreen           [on]                    off = a window you can size
+  Right now            Open | Closed           window state, from the host
+```
+
+- **Remembering a display is not showing one.** `stats.monitor_id` says
+  *where*; `stats_window { open }` is the only thing that makes the window
+  appear or go. A display coming back never re-opens it, and closing it — by
+  the button or by its own close box — means closed. This is §9's rule ("the
+  host never picks a display") applied to the second window: the earlier build
+  opened it the moment a display was picked and re-opened it from the monitor
+  watch, so a window the operator had closed came back on the next monitor
+  refresh.
+- **`stats.fullscreen`** (default on) is the other half of that: fullscreen is
+  right on a wall display and wrong on the single display a laptop has, where
+  it buries Studio behind a screen of numbers.
+- **Whether it is open is window state, not settings state.** The host answers
+  it from its own window list, on `monitors-changed` (`statsOpen`); Studio
+  keeps it in `chrome/windows.ts` — the store the button's label reads. A
+  setting would have been a second truth that re-opens the window whenever
+  something reads it.
+- It is not a second Stage: Studio's bundle at `studio/index.html?stats`,
+  Studio's tokens, the Statistics page alone, no screen, no overlay queue, no
+  `anim-complete`. Its empty state offers no "Go to Control" — that window has
+  no route stack to go anywhere with.
 - `guard.rs` gains `STATS_COMMANDS` — `stats_query`, `get_state`,
   `settings_get`, `monitors_list`, `play_list`, `catalog_list`, `catalog_get`,
-  `recipe_list` — and the `stats` label may call nothing else, Stage's own
-  `stage_ready` / `overlay_ack_complete` included. An unknown label is still
-  treated as Stage.
-- **The window is a consequence of the setting, not a command.** Picking a
-  display in Settings ▸ Monitors writes `stats.monitor_id`, and
-  `settings_set_global` opens, moves or closes the window from there; there is
-  no `stats_set_monitor`, so the §13 command list is unchanged. Stage's own
-  display is refused with `stats.monitor_id: that display is showing Stage`.
-- Unplugging its display closes it with a `stats.monitor_lost` notice. It
-  never pulls a Play.
+  `recipe_list`, `health_get` — and the `stats` label may call nothing else:
+  not a write, not `stats_window` itself, not Stage's own handshake.
+  `health_get` is on the list because the bridge asks for the report on mount
+  the way Studio's own window does; refusing it logged a warning on every open.
+- **Windows are never built while the host lock is held.** Building a webview
+  pumps the Windows message loop, and the new window invokes as soon as it
+  loads — with the lock still held it waits on the command that created it.
+  That is what produced a white, unresponsive window when `monitors_list` (a
+  read Control makes on mount) created one. `stats_window` reads the settings
+  it needs, drops the lock, then touches the window; the monitor watch only
+  *follows* an open window and closes it with a notice when its display goes.
+- Unplugging its display closes it with a `stats.monitor_lost` notice, and
+  nothing about the Play changes.
+- **Closing Studio ends the app.** Studio is the application; Stage and
+  Statistics are surfaces it puts on displays. Without that, closing the main
+  window with a second one open left the process running behind a window of
+  numbers that could not start anything.
 
 ### 13.4 Components
 
@@ -1256,7 +1288,7 @@ Statistics page alone: **Studio's bundle, Studio's tokens, Studio's chrome.**
 | atoms | — | the tiles are P7's `StatCard`; a `StatTile` would have been the same component twice |
 | molecules | `StatsTable` · `StatsCards` · `StatsChart` · `StatsFilterBar` | `StatsChart` is the only ECharts importer; the metric picker is the filter bar's last row, not a component of its own |
 | organisms | `LiveStats` · `AllDataStats` | both read-only; neither imports the command hook |
-| pages | `StatisticsPage` | Live \| All data, the view toggle, the empty state. Takes `onView` so the Statistics window, which has no route stack, can hold the view itself |
+| pages | `StatisticsPage` | Live \| All data, the view toggle, the empty state. Takes `onView` so the Statistics window, which has no route stack, can hold the view itself, and `surface` so that window's empty state offers no door out |
 
 Formatting lives on the metric, not the call site: `formatMetric` reads
 `statsUnit(metric)` (a ratio is a percentage, milliseconds are seconds to one
@@ -1281,8 +1313,13 @@ cannot disagree.
   a read; and the source grep: **no file under the Statistics surface imports
   the command hook**, and only `StatsChart` imports ECharts.
 - `crates/app`: `guard::statistics_may_only_read` walks `STATS_COMMANDS` and a
-  list of writes, and `windows::the_statistics_window_is_studio_not_stage`
-  pins the URL to Studio's bundle.
+  list of writes, `windows::the_statistics_window_is_studio_not_stage` pins the
+  URL to Studio's bundle, and
+  `windows::nothing_but_the_command_opens_the_statistics_window` reads
+  `refresh`'s own source to keep the monitor watch from opening a window.
+- `apps/studio`: picking a display issues a settings write and **no**
+  `stats_window`; the button shows, then closes, and its label follows the
+  host's `statsOpen`; Control offers the same pair.
 
 ### 13.6 Not in P11, decided
 

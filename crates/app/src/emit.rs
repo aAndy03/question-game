@@ -68,6 +68,12 @@ struct MonitorsChanged<'a> {
     stage_monitor_id: Option<&'a str>,
     /// Where the Stage window actually stands. `null` is the primary display.
     stage_on: Option<&'a str>,
+    /// The display Statistics would open on, connected or not.
+    stats_monitor_id: Option<&'a str>,
+    /// Whether the Statistics window is on screen **right now**. It is window
+    /// state, not settings state — the operator opens and closes it, and the
+    /// button that does so reads its label from here (§13.3).
+    stats_open: bool,
 }
 
 pub fn monitors_changed(app: &AppHandle, host: &Host) {
@@ -78,6 +84,8 @@ pub fn monitors_changed(app: &AppHandle, host: &Host) {
             monitors: host.display.monitors(),
             stage_monitor_id: host.flags.control().stage_monitor_id.as_deref(),
             stage_on: host.display.current().map(|k| k.as_str()),
+            stats_monitor_id: host.flags.control().stats_monitor_id.as_deref(),
+            stats_open: crate::windows::stats_is_open(app),
         },
     );
 }

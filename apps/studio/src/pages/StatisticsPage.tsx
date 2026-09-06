@@ -17,6 +17,8 @@ export interface StatisticsPageProps {
    * window (§13.3) keeps it in its own state, because it has no route stack.
    */
   onView?: ((view: StatsView) => void) | undefined
+  /** `window`: no sidebar behind it, so the empty state offers no way out. */
+  surface?: 'tab' | 'window' | undefined
 }
 
 const VIEWS: readonly StatsView[] = ['live', 'all']
@@ -30,7 +32,7 @@ const VIEWS: readonly StatsView[] = ['live', 'all']
  * shape is the same and a second template would be a second thing to keep in
  * step.
  */
-export function StatisticsPage({ view, onView }: StatisticsPageProps) {
+export function StatisticsPage({ view, onView, surface = 'tab' }: StatisticsPageProps) {
   const go = useNavStore((s) => s.go)
   const replace = useNavStore((s) => s.replace)
   // Older persisted documents predate the Statistics tab's view key.
@@ -75,7 +77,7 @@ export function StatisticsPage({ view, onView }: StatisticsPageProps) {
       }
     >
       {selected === 'live' ? (
-        <LiveStats onGoToControl={() => void go({ tab: 'control' })} />
+        <LiveStats {...(surface === 'tab' ? { onGoToControl: () => void go({ tab: 'control' }) } : {})} />
       ) : (
         <AllDataStats view={listView} />
       )}

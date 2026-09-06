@@ -1,17 +1,21 @@
-import { Button, Text } from '@/atoms'
+import { Button, SwitchField, Text } from '@/atoms'
 import { DisplayPicker, MonitorCard, SettingRow, SettingsGroup } from '@/molecules'
 import { CONTROL } from '@/copy'
 import { SETTINGS } from '@/copy/settings'
 import { STATS } from '@/copy/stats'
 import { useHostCommand } from '@/host/commands'
 import { useMonitors, useSettings } from '@/host/queries'
+import { useStatsWindowOpen } from '@/chrome/windows'
 import { SettingsForm } from './SettingsForm'
 
 /**
  * Settings ▸ Monitors (05_STUDIO_DESIGN.md §12.2.1): every connected display
  * as a `MonitorCard`, where Stage stands and what is remembered, the reattach
- * rule, and the Statistics display row (visible, `feature_off` until P11).
- * Nothing here touches a Play (§9); the host never picks a display.
+ * rule, and the Statistics window's own group (§13.3).
+ *
+ * Nothing here touches a Play (§9), and nothing here opens a window by itself:
+ * Stage is sent, Statistics is shown, both because the operator said so. The
+ * display pickers only remember *where*.
  */
 export function MonitorsSettings() {
   const monitors = useMonitors()
@@ -21,9 +25,13 @@ export function MonitorsSettings() {
   const remembered = settings.data?.control.stage_monitor_id ?? null
   const rememberedConnected = remembered !== null && list.some((m) => m.key === remembered)
   const single = list.length === 1
-  // §13.3: the Statistics window is a consequence of this pick — the host
-  // opens it, moves it and closes it. Stage's display is refused there.
+  // §13.3: the pick is where Statistics *would* go. Showing it is the button
+  // below, and closing it means closed — a display coming back never re-opens
+  // it. Stage's display is refused here.
   const stats = settings.data?.control.stats_monitor_id ?? null
+  const statsFullscreen = settings.data?.control.stats_fullscreen ?? true
+  const statsOpen = useStatsWindowOpen()
+  const statsOnStage = stats !== null && stats === remembered
 
   const send = (key: string | null) => {
     void run('stage_open')
@@ -64,14 +72,43 @@ export function MonitorsSettings() {
             </Button>
           ) : null}
         </div>
+      </SettingsGroup>
+
+      <SettingsGroup
+        title={STATS.window.title}
+        description={STATS.window.groupHint}
+        action={
+          <Button
+            size="sm"
+            variant={statsOpen ? 'ghost' : 'secondary'}
+            icon="statistics"
+            onPress={() => void run('stats_window', { open: !statsOpen })}
+          >
+            {statsOpen ? STATS.window.close : STATS.window.show}
+          </Button>
+        }
+      >
         <SettingRow label={SETTINGS.monitors.statsDisplay} description={STATS.window.displayHint}>
           <DisplayPicker
             label={SETTINGS.monitors.statsDisplay}
             monitors={list}
             value={stats}
             onChange={(value) => void run('settings_set_global', { setting: { key: 'stats_monitor_id', value } }, { targetPath: 'stats.monitor_id' })}
-            {...(single ? { isDisabled: true, disabledReason: SETTINGS.monitors.single } : {})}
+            {...(statsOnStage ? { disabledReason: STATS.window.sameAsStage } : {})}
           />
+        </SettingRow>
+        <SettingRow label={STATS.window.fullscreen} description={STATS.window.fullscreenHint}>
+          <SwitchField
+            label={STATS.window.fullscreen}
+            hideLabel
+            isSelected={statsFullscreen}
+            onChange={(value) => void run('settings_set_global', { setting: { key: 'stats_fullscreen', value } })}
+          />
+        </SettingRow>
+        <SettingRow label={STATS.window.state} description={STATS.window.stateHint}>
+          <Text variant="studio-body" tone={statsOpen ? 'default' : 'muted'}>
+            {statsOpen ? STATS.window.openNow : STATS.window.closedNow}
+          </Text>
         </SettingRow>
       </SettingsGroup>
       <SettingsForm groups={['control']} compact />

@@ -1,7 +1,9 @@
 import { Button, IconButton, Text } from '@/atoms'
 import { DisplayPicker } from '@/molecules'
 import { useControlLayoutStore } from '@/chrome/control'
+import { useStatsWindowOpen } from '@/chrome/windows'
 import { CHROME, CONTROL } from '@/copy'
+import { STATS } from '@/copy/stats'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import { useMonitors, useSettings } from '@/host/queries'
@@ -14,6 +16,7 @@ export function ControlTopBar() {
   const run = useHostCommand()
   const resetLayout = useControlLayoutStore((s) => s.resetLayout)
   const list = monitors.data ?? []
+  const statsOpen = useStatsWindowOpen()
 
   return (
     <div className="flex flex-wrap items-center gap-3" data-control-top>
@@ -31,6 +34,17 @@ export function ControlTopBar() {
           {CONTROL.statsDisplay}
         </Text>
         <DisplayPicker label={CONTROL.statsDisplay} monitors={list} value={settings.data?.control.stats_monitor_id ?? null} onChange={(value) => void run('settings_set_global', { setting: { key: 'stats_monitor_id', value } })} />
+        {/* The picker remembers where; this shows it. Mid-show the operator
+          * should be able to put the numbers up and take them down without
+          * leaving Control (§13.3). */}
+        <Button
+          size="sm"
+          variant={statsOpen ? 'ghost' : 'secondary'}
+          icon="statistics"
+          onPress={() => void run('stats_window', { open: !statsOpen })}
+        >
+          {statsOpen ? STATS.window.close : STATS.window.show}
+        </Button>
       </div>
       <div className="flex-1" />
       <IconButton

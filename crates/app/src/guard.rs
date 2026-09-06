@@ -32,7 +32,7 @@ pub const STAGE_COMMANDS: [&str; 3] = ["overlay_ack_complete", "stage_ready", "s
 /// display is Studio's Statistics page in a window of its own, so it needs the
 /// same reads that page makes and nothing else. A write reaching the host from
 /// this label is a bug in Studio, and this is where it stops.
-pub const STATS_COMMANDS: [&str; 8] = [
+pub const STATS_COMMANDS: [&str; 9] = [
     "stats_query",
     "get_state",
     "settings_get",
@@ -41,6 +41,10 @@ pub const STATS_COMMANDS: [&str; 8] = [
     "catalog_list",
     "catalog_get",
     "recipe_list",
+    // The bridge asks for the health report on mount, the same as Studio's own
+    // window does. Refusing it left a warning in the log on every open and a
+    // window that had not finished starting up.
+    "health_get",
 ];
 
 pub fn stage_may_call(command: &str) -> bool {
@@ -92,6 +96,9 @@ mod tests {
             "catalog_upsert",
             "settings_set_global",
             "show_screen",
+            // A window of numbers does not open or close windows either — that
+            // is the operator's, through Studio (§13.3).
+            "stats_window",
             // Not a writer of the Play, but Stage's own handshake: this window
             // has no overlay queue to acknowledge.
             "overlay_ack_complete",

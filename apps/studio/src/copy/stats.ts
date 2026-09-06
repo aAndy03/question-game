@@ -103,10 +103,19 @@ export const STATS = {
   },
 
   window: {
-    title: 'Statistics',
+    title: 'Statistics window',
+    groupHint: 'A second window with these numbers, opened when you ask for it. Never a second Stage.',
+    show: 'Show Statistics',
+    close: 'Close Statistics',
     /** The Monitors row (§13.3). */
     display: 'Statistics display',
-    displayHint: 'A second window with these numbers, on a display of its own. Never a second Stage.',
+    displayHint: 'Where it opens. Remembering a display does not open anything: nothing shows until you press Show.',
+    fullscreen: 'Fullscreen',
+    fullscreenHint: 'Off leaves a normal window you can size and move — the right choice on one display.',
+    state: 'Right now',
+    stateHint: 'It stays closed until you show it, and closes when its display is unplugged.',
+    openNow: 'Open',
+    closedNow: 'Closed',
     none: 'Not shown',
     sameAsStage: 'That display is showing Stage.',
   },

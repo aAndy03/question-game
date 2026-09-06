@@ -46,6 +46,16 @@ pub fn run() {
     tracing_logging();
     tauri::Builder::default()
         .invoke_handler(handlers())
+        // Studio is the app. Stage and Statistics are surfaces it puts on
+        // displays, so closing Studio ends the show rather than leaving a
+        // window of numbers running with nothing behind it.
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::CloseRequested { .. })
+                && window.label() == guard::MAIN
+            {
+                window.app_handle().exit(0);
+            }
+        })
         .setup(|app| {
             let handle = app.handle().clone();
             let host = Host::open(catalog_location(&handle)?)?;
@@ -151,5 +161,6 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::flags::health_get,
         // Statistics — read-only (§11.K)
         commands::stats::stats_query,
+        commands::stats::stats_window,
     ]
 }

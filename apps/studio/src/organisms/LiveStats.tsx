@@ -7,8 +7,12 @@ import { useStats } from '@/host/queries'
 import type { StatsQuery } from '@/host/types'
 
 export interface LiveStatsProps {
-  /** Pressed by the empty state. The page owns navigation. */
-  onGoToControl: () => void
+  /**
+   * Pressed by the empty state. The page owns navigation — and the Statistics
+   * window has none, so it passes nothing and the empty state says its piece
+   * without offering a door that leads nowhere.
+   */
+  onGoToControl?: (() => void) | undefined
 }
 
 /**
@@ -42,11 +46,15 @@ export function LiveStats({ onGoToControl }: LiveStatsProps) {
         kind="empty"
         what={STATS.empty.what}
         detail={STATS.live.noPlayHint}
-        action={
-          <Button variant="secondary" icon="control" onPress={onGoToControl}>
-            {STATS.live.goToControl}
-          </Button>
-        }
+        {...(onGoToControl
+          ? {
+              action: (
+                <Button variant="secondary" icon="control" onPress={onGoToControl}>
+                  {STATS.live.goToControl}
+                </Button>
+              ),
+            }
+          : {})}
       />
     )
   }

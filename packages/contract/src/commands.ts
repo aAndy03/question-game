@@ -122,7 +122,12 @@ export const COMMAND_GROUPS = {
     'health_get',
   ],
   /** Read-only projections. */
-  stats: ['stats_query'],
+  stats: [
+    'stats_query',
+    /** Show or hide the optional Statistics window (§11.K). The host never
+     * opens it on its own: a remembered display says *where*, this says *now*. */
+    'stats_window',
+  ],
 } as const
 
 export type CommandGroup = keyof typeof COMMAND_GROUPS
@@ -236,6 +241,14 @@ export interface MonitorsChanged {
   readonly stageMonitorId: string | null
   /** Where the Stage window actually stands. Null is the primary display. */
   readonly stageOn: string | null
+  /** The display Statistics would open on, connected or not. */
+  readonly statsMonitorId: string | null
+  /**
+   * Whether the Statistics window is on screen right now. Window state, not
+   * settings state: the operator opens and closes it (§11.K), and the button
+   * that does so takes its label from here.
+   */
+  readonly statsOpen: boolean
 }
 
 /**

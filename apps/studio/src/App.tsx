@@ -76,7 +76,7 @@ function StatsWindow() {
   const [view, setView] = useState<StatsView>('live')
   return (
     <div className="h-full min-h-0 overflow-hidden" data-stats-window>
-      <StatisticsPage view={view} onView={setView} />
+      <StatisticsPage view={view} onView={setView} surface="window" />
     </div>
   )
 }

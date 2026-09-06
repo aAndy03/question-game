@@ -71,27 +71,51 @@ pub fn ensure_stage(app: &AppHandle) -> AppResult<WebviewWindow> {
     Ok(window)
 }
 
-/// The Statistics window on `key`, created if it is not there yet (§11.K).
+/// Open the Statistics window, on the remembered display (§11.K, P11).
 ///
-/// Fullscreen like Stage, because it is a wall display too — but decorated
-/// and focusable: this one is for the room, and closing it by hand is a
-/// legitimate thing to do.
-pub fn ensure_stats(app: &AppHandle, key: &MonitorKey) -> AppResult<()> {
-    let window = match app.get_webview_window(STATS) {
-        Some(existing) => existing,
-        None => WebviewWindowBuilder::new(app, STATS, WebviewUrl::App(STATS_PATH.into()))
-            .title("questiongame Statistics")
-            .inner_size(1280.0, 800.0)
-            .focused(false)
-            .build()?,
+/// **Only the operator calls this.** Nothing in the host opens this window:
+/// not a setting, not a display coming back, not the monitor watch. Choosing a
+/// display says *where* it would go; `stats_window` is what makes it appear,
+/// and closing it — by the button or by the window's own close box — means it
+/// stays closed (revised 2026-09-07).
+///
+/// Fullscreen is the operator's choice (`stats.fullscreen`): right on a wall
+/// display, wrong on the single display a laptop has, where it would bury
+/// Studio behind a screen of numbers.
+///
+/// **The caller must not hold the host lock.** Building a webview pumps the
+/// Windows message loop, and the new window's first act is to `invoke` — which
+/// wants the same lock. That is what left the window white and unresponsive
+/// when it was built inside `monitors_list`.
+pub fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool) -> AppResult<()> {
+    let origin = match key {
+        Some(k) => monitors::physical_origin(app, k),
+        None => app.primary_monitor()?.map(|m| *m.position()),
     };
-    let Some(origin) = monitors::physical_origin(app, key) else {
-        tracing::warn!("statistics was sent to a display that is no longer listed");
+
+    if let Some(window) = app.get_webview_window(STATS) {
+        // Already there: place it again, because the operator may have picked
+        // another display since, and raise it — pressing Show on a window
+        // hiding behind Studio should bring it forward.
+        place(&window, origin, fullscreen)?;
+        window.set_focus()?;
         return Ok(());
-    };
-    window.set_fullscreen(false)?;
-    window.set_position(origin)?;
-    window.set_fullscreen(true)?;
+    }
+
+    // Built at its destination rather than moved there afterwards: a window
+    // that is created centred and then thrown across the desktop flashes on
+    // the wrong display first.
+    let mut builder = WebviewWindowBuilder::new(app, STATS, WebviewUrl::App(STATS_PATH.into()))
+        .title("questiongame Statistics")
+        .inner_size(1280.0, 800.0)
+        .focused(false);
+    if let Some(origin) = origin {
+        builder = builder.position(f64::from(origin.x), f64::from(origin.y));
+    }
+    let window = builder.build()?;
+    if fullscreen {
+        window.set_fullscreen(true)?;
+    }
     Ok(())
 }
 
@@ -104,17 +128,60 @@ pub fn close_stats(app: &AppHandle) -> AppResult<()> {
     Ok(())
 }
 
-/// Put the Statistics window where `stats.monitor_id` says, or close it when
-/// that is `None` or names a display that is not there.
-pub fn place_stats(app: &AppHandle, host: &crate::state::Host) -> AppResult<()> {
-    let Some(id) = host.flags.control().stats_monitor_id.clone() else {
-        return close_stats(app);
+/// Is it on screen right now? The one piece of Statistics-window state, and it
+/// lives where it actually is — in the window list, not in the settings
+/// document. Studio reads it through `monitors_list` / `monitors-changed`.
+pub fn stats_is_open(app: &AppHandle) -> bool {
+    app.get_webview_window(STATS).is_some()
+}
+
+/// Move an **already open** Statistics window; never create one.
+///
+/// Called from the monitor watch, where creating a window would be the host
+/// deciding to show something. A window whose display is gone is closed, and
+/// the operator is told.
+fn follow_stats(app: &AppHandle, host: &crate::state::Host) -> AppResult<()> {
+    let Some(window) = app.get_webview_window(STATS) else {
+        return Ok(());
     };
-    let key = MonitorKey::new(id);
-    if !crate::monitors::list(app).iter().any(|m| m.key == key) {
-        return close_stats(app);
+    let control = host.flags.control();
+    let Some(id) = control.stats_monitor_id.clone() else {
+        // No remembered display: it opened on primary and stays there.
+        return Ok(());
+    };
+    let key = MonitorKey::new(id.clone());
+    if crate::monitors::list(app).iter().any(|m| m.key == key) {
+        place(&window, monitors::physical_origin(app, &key), control.stats_fullscreen)?;
+        return Ok(());
     }
-    ensure_stats(app, &key)
+
+    close_stats(app)?;
+    crate::emit::notice(
+        app,
+        &questiongame_host::notice::Notice::new(
+            "stats.monitor_lost",
+            questiongame_host::notice::Severity::Warn,
+            &["pick_monitor"],
+        )
+        .at("stats.monitor_id")
+        .with("monitor", id),
+    );
+    Ok(())
+}
+
+/// Put a window on a display. A fullscreen window belongs to its monitor, so
+/// it leaves fullscreen, moves, and goes back — the same dance Stage does.
+fn place(window: &WebviewWindow, origin: Option<tauri::PhysicalPosition<i32>>, fullscreen: bool) -> AppResult<()> {
+    let Some(origin) = origin else {
+        tracing::warn!("statistics was sent to a display that is no longer listed");
+        return Ok(());
+    };
+    window.set_fullscreen(false)?;
+    window.set_position(origin)?;
+    if fullscreen {
+        window.set_fullscreen(true)?;
+    }
+    Ok(())
 }
 
 /// Re-read the OS display list, run the §9 policy over it, and **act on the
@@ -139,31 +206,11 @@ pub fn refresh(app: &AppHandle, host: &mut crate::state::Host) -> AppResult<()> 
         crate::emit::notice(app, notice);
     }
 
-    // The Statistics window follows its own display, and unplugging it is a
-    // one-line story: the window goes, the numbers are still in Studio, and
-    // nothing about the Play changes (§11.K).
-    let stats_wanted = host.flags.control().stats_monitor_id.clone();
-    if let Some(id) = stats_wanted {
-        let key = MonitorKey::new(id.clone());
-        let still_there = crate::monitors::list(app).iter().any(|m| m.key == key);
-        if still_there {
-            ensure_stats(app, &key)?;
-        } else if app.get_webview_window(STATS).is_some() {
-            close_stats(app)?;
-            crate::emit::notice(
-                app,
-                &questiongame_host::notice::Notice::new(
-                    "stats.monitor_lost",
-                    questiongame_host::notice::Severity::Warn,
-                    &["pick_monitor"],
-                )
-                .at("stats.monitor_id")
-                .with("monitor", id),
-            );
-        }
-    } else {
-        close_stats(app)?;
-    }
+    // The Statistics window follows its own display and is never opened by
+    // this path: it is on screen because the operator asked for it, and it
+    // goes when its display does (§11.K).
+    follow_stats(app, host)?;
+
     crate::emit::monitors_changed(app, host);
     Ok(())
 }
@@ -208,6 +255,26 @@ mod tests {
     /// loads Studio's bundle with `?stats`, so it has Studio's tokens, Studio's
     /// chrome and no screen at all — and `guard::STATS_COMMANDS` keeps it from
     /// asking for anything but reads.
+    /// The host never decides to put something on a display (§9, §11.K). The
+    /// monitor watch may *follow* the Statistics window and close it when its
+    /// display goes, but opening one is `stats_window`'s alone — a display
+    /// coming back must not raise a window the operator closed.
+    #[test]
+    fn nothing_but_the_command_opens_the_statistics_window() {
+        const SOURCE: &str = include_str!("windows.rs");
+        let refresh = SOURCE
+            .split_once("pub fn refresh(")
+            .expect("refresh exists")
+            .1;
+        let refresh = refresh.split_once("
+/// ").map_or(refresh, |(body, _)| body);
+        assert!(
+            !refresh.contains("open_stats"),
+            "the monitor watch opened a window"
+        );
+        assert!(refresh.contains("follow_stats"), "it should still follow one");
+    }
+
     #[test]
     fn the_statistics_window_is_studio_not_stage() {
         assert!(STATS_PATH.starts_with("studio/"), "{STATS_PATH}");

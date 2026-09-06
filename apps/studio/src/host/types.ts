@@ -285,7 +285,10 @@ export interface ControlSettings {
   readonly viewer_hit_targets: boolean
   readonly mosaic_density: MosaicDensity
   readonly stage_monitor_id: string | null
+  /** Where Statistics opens **when asked**. Remembering is not showing (§13.3). */
   readonly stats_monitor_id: string | null
+  /** Fullscreen that window, or leave it sizable. */
+  readonly stats_fullscreen: boolean
   readonly stage_reattach: StageReattach
   readonly audio: AudioSettings
 }
@@ -351,6 +354,7 @@ export type GlobalSetting =
   | { readonly key: 'mosaic_density'; readonly value: MosaicDensity }
   | { readonly key: 'stage_monitor_id'; readonly value: string | null }
   | { readonly key: 'stats_monitor_id'; readonly value: string | null }
+  | { readonly key: 'stats_fullscreen'; readonly value: boolean }
   | { readonly key: 'stage_reattach'; readonly value: StageReattach }
   | { readonly key: 'feature'; readonly value: readonly [string, boolean] }
   | { readonly key: 'active_operator_id'; readonly value: string | null }

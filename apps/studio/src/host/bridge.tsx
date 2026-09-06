@@ -7,7 +7,7 @@
  *   play-state       → `receivePlayState` (the external store)
  *   catalog-changed  → invalidate that kind's queries
  *   recipe-changed   → invalidate that recipe's queries
- *   monitors-changed → replace the monitors query data
+ *   monitors-changed → replace the monitors query data, and the windows store
  *   notice           → the notice store
  *   health           → the health store's headline, and the notice store's
  *                      `health` source replaced with the report's items
@@ -34,6 +34,7 @@ import type {
 } from '@questiongame/contract'
 import { useHealthStore } from '@/chrome/health'
 import { useNoticeStore } from '@/chrome/notices'
+import { useWindowsStore } from '@/chrome/windows'
 import { command, hasHost, on } from './host'
 import { receivePlayState } from './playState'
 import { invalidateForCatalogChange, invalidateForRecipeChange, keys } from './queries'
@@ -43,6 +44,7 @@ export function HostBridge() {
   const pushNotice = useNoticeStore((s) => s.push)
   const replaceSource = useNoticeStore((s) => s.replaceSource)
   const setReport = useHealthStore((s) => s.setReport)
+  const setStatsOpen = useWindowsStore((s) => s.setStatsOpen)
 
   useEffect(() => {
     if (!hasHost()) return
@@ -56,7 +58,14 @@ export function HostBridge() {
     add(on<PlayStateForMain>('play-state', receivePlayState))
     add(on<CatalogChange>('catalog-changed', (c) => invalidateForCatalogChange(client, c.kind, c.id)))
     add(on<RecipeChange>('recipe-changed', (c) => invalidateForRecipeChange(client, c.id)))
-    add(on<MonitorsChanged>('monitors-changed', (m) => client.setQueryData(keys.monitors, m.monitors)))
+    add(
+      on<MonitorsChanged>('monitors-changed', (m) => {
+        client.setQueryData(keys.monitors, m.monitors)
+        // Window state, not settings state: whether Statistics is on screen
+        // comes from the host's window list, and only from here (§13.3).
+        setStatsOpen(m.statsOpen)
+      }),
+    )
     add(on<Notice>('notice', pushNotice))
     add(on<HealthReport>('health', receiveHealth))
 
@@ -68,7 +77,7 @@ export function HostBridge() {
       .catch(() => setReport(null))
 
     return () => offs.forEach((off) => off())
-  }, [client, pushNotice, replaceSource, setReport])
+  }, [client, pushNotice, replaceSource, setReport, setStatsOpen])
 
   return null
 }

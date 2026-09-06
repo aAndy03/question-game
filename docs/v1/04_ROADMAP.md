@@ -625,7 +625,7 @@ dev-only `crates/app/src/demo.rs`.
   refuses every write *and* Stage's own `stage_ready` /
   `overlay_ack_complete`.
 
-**As built:** the design section is `05_STUDIO_DESIGN.md` §13. `stats_query` is one command over one document: `crates/host/src/stats.rs` folds a Play log into `TurnFact`s and aggregates them (pure, ten unit tests), and `CatalogService::stats_query` decides which logs to read and relabels rows from the current catalog (§12's rename rule). There is no `StatsService` — Statistics owns no state. The window is a consequence of `stats.monitor_id`, not a command of its own, so the §13 command list is unchanged.
+**As built:** the design section is `05_STUDIO_DESIGN.md` §13. `stats_query` is one command over one document: `crates/host/src/stats.rs` folds a Play log into `TurnFact`s and aggregates them (pure, ten unit tests), and `CatalogService::stats_query` decides which logs to read and relabels rows from the current catalog (§12's rename rule). There is no `StatsService` — Statistics owns no state. The optional Statistics window is opened by the operator alone (`stats_window`, added to §13's list on 2026-09-07): `stats.monitor_id` says where it *would* go, `stats.fullscreen` says how, and nothing in the host puts it on a display.
 
 ---
 

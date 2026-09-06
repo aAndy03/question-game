@@ -447,6 +447,7 @@ fn a_control_behaviour_write_takes_effect_immediately_and_is_remembered() {
         GlobalSetting::MosaicDensity(MosaicDensity::Compact),
         GlobalSetting::StageMonitorId(Some("monitor-2".to_owned())),
         GlobalSetting::StatsMonitorId(Some("monitor-3".to_owned())),
+        GlobalSetting::StatsFullscreen(false),
         GlobalSetting::StageReattach(StageReattach::Auto),
         GlobalSetting::Reveal(RevealChannel::Answers, RevealMode::Auto),
     ] {
@@ -460,6 +461,7 @@ fn a_control_behaviour_write_takes_effect_immediately_and_is_remembered() {
         mosaic_density: MosaicDensity::Compact,
         stage_monitor_id: Some("monitor-2".to_owned()),
         stats_monitor_id: Some("monitor-3".to_owned()),
+        stats_fullscreen: false,
         stage_reattach: StageReattach::Auto,
         audio: AudioSettings::default(),
     };

@@ -9,6 +9,7 @@ import { demoLibrary, demoRecipe } from '@/host/devFake'
 import { setHostTransport } from '@/host/host'
 import { receivePlayState } from '@/host/playState'
 import { STATS } from '@/copy/stats'
+import { useWindowsStore } from '@/chrome/windows'
 import type { StatsQuery, StatsResult } from '@/host/types'
 
 /**
@@ -198,5 +199,64 @@ describe('the Statistics surface', () => {
   it('keeps ECharts in the one molecule', () => {
     const importers = Object.entries(SOURCES).filter(([, text]) => text.includes("from 'echarts'"))
     expect(importers.map(([file]) => file.split('/').pop())).toEqual(['StatsChart.tsx'])
+  })
+})
+
+describe('the Statistics window', () => {
+  beforeEach(() => {
+    useNavStore.setState({ route: HOME, back: [], forward: [], guard: null })
+    useNoticeStore.setState({ notices: [] })
+    useWindowsStore.setState({ statsOpen: null })
+    receivePlayState(null)
+  })
+  afterEach(() => setHostTransport(null))
+
+  it('opens only when asked, and picking a display opens nothing (§13.3)', async () => {
+    const fake = mount()
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'monitors' })
+    })
+
+    expect(await screen.findByLabelText(STATS.window.title)).toBeTruthy()
+
+    // Remembering a display is not showing one: the pick the picker makes is a
+    // settings write and nothing else. This is the bug the manual model fixed
+    // — the window used to appear the moment a display was chosen, and again
+    // whenever that display came back.
+    await act(async () => {
+      await fake.invoke('settings_set_global', { setting: { key: 'stats_monitor_id', value: 'display-2' } })
+    })
+    expect(fake.calls.map((c) => c.name)).not.toContain('stats_window')
+    expect(fake.statsOpen).toBe(false)
+
+    // The button is the only door.
+    const show = await screen.findByRole('button', { name: STATS.window.show })
+    await act(async () => {
+      fireEvent.click(show)
+    })
+    await waitFor(() => expect(fake.statsOpen).toBe(true))
+    expect(fake.calls.find((c) => c.name === 'stats_window')?.args).toEqual({ open: true })
+
+    // And the same button closes it, because the host said it is open.
+    const close = await screen.findByRole('button', { name: STATS.window.close })
+    await act(async () => {
+      fireEvent.click(close)
+    })
+    await waitFor(() => expect(fake.statsOpen).toBe(false))
+    expect(await screen.findByRole('button', { name: STATS.window.show })).toBeTruthy()
+  })
+
+  it('offers the same show/close from Control', async () => {
+    const fake = mount(openPlay(12))
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'control' })
+    })
+    const show = await screen.findByRole('button', { name: STATS.window.show })
+    await act(async () => {
+      fireEvent.click(show)
+    })
+    await waitFor(() => expect(fake.statsOpen).toBe(true))
   })
 })

@@ -16,7 +16,7 @@ use questiongame_host::catalog::CatalogKind;
 use questiongame_host::flags::{Chord, GameSetting, GlobalSetting, SettingsView};
 use questiongame_host::catalog::{CatalogError, CatalogItem, Operator};
 use questiongame_host::operator::{hash_pin, validate_pin_format, verify_pin};
-use questiongame_host::{HealthReport, OperatorId};
+use questiongame_host::{HealthReport, MonitorKey, OperatorId};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 
@@ -82,15 +82,22 @@ pub fn settings_set_global(
     }
 
     let ctx = host.runtime();
-    let places_stats = matches!(setting, GlobalSetting::StatsMonitorId(_));
+    // Picking a display says *where* Statistics would go, not that it should
+    // appear: `stats_window` is the only thing that opens it (§11.K, revised
+    // 2026-09-07). An open window does follow the new pick, though — the
+    // operator moved it on purpose.
+    let places_stats = matches!(
+        setting,
+        GlobalSetting::StatsMonitorId(_) | GlobalSetting::StatsFullscreen(_)
+    );
     host.flags.settings_set_global(setting, ctx)?;
-
-    // The Statistics window is a consequence of the setting, not a command of
-    // its own (§11.K): pick a display and it opens there, clear it and it
-    // closes. Nothing about a Play is involved either way.
-    if places_stats {
-        windows::place_stats(&app, &host)?;
-    }
+    let stats_target = places_stats.then(|| {
+        let control = host.flags.control();
+        (
+            control.stats_monitor_id.clone().map(MonitorKey::new),
+            control.stats_fullscreen,
+        )
+    });
 
     // Control-behaviour keys are live for the whole Play (§2.5), so the copy
     // `MatchService` holds moves with them. No frozen key can reach here.
@@ -102,6 +109,16 @@ pub fn settings_set_global(
 
     // `reveal.*` and `overlay_animations.enabled` are in the Stage emission.
     emit::play_state(&app, &mut host, now, true);
+
+    // Outside the lock: touching a window can pump the message loop, and a
+    // webview that invokes while this command still holds the lock waits on
+    // itself.
+    drop(host);
+    if let Some((key, fullscreen)) = stats_target
+        && windows::stats_is_open(&app)
+    {
+        windows::open_stats(&app, key.as_ref(), fullscreen)?;
+    }
     Ok(())
 }
 
