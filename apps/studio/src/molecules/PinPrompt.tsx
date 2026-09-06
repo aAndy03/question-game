@@ -81,7 +81,8 @@ export function PinPrompt({ isOpen, onOpenChange, title, body, error, isPending,
 
   return (
     <Popover isOpen={isOpen} onOpenChange={onOpenChange}>
-      {anchor ? <Popover.Trigger>{anchor}</Popover.Trigger> : null}
+      {/* The anchor is the trigger, directly under `Popover` (HeroUI v3). */}
+      {anchor}
       <Popover.Content placement="bottom" className="p-3">
         <Popover.Dialog aria-label={title}>{form}</Popover.Dialog>
       </Popover.Content>

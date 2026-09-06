@@ -283,6 +283,8 @@ Import the token files rather than hardcoding values. The palette is a stark bla
 
 **Studio** — React 19 (follow the React 19 API docs and provider patterns), Tailwind v4, HeroUI v3 (`@heroui/react@^3.2.4`, `@heroui/styles`), Base UI where HeroUI has no fit, Iconify + Gravity UI as default icons with Phosphor duotone as supplement, `@dnd-kit/react` + `@dnd-kit/helpers`.
 
+**Two HeroUI v3 overlay rules, learned the hard way:** the **trigger is the button itself** — `Dropdown.Trigger` / `Popover.Trigger` wrap their child in a pressable of their own, so a `Button` inside one is two nested `<button>`s — and a **controlled overlay starts at `.Backdrop`**, with no `<Drawer>` / `<AlertDialog>` root, because the root exists only to wire a trigger and otherwise warns `PressResponder without a pressable child` on every render.
+
 **HeroUI is v3 only — pin `@heroui/react@^3.2.4`.** Invoke the `heroui-react` skill before writing HeroUI markup and never answer from memory: v3 is Tailwind v4 + React Aria, with **no `HeroUIProvider`**, no framer-motion, and oklch theme variables, so v2 knowledge is actively wrong. Canonical index: `https://heroui.com/react/llms.txt`; components at `heroui.com/en/docs/react/components/<name>`.
 
 ### Two design systems, one component stack (§2.30)

@@ -30,9 +30,10 @@ export function SettingsFloat() {
 
   return (
     <Popover>
-      <Popover.Trigger>
-        <IconButton icon="settings" label={CONTROL.settings} size="sm" hideTooltip />
-      </Popover.Trigger>
+      {/* The button is the trigger. A `Popover.Trigger` wrapper renders its own
+        * pressable around the child, which is a second button and a React Aria
+        * warning; HeroUI v3 puts the Button directly under `Popover`. */}
+      <IconButton icon="settings" label={CONTROL.settings} size="sm" hideTooltip />
       <Popover.Content placement="bottom end" className="w-[30rem] max-w-[90vw]">
         <Popover.Dialog aria-label={CONTROL.settings}>
           <Tabs variant="secondary" defaultSelectedKey={play ? 'game' : 'global'}>

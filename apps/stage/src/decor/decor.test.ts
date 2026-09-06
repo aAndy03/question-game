@@ -5,6 +5,7 @@ import { idleDecor } from './manifests/idle'
 const IDLE_DECOR = idleDecor(FIXTURES.idle)
 import { STEP_MS, DECOR_ASSET_IDS, SOLID_MARGIN, anchorPhase, colliderVertices, createDecorWorld, decorAsset, hashString, layoutDecor, rawAsset, resolveBoundary, seedFromPlay, settle } from './index'
 import hulls from '@questiongame/design-stage/assets/hulls.json'
+import { Vertices } from 'matter-js'
 
 function corners(b: { x: number; y: number; width: number; height: number; angle: number }) {
   const a = (b.angle * Math.PI) / 180
@@ -152,6 +153,13 @@ describe('decor assets', () => {
       expect(live, `${id}: SVG changed since hulls.json — run npm run decor:hulls`).toBe(entry!.hash)
       expect(entry!.hull.length).toBeGreaterThanOrEqual(3)
       expect(entry!.hull.length).toBeLessThanOrEqual(20)
+      // Convex *as matter-js reads it*, and still convex at the scale the
+      // world builds it at. A hull that fails this is one `Bodies.fromVertices`
+      // tries to decompose, which is the poly-decomp warning on every boot.
+      for (const scale of [1, 0.137, 12.5]) {
+        const points = entry!.hull.map(([x, y]) => ({ x: x! * scale - 7.3, y: y! * scale + 101.7 }))
+        expect(Vertices.isConvex(points), `${id}: concave at scale ${scale} — run npm run decor:hulls`).toBe(true)
+      }
     }
   })
 

@@ -396,6 +396,15 @@ Toasts · dnd-kit roster drag (P8) · Shape manager dialog (P8+) · hotkey chord
   work.
 - **`RecordRow` grid cards** put chips and meta on a second line; at narrow
   widths the meta wraps rather than truncates.
+- **HeroUI v3 overlays: the trigger is the button, and a controlled overlay has
+  no root.** `Dropdown.Trigger` / `Popover.Trigger` render a pressable *around*
+  their child, so wrapping a `Button` nests two `<button>`s — invalid HTML and a
+  React error; v3's own examples put the Button directly under `<Dropdown>` /
+  `<Popover>`. And a `<Drawer>` / `<AlertDialog>` root exists to wire that
+  trigger: a controlled overlay (`isOpen` on the `.Backdrop`) has none, and the
+  root then mounts a `PressResponder` with no pressable child and warns on every
+  render. Controlled overlays here start at `.Backdrop`, as the v3 "Controlled
+  State" examples do.
 
 ## 10. Control tab (P8)
 

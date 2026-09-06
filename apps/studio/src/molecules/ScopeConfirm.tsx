@@ -18,30 +18,33 @@ export function ScopeConfirm({ isOpen, onOpenChange, subject, isPending, onChoos
     await onChoose(scope)
     onOpenChange(false)
   }
+  // No `<AlertDialog>` root: the root exists to wire a trigger, and a
+  // controlled dialog has none — it then mounts a PressResponder with no
+  // pressable child and warns on every render. HeroUI v3's controlled example
+  // starts at `AlertDialog.Backdrop` (docs: alert-dialog, "Controlled State").
   return (
-    <AlertDialog>
-      <AlertDialog.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable={false} isKeyboardDismissDisabled={false}>
-        <AlertDialog.Container size="sm">
-          <AlertDialog.Dialog>
-            <AlertDialog.Header>
-              <AlertDialog.Icon status="accent" />
-              <AlertDialog.Heading>{CONFIRM.scopeTitle}</AlertDialog.Heading>
-            </AlertDialog.Header>
-            <AlertDialog.Body>{subject ? `${CONFIRM.scopeBody} (${subject})` : CONFIRM.scopeBody}</AlertDialog.Body>
-            <AlertDialog.Footer>
-              <Button variant="tertiary" onPress={() => onOpenChange(false)} isDisabled={isPending}>
-                {CONFIRM.cancel}
-              </Button>
-              <Button variant="secondary" onPress={() => void choose('original')} isPending={isPending}>
-                {CONFIRM.original}
-              </Button>
-              <Button variant="primary" onPress={() => void choose('this_game')} isPending={isPending} autoFocus>
-                {CONFIRM.thisGame}
-              </Button>
-            </AlertDialog.Footer>
-          </AlertDialog.Dialog>
-        </AlertDialog.Container>
-      </AlertDialog.Backdrop>
-    </AlertDialog>
+    <AlertDialog.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable={false} isKeyboardDismissDisabled={false}>
+      <AlertDialog.Container size="sm">
+        <AlertDialog.Dialog>
+          <AlertDialog.Header>
+            <AlertDialog.Icon status="accent" />
+            <AlertDialog.Heading>{CONFIRM.scopeTitle}</AlertDialog.Heading>
+          </AlertDialog.Header>
+          <AlertDialog.Body>{subject ? `${CONFIRM.scopeBody} (${subject})` : CONFIRM.scopeBody}</AlertDialog.Body>
+          <AlertDialog.Footer>
+            <Button variant="tertiary" onPress={() => onOpenChange(false)} isDisabled={isPending}>
+              {CONFIRM.cancel}
+            </Button>
+            <Button variant="secondary" onPress={() => void choose('original')} isPending={isPending}>
+              {CONFIRM.original}
+            </Button>
+            <Button variant="primary" onPress={() => void choose('this_game')} isPending={isPending} autoFocus>
+              {CONFIRM.thisGame}
+            </Button>
+          </AlertDialog.Footer>
+        </AlertDialog.Dialog>
+      </AlertDialog.Container>
+    </AlertDialog.Backdrop>
+  
   )
 }

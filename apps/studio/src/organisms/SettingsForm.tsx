@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { CUE_KEYS, DEFAULT_AUDIO, type CueKey } from '@questiongame/contract'
 import { DurationField, NumberField, OptionalNumberField, SegmentedField, SelectField, SliderField, SwitchField, Text } from '@/atoms'
 import { CueMapRow, DifficultyMapField, InlineNotice, SettingRow, SettingsGroup, disabledReasonText } from '@/molecules'
@@ -61,7 +61,9 @@ export function SettingsForm({ groups, compact }: SettingsFormProps) {
   const render = (id: SettingsGroupId) => {
     const meta = SETTINGS_GROUPS.find((x) => x.id === id)
     if (!meta) return null
-    const props = { key: id, id: `settings-${id}`, title: meta.title, description: compact ? undefined : meta.description }
+    // No `key` in here: React reads a spread key as a prop and warns. The key
+    // belongs on the element the caller maps, which is where `render` is used.
+    const props = { id: `settings-${id}`, title: meta.title, description: compact ? undefined : meta.description }
     switch (id) {
       case 'award':
         return (
@@ -273,7 +275,9 @@ export function SettingsForm({ groups, compact }: SettingsFormProps) {
           onAction={() => {}}
         />
       ) : null}
-      {SETTINGS_GROUPS.filter((x) => wanted.has(x.id)).map((x) => render(x.id))}
+      {SETTINGS_GROUPS.filter((x) => wanted.has(x.id)).map((x) => (
+        <Fragment key={x.id}>{render(x.id)}</Fragment>
+      ))}
     </div>
   )
 }

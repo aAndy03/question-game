@@ -18,9 +18,14 @@
  * they drift.
  *
  * Hulls are sampled from every <path d> and <rect> (with rotate transforms),
- * clamped to the viewBox (the renderer clips there), then reduced with a monotone chain and trimmed to at most MAX_VERTICES by
+ * clamped to the viewBox (the renderer clips there), rounded to tenths, then
+ * reduced with a monotone chain and trimmed to at most MAX_VERTICES by
  * dropping the vertex that changes the area least. matter-js takes convex
- * vertex lists directly.
+ * vertex lists directly — and it means *convex*: round before hulling, never
+ * after, or a rounded vertex lands a hair on the wrong side of its own edge,
+ * `Vertices.isConvex` says no, and `Bodies.fromVertices` asks for poly-decomp
+ * on every boot. `decor.test.ts` checks every stored hull with matter's own
+ * test, at the scales the world builds them at.
  */
 
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -200,7 +205,13 @@ for (const file of files) {
   if (points.length < 3) throw new Error(`${file}: no <path> or <rect> to sample`)
 
   const clamped = points.map(([x, y]): Pt => [Math.min(width, Math.max(0, x)), Math.min(height, Math.max(0, y))])
-  const hull = trim(convexHull(clamped), MAX_VERTICES).map(([x, y]) => [round(x), round(y)] as const)
+  // Round to tenths **before** hulling, and hull in whole tenths: the cross
+  // products are then exact integers, so the chain drops every collinear point
+  // and no vertex can end up a hair on the wrong side of its own edge.
+  // Rounding afterwards did exactly that, and matter-js reads such a hull as
+  // concave — which is what made `Bodies.fromVertices` ask for poly-decomp.
+  const tenths = clamped.map(([x, y]): Pt => [Math.round(x * 10), Math.round(y * 10)])
+  const hull = trim(convexHull(tenths), MAX_VERTICES).map(([x, y]) => [round(x / 10), round(y / 10)] as const)
   const rel = relative(ASSETS, file).split(sep).join('/')
   hulls[id] = { file: rel, width, height, hull, hash: fnv1a(raw) }
 

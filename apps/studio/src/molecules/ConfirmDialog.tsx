@@ -85,60 +85,63 @@ export function ConfirmDialog({
     else onOpenChange(false)
   }
 
+  // No `<AlertDialog>` root: the root exists to wire a trigger, and a
+  // controlled dialog has none — it then mounts a PressResponder with no
+  // pressable child and warns on every render. HeroUI v3's controlled example
+  // starts at `AlertDialog.Backdrop` (docs: alert-dialog, "Controlled State").
   return (
-    <AlertDialog>
-      <AlertDialog.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable={false} isKeyboardDismissDisabled={false}>
-        <AlertDialog.Container size="sm">
-          <AlertDialog.Dialog>
-            <AlertDialog.Header>
-              <AlertDialog.Icon status={severity === 'default' ? 'accent' : severity} />
-              <AlertDialog.Heading>{shownTitle}</AlertDialog.Heading>
-            </AlertDialog.Header>
-            {shownBody || isPin ? (
-              <AlertDialog.Body>
-                {shownBody}
-                {isPin ? (
-                  <div className="pt-2">
-                    <PinPrompt
-                      variant="frame"
-                      isOpen
-                      onOpenChange={() => cancel()}
-                      title={frame.title}
-                      error={pinError ?? null}
-                      isPending={isPending}
-                      submitLabel={frame.confirmLabel}
-                      onSubmit={(pin) => void (onConfirmPin ?? (() => onConfirm()))(pin)}
-                      onCancel={cancel}
-                    />
-                  </div>
-                ) : null}
-              </AlertDialog.Body>
-            ) : null}
-            {isPin ? (
-              frames.length > 0 ? (
-                <AlertDialog.Footer>
-                  <Text variant="studio-caption" tone="muted">{`${frames.length + 1}/${CONFIRM_MAX_DEPTH}`}</Text>
-                </AlertDialog.Footer>
-              ) : null
-            ) : (
+    <AlertDialog.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable={false} isKeyboardDismissDisabled={false}>
+      <AlertDialog.Container size="sm">
+        <AlertDialog.Dialog>
+          <AlertDialog.Header>
+            <AlertDialog.Icon status={severity === 'default' ? 'accent' : severity} />
+            <AlertDialog.Heading>{shownTitle}</AlertDialog.Heading>
+          </AlertDialog.Header>
+          {shownBody || isPin ? (
+            <AlertDialog.Body>
+              {shownBody}
+              {isPin ? (
+                <div className="pt-2">
+                  <PinPrompt
+                    variant="frame"
+                    isOpen
+                    onOpenChange={() => cancel()}
+                    title={frame.title}
+                    error={pinError ?? null}
+                    isPending={isPending}
+                    submitLabel={frame.confirmLabel}
+                    onSubmit={(pin) => void (onConfirmPin ?? (() => onConfirm()))(pin)}
+                    onCancel={cancel}
+                  />
+                </div>
+              ) : null}
+            </AlertDialog.Body>
+          ) : null}
+          {isPin ? (
+            frames.length > 0 ? (
               <AlertDialog.Footer>
-                {frames.length > 0 ? <Text variant="studio-caption" tone="muted" className="mr-auto">{`${frames.length + 1}/${CONFIRM_MAX_DEPTH}`}</Text> : null}
-                <Button variant="tertiary" onPress={cancel} isDisabled={isPending}>
-                  {cancelLabel}
-                </Button>
-                <Button
-                  variant={severity === 'danger' ? 'danger' : 'primary'}
-                  onPress={() => void confirm()}
-                  isPending={isPending}
-                  autoFocus
-                >
-                  {frame ? frame.confirmLabel : arm && armed ? (armedLabel ?? CONFIRM.confirm) : confirmLabel}
-                </Button>
+                <Text variant="studio-caption" tone="muted">{`${frames.length + 1}/${CONFIRM_MAX_DEPTH}`}</Text>
               </AlertDialog.Footer>
-            )}
-          </AlertDialog.Dialog>
-        </AlertDialog.Container>
-      </AlertDialog.Backdrop>
-    </AlertDialog>
+            ) : null
+          ) : (
+            <AlertDialog.Footer>
+              {frames.length > 0 ? <Text variant="studio-caption" tone="muted" className="mr-auto">{`${frames.length + 1}/${CONFIRM_MAX_DEPTH}`}</Text> : null}
+              <Button variant="tertiary" onPress={cancel} isDisabled={isPending}>
+                {cancelLabel}
+              </Button>
+              <Button
+                variant={severity === 'danger' ? 'danger' : 'primary'}
+                onPress={() => void confirm()}
+                isPending={isPending}
+                autoFocus
+              >
+                {frame ? frame.confirmLabel : arm && armed ? (armedLabel ?? CONFIRM.confirm) : confirmLabel}
+              </Button>
+            </AlertDialog.Footer>
+          )}
+        </AlertDialog.Dialog>
+      </AlertDialog.Container>
+    </AlertDialog.Backdrop>
+  
   )
 }
