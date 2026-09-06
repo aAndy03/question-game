@@ -7,10 +7,11 @@ fullscreen window on a second display.
 Offline-first, Windows and macOS, GPLv3. Built as one repo: a Rust host that
 owns every fact, and two React webviews that only draw.
 
-> **Status: P0–P7 of thirteen.** The engine, the library, the Tauri wiring and
-> the **Studio shell** are done: Stage reads live state from the host, and the
-> operator app has its sidebar, top bar, status bar and the four library tabs
-> (Teams, Domains+Questions, Games, Operators). Control arrives with P8. See
+> **Status: P0–P8 of thirteen.** The engine, the library, the Tauri wiring, the
+> **Studio shell** and the **Control tab** are done: Stage reads live state from
+> the host, the operator app has its four library tabs, and Control runs a show
+> — the Viewer embeds the real Stage, and every button, chord and Viewer click
+> is one host command. Screens arrives with P9. See
 > [`docs/v1/04_ROADMAP.md`](docs/v1/04_ROADMAP.md).
 
 ---
@@ -28,15 +29,18 @@ first Rust build takes a few minutes; after that it is seconds.
 
 The Studio window opens on **Teams**. Build a library in the four tabs on the
 left, then open a game and press **Load into Control**, which creates the Stage
-window fullscreen on your primary display. Until P8's Control tab lands, the
-**Control** tab carries a dev-only harness — one button per host command — so a
-show can still be driven end to end:
+window fullscreen on your primary display and takes you to **Control**:
 
-1. **Seed demo** on the harness writes a four-team, three-domain library
-   through the ordinary catalog commands. Dev builds only.
-2. **Control Load** puts the recipe into Control and opens Stage.
-3. **Start**, then a domain, an answer, **Lock**, **Reveal outcome**.
-4. The screen buttons (`idle`, `chooseDomain`, `question`, …) drive Stage.
+1. **Start Play** in the Action Panel. The Game panel shows the ring and who
+   holds the token.
+2. Pick a domain on the **Viewer** (the real Stage, scaled) or press `1`–`9`.
+3. Reveal the question and the answers, select, **Lock** (`Enter`), **Reveal
+   outcome** (`R`). The timer cluster starts and pauses with `Space`.
+4. **Strips** move Stage between screens and call any overlay by hand;
+   **Timeline** undoes a turn (`Ctrl+Z`) without rewriting history.
+
+The **Stage display** picker at the top sends Stage to another monitor; the
+⚙ float holds the Global and Current-game settings.
 
 One display is a valid setup: Stage goes fullscreen on it and Studio is an
 Alt-Tab away. With an external display connected, **Stage display ▸ \<name\>**
@@ -53,12 +57,14 @@ screen and every state, switchable in place, no database. That fallback is
 unreachable inside the app — if there is a host, the host wins.
 
 ```bash
-npm run dev:studio     # http://localhost:5181/studio/?fake
+npm run dev:studio     # http://localhost:5181/studio/?fake&play=question-issued
 ```
 
 Studio alone says "No host" — unless the URL carries `?fake`, which installs an
-in-memory host with a demo library (dev builds only). Every tab, editor and
-dialog then works in a plain browser; only a Play cannot be started. That is
+in-memory host with a demo library (dev builds only); `&play=<fixture>` adds a
+Play from a contract fixture so Control has something to draw. Every tab,
+editor and dialog then works in a plain browser; only a Play cannot be
+*started* (the fake is not an engine). That is
 the Studio counterpart to Stage's fixture strip, and it is unreachable inside
 the app: a real host always wins.
 
@@ -67,7 +73,7 @@ the app: a real host always wins.
 ## Verifying
 
 ```bash
-npm run test:all       # 363 TypeScript + 213 Rust
+npm run test:all       # 376 TypeScript + 194 Rust
 npm run typecheck      # tsc --build across all project references
 npm run lint           # eslint — this is where the architecture rules live
 npm run lint:host      # clippy over the host crate

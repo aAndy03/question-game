@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
   FIXTURES,
   FIXTURE_NAMES,
@@ -6,8 +6,9 @@ import {
   type FixtureName,
   type PlayStateForStage,
 } from '@questiongame/contract'
+import { STAGE_FRAME, VIEWER_SOURCE, isViewerMessage, type StageToViewer, type ViewerNodeRect } from '@questiongame/contract'
 import { stageEvents } from '@/host/events'
-import { stageHost, type StageHost } from '@/host/host'
+import { isViewerMode, stageHost, type StageHost } from '@/host/host'
 import { StageRoot } from '@/pages'
 
 /**
@@ -38,7 +39,77 @@ function HostFed({ host }: { host: StageHost }) {
 
 export function App() {
   const host = stageHost()
-  return host ? <HostFed host={host} /> : <FixtureFed />
+  if (!host) return <FixtureFed />
+  return isViewerMode() ? <ViewerFed host={host} /> : <HostFed host={host} />
+}
+
+// --------------------------------------------------------------- the Viewer
+
+/**
+ * The same tree, scaled to the iframe's box, and after every paint the
+ * boxes of every `data-node-id` element posted to the parent in frame
+ * coordinates so Control can lay hit targets over them (spec §5.7). Nothing
+ * interactive is added here: the Viewer's chrome lives in Studio's DOM.
+ */
+export function ViewerFed({ host }: { host: StageHost }) {
+  const state = useSyncExternalStore(host.subscribe, host.snapshot, host.snapshot)
+  const [scale, setScale] = useState(() => fitScale())
+  const frame = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const onResize = () => setScale(fitScale())
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
+    const post = () => {
+      const root = frame.current
+      if (!root) return
+      const nodes: ViewerNodeRect[] = []
+      for (const el of root.querySelectorAll<HTMLElement>('[data-node-id]')) {
+        const id = el.dataset['nodeId']
+        if (!id) continue
+        const r = el.getBoundingClientRect()
+        nodes.push({ id, x: r.left / scale, y: r.top / scale, width: r.width / scale, height: r.height / scale })
+      }
+      const message: StageToViewer = { source: VIEWER_SOURCE, type: 'nodes', nodes }
+      window.parent.postMessage(message, '*')
+    }
+    // Once after the state lands, and again after transitions settle.
+    const t1 = window.setTimeout(post, 50)
+    const t2 = window.setTimeout(post, 900)
+    const onMessage = (event: MessageEvent<unknown>) => {
+      if (event.source === window.parent && isViewerMessage(event.data) && event.data.type === 'measure') post()
+    }
+    window.addEventListener('message', onMessage)
+    return () => {
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+      window.removeEventListener('message', onMessage)
+    }
+  }, [state, scale])
+
+  return (
+    <div
+      ref={frame}
+      data-viewer-frame
+      style={{
+        width: STAGE_FRAME.width * scale,
+        height: STAGE_FRAME.height * scale,
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: STAGE_FRAME.width, height: STAGE_FRAME.height }}>
+        <StageRoot state={state} />
+      </div>
+    </div>
+  )
+}
+
+function fitScale(): number {
+  if (typeof window === 'undefined') return 1
+  return Math.min(window.innerWidth / STAGE_FRAME.width, window.innerHeight / STAGE_FRAME.height) || 1
 }
 
 // ------------------------------------------------------- the no-host fallback

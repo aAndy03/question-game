@@ -500,28 +500,48 @@ Sidebar has three states. Per-tab archive with Active | Archived. grid | table p
 
 ---
 
-## P8 — Control tab  ☐
+## P8 — Control tab  ☑
 
-**Install:** [`@dnd-kit/react`](https://next.dndkit.com), `@dnd-kit/helpers`, `@tanstack/react-hotkeys`.
+**Goal:** the room where the show is run. Six panels over the Play, one command seam under every button, chord and Viewer click.
 
-**Deliverables by atomic level**
+**Design:** `05_STUDIO_DESIGN.md` §10 (mosaic, Viewer protocol, panels, hotkeys, rules). **Installed:** `react-mosaic-component` (the tiling mosaic), `@dnd-kit/react` + `@dnd-kit/helpers` (ring drag), `@tanstack/react-hotkeys`, `sonner` (toasts — decided 2026-09-06 at the user's request).
+
+**Deliverables by atomic level** — all ☑
 
 | Level | Components |
 | --- | --- |
-| **atoms** | `TransportButton` · `TimerIcon` · `RingRowHandle` · `HitTarget` |
-| **molecules** | `TimerCluster` (icon-only start/pause + clock, hidden at operator pace) · `RevealControls` · `RingRow` (nine variants: history, current, future, drop-ok, drop-illegal, overlooked, override-armed, override-blocked, rehearsal-solo) · `ScreenStrip` |
-| **organisms** | `Viewer` (Stage tree + hit-target overlay) · `GamePanel` · `ActionPanel` · `StripsPanel` · `TimelinePanel` · `SettingsFloat` (Global \| Current game) |
-| **templates** | `ControlMosaic` (resizable min/max, movable, stackable as tabs, persisted per operator) |
-| **pages** | Control |
+| **atoms** | `TransportButton` (`rest \| active \| armed`) · `HitTarget` (`legal \| illegal`) |
+| **molecules** | `TimerCluster` (icon-only start/pause + clock, hidden at operator pace) · `RevealControls` · `RingRow` (the nine variants) · `ScreenStrip` · `OverlayStrip` · `MosaicPanel` (density from its own box) · `DisplayPicker` · `EventRow` |
+| **organisms** | `Viewer` (the Stage iframe + hit targets) · `GamePanel` · `ActionPanel` · `StripsPanel` · `TimelinePanel` · `SettingsFloat` (Global \| Current game) · `ControlTopBar` · `useControlHotkeys` |
+| **templates** | `MosaicLayout` (react-mosaic restyled by `design-studio/mosaic.css`) |
+| **pages** | Control (replaces the P7 stub; `DevHarness` is gone) |
 
-Density: each panel declares its own limited-space behaviour. Vertical scroll only, never horizontal. Hotkeys on `main` only, `ignoreInputs: true`, never on Stage.
+Density: each panel branches on the density `MosaicPanel` measures (`comfortable \| compact \| dense`, floored by the host's `control.mosaic_density`). Vertical scroll only. Hotkeys on `main` only, `ignoreInputs: true`, mounted by the Control page alone.
 
-**Exit criteria**
+**Exit criteria — all met 2026-09-06** (`apps/studio/src/pages/control.test.tsx`, `host/ring.test.ts`, `apps/stage/src/host/viewer.test.tsx`.)
 
-- ☐ Viewer click, Action Panel button, and keyboard chord dispatch the *same* command — one test asserts three call sites hit one handler.
-- ☐ Every illegal ring drop is refused with `drop-illegal`, at 2, 3, 5, and 8 teams.
-- ☐ Undo, restart, and abandon are blocked with a wait notice while an overlay is busy.
-- ☐ No operator chrome ever appears in the Stage webview.
+- ☑ **Viewer click, Action Panel button, and keyboard chord dispatch the *same* command** — the test drives all three against the fake host and finds them in one call log, through `useHostCommand` and nothing else.
+- ☑ **Every illegal ring drop is refused with `drop-illegal`, at 2, 3, 5, and 8 teams.** `host/ring.ts` classifies rows from the round invariant; the test tries every (from, to) pair at each count and expects exactly the future×future drops to be legal, with `reorderedRing` returning null for the rest.
+- ☑ **Undo, restart, and abandon are blocked with a wait notice while an overlay is busy.** Disabled with the reason on the control; the host refuses too.
+- ☑ **No operator chrome ever appears in the Stage webview.** `viewer.test.tsx` renders Stage in viewer mode and asserts its tree equals the host-fed tree with zero interactive elements.
+
+**Also delivered**
+
+- **The Viewer protocol** (`packages/contract/src/viewer.ts`): Studio → Stage `play-state` / `measure`, Stage → Studio `ready` / `nodes` (the rects of every `data-node-id` element in frame coordinates). Stage's `viewerHost()` is the third host adapter; `animComplete` is a no-op there because the Stage *window* acks the queue.
+- **Toasts, with Sonner** (`chrome/toast.ts`): transient, action-free feedback only — saves, restores, "loaded into Control", layout reset. Anything with an action or a `block` severity is still a notice.
+- **`?fake&play=<fixture>`** hands the fake host a Play built from a contract fixture plus a synthesised operator half, so Control can be worked on in a browser.
+- **`Load into Control`** now toasts and navigates to Control.
+
+**Decisions made while building it (2026-09-06)**
+
+- **The Viewer embeds the real Stage** rather than a rebuilt copy: pixel-identical to the camera, transitions and overlays included, no Stage tokens in Studio, and one more adapter behind the seam Stage already had.
+- **react-mosaic, not a hand-rolled grid** (the user's call): free-form re-splitting and tab stacking for the price of one stylesheet (`mosaic.css`) that removes its default look.
+- **The mosaic layout is chrome in `localStorage` per operator** until P10's paths work gives it a home in `control_layout.json` (§5.10).
+- **Timeline is a Query keyed on `(playId, eventCount)`**, refreshed by the tick's count, never a Play field.
+- **Reveal & pass is arm → confirm on the ring row** when `override.after_lock = allow`; with `refuse_until_reveal` the rows are `override-blocked` and say "Reveal first" (§2.6).
+- **Chords default in copy** (`HOTKEYS.defaults`) and are overridden by the host's shortcut table; P10's Shortcuts tab writes that table.
+
+**Not done here, on purpose:** the Shape manager (Game tab, P8+ in the spec — not required by any Control criterion, left for P9/P10), first run, pin, Monitors tab.
 
 ---
 

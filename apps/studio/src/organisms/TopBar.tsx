@@ -1,4 +1,4 @@
-import { Dropdown, Label } from '@heroui/react'
+import { Button as HeroButton, Dropdown, Label } from '@heroui/react'
 import { IconButton, Icon, Text } from '@/atoms'
 import { OperatorBadge, PlayStatusPill } from '@/molecules'
 import { useChromeStore, usePrefs, type ThemeChoice } from '@/chrome/chrome'
@@ -55,6 +55,7 @@ export function TopBar() {
               icon={theme === 'dark' ? 'themeDark' : theme === 'light' ? 'themeLight' : 'themeSystem'}
               label={CHROME.theme}
               size="sm"
+              hideTooltip
             />
           </Dropdown.Trigger>
           <Dropdown.Popover placement="bottom end">
@@ -83,14 +84,10 @@ export function TopBar() {
         </Dropdown>
         <Dropdown>
           <Dropdown.Trigger>
-            <button
-              type="button"
-              className="flex h-8 items-center gap-2 rounded-full pl-1 pr-2 outline-none hover:bg-[var(--surface-secondary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
-              aria-label={CHROME.operator}
-            >
+            <HeroButton variant="ghost" size="sm" aria-label={CHROME.operator} className="rounded-full pl-1 pr-2">
               <OperatorBadge name={active?.displayName ?? null} isActive={active !== null} />
               <Icon name="chevronDown" size="sm" className="opacity-60" />
-            </button>
+            </HeroButton>
           </Dropdown.Trigger>
           <Dropdown.Popover placement="bottom end">
             <Dropdown.Menu

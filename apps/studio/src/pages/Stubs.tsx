@@ -1,6 +1,5 @@
 import { Panel, Text } from '@/atoms'
 import { PageHeader } from '@/molecules'
-import { DevHarness } from '@/organisms'
 import { BlankLayout } from '@/templates'
 import { STUB, TABS } from '@/copy'
 
@@ -11,16 +10,6 @@ function Stub({ body }: { body: string }) {
         {body}
       </Text>
     </Panel>
-  )
-}
-
-/** Control: a P8 note, and in dev builds the harness so a show can be run. */
-export function ControlPage() {
-  return (
-    <BlankLayout header={<PageHeader title={TABS.control.label} description={TABS.control.hint} />}>
-      <Stub body={STUB.control.body} />
-      {import.meta.env.DEV ? <DevHarness /> : null}
-    </BlankLayout>
   )
 }
 

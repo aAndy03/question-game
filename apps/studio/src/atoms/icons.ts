@@ -88,6 +88,20 @@ export const ICONS = {
   sliders: 'sliders',
   shuffle: 'shuffle',
   flag: 'flag',
+
+  // control
+  listCheck: 'list-check',
+  timeline: 'list-timeline',
+  screen: 'layout-header-cells',
+  overlay: 'square-dashed',
+  token: 'circle-fill',
+  restart: 'arrows-rotate-left',
+  abandon: 'stop',
+  thunderbolt: 'thunderbolt',
+  layout: 'layout-cells',
+  bolt: 'thunderbolt',
+  sync: 'arrows-rotate-right',
+  circleDashed: 'circle-dashed',
 } as const
 
 export type IconName = keyof typeof ICONS

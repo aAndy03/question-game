@@ -375,3 +375,159 @@ Toasts · dnd-kit roster drag (P8) · Shape manager dialog (P8+) · hotkey chord
   work.
 - **`RecordRow` grid cards** put chips and meta on a second line; at narrow
   widths the meta wraps rather than truncates.
+
+## 10. Control tab (P8)
+
+Status: **built, P8, 2026-09-06.** The room where the show is run. Everything on
+it is a projector or a call site of a §13 command; nothing here decides a
+game rule.
+
+### 10.1 The mosaic
+
+Six panels on one grid, the spec's default arrangement (§11.H), every panel
+resizable within a min/max, movable to another cell, and stackable as tabs in
+one cell. Persisted per operator (`control_layout` in the chrome store; the
+host's per-operator `control_layout.json` of §5.10 arrives with P10's
+paths work — until then `localStorage`, keyed by operator id like every other
+chrome preference).
+
+```text
+┌──────────────┬────────────────────────────┬──────────────┐
+│ top: Stage display · Statistics display · ⚙ settings float   │
+├──────────────┼────────────────────────────┼──────────────┤
+│ Game panel   │ Viewer                     │ Action Panel │
+│              │                            ├──────────────┤
+│              │                            │ Strips       │
+├──────────────┴────────────────────────────┴──────────────┤
+│ Timeline (collapsed by default)                           │
+└───────────────────────────────────────────────────────────┘
+```
+
+Mechanism (decided 2026-09-06): **`react-mosaic-component`** — a tiling
+tree of splits and tab groups, drag a panel's title bar to re-split anywhere,
+drag onto another panel to stack as tabs, dividers resize. `MosaicLayout`
+wraps it: the tree is the persisted layout, `MosaicPanel` is the tile with
+the questiongame title bar (density, *Reset layout*), and its CSS is
+restyled onto the HeroUI tokens in `packages/design-studio/mosaic.css` so
+nothing of its default look survives. Density
+(`comfortable | compact | dense`) is chosen by the panel from its own box via
+a `ResizeObserver`, never by the operator per panel; the global
+`control.mosaic_density` (host, Control-live) sets the floor. Vertical
+scroll only, never horizontal (§8).
+
+### 10.2 The Viewer
+
+The Viewer is *the Stage tree* with hit targets over it (§5.7). Studio may
+not import Stage's tokens, and Stage's tree is GSAP-driven, so Studio does not
+re-render it. It **embeds Stage** in an `<iframe src="/stage/?viewer">`
+(same origin in dev and in the bundle, so the CSP's `default-src 'self'`
+allows it) and Stage gets a third host adapter:
+
+| Adapter | Where | Truth arrives by | `anim-complete` |
+| --- | --- | --- | --- |
+| `tauriHost` | the Stage window | `play-state` event | `overlay_ack_complete` |
+| fixture strip | `dev:stage` | the URL | nowhere |
+| **`viewerHost`** (new) | the iframe in Control | `postMessage` from Studio, the same `PlayStateForStage` the host emits (the operator half stripped) | **dropped** — the Stage window acks; the Viewer never writes |
+
+The iframe scales the 1920×1080 frame to its box (`transform: scale`,
+computed in Stage's viewer mode from `innerWidth`). After every render Stage
+posts the **rects of every `data-node-id` element** in frame coordinates
+(`viewer-nodes`); Studio draws `HitTarget`s over them, scaled to the box.
+Which node maps to which command is one table:
+
+| Node | Command |
+| --- | --- |
+| `chooseDomain.card.<id>` | `choose_domain { domainId }` |
+| `question.option.<id>` | `set_selection` toggling that id (single: replace) |
+| `question.stem` | `reveal_stem` |
+| `question.result` | `reveal_outcome` |
+| `teamOrder.row.<id>` / `scoreboard.row.<id>` | `give_token { teamId }` when legal |
+| `finalLeaderboard.row.<rank>` | `reveal_leaderboard_rank { rank }` |
+
+`viewer.hit_targets` (host, Control-live) hides them all. A hit target that
+would be refused renders as `drop-illegal`-style disabled with the reason,
+using `OperatorState` (legal targets, session state) — the host still gets
+the last word.
+
+### 10.3 Panels
+
+| Panel | Reads | Writes | Density behaviour |
+| --- | --- | --- | --- |
+| **Game panel** | play-state: teams, ring, scores, domains | — | comfortable: mark · name · score · turns; compact: mark · score; dense: marks only, scores as tooltips |
+| **Action Panel** | play-state + operator | `TransportButton`s → `play_start` `pause` `resume` · `TimerCluster` → `start_timer` `pause_timer` · `RevealControls` → `reveal_stem` `reveal_next_option` `reveal_outcome` · `lock_selection` · `give_token` / `reveal_and_pass` (the arm→confirm of §2.6) · `undo_turn` `redo_turn` · `restart` `abandon` (`ConfirmDialog`, stacked "Are you sure?") | compact drops labels to icons with tooltips |
+| **Strips** | play-state | `ScreenStrip` → `show_screen`; `OverlayStrip` → `show_overlay` (five kinds) | dense: icons only |
+| **Timeline** | `play_events` (a Query keyed on `playId` + `eventCount`, invalidated by the tick's `eventCount`, never a Play field) | `undo_turn` `redo_turn` | collapsed: one line (last event + counts) |
+| **Settings float** | `settings_get` | `settings_set_global` (Global) · `settings_set_current_game` (Current game) | a HeroUI `Popover` from the top bar's ⚙; two `Tabs`; `SettingRow`s with the host's `disabled` list, game-affecting rows visible but disabled while playing |
+| **Display pickers** | `monitors_list` + `monitors-changed` | `stage_set_monitor` · `stage_open` | — |
+
+Ring rows (Action Panel and Game panel share `RingRow`) carry the nine
+variants of §5.4: `history`, `current`, `future`, `drop-ok`, `drop-illegal`,
+`overlooked`, `override-armed`, `override-blocked`, `rehearsal-solo`. Drag
+reorders the **future** ring only, with `@dnd-kit/react` sortable; a drop
+that would move a history row or the current row is `drop-illegal` and is
+refused client-side *and* by the host.
+
+### 10.4 Three call sites, one command
+
+The Viewer hit target, the Action Panel button and the keyboard chord all
+call `useHostCommand().run(name, args)` — the same function, the same notice
+path. `hotkeys.ts` maps the chords in `settings_get.globals.shortcuts`
+(defaults below) to commands with `@tanstack/react-hotkeys`, mounted **only
+on the Control page**, `ignoreInputs: true`, never on Stage. A test renders
+Control against the fake host and asserts that a click, a press and a chord
+produce one `lock_selection` call each through one handler.
+
+Default chords (P10's Shortcuts tab edits them; the host stores them):
+`space` start/pause timer · `enter` lock · `r` reveal outcome · `s` reveal
+stem · `a` reveal next option · `1`–`9` choose domain / select option by
+position · `t` give token to the default target · `mod+z` undo · `mod+shift+z`
+redo · `[` / `]` previous / next screen.
+
+### 10.5 Rules
+
+- **An overlay busy blocks undo, restart and abandon** with a wait notice
+  (P8 exit criterion); the buttons stay visible and disabled with the reason.
+- **Nothing on Control is remembered locally** except the mosaic layout. Armed
+  states (override armed, restart armed) are component state that resets on
+  unmount.
+- **Timer cluster is icon-only and hidden at operator pace** (§2.21); the
+  clock is `Text transition="count"` over `remaining_ms`; the frontend never
+  passes host zero.
+- **A wrong answer never auto-advances Stage** — Strips is where the operator
+  moves on, and the Game panel shows the token holder so the pace is theirs.
+- **No operator chrome ever reaches Stage**: the Viewer's hit targets live in
+  Studio's DOM over the iframe; Stage's viewer mode adds nothing to its own
+  tree (a test renders Stage in viewer mode and diffs it against the host-fed
+  tree).
+
+### 10.6 New components
+
+| Level | Components |
+| --- | --- |
+| atoms | `TransportButton` (icon-only, `state: rest \| active \| armed`) · `TimerIcon` · `HitTarget` (positioned button, `legal \| illegal`) · `RingRowHandle` |
+| molecules | `TimerCluster` · `RevealControls` · `RingRow` (nine variants) · `ScreenStrip` · `OverlayStrip` · `MosaicPanel` (title bar, density, menu) · `DisplayPicker` · `EventRow` |
+| organisms | `Viewer` · `GamePanel` · `ActionPanel` · `StripsPanel` · `TimelinePanel` · `SettingsFloat` · `ControlTopBar` |
+| templates | `MosaicLayout` |
+| pages | `ControlPage` (replaces the stub; `DevHarness` is deleted) |
+
+### 10.7 Stage-side changes
+
+- `apps/stage/src/host/host.ts`: `viewerHost()` chosen when `?viewer` and
+  `window.parent !== window`; `animComplete` is a no-op there.
+- `apps/stage/src/App.tsx`: viewer mode scales the frame and posts node rects.
+- Nothing in the Stage *tree* changes.
+
+### 10.8 As built
+
+- **Toasts exist, with Sonner** (user decision 2026-09-06), for transient,
+  action-free feedback only. §3.3's "no toast" is amended: a refused command
+  is still a notice; a *succeeded* save, restore, load or layout reset is a
+  toast.
+- **The mosaic layout store** is `chrome/control.ts`; the per-operator
+  `control_layout.json` of §5.10 waits for P10's paths.
+- **Reveal & pass** is arm → confirm on the ring row itself (variant
+  `override-armed`), not a separate dialog.
+- **Ring drag** uses `@dnd-kit/react`'s sortable in the Game panel; the Action
+  Panel's ring is press-to-give only.
+- **The Shape manager** is not on Control (§11.B puts it on the Game tab) and
+  is left for a later phase.

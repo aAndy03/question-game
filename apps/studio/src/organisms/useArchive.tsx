@@ -3,6 +3,7 @@ import { ConfirmDialog } from '@/molecules'
 import { CONFIRM } from '@/copy'
 import { command } from '@/host/host'
 import { useHostCommand } from '@/host/commands'
+import { toast } from '@/chrome/toast'
 import type { LibraryKind } from '@/host/types'
 
 export interface ArchiveRequest {
@@ -57,6 +58,7 @@ export function useArchive(): ArchiveController {
     }
     setPending(false)
     setRequest(null)
+    toast.info(n === 1 ? `Archived 1 ${request.what}` : `Archived ${n} ${request.what}`)
   }
 
   const restore = async (req: ArchiveRequest) => {
@@ -69,6 +71,7 @@ export function useArchive(): ArchiveController {
       await run('catalog_restore_many', { kind: req.kind, ids: req.ids })
     }
     setPending(false)
+    toast.info(req.ids.length === 1 ? `Restored 1 ${req.what}` : `Restored ${req.ids.length} ${req.what}`)
   }
 
   const n = request?.ids.length ?? 0

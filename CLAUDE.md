@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**P0–P7 are done** (`docs/v1/04_ROADMAP.md`). npm workspaces monorepo, GPLv3. **The two tracks met at P6:** Stage no longer reads fixtures, it reads the host. `crates/host` holds `MatchService`, `FlagService`, `CatalogService` and `PresentationService` and is still a plain library with zero `tauri::` imports; `crates/app` is the Tauri 2 shell around it. **P7 built the Studio shell** — sidebar, top bar, status bar, the four library tabs (Teams, Domains+Questions, Games, Operators), one component system (`docs/v1/05_STUDIO_DESIGN.md`). P8 builds the Control tab.
+**P0–P8 are done** (`docs/v1/04_ROADMAP.md`). npm workspaces monorepo, GPLv3. **The two tracks met at P6:** Stage no longer reads fixtures, it reads the host. `crates/host` holds `MatchService`, `FlagService`, `CatalogService` and `PresentationService` and is still a plain library with zero `tauri::` imports; `crates/app` is the Tauri 2 shell around it. **P7 built the Studio shell** — sidebar, top bar, status bar, the four library tabs (Teams, Domains+Questions, Games, Operators), one component system (`docs/v1/05_STUDIO_DESIGN.md`). **P8 built the Control tab** — the mosaic, the Viewer (the real Stage in an iframe), the Action Panel, Strips, Timeline, the settings float, hotkeys (`05_STUDIO_DESIGN.md` §10). P9 builds the Screens canvas.
 
 ```bash
 npm run dev:app        # the desktop app (tauri dev) — starts both dev servers itself
@@ -20,7 +20,7 @@ npm run lint:app       # the same, for the Tauri crate
 npm run test:all       # all three suites
 ```
 
-`npm run dev:app` starts both Vite dev servers itself (`beforeDevCommand` → `scripts/dev-webviews.mjs`). `npm run dev:stage` on its own has no Rust behind it and falls back to the P2/P3 fixture strip — that is the point: screen work does not need a database. **`npm run dev:studio` with `?fake` on the URL** (`http://localhost:5181/studio/?fake`, dev builds only) installs the in-memory host with a demo library, so shell work does not need Rust either; without `?fake` Studio says "No host". `npm run studio:icons` regenerates `apps/studio/src/atoms/icons.generated.ts` after a key is added to `atoms/icons.ts`.
+`npm run dev:app` starts both Vite dev servers itself (`beforeDevCommand` → `scripts/dev-webviews.mjs`). `npm run dev:stage` on its own has no Rust behind it and falls back to the P2/P3 fixture strip — that is the point: screen work does not need a database. **`npm run dev:studio` with `?fake` on the URL** (`http://localhost:5181/studio/?fake`, dev builds only) installs the in-memory host with a demo library, so shell work does not need Rust either; without `?fake` Studio says "No host". `npm run studio:icons` regenerates `apps/studio/src/atoms/icons.generated.ts` after a key is added to `atoms/icons.ts`. **`?fake&play=<fixture>`** (a `packages/contract` fixture name, e.g. `question-issued`) also hands Control a Play to draw.
 
 **Both webviews are served under the path they occupy in the bundle** — `/studio/` and `/stage/` — in dev too, and Studio's dev server proxies `/stage` to Stage's so the app has **one dev origin**. This is load-bearing: Tauri's capabilities scope permissions to `URL: local`, and a webview pointed at an *external* URL is remote to the ACL **even on localhost** — a remote webview is denied every command and `event.listen`. One origin keeps both windows local and means there is no `is_dev()` branch in `crates/app`. Do not "simplify" `windows.rs` back to an external dev URL.
 
@@ -211,7 +211,16 @@ atoms → molecules → organisms → templates → pages   (eslint-enforced, on
 - **Organisms may not import `@/templates`**, and atoms/molecules may not import `@/chrome`'s nav or host anything. `LibraryList` takes `RecordView` rows; each page maps its entity to that shape once.
 - **Icons are generated** (`npm run studio:icons` → `atoms/icons.generated.ts`) from the keys in `atoms/icons.ts`; there is no icon runtime and no `@iconify/react`. Calligraph is imported only by `packages/text/src/studio.tsx`.
 - **Fields on panels:** `studio.css` gives fields a hairline edge and, in dark, a lifted background. Do not "restore HeroUI defaults" here — the shipped dark theme makes an unfocused input on a surface invisible.
-- `DevHarness` (dev builds only, under Control) is the P6 harness restyled; P8's Control replaces it.
+- **Toasts are Sonner** (`chrome/toast.ts`) and only for transient, action-free feedback (saved, restored, loaded into Control, layout reset). A notice with actions, a `targetPath` or `block` severity is never a toast.
+
+#### The Control tab as built (`apps/studio`, P8)
+
+- **The Viewer is the real Stage in an iframe** (`/stage/?viewer`), fed the stripped `PlayStateForStage` over `postMessage` (`packages/contract/src/viewer.ts`). Stage's `viewerHost()` is its third host adapter and **never acks**: the Stage window acks the overlay queue, the Viewer only reports node rects. Hit targets (`HitTarget`) are Studio DOM over the iframe, mapped node → command by the table in `05_STUDIO_DESIGN.md` §10.2. Do not put anything interactive in Stage's tree for the Viewer's sake — `viewer.test.tsx` diffs the two trees.
+- **One command, three call sites.** Hit target, Action Panel button and chord all call `useHostCommand().run`. `useControlHotkeys` is mounted by `ControlPage` only, `ignoreInputs: true`; chords come from `settings_get.globals.shortcuts` with `HOTKEYS.defaults` as the fallback.
+- **The ring is derived, never stored** (`host/ring.ts`): history / current / future from `turnsTaken` and `roundIndex`; a drop is legal only future→future and `reorderedRing` builds the full order for `reorder_ring`. `RingRow` carries the nine spec variants; the variant is the whole visual state.
+- **The mosaic is `react-mosaic`** restyled by `packages/design-studio/mosaic.css`; the tree is chrome, persisted per operator in `chrome/control.ts`. `MosaicPanel` measures its box and hands each panel a density; panels branch on it and never scroll horizontally.
+- **Timeline** reads `play_events` through a Query keyed on `(playId, eventCount)`; the tick's `eventCount` is what refreshes it.
+- **Armed states** (Reveal & pass, restart, abandon) are component state and reset on unmount; nothing on Control is remembered except the layout.
 
 ### Game rules that constrain the model
 

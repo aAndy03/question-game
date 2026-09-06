@@ -14,7 +14,7 @@
 
 import type { RevealChannel, RevealMode, StageReattach } from '@questiongame/contract'
 
-export type { RevealChannel, RevealMode }
+export type { RevealChannel, RevealMode, StageReattach }
 
 // --------------------------------------------------------------------- catalog
 

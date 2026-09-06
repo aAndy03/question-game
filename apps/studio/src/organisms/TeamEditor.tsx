@@ -5,6 +5,7 @@ import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
 import { LIST, TABS, TEAM } from '@/copy'
 import { useHostCommand } from '@/host/commands'
+import { toast } from '@/chrome/toast'
 import { useCatalogItem } from '@/host/queries'
 import type { Team } from '@/host/types'
 import { useDirtyGuard, useDraft } from './useDraft'
@@ -60,6 +61,7 @@ export function TeamEditor({ id }: TeamEditorProps) {
     setSaving(false)
     if (result === null) return false
     draft.adopt(item)
+    toast.success('Team saved')
     return true
   }
 

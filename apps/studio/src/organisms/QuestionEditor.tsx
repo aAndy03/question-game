@@ -15,6 +15,7 @@ import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { useNavStore, type Route } from '@/chrome/nav'
 import { LIST, QUESTION, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
+import { toast } from '@/chrome/toast'
 import { useCatalogItem, useCatalogList } from '@/host/queries'
 import { answerMode, type Domain, type Question, type QuestionOption } from '@/host/types'
 import { useDirtyGuard, useDraft } from './useDraft'
@@ -123,6 +124,7 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
     }
     setSaving(false)
     draft.adopt({ question: item, domainIds: draft.value.domainIds })
+    toast.success('Question saved')
     return true
   }
 

@@ -6,6 +6,10 @@
 /* Loading design-stage here is a lint error (optimized_first_spec.md §2.30). */
 @import "@questiongame/design-studio/studio.css";
 
+/* react-mosaic (the Control tab), restyled onto the Studio tokens. */
+@import "react-mosaic-component/react-mosaic-component.css";
+@import "@questiongame/design-studio/mosaic.css";
+
 /* Tailwind only scans this app's sources; HeroUI ships compiled CSS and needs
  * no @source. The packages below carry utilities of their own. */
 @source "../../../packages/design-studio";

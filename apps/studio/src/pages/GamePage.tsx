@@ -6,6 +6,7 @@ import { RecordPageLayout } from '@/templates'
 import { useNavStore, type GameSection } from '@/chrome/nav'
 import { GAME, LIST, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
+import { toast } from '@/chrome/toast'
 import { isPlayOpen, usePlayState } from '@/host/playState'
 import { useRecipe } from '@/host/queries'
 import { isArchived } from '@/host/types'
@@ -62,8 +63,12 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
   }
   const load = async () => {
     setLoading(true)
-    await run('play_load', { recipeId: r.id, playId: `play-${Date.now()}` })
+    const ok = await run('play_load', { recipeId: r.id, playId: `play-${Date.now()}` })
     setLoading(false)
+    if (ok !== null) {
+      toast.success(`${r.name} is in Control`, 'Stage is open on the primary display.')
+      void go({ tab: 'control' })
+    }
   }
 
   return (

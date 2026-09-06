@@ -283,12 +283,9 @@ export const RULES = {
 } as const
 
 export const STUB = {
-  control: { title: 'Control', body: 'The Control mosaic — Viewer, Game panel, Action Panel, Strips, Timeline — arrives with P8.' },
   screens: { title: 'Screens', body: 'The Screens canvas arrives with P9.' },
   statistics: { title: 'Statistics', body: 'Live and all-data views arrive with P11.' },
   settings: { title: 'Settings', body: 'Monitors, grouped globals and keyboard shortcuts arrive with P10.' },
-  harness: 'Dev harness',
-  harnessHint: 'Dev builds only. One button per host command so a show can be driven before Control exists.',
 } as const
 
 export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Readonly<Record<string, string>> }>> = {
@@ -336,3 +333,5 @@ export const fmt = {
     return `${m}:${String(s).padStart(2, '0')}`
   },
 }
+
+export * from './control'

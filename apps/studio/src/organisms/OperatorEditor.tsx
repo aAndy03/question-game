@@ -5,6 +5,7 @@ import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
 import { LIST, OPERATOR, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
+import { toast } from '@/chrome/toast'
 import { useCatalogItem } from '@/host/queries'
 import type { Operator } from '@/host/types'
 import { useDirtyGuard, useDraft } from './useDraft'
@@ -48,6 +49,7 @@ export function OperatorEditor({ id }: OperatorEditorProps) {
     setSaving(false)
     if (result === null) return false
     draft.adopt(item)
+    toast.success('Operator saved')
     return true
   }
   const saveAndView = async () => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Toaster } from 'sonner'
 import { Text } from '@/atoms'
 import { NoticeCollector, SidebarNav, StatusBar, TopBar } from '@/organisms'
 import {
@@ -17,7 +18,7 @@ import {
   TeamsPage,
 } from '@/pages'
 import { ShellLayout } from '@/templates'
-import { useChromeStore } from '@/chrome/chrome'
+import { useChromeStore, usePrefs } from '@/chrome/chrome'
 import { useRoute, useNavStore, type Route } from '@/chrome/nav'
 import { useApplyTheme } from '@/chrome/theme'
 import { useNoticeStore } from '@/chrome/notices'
@@ -62,6 +63,7 @@ function Shell() {
   const setOperator = useChromeStore((s) => s.setOperator)
   const setGuard = useNavStore((s) => s.setGuard)
   const pushNotice = useNoticeStore((s) => s.push)
+  const { theme } = usePrefs()
 
   // Chrome preferences follow the active operator (host truth).
   useEffect(() => {
@@ -89,7 +91,17 @@ function Shell() {
   }, [route, setGuard, pushNotice])
 
   return (
-    <ShellLayout sidebar={<SidebarNav />} top={<TopBar />} status={<StatusBar />} overlays={<NoticeCollector />}>
+    <ShellLayout
+      sidebar={<SidebarNav />}
+      top={<TopBar />}
+      status={<StatusBar />}
+      overlays={
+        <>
+          <NoticeCollector />
+          <Toaster theme={theme} position="bottom-right" closeButton duration={3500} toastOptions={{ style: { fontFamily: 'var(--font-sans)' } }} />
+        </>
+      }
+    >
       <Page route={route} />
     </ShellLayout>
   )

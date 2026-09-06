@@ -6,6 +6,7 @@
  * a real host is detected first and wins.
  */
 
+import { FIXTURES, type FixtureName, type PlayStateForMain } from '@questiongame/contract'
 import { createFakeHost, DEFAULT_GAME_SETTINGS, type FakeHost } from './fake'
 import { hasTauri, setHostTransport } from './host'
 import type { CatalogItem, Recipe } from './types'
@@ -16,8 +17,35 @@ export function installDevFakeIfAsked(): FakeHost | null {
   const fake = createFakeHost()
   fake.seed(demoLibrary(), [demoRecipe()])
   void fake.invoke('settings_set_global', { setting: { key: 'active_operator_id', value: 'op-andy' } })
+  // `&play=<fixture>` also hands Control a Play to draw. The fixture is Stage's
+  // half; the operator half is synthesised here and nowhere else.
+  const fixture = new URLSearchParams(window.location.search).get('play')
+  if (fixture && fixture in FIXTURES) fake.playState = demoPlay(fixture as FixtureName)
   setHostTransport(fake)
   return fake
+}
+
+export function demoPlay(name: FixtureName): PlayStateForMain {
+  const stage = FIXTURES[name]
+  const holder = stage.ring.currentTeamId
+  const served = stage.teams.filter((t) => t.turnsTaken >= stage.ring.roundIndex).map((t) => t.id)
+  const legal = stage.teams.filter((t) => t.active && t.id !== holder && !served.includes(t.id)).map((t) => t.id)
+  return {
+    ...stage,
+    operator: {
+      recipeId: 'recipe-demo',
+      legalTokenTargets: legal,
+      defaultNextTeamId: legal[0] ?? null,
+      consecutiveCorrect: 0,
+      isRehearsal: stage.teams.length === 1,
+      canUndo: stage.questionsIssued > 0,
+      canRedo: false,
+      eventCount: 3 + stage.questionsIssued * 4,
+      showGiveToken: true,
+      overrideAfterLock: 'refuse_until_reveal',
+      disabled: [],
+    },
+  }
 }
 
 const t0 = Date.now() - 86_400_000 * 12

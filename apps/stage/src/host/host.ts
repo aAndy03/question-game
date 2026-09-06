@@ -20,8 +20,11 @@
 import {
   CONTRACT_VERSION,
   EMPTY_PLAY_STATE,
+  isViewerMessage,
+  VIEWER_SOURCE,
   type AnimKey,
   type PlayStateForStage,
+  type ViewerToStage,
 } from '@questiongame/contract'
 
 export type StateListener = (state: PlayStateForStage) => void
@@ -96,11 +99,58 @@ function tauriHost(): StageHost {
   }
 }
 
+/**
+ * The Viewer (spec §5.7): this Stage is the iframe inside Control. Truth
+ * arrives from the parent window over `postMessage` — the same stripped
+ * `PlayStateForStage` the host emits — and nothing goes back but node
+ * geometry (`App.tsx`). `animComplete` is dropped on purpose: the Stage
+ * *window* acks the host's queue; a second ack from the Viewer would advance
+ * it twice.
+ */
+export function isViewerMode(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    window.parent !== window &&
+    new URLSearchParams(window.location.search).has('viewer')
+  )
+}
+
+function viewerHost(): StageHost {
+  const listeners = new Set<StateListener>()
+  let last: PlayStateForStage = EMPTY_PLAY_STATE
+
+  window.addEventListener('message', (event: MessageEvent<unknown>) => {
+    if (event.source !== window.parent || !isViewerMessage(event.data)) return
+    const message = event.data as ViewerToStage
+    if (message.type !== 'play-state') return
+    last = message.state
+    for (const listener of listeners) listener(last)
+  })
+  window.parent.postMessage({ source: VIEWER_SOURCE, type: 'ready' }, '*')
+
+  return {
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    snapshot: () => last,
+    animComplete() {
+      // The Viewer never writes (spec §5.7).
+    },
+  }
+}
+
 let current: StageHost | null | undefined
 
-/** The host for this window, or `null` when there is none. Decided once. */
+/**
+ * The host for this window, or `null` when there is none. Decided once.
+ * The Viewer wins over Tauri: inside the desktop app the iframe has no IPC
+ * of its own, and even if it had, the parent is the truth it must draw.
+ */
 export function stageHost(): StageHost | null {
-  if (current === undefined) current = hasTauriHost() ? tauriHost() : null
+  if (current === undefined) current = isViewerMode() ? viewerHost() : hasTauriHost() ? tauriHost() : null
   return current
 }
 

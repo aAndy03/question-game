@@ -1,0 +1,125 @@
+/* react-mosaic-component, restyled onto the Studio tokens (05_STUDIO_DESIGN.md
+ * §10.1). Loaded after the library's own stylesheet; nothing of its default
+ * look (Blueprint greys, box shadows) is meant to survive. */
+
+.mosaic.questiongame-mosaic {
+  background: transparent;
+  height: 100%;
+  width: 100%;
+  font-family: var(--font-sans);
+}
+
+.questiongame-mosaic .mosaic-root {
+  inset: 0;
+}
+
+.questiongame-mosaic .mosaic-tile {
+  margin: 4px;
+}
+
+.questiongame-mosaic .mosaic-window,
+.questiongame-mosaic .mosaic-preview {
+  border-radius: var(--radius);
+  box-shadow: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--surface-foreground);
+  overflow: hidden;
+}
+
+.questiongame-mosaic .mosaic-window .mosaic-window-toolbar {
+  height: 36px;
+  box-shadow: none;
+  border-bottom: 1px solid var(--separator);
+  background: var(--surface);
+  border-radius: 0;
+}
+
+.questiongame-mosaic .mosaic-window .mosaic-window-toolbar.draggable:hover {
+  background: var(--surface-secondary);
+}
+
+.questiongame-mosaic .mosaic-window .mosaic-window-title {
+  padding-left: 12px;
+  font-size: var(--text-studio-label);
+  font-weight: var(--font-weight-medium);
+  color: var(--foreground);
+  line-height: 36px;
+}
+
+.questiongame-mosaic .mosaic-window .mosaic-window-body {
+  background: var(--surface);
+  height: calc(100% - 36px);
+  overflow: auto;
+}
+
+.questiongame-mosaic .mosaic-window .mosaic-window-body-overlay {
+  background: color-mix(in oklch, var(--background) 60%, transparent);
+}
+
+.questiongame-mosaic .mosaic-window .mosaic-window-controls {
+  gap: 2px;
+  padding-right: 6px;
+}
+
+.questiongame-mosaic .mosaic-window .mosaic-window-controls .mosaic-default-control,
+.questiongame-mosaic .mosaic-default-control {
+  color: var(--muted);
+  background: transparent;
+  border-radius: calc(var(--radius) / 2);
+}
+
+.questiongame-mosaic .mosaic-default-control:hover {
+  color: var(--foreground);
+  background: var(--surface-secondary);
+}
+
+.questiongame-mosaic .mosaic-split {
+  z-index: 1;
+}
+
+.questiongame-mosaic .mosaic-split .mosaic-split-line {
+  box-shadow: none;
+  background: transparent;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.questiongame-mosaic .mosaic-split:hover .mosaic-split-line,
+.questiongame-mosaic .mosaic-split.-active .mosaic-split-line {
+  background: var(--accent);
+}
+
+.questiongame-mosaic .mosaic-drop-target .drop-target-container .drop-target {
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+}
+
+.questiongame-mosaic .mosaic-tabs-container,
+.questiongame-mosaic .mosaic-tab-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--separator);
+  box-shadow: none;
+}
+
+.questiongame-mosaic .mosaic-tab-button {
+  border-radius: calc(var(--radius) / 2);
+  color: var(--muted);
+  font-size: var(--text-studio-label);
+  font-weight: var(--font-weight-medium);
+  background: transparent;
+  border: 0;
+  padding: 0 10px;
+  height: 28px;
+}
+
+.questiongame-mosaic .mosaic-tab-button.active,
+.questiongame-mosaic .mosaic-tab-button[aria-selected="true"] {
+  color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 12%, transparent);
+}
+
+.questiongame-mosaic .mosaic-zero-state {
+  background: transparent;
+  color: var(--muted);
+}

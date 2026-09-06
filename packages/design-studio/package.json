@@ -10,7 +10,8 @@
     ".": "./src/index.ts",
     "./studio.css": "./studio.css",
     "./globals.css": "./globals.css",
-    "./tokens/*": "./tokens/*"
+    "./tokens/*": "./tokens/*",
+    "./mosaic.css": "./mosaic.css"
   },
   "scripts": {
     "typecheck": "tsc --build"
