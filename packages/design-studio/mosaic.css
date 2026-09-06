@@ -150,3 +150,16 @@
   background: transparent;
   color: var(--muted);
 }
+
+/* The library ships its own tab-strip scrollbar in a hardcoded `rgba(0,0,0,.2)`
+ * — invisible on a dark surface — and its selector outranks the app-wide rule
+ * in studio.css. Restate it on the token. The 4px height is the library's and
+ * is right for a tab strip: it is thinner than the 10px the panels use. */
+.questiongame-mosaic .mosaic-tab-bar-tabs::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar);
+  border-radius: 999px;
+}
+
+.questiongame-mosaic .mosaic-tab-bar-tabs::-webkit-scrollbar-track {
+  background: transparent;
+}

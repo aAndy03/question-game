@@ -101,6 +101,27 @@ chips and small controls — never a literal. Elevation: no drop shadows on
 panels; only overlays (popover, modal, drawer) float, using HeroUI's own
 overlay styling.
 
+**Scrollbars.** A control room has a dozen scroll containers on screen at once
+— sidebar, list, editor, every mosaic panel — and the OS default puts a wide
+chrome bar with a visible trough on each. Studio quiets them in
+`packages/design-studio/studio.css`: no track, and a **4px thumb inside a 10px
+lane** (a 3px transparent border with `background-clip: padding-box`), coloured
+`--scrollbar`, darkening on hover with `color-mix`. Two things that look like
+detail and are not:
+
+- **WebKit pseudo-elements only.** The app runs on WebView2 and WKWebView,
+  which both style them — but in Chromium a non-`auto` `scrollbar-width` or
+  `scrollbar-color` *disables* `::-webkit-scrollbar`, so setting both would
+  silently undo the styling. The standard properties are the Firefox fallback
+  and sit behind `@supports not selector(::-webkit-scrollbar)`.
+- **`background-color`, not the `background` shorthand.** The build expands the
+  shorthand into longhands and cannot resolve a custom property inside it,
+  which leaves the thumb with no colour at all.
+
+`mosaic.css` restates the same thumb for the tab strip, whose own stylesheet
+hardcodes `rgba(0,0,0,.2)` — invisible on a dark surface — at a selector that
+outranks the app-wide rule.
+
 ### 2.5 Icons
 
 One set: **Gravity UI via the Iconify JSON** (`@iconify-json/gravity-ui`,
