@@ -74,8 +74,16 @@
   background: var(--surface-secondary);
 }
 
+/* The divider: a 6px hit area (the library's) with nothing drawn in it until
+ * the pointer is over it, then a 1px accent hairline. The library's default
+ * paints the whole 6px black on hover. */
 .questiongame-mosaic .mosaic-split {
   z-index: 1;
+  background: transparent;
+}
+
+.questiongame-mosaic .mosaic-split:hover {
+  background: transparent;
 }
 
 .questiongame-mosaic .mosaic-split .mosaic-split-line {
@@ -84,9 +92,28 @@
   transition: background var(--duration-fast) var(--ease-standard);
 }
 
+.questiongame-mosaic .mosaic-split.-row .mosaic-split-line {
+  left: 2.5px;
+  right: 2.5px;
+}
+
+.questiongame-mosaic .mosaic-split.-column .mosaic-split-line {
+  top: 2.5px;
+  bottom: 2.5px;
+}
+
 .questiongame-mosaic .mosaic-split:hover .mosaic-split-line,
-.questiongame-mosaic .mosaic-split.-active .mosaic-split-line {
+.questiongame-mosaic[data-resizing] .mosaic-split .mosaic-split-line {
   background: var(--accent);
+  opacity: 0.7;
+}
+
+/* While a divider drags, the Stage iframe must not swallow the pointer —
+ * otherwise the resize stalls over the Viewer and keeps following the mouse
+ * after the button is released. */
+.questiongame-mosaic[data-resizing] iframe,
+.questiongame-mosaic[data-dragging] iframe {
+  pointer-events: none;
 }
 
 .questiongame-mosaic .mosaic-drop-target .drop-target-container .drop-target {
