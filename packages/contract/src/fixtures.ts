@@ -79,6 +79,7 @@ function base(overrides: Partial<PlayStateForStage> = {}): PlayStateForStage {
     clock: { elapsedMs: 740_000, running: true },
     leaderboardRevealedRanks: [],
     decor: DEFAULT_DECOR_SETTINGS,
+    layout: { nodes: {}, screens: {} },
     questionsIssued: 5,
     currentScreen: 'idle',
     overlay: { busy: false, active: null, pending: null, enabled: true },

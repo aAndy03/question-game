@@ -22,7 +22,7 @@ import { useChromeStore, usePrefs } from '@/chrome/chrome'
 import { useRoute, useNavStore, type Route } from '@/chrome/nav'
 import { useApplyTheme } from '@/chrome/theme'
 import { useNoticeStore } from '@/chrome/notices'
-import { APP } from '@/copy'
+import { APP, SCREENS_TAB } from '@/copy'
 import { HostBridge } from '@/host/bridge'
 import { hasHost } from '@/host/host'
 import { isPlayOpen, peekPlayState } from '@/host/playState'
@@ -79,8 +79,8 @@ function Shell() {
         code: 'screens.blocked',
         severity: 'warn',
         targetPath: null,
-        actions: ['go_to_control', 'dismiss'],
-        detail: { message: 'Screens is unavailable while a Play is playing or paused.' },
+        actions: ['go_to_control', 'stop_playing'],
+        detail: { message: SCREENS_TAB.blocked },
       })
       return false
     }

@@ -93,6 +93,10 @@
     "spin": 4,
     "maxSpeed": 40
   },
+  "layout": {
+    "nodes": {},
+    "screens": {}
+  },
   "questionsIssued": 5,
   "currentScreen": "teamOrder",
   "overlay": {

@@ -388,6 +388,39 @@ pub struct DecorAnchorSettings {
     pub strength: f64,
 }
 
+/// The half of `recipe.layout` that rides `play-state` (P9): per-node styles
+/// and per-screen decor boxes. Stored and emitted as JSON objects; a recipe
+/// with no overrides carries two empty objects.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StageLayoutNodes {
+    pub nodes: serde_json::Value,
+    pub screens: serde_json::Value,
+}
+
+impl Default for StageLayoutNodes {
+    fn default() -> Self {
+        StageLayoutNodes {
+            nodes: serde_json::Value::Object(serde_json::Map::new()),
+            screens: serde_json::Value::Object(serde_json::Map::new()),
+        }
+    }
+}
+
+impl StageLayoutNodes {
+    /// Read `nodes` and `screens` off a recipe's layout document; anything
+    /// missing or not an object is an empty object.
+    pub fn of(layout: &serde_json::Value) -> Self {
+        let object = |key: &str| match layout.get(key) {
+            Some(v) if v.is_object() => v.clone(),
+            _ => serde_json::Value::Object(serde_json::Map::new()),
+        };
+        StageLayoutNodes {
+            nodes: object("nodes"),
+            screens: object("screens"),
+        }
+    }
+}
+
 /// A per-recipe **layout** setting (Screens tab, `recipe_set_layout`), so it
 /// may differ between recipes and change mid-Play: it affects nothing scored.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -434,6 +467,10 @@ pub struct PlayStateForStage {
     #[serde(flatten)]
     pub game: StageGameState,
     pub decor: StageDecorSettings,
+    /// The recipe's Screens-tab overrides (P9), passed through from
+    /// `recipe.layout`: `{ nodes, screens }`. Opaque here on purpose — the
+    /// contract package owns and validates the shape.
+    pub layout: StageLayoutNodes,
     pub current_screen: StageScreen,
     pub overlay: StageOverlay,
     /// Live, from `FlagService::reveal_modes` — never a second store. Stage

@@ -13,7 +13,7 @@ export const WORDMARK_HEIGHT = NATURAL ? Number(NATURAL[2]) : 0
 
 const MARKUP = wordmark
   .replace(/<svg([^>]*)>/, (_m, attrs: string) => `<svg${attrs.replace(/\s(width|height)="[^"]*"/g, '')} width="100%" height="100%">`)
-  .replace(/fill="#[0-9a-fA-F]{3,8}"/g, 'fill="currentColor"')
+  .replace(/fill="(#[0-9a-fA-F]{3,8}|black|white)"/g, 'fill="currentColor"')
 
 export interface WordmarkProps {
   nodeId: string

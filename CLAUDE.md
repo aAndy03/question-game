@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**P0–P8 are done** (`docs/v1/04_ROADMAP.md`). npm workspaces monorepo, GPLv3. **The two tracks met at P6:** Stage no longer reads fixtures, it reads the host. `crates/host` holds `MatchService`, `FlagService`, `CatalogService` and `PresentationService` and is still a plain library with zero `tauri::` imports; `crates/app` is the Tauri 2 shell around it. **P7 built the Studio shell** — sidebar, top bar, status bar, the four library tabs (Teams, Domains+Questions, Games, Operators), one component system (`docs/v1/05_STUDIO_DESIGN.md`). **P8 built the Control tab** — the mosaic, the Viewer (the real Stage in an iframe), the Action Panel, Strips, Timeline, the settings float, hotkeys (`05_STUDIO_DESIGN.md` §10). P9 builds the Screens canvas.
+**P0–P9 are done** (`docs/v1/04_ROADMAP.md`). npm workspaces monorepo, GPLv3. **The two tracks met at P6:** Stage no longer reads fixtures, it reads the host. `crates/host` holds `MatchService`, `FlagService`, `CatalogService` and `PresentationService` and is still a plain library with zero `tauri::` imports; `crates/app` is the Tauri 2 shell around it. **P7 built the Studio shell** — sidebar, top bar, status bar, the four library tabs (Teams, Domains+Questions, Games, Operators), one component system (`docs/v1/05_STUDIO_DESIGN.md`). **P8 built the Control tab** — the mosaic, the Viewer (the real Stage in an iframe), the Action Panel, Strips, Timeline, the settings float, hotkeys (`05_STUDIO_DESIGN.md` §10). **P9 built the Screens canvas** — the recipe layout document, `play-state.layout`, the root DOM applier on Stage, the canvas with handles, inspector and decor dials (`05_STUDIO_DESIGN.md` §11). P10 is next.
 
 ```bash
 npm run dev:app        # the desktop app (tauri dev) — starts both dev servers itself
@@ -221,6 +221,14 @@ atoms → molecules → organisms → templates → pages   (eslint-enforced, on
 - **The mosaic is `react-mosaic`** restyled by `packages/design-studio/mosaic.css`; the tree is chrome, persisted per operator in `chrome/control.ts`. `MosaicPanel` measures its box and hands each panel a density; panels branch on it and never scroll horizontally.
 - **Timeline** reads `play_events` through a Query keyed on `(playId, eventCount)`; the tick's `eventCount` is what refreshes it.
 - **Armed states** (Reveal & pass, restart, abandon) are component state and reset on unmount; nothing on Control is remembered except the layout.
+
+#### The Screens tab as built (P9)
+
+- **`recipe.layout` has a shape now**: `packages/contract/src/layout.ts` (`version · decor · nodes · screens`); `parseLayout` is the validator and drops anything foreign. The host still stores it opaquely and passes `{ nodes, screens }` through as `play-state.layout` (`PresentationService::set_layout`, next to `set_decor`; both are set at `play_load` and `recipe_set_layout`).
+- **Stage applies overrides in one place**: `apps/stage/src/layout/apply.ts` writes inline styles onto `[data-node-id]` elements and re-applies after re-renders. Offsets are the `translate` property — never `transform`, which GSAP owns. Do not add per-component style merging; add a node id and the applier covers it.
+- **The canvas is the Viewer again** (same iframe, same protocol) fed a preview Play from `host/previewPlay.ts`; `NodeHandle`s are Studio DOM and never enter the saved document. Decor nodes get no handle — the dials tune them.
+- **Auto-save** is one `recipe_set_layout` per 400ms debounce, one `rev`; `LayoutEditor` keeps the draft dirty until the host confirms.
+- **DialKit is not used** (it needs its own panel to render); dials are `SliderField`.
 
 ### Game rules that constrain the model
 

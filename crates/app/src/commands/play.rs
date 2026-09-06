@@ -43,6 +43,8 @@ pub fn play_load(
     host.play.set_live_settings(live);
     host.presentation
         .set_decor(crate::decor::of(&recipe.layout));
+    host.presentation
+        .set_layout(questiongame_host::stage::StageLayoutNodes::of(&recipe.layout));
 
     windows::ensure_stage(&app)?;
     emit::play_state(&app, &mut host, now, true);

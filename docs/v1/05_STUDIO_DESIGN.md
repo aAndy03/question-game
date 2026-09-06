@@ -531,3 +531,134 @@ redo · `[` / `]` previous / next screen.
   Panel's ring is press-to-give only.
 - **The Shape manager** is not on Control (§11.B puts it on the Game tab) and
   is left for a later phase.
+
+## 11. Screens tab (P9)
+
+Status: **built, P9, 2026-09-06.** The layout workshop: a recipe's overrides of
+the Stage screens, saved onto that recipe, nowhere else (spec §12, §17).
+
+### 11.1 The layout document
+
+`recipe.layout` has been an opaque JSON value the catalog stores and
+`crates/app/src/decor.rs` reads one key of. P9 gives it a shape, owned by
+`packages/contract/src/layout.ts` and validated there (`parseLayout`), so
+the host still stores it opaquely and Stage reads it typed:
+
+```ts
+interface StageLayout {
+  readonly version: 1
+  readonly decor: StageDecorSettings                       // the P6 dials
+  readonly nodes: Record<NodeId, NodeStyle>                // per node
+  readonly screens: Partial<Record<StageScreen, ScreenBox>> // per screen
+}
+interface NodeStyle {          // every field optional; absent = built-in
+  readonly fontSize?: number   // px, in the 1920×1080 frame
+  readonly color?: string      // a questiongame token name or a literal
+  readonly fontFamily?: 'display' | 'mono'
+  readonly dx?: number; readonly dy?: number   // offset, frame px
+  readonly width?: number; readonly height?: number
+  readonly hidden?: boolean
+}
+interface ScreenBox {          // the decor field for that screen
+  readonly boundary?: { x: number; y: number; width: number; height: number }
+  readonly anchor?: { x: number; y: number }               // fractions 0–1
+}
+```
+
+Node ids are the contract's (`screen.slot[.key]`), so a renamed team or a
+reordered board never moves an override (risk register). **Apply to all
+screens** writes the same style under the same *slot* on every screen that
+has it (`header`, `title`, `row`, …).
+
+### 11.2 How it reaches Stage
+
+`PlayStateForStage` gains `layout: { nodes, screens }` (additive; `decor`
+stays where it is). The host passes it through: `PresentationService` holds
+the recipe's layout value next to `decor`, `recipe_set_layout` while the
+recipe is in Control updates both, `play_load` reads it off the snapshot.
+Stage applies it in one place: a `LayoutContext` at the root and
+`useNodeStyle(nodeId)`, which the elements that carry `data-node-id` (the
+`Text` atom, `DomainCard`, `AnswerOption`, `TeamMark`, `DecorShape`) merge
+into their style. `DecorField` reads `screens[screen]` for its boundary and
+anchor. A recipe with no overrides renders exactly as before — the existing
+Stage tests are the proof.
+
+### 11.3 The page
+
+```text
+┌ Screens ─────────────────────────────────────────────────────────────┐
+│ Game: [Season opener ▾]   Screen: Idle · Team order · … · Final      │
+├───────────────────────────────────────────┬──────────────────────────┤
+│ Canvas: the Stage iframe (?viewer, the   │ Inspector                 │
+│ same embed as Control's Viewer), fed a   │  Node: question.stem      │
+│ preview Play built from the recipe, with │  Font size · Colour ·     │
+│ selection handles over its node rects.  │  Family · Offset · Size   │
+│ Click a node to select; drag to nudge.   │  Hidden                   │
+│                                          │  [Apply to all screens]   │
+│                                          │  [Reset node]             │
+│                                          ├──────────────────────────┤
+│                                          │ Decor (DialKit dials)     │
+│                                          │  mode, drift, attraction, │
+│                                          │  bounce, spin, max speed, │
+│                                          │  anchor on/off/attract/   │
+│                                          │  repel/strength;          │
+│                                          │  this screen's box/anchor │
+└───────────────────────────────────────────┴──────────────────────────┘
+```
+
+- **Blocked while a Play is `playing|paused`** (already in the nav guard):
+  the notice's two actions become *Go to Control* and *Stop playing*, the
+  second stacking "Are you sure?" and then `abandon` (spec §12).
+- **The preview Play** is built client-side from the recipe (teams, domains,
+  the first board question) purely to have something to draw; it never
+  touches the host and is never a `play-state`. The canvas iframe gets it
+  over the same Viewer protocol.
+- **Selection handles** are the Viewer's hit-target mechanism reused with a
+  different meaning: `NodeHandle` (a molecule) draws the selected node's box
+  and lets it be dragged to change `dx`/`dy`; every other node is a faint
+  outline on hover. Handles live in Studio's DOM (spec §17: "Viewer overlays
+  are never saved as Stage design").
+- **Auto-save**: every change goes through a 400ms Pacer debounce into one
+  `recipe_set_layout`, one `rev` (spec §2.10). The header shows the rev and
+  a saving dot; leaving mid-debounce flushes.
+- **Decor dials** use DialKit's `Slider` / `Toggle` primitives inside a
+  Studio `Panel`, bound to `layout.decor` and `layout.screens[screen]`; the
+  canvas iframe shows the bodies moving live.
+
+### 11.4 Components
+
+| Level | Components |
+| --- | --- |
+| atoms | — (the fields exist) |
+| molecules | `NodeHandle` (selected box, drag to nudge) · `NodeOutline` · `ScreenTabs` (the seven screens) · `DecorDials` (the DialKit block) · `NodeInspector` (the style form) |
+| organisms | `ScreensCanvas` (iframe + handles + selection) · `LayoutEditor` (state, debounce, save) |
+| templates | `WorkshopLayout` (toolbar · canvas · inspector column) |
+| pages | `ScreensPage` (replaces the stub) |
+
+### 11.5 Tests
+
+- `packages/contract`: `parseLayout` accepts an empty document, rejects
+  unknown node ids and out-of-range values, and never carries a key outside
+  `version | decor | nodes | screens` (the "Viewer overlays are never
+  persisted" criterion, as a schema).
+- `crates/host`: a snapshot carries the recipe's layout and the emission
+  carries `layout.nodes`; `stage_contract.rs` keeps the fixtures in step.
+- `apps/stage`: `useNodeStyle` merges an override; an empty layout leaves
+  the tree byte-identical (existing host/fixture diff test).
+- `apps/studio`: editing a node saves one `recipe_set_layout` for that
+  recipe id after the debounce, with the document shape above and nothing
+  from the handles; the Screens route is refused while playing with the two
+  actions.
+
+### 11.6 As built
+
+- **Overrides are applied by one DOM applier at the Stage root**
+  (`apps/stage/src/layout/apply.ts`), not by `useNodeStyle` in each
+  component; `useScreenBox` remains for the decor field. Offsets use
+  `translate` so GSAP's `transform` is untouched.
+- **DialKit was dropped** — its controls render at zero height outside its
+  own panel. The dials are `SliderField`, `SwitchField` and `NumberField`.
+- **Decor nodes get no handle**; the dials own them.
+- **Colour** is a token name (`ink`, `paper`, `muted`, `correct`,
+  `incorrect`, `info`, `leader`, `accent`) or a CSS literal; the wordmark
+  follows `currentColor` for named fills so it recolours like text.

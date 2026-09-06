@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { nodeId, type PlayStateForStage, type StageDecorSettings, type StageScreen } from '@questiongame/contract'
+import { useScreenBox } from '@/layout'
+import { nodeId, type ScreenBox, type PlayStateForStage, type StageDecorSettings, type StageScreen } from '@questiongame/contract'
 import { DecorShape, type DecorShapeBody } from '@/atoms'
 import {
   decorSpecFor,
@@ -75,6 +76,8 @@ function settingsKey(s: StageDecorSettings): string {
 
 export function DecorField({ state, screen: presented }: DecorFieldProps) {
   const screen = presented ?? state.currentScreen
+  const box = useScreenBox(screen)
+  const boxKey = box ? JSON.stringify(box) : ''
   const seed = seedFromPlay(state)
   const settings = state.decor
   const key = settingsKey(settings)
@@ -100,16 +103,16 @@ export function DecorField({ state, screen: presented }: DecorFieldProps) {
 
   // A manifest may shape itself from the Play (idle: one digit per team); a
   // different body list is a different world, the same list is not.
-  const spec = decorSpecFor(screen, state, solids)
+  const spec = withScreenBox(decorSpecFor(screen, state, solids), box)
   const bodiesKey = spec ? spec.bodies.map((b) => (b.kind === 'svg' ? b.asset : b.kind)).join(',') : ''
 
   // The world lives across renders; it is rebuilt only when its inputs change.
   const world = useMemo<DecorWorld | null>(() => {
-    const s = decorSpecFor(screen, state, solids)
+    const s = withScreenBox(decorSpecFor(screen, state, solids), box)
     return s ? createDecorWorld(s, seed, settings) : null
     // `key`, `bodiesKey` and `sKey` stand in for `settings`, `state` and
     // `solids`, so an equal-valued new object is a no-op.
-  }, [screen, seed, key, bodiesKey, sKey])
+  }, [screen, seed, key, bodiesKey, sKey, boxKey])
 
   const latest = useRef<readonly PlacedBody[]>([])
   const worldOfLatest = useRef<DecorWorld | null>(null)
@@ -177,4 +180,17 @@ export function DecorField({ state, screen: presented }: DecorFieldProps) {
       })}
     </div>
   )
+}
+
+/** The recipe's per-screen decor box (Screens tab) wins over the manifest's. */
+function withScreenBox<T extends { boundary?: DecorBoundary | undefined; anchor?: { x: number; y: number } | undefined } | null>(
+  spec: T,
+  box: ScreenBox | undefined,
+): T {
+  if (!spec || !box) return spec
+  return {
+    ...spec,
+    ...(box.boundary ? { boundary: box.boundary } : {}),
+    ...(box.anchor ? { anchor: box.anchor } : {}),
+  }
 }

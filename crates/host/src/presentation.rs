@@ -41,7 +41,7 @@ use crate::settings::{RevealChannel, RevealMode, RevealSettings};
 use crate::snapshot::AnswerMode;
 use crate::stage::{
     OverlayRequest, PlayStateForStage, StageDecorSettings, StageGameState, StageOverlay,
-    StageScreen,
+    StageLayoutNodes, StageScreen,
 };
 
 /// The current screen, the overlay queue, and the recipe's decor settings.
@@ -54,6 +54,11 @@ pub struct PresentationService {
     /// (§2.6) rather than growing a backlog nobody asked to watch.
     pending: Option<OverlayRequest>,
     decor: StageDecorSettings,
+    /// The recipe's Screens-tab overrides (`nodes` and `screens`), passed
+    /// through untouched: `packages/contract/src/layout.ts` owns the shape and
+    /// Stage validates on receipt. Presentation only — nothing here is read
+    /// by a rule.
+    layout: StageLayoutNodes,
 }
 
 impl PresentationService {
@@ -79,6 +84,16 @@ impl PresentationService {
     /// scored, so a Screens-tab edit lands mid-Play without a freeze.
     pub fn set_decor(&mut self, decor: StageDecorSettings) {
         self.decor = decor;
+    }
+
+    pub fn layout(&self) -> &StageLayoutNodes {
+        &self.layout
+    }
+
+    /// From `recipe.layout` (P9). Live-updatable like decor: a Screens edit
+    /// the operator cannot see on Stage is useless, and it affects no score.
+    pub fn set_layout(&mut self, layout: StageLayoutNodes) {
+        self.layout = layout;
     }
 
     // ------------------------------------------------------------------ screens
@@ -373,6 +388,7 @@ impl PresentationService {
         PlayStateForStage {
             game,
             decor: self.decor,
+            layout: self.layout.clone(),
             current_screen: self.screen,
             overlay: StageOverlay {
                 busy: self.active.is_some(),

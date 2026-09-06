@@ -4,6 +4,7 @@ import { Text } from '@/atoms'
 import { runTransition, sequencer, type RunningTransition } from '@/presentation'
 import { DecorField, OverlayLayer, StageHeader } from '@/organisms'
 import { StageFrame } from '@/templates'
+import { LayoutProvider, applyLayout } from '@/layout'
 import { IdlePage } from './Idle'
 import { TeamOrderPage } from './TeamOrder'
 import { ChooseDomainPage } from './ChooseDomain'
@@ -71,6 +72,14 @@ export function StageRoot({ state }: StageRootProps) {
   const [leaving, setLeaving] = useState<Leaving | null>(null)
   // Which screen the persistent slots present; flips mid-transition.
   const [presented, setPresented] = useState<StageScreen>(screen)
+
+  // The recipe's node overrides, written onto the DOM (layout/apply.ts).
+  const frameForLayout = useRef<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    const root = frameForLayout.current
+    if (!root) return
+    return applyLayout(root, state.layout)
+  }, [state.layout])
 
   const shown = useRef(screen)
   const lastState = useRef(state)
@@ -141,6 +150,8 @@ export function StageRoot({ state }: StageRootProps) {
   const headerState = presented === screen ? state : (leaving?.state ?? state)
 
   return (
+    <LayoutProvider layout={state.layout}>
+    <div ref={frameForLayout} style={{ display: 'contents' }}>
     <div ref={frame} style={{ display: 'contents' }}>
       <StageFrame
         screen={screen}
@@ -158,6 +169,8 @@ export function StageRoot({ state }: StageRootProps) {
         </div>
       </StageFrame>
     </div>
+    </div>
+    </LayoutProvider>
   )
 }
 

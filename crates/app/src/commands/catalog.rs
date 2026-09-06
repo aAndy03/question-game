@@ -328,6 +328,8 @@ pub fn recipe_set_layout(
         .unwrap_or(false);
     if loaded {
         host.presentation.set_decor(crate::decor::of(&layout));
+        host.presentation
+            .set_layout(questiongame_host::stage::StageLayoutNodes::of(&layout));
         crate::emit::play_state(&app, &mut host, now, true);
     }
     emit::recipe_changed(&app, &change);

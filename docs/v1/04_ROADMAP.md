@@ -545,17 +545,36 @@ Density: each panel branches on the density `MosaicPanel` measures (`comfortable
 
 ---
 
-## P9 — Screens tab canvas  ☐
+## P9 — Screens tab canvas  ☑
 
-**Install:** [`dialkit`](https://www.npmjs.com/package/dialkit).
+**Goal:** a recipe's own look for its Stage screens, saved onto that recipe and nowhere else.
 
-**Deliverables:** route blocked while a Play is `playing|paused`, with the two-action notice and stacked "Are you sure?"; load a recipe, select nodes by P1 contract id, edit font / size / colour / position / size, apply to this screen or all screens; **decor physics dials** (DialKit) bound to `StageDecorSettings` — mode, drift, attraction, bounce, spin, max speed, the anchor (on/off, attract seconds, repel seconds, strength), plus each screen's boundary box and anchor point; auto-save to `recipe_set_layout`, 400ms debounce, one `rev`.
+**Design:** `05_STUDIO_DESIGN.md` §11. **Installed:** nothing new that stayed — DialKit was tried and dropped (see decisions).
 
-**Exit criteria**
+**Deliverables** — all ☑
 
-- ☐ An override saved here appears on Stage in the next Play of that recipe, and nowhere else.
-- ☐ Viewer overlays are never persisted as Stage design.
-- ☐ A recipe with no overrides plays correctly on built-in defaults.
+- ☑ **The layout document has a shape** (`packages/contract/src/layout.ts`): `version · decor · nodes · screens`, validated by `parseLayout`, which drops unknown keys, unknown node ids and out-of-range values. `applyToAllScreens` copies a style by slot.
+- ☑ **`play-state.layout`** (`{ nodes, screens }`, additive) — `PresentationService` holds it next to `decor`; `play_load` and `recipe_set_layout` set both; the fixtures and `stage_contract.rs` carry the new key.
+- ☑ **Stage applies overrides at the root** (`apps/stage/src/layout/apply.ts`): one DOM applier writes each node's entry as inline style onto the element carrying its `data-node-id`, re-applying after React re-renders through a `MutationObserver`; offsets use the `translate` property so GSAP's `transform` tweens are never fought. `useScreenBox` gives `DecorField` the per-screen boundary and anchor. No Stage component knows a layout exists.
+- ☑ **Route blocked while a Play is `playing|paused`** with *Go to Control* and *Stop playing* → stacked "Are you sure?" → `abandon`, all inside one notice.
+- ☑ **The canvas**: the same Stage iframe as Control's Viewer, fed a preview Play built from the recipe (`host/previewPlay.ts`), with `NodeHandle`s over the node rects Stage reports. Click selects, drag or arrow keys nudge, the inspector edits font size / colour (token or literal) / family / offset / size / hidden, *Apply to all screens* copies by slot, per-node and per-screen resets.
+- ☑ **Decor dials** bound to `layout.decor` (mode, drift, attraction, bounce, spin, max speed, the anchor's on/off, attract, repel, strength) and to this screen's boundary box and anchor point, live on the canvas.
+- ☑ **Auto-save** through a 400ms Pacer debounce into one `recipe_set_layout`, one `rev`; leaving mid-debounce flushes.
+
+**Exit criteria — all met 2026-09-06** (`packages/contract/src/layout.test.ts`, `apps/studio/src/pages/screens.test.tsx`, `crates/host/tests/stage_contract.rs`, the Stage host/fixture diff tests.)
+
+- ☑ **An override saved here appears on Stage in the next Play of that recipe, and nowhere else.** The Studio test edits a node and asserts exactly one `recipe_set_layout`, for that recipe id, whose document round-trips through `parseLayout` unchanged; the host copies `recipe.layout` into the emission at `play_load`, which the contract test checks key for key.
+- ☑ **Viewer overlays are never persisted as Stage design.** The document has four keys and the validator drops anything else; handles live in Studio's DOM.
+- ☑ **A recipe with no overrides plays correctly on built-in defaults.** The applier writes nothing for an empty layout; the existing "fixture-fed equals host-fed" Stage test still passes byte for byte.
+
+**Decisions made while building it (2026-09-06)**
+
+- **A root DOM applier, not a hook in every component.** Fourteen elements carry node ids and more will; one applier keeps the Stage tree unchanged and is the only place an override becomes CSS.
+- **`translate`, not `transform`, for offsets** — GSAP owns `transform` on the same elements during transitions and reveals.
+- **DialKit dropped.** Its `Slider` renders at zero height outside its own floating panel, and a second look inside the inspector was the wrong trade. The dials are the design system's `SliderField`; the §7 row is closed as tried-and-replaced.
+- **Colour tokens by name** (`ink`, `paper`, `correct`, …) resolve to Stage variables on Stage; a literal CSS colour is also accepted.
+- **The wordmark now follows `currentColor`** for named fills too, so a colour override reaches it like any text.
+- **Preview Play is client-side only** and never a `play-state`; it is what the canvas draws, not what the host knows.
 
 ---
 

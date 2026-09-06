@@ -283,7 +283,6 @@ export const RULES = {
 } as const
 
 export const STUB = {
-  screens: { title: 'Screens', body: 'The Screens canvas arrives with P9.' },
   statistics: { title: 'Statistics', body: 'Live and all-data views arrive with P11.' },
   settings: { title: 'Settings', body: 'Monitors, grouped globals and keyboard shortcuts arrive with P10.' },
 } as const
@@ -306,6 +305,7 @@ export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Read
   monitor: { title: 'Display problem.', actions: {} },
   window: { title: 'Window problem.', actions: {} },
   no_host: { title: 'No host is connected.', actions: {} },
+  'screens.blocked': { title: 'Screens is unavailable while a Play is playing or paused.', actions: { go_to_control: 'Go to Control', stop_playing: 'Stop playing', abandon_confirm: 'Stop playing', dismiss: 'Dismiss' } },
 }
 
 export function noticeTitle(code: string, detail: Readonly<Record<string, string>>): string {
@@ -335,3 +335,4 @@ export const fmt = {
 }
 
 export * from './control'
+export * from './screens'

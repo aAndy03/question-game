@@ -292,6 +292,12 @@ export function createFakeHost(): FakeHost {
       const next = bumpRecipe({ ...r, settings: a.settings as GameSettings })
       return { id: next.id, rev: next.rev }
     },
+    recipe_set_layout: (a) => {
+      const r = recipes.get(a.id as string)
+      if (!r) refuse('catalog', `recipe ${a.id} not found`)
+      const next = bumpRecipe({ ...r, layout: a.layout as Recipe['layout'] })
+      return { id: next.id, rev: next.rev }
+    },
     recipe_set_overlay: (a) => {
       const r = recipes.get(a.id as string)
       if (!r) refuse('catalog', `recipe ${a.id} not found`)

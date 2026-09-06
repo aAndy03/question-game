@@ -23,7 +23,7 @@ use serde_json::Value;
 use support::*;
 
 /// Owned by `PresentationService`, merged into the emission.
-const PRESENTATION_KEYS: [&str; 4] = ["currentScreen", "decor", "overlay", "revealModes"];
+const PRESENTATION_KEYS: [&str; 5] = ["currentScreen", "decor", "layout", "overlay", "revealModes"];
 
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures")

@@ -13,14 +13,6 @@ function Stub({ body }: { body: string }) {
   )
 }
 
-export function ScreensPage() {
-  return (
-    <BlankLayout header={<PageHeader title={TABS.screens.label} description={TABS.screens.hint} />}>
-      <Stub body={STUB.screens.body} />
-    </BlankLayout>
-  )
-}
-
 export function StatisticsPage() {
   return (
     <BlankLayout header={<PageHeader title={TABS.statistics.label} description={TABS.statistics.hint} />}>

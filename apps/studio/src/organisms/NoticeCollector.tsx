@@ -3,7 +3,7 @@ import { Button, Text } from '@/atoms'
 import { EmptyState, InlineNotice } from '@/molecules'
 import { surfaceOf, useNoticeStore, type OpenNotice } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
-import { CHROME, CONFIRM, noticeAction, noticeTitle } from '@/copy'
+import { CHROME, CONFIRM, SCREENS_TAB, noticeAction, noticeTitle } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 
 /**
@@ -17,6 +17,7 @@ export function NoticeCollector() {
   const setOpen = useNoticeStore((s) => s.setCollectorOpen)
   const dismiss = useNoticeStore((s) => s.dismiss)
   const popFrame = useNoticeStore((s) => s.popFrame)
+  const pushFrame = useNoticeStore((s) => s.pushFrame)
   const clear = useNoticeStore((s) => s.clear)
   const go = useNavStore((s) => s.go)
   const run = useHostCommand()
@@ -42,6 +43,17 @@ export function NoticeCollector() {
         setOpen(false)
         await go({ tab: 'control' })
         dismiss(notice.id)
+        return
+      // Screens while playing (spec §12): Stop playing stacks "Are you sure?"
+      // in the same notice; only the confirm frame abandons.
+      case 'stop_playing':
+        pushFrame(notice.id, { title: SCREENS_TAB.stopTitle, body: SCREENS_TAB.stopBody, actions: ['abandon_confirm'] })
+        return
+      case 'abandon_confirm':
+        await run('abandon')
+        dismiss(notice.id)
+        setOpen(false)
+        await go({ tab: 'screens' })
         return
       default:
         dismiss(notice.id)

@@ -7,11 +7,12 @@ fullscreen window on a second display.
 Offline-first, Windows and macOS, GPLv3. Built as one repo: a Rust host that
 owns every fact, and two React webviews that only draw.
 
-> **Status: P0–P8 of thirteen.** The engine, the library, the Tauri wiring, the
+> **Status: P0–P9 of thirteen.** The engine, the library, the Tauri wiring, the
 > **Studio shell** and the **Control tab** are done: Stage reads live state from
 > the host, the operator app has its four library tabs, and Control runs a show
 > — the Viewer embeds the real Stage, and every button, chord and Viewer click
-> is one host command. Screens arrives with P9. See
+> is one host command, and **Screens** restyles a recipe's Stage on the same
+> embedded canvas. Settings and first run arrive with P10. See
 > [`docs/v1/04_ROADMAP.md`](docs/v1/04_ROADMAP.md).
 
 ---
@@ -73,7 +74,7 @@ the app: a real host always wins.
 ## Verifying
 
 ```bash
-npm run test:all       # 376 TypeScript + 194 Rust
+npm run test:all       # 383 TypeScript + 194 Rust
 npm run typecheck      # tsc --build across all project references
 npm run lint           # eslint — this is where the architecture rules live
 npm run lint:host      # clippy over the host crate

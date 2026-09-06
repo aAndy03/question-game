@@ -13,6 +13,7 @@
 
 import type { StageScreen } from './screens'
 import type { OverlayRequest, RevealChannel, RevealMode } from './reveal'
+import type { StageLayoutNodes } from './layout'
 
 /**
  * Bumped when a field is removed or its meaning changes; additive fields do
@@ -256,6 +257,13 @@ export interface PlayStateForStage {
   /** Decorative-body motion for this recipe. See `StageDecorSettings`. */
   readonly decor: StageDecorSettings
 
+  /**
+   * The recipe's Screens-tab overrides (P9): per-node styles and per-screen
+   * decor boxes. Presentation only; a recipe with none renders the built-in
+   * defaults. `packages/contract/src/layout.ts` owns the shape.
+   */
+  readonly layout: StageLayoutNodes
+
   /** Questions issued so far this Play, the current one included. `QUESTION 20`. */
   readonly questionsIssued: number
 
@@ -290,6 +298,7 @@ export const EMPTY_PLAY_STATE: PlayStateForStage = {
   clock: { elapsedMs: 0, running: false },
   leaderboardRevealedRanks: [],
   decor: DEFAULT_DECOR_SETTINGS,
+  layout: { nodes: {}, screens: {} },
   questionsIssued: 0,
   currentScreen: 'idle',
   overlay: { busy: false, active: null, pending: null, enabled: true },
