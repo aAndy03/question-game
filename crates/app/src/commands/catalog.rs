@@ -10,10 +10,10 @@
 //! `CatalogKind::Recipe` and recipes have their own commands. That refusal
 //! comes from the host; nothing here re-implements it.
 
-use questiongame_host::catalog::{SeedMode, SeedResult, SeedStatus, ChangeOp, 
-    ArchiveScope, Asset, BoardDomain, CatalogChange, CatalogItem, CatalogKind, DomainOverlay,
-    EditScope, OverlayTarget, QuestionOverlay, Recipe, RecipeChange, SearchHit, SearchQuery,
-    TeamOverlay,
+use questiongame_host::catalog::{
+    ArchiveScope, Asset, BoardDomain, CatalogChange, CatalogItem, CatalogKind, ChangeOp,
+    DomainOverlay, EditScope, OverlayTarget, QuestionOverlay, Recipe, RecipeChange, SearchHit,
+    SearchQuery, SeedMode, SeedResult, SeedStatus, TeamOverlay,
 };
 use questiongame_host::flags::GameSettings;
 use questiongame_host::{DomainId, QuestionId, RecipeId, TeamId};
@@ -375,7 +375,11 @@ pub fn catalog_seed_demo(
         .seed_demo(mode, host.flags.new_recipe_settings(), now)?;
     // The seed touches up to a dozen rows and one recipe; one invalidation per
     // kind is enough for Studio and cheaper than one per row.
-    for kind in [CatalogKind::Team, CatalogKind::Domain, CatalogKind::Question] {
+    for kind in [
+        CatalogKind::Team,
+        CatalogKind::Domain,
+        CatalogKind::Question,
+    ] {
         emit::catalog_changed(
             &app,
             &CatalogChange {
@@ -405,9 +409,7 @@ pub fn catalog_seed_status(
 ) -> AppResult<SeedStatus> {
     guard::allow(window.label(), "catalog_seed_status")?;
     let host = state.lock();
-    Ok(host
-        .catalog
-        .seed_status(host.flags.new_recipe_settings())?)
+    Ok(host.catalog.seed_status(host.flags.new_recipe_settings())?)
 }
 
 /// Rebuild the in-memory search index from the catalog — the action behind

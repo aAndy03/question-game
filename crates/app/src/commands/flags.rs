@@ -13,15 +13,15 @@
 
 use questiongame_host::MatchError;
 use questiongame_host::catalog::CatalogKind;
-use questiongame_host::flags::{Chord, GameSetting, GlobalSetting, SettingsView};
 use questiongame_host::catalog::{CatalogError, CatalogItem, Operator};
+use questiongame_host::flags::{Chord, GameSetting, GlobalSetting, SettingsView};
 use questiongame_host::operator::{hash_pin, validate_pin_format, verify_pin};
 use questiongame_host::{HealthReport, MonitorKey, OperatorId};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 
-use crate::error::AppResult;
 use crate::error::AppError;
+use crate::error::AppResult;
 use crate::state::{AppState, Host, now_ms};
 use crate::{emit, guard, windows};
 
@@ -58,7 +58,9 @@ pub fn settings_set_global(
     // the check lives here where both services are in reach; `FlagService`
     // stores what it is given.
     if let GlobalSetting::ActiveOperatorId(Some(id)) = &setting {
-        let item = host.catalog.catalog_get(CatalogKind::Operator, id.as_str())?;
+        let item = host
+            .catalog
+            .catalog_get(CatalogKind::Operator, id.as_str())?;
         if item.as_operator().is_some_and(|o| o.stamps.is_archived()) {
             return Err(MatchError::IllegalSettings {
                 key: "operator.active",
@@ -407,9 +409,5 @@ pub fn uninstall_data(
 pub fn health_get(window: WebviewWindow, state: State<'_, AppState>) -> AppResult<HealthReport> {
     guard::allow(window.label(), "health_get")?;
     let host = state.lock();
-    Ok(host
-        .health
-        .last()
-        .cloned()
-        .unwrap_or_else(HealthReport::ok))
+    Ok(host.health.last().cloned().unwrap_or_else(HealthReport::ok))
 }

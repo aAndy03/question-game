@@ -141,9 +141,11 @@ pub fn stage_report(
     guard::allow(window.label(), "stage_report")?;
     let detail = detail.unwrap_or_default();
     if code == "audio_missing_cue" || code == "audio_failed" {
-        let cue = detail
-            .get("cue")
-            .and_then(|c| questiongame_host::CueKey::ALL.into_iter().find(|k| k.as_str() == c));
+        let cue = detail.get("cue").and_then(|c| {
+            questiongame_host::CueKey::ALL
+                .into_iter()
+                .find(|k| k.as_str() == c)
+        });
         if let Some(cue) = cue {
             let file = detail.get("file").cloned().unwrap_or_default();
             state.lock().health.missing_cue(cue, file);
@@ -205,10 +207,16 @@ pub fn monitors_list(
     state: State<'_, AppState>,
 ) -> AppResult<Vec<questiongame_host::MonitorInfo>> {
     guard::allow(window.label(), "monitors_list")?;
-    let mut host = state.lock();
     // Not a bare read: resolving the list may find the remembered display back,
     // and the window has to follow that decision rather than be told about it.
-    windows::refresh(&app, &mut host)?;
+    //
+    // Refresh **before** taking the lock, never under it. This command is
+    // synchronous, so it runs on the main thread, and moving a window there
+    // pumps the message loop — which dispatches the next queued command onto
+    // this same thread. If the lock were held, that command's `state.lock()`
+    // would wait for a guard only this thread could release.
+    windows::refresh(&app, &state)?;
+    let host = state.lock();
     Ok(host.display.monitors().to_vec())
 }
 
@@ -223,26 +231,36 @@ pub fn stage_set_monitor(
     monitor_id: Option<String>,
 ) -> AppResult<()> {
     guard::allow(window.label(), "stage_set_monitor")?;
-    let mut host = state.lock();
 
     // Refresh first: the picker may be a few seconds stale, and sending Stage
     // to a display that just left should say so rather than remember a wish.
-    windows::refresh(&app, &mut host)?;
+    // Before the lock, because refreshing touches windows.
+    windows::refresh(&app, &state)?;
 
-    let key = monitor_id.clone().map(MonitorKey::new);
-    let mv = host.display.set_monitor(key)?;
+    // The decision under the lock; the window work after it. `ensure_stage`
+    // *creates* a webview, which pumps the message loop and lets the new
+    // window invoke before this returns — with the lock held that is a wait
+    // on ourselves.
+    let mv = {
+        let mut host = state.lock();
+        let key = monitor_id.clone().map(MonitorKey::new);
+        let mv = host.display.set_monitor(key)?;
 
-    let ctx = host.runtime();
-    host.flags.settings_set_global(
-        questiongame_host::flags::GlobalSetting::StageMonitorId(monitor_id),
-        ctx,
-    )?;
-    let globals = host.flags.globals().clone();
-    host.catalog.settings_store(&globals)?;
+        let ctx = host.runtime();
+        host.flags.settings_set_global(
+            questiongame_host::flags::GlobalSetting::StageMonitorId(monitor_id),
+            ctx,
+        )?;
+        let globals = host.flags.globals().clone();
+        host.catalog.settings_store(&globals)?;
+        mv
+    };
 
     windows::ensure_stage(&app)?;
     windows::apply(&app, &mv)?;
-    emit::monitors_changed(&app, &host);
+    let stats_open = windows::stats_is_open(&app);
+    let host = state.lock();
+    emit::monitors_changed(&app, &host, stats_open);
     Ok(())
 }
 

@@ -68,7 +68,10 @@ pub fn stats_window(
     }
 
     // The button says "Show" or "Close", and it reads the answer from here.
+    // Asked before the lock: the window map is what the window work just
+    // changed, and nothing that touches a window belongs under the guard.
+    let stats_open = windows::stats_is_open(&app);
     let host = state.lock();
-    emit::monitors_changed(&app, &host);
+    emit::monitors_changed(&app, &host, stats_open);
     Ok(())
 }

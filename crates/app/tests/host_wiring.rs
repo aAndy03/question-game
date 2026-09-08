@@ -410,11 +410,7 @@ fn the_demo_library_seeds_a_playable_show() {
         .unwrap();
 
     let state = host.stage_state(2_000);
-    assert_eq!(
-        state.game.teams.len(),
-        2,
-        "the Demo has two teams (§2.27)"
-    );
+    assert_eq!(state.game.teams.len(), 2, "the Demo has two teams (§2.27)");
     assert_eq!(state.game.domains.len(), 2);
     assert_eq!(
         state.game.domains[0].next_difficulty,
@@ -424,14 +420,15 @@ fn the_demo_library_seeds_a_playable_show() {
 
     // And a whole turn resolves through it.
     host.write(3_000, |h| {
-        Ok(h.play.choose_domain(&DomainId::from("seed-dom-sci"), 3_000)?)
+        Ok(h.play
+            .choose_domain(&DomainId::from("seed-dom-sci"), 3_000)?)
     })
     .unwrap();
     host.write(4_000, |h| {
         Ok(h.play
             .set_selection(&[OptionId::new("seed-q-sci-1-a")], 4_000)?)
     })
-        .unwrap();
+    .unwrap();
     host.write(5_000, |h| Ok(h.play.lock_selection(5_000)?))
         .unwrap();
     host.write(6_000, |h| Ok(h.play.reveal_outcome(6_000)?))

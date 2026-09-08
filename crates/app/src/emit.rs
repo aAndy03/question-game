@@ -93,7 +93,10 @@ struct MonitorsChanged<'a> {
     stats_open: bool,
 }
 
-pub fn monitors_changed(app: &AppHandle, host: &Host) {
+/// `stats_open` is passed in rather than read here: every caller already knows
+/// it, and asking the window map for it while the host lock is held is the one
+/// habit `windows::refresh` exists to avoid.
+pub fn monitors_changed(app: &AppHandle, host: &Host, stats_open: bool) {
     let _ = app.emit_to(
         MAIN,
         "monitors-changed",
@@ -102,7 +105,7 @@ pub fn monitors_changed(app: &AppHandle, host: &Host) {
             stage_monitor_id: host.flags.control().stage_monitor_id.as_deref(),
             stage_on: host.display.current().map(|k| k.as_str()),
             stats_monitor_id: host.flags.control().stats_monitor_id.as_deref(),
-            stats_open: crate::windows::stats_is_open(app),
+            stats_open,
         },
     );
 }

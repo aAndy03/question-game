@@ -31,29 +31,37 @@ pub fn play_load(
 ) -> AppResult<()> {
     guard::allow(window.label(), "play_load")?;
     let now = now_ms();
-    let mut host = state.lock();
+    // The host work in its own scope: `ensure_stage` below **builds a webview**,
+    // which pumps the message loop and lets the new window invoke before it
+    // returns. With the lock held that is a wait on ourselves (§9).
+    {
+        let mut host = state.lock();
 
-    let recipe = host.catalog.recipe_get(&recipe_id)?;
-    host.flags.load_recipe(recipe.settings.clone())?;
-    let settings = host.flags.freeze()?;
-    let snapshot = host.catalog.build_snapshot(&recipe_id, play_id, settings)?;
+        let recipe = host.catalog.recipe_get(&recipe_id)?;
+        host.flags.load_recipe(recipe.settings.clone())?;
+        let settings = host.flags.freeze()?;
+        let snapshot = host.catalog.build_snapshot(&recipe_id, play_id, settings)?;
 
-    host.play.play_load(snapshot, now)?;
-    // Who is running the show, recorded in the log at the door (§2.26). The
-    // event is the only place the fact lives: `stats.rs` groups by it, and the
-    // `plays` projection carries it so an operator's Play count is a count of
-    // rows rather than a counter someone has to remember to increment.
-    if let Some(operator_id) = host.flags.globals().active_operator_id.clone() {
-        host.play.operator_switched(operator_id, now)?;
+        host.play.play_load(snapshot, now)?;
+        // Who is running the show, recorded in the log at the door (§2.26). The
+        // event is the only place the fact lives: `stats.rs` groups by it, and the
+        // `plays` projection carries it so an operator's Play count is a count of
+        // rows rather than a counter someone has to remember to increment.
+        if let Some(operator_id) = host.flags.globals().active_operator_id.clone() {
+            host.play.operator_switched(operator_id, now)?;
+        }
+        let live = host.flags.live();
+        host.play.set_live_settings(live);
+        host.presentation
+            .set_decor(crate::decor::of(&recipe.layout));
+        host.presentation
+            .set_layout(questiongame_host::stage::StageLayoutNodes::of(
+                &recipe.layout,
+            ));
     }
-    let live = host.flags.live();
-    host.play.set_live_settings(live);
-    host.presentation
-        .set_decor(crate::decor::of(&recipe.layout));
-    host.presentation
-        .set_layout(questiongame_host::stage::StageLayoutNodes::of(&recipe.layout));
 
     windows::ensure_stage(&app)?;
+    let mut host = state.lock();
     emit::play_state(&app, &mut host, now, true);
     Ok(())
 }

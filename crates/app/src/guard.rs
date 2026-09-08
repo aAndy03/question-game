@@ -65,7 +65,11 @@ pub fn allow(label: &str, command: &'static str) -> AppResult<()> {
             tracing::debug!(webview = label, command, "invoke");
             return Ok(());
         }
-        tracing::warn!(webview = label, command, "refused: statistics is a projector");
+        tracing::warn!(
+            webview = label,
+            command,
+            "refused: statistics is a projector"
+        );
         return Err(AppError::NotForStage { command });
     }
     if label == MAIN || stage_may_call(command) {

@@ -793,14 +793,42 @@ A third pass from operating the app (2026-09-08).
 - ☑ Table rows are numbered from one, and the numbers follow the filter and
   the sort rather than the row's identity.
 
-**Still open**
+**The freeze, and what it turned out to be**
 
-- ☐ **The Archived freeze (reported 2026-09-08) is not reproduced.** The
-  archived path was cleared end to end: `catalog_list(kind, Archived)` answers
-  in ~30 µs against a real library, `ArchiveToggle` switches in isolation, the
-  four library tabs switch scope against the fake host, and an archived row
-  renders. Whatever freezes is not in any of those. It needs a capture from the
-  real app — the console of `npm run dev:app` at the moment it stops.
+The archived path itself was clean — `catalog_list(kind, Archived)` answers in
+~30 µs against a real library, `ArchiveToggle` switches in isolation, all four
+library tabs switch scope, an archived row renders, and none of it breaks with
+an open Play ticking at 10 Hz. The freeze was never in the feature.
+
+One detail from the operator settled it: **Ctrl+R did nothing either**. A stuck
+JS thread still reloads; a window that will not even reload is a window whose
+*host* thread is not processing messages. And the main thread is exactly where
+the synchronous commands run — `get_state`, `settings_get`, `health_get`,
+`monitors_list`, `catalog_seed_status` — every one of which calls
+`AppState::lock`.
+
+`monitors_list` is synchronous, runs at boot and on every monitors refetch, and
+took the lock **and then** called `windows::refresh`, whose first act is
+`available_monitors`. On Windows that pumps the message loop, which dispatches
+the next queued IPC onto the same thread, which calls `lock()` on a
+non-reentrant `Mutex` — and the app waits for a guard only that thread can
+release. `stage_set_monitor` (`ensure_stage` + `apply` under the guard),
+`play_load` (`ensure_stage` under the guard) and the monitor watch had the same
+shape. Clicking a library tab does not cause it; it *loads the queue*, which is
+why it looked like Archived.
+
+| | |
+| --- | --- |
+| `windows::refresh` | takes `&AppState`, not a guard: read the OS, decide under one short lock, then act. `follow_stats` is handed the list it already fetched |
+| `monitors_list` · `stage_set_monitor` · `play_load` · the monitor watch | window and display work moved out from under the guard |
+| `AppState::lock` | returns a `HostGuard` that counts itself; `state::assert_unlocked` is a `debug_assert!` on every window and monitor entry point, so the next violation is a panic naming the call site rather than a hang |
+
+- ☑ The rule is a test, not a comment —
+  `the_guard_counts_itself_and_assert_unlocked_reads_it`.
+- ☐ **Unconfirmed by the operator.** The violation is real, it is on a path
+  that runs at every boot, and its symptom is exactly the one reported; but the
+  freeze itself was never reproduced here, so this is a diagnosis, not a
+  sighting.
 
 ---
 

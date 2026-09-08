@@ -34,7 +34,7 @@ use questiongame_host::health::{self, HealthInputs, HealthReport};
 use questiongame_host::presentation::PresentationService;
 use questiongame_host::settings::OverrideAfterLock;
 use questiongame_host::stage::{PlayStateForStage, StageGameState, project};
-use questiongame_host::{MatchService, Play, StageDisplay, RecipeId, TeamId};
+use questiongame_host::{MatchService, Play, RecipeId, StageDisplay, TeamId};
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
@@ -168,8 +168,12 @@ impl Host {
         let game = self
             .game_state(now_ms)
             .unwrap_or_else(questiongame_host::stage::empty_game);
-        self.presentation
-            .play_state(game, self.flags.reveal_modes(), self.overlays_enabled(), self.flags.audio())
+        self.presentation.play_state(
+            game,
+            self.flags.reveal_modes(),
+            self.overlays_enabled(),
+            self.flags.audio(),
+        )
     }
 
     /// What `main` receives: the same state plus the operator half — the
@@ -298,6 +302,61 @@ pub struct PlayStateForMain {
 /// thing at every call site.
 pub struct AppState(Mutex<Host>);
 
+thread_local! {
+    /// How many host guards this thread is holding. Read by [`assert_unlocked`].
+    static HOLDING: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// True while this thread holds the host lock.
+pub fn host_lock_held() -> bool {
+    HOLDING.with(|n| n.get() > 0)
+}
+
+/// Refuse, loudly and in dev only, to touch a window while the host lock is
+/// held.
+///
+/// Every OS window call — creating a webview, `set_position`, `set_fullscreen`,
+/// `available_monitors`, closing a window — pumps the platform message loop,
+/// and pumping it dispatches whatever IPC the webview has queued. If that is
+/// one of the **synchronous** commands (`get_state`, `settings_get`,
+/// `health_get`, `monitors_list`, `catalog_seed_status`) it runs on this same
+/// thread and calls `AppState::lock`, which is a plain non-reentrant `Mutex`.
+/// The app then waits for a guard only this thread can release: no repaint, no
+/// input, not even a reload, and no second thread to point at in a dump.
+///
+/// It cost a day to find by reading. In a debug build it is now a panic with
+/// the call site on it; in release it compiles away, because a deadlock is
+/// still better than killing a live show over an assertion.
+#[track_caller]
+pub fn assert_unlocked(what: &str) {
+    debug_assert!(
+        !host_lock_held(),
+        "{what} was called while this thread holds the host lock —          touching a window pumps the message loop and re-enters a synchronous          command, which then waits for a lock only this thread can release.          Read the OS, drop the guard, then act."
+    );
+}
+
+/// A host guard that counts itself, so [`assert_unlocked`] can tell.
+pub struct HostGuard<'a>(MutexGuard<'a, Host>);
+
+impl std::ops::Deref for HostGuard<'_> {
+    type Target = Host;
+    fn deref(&self) -> &Host {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for HostGuard<'_> {
+    fn deref_mut(&mut self) -> &mut Host {
+        &mut self.0
+    }
+}
+
+impl Drop for HostGuard<'_> {
+    fn drop(&mut self) {
+        HOLDING.with(|n| n.set(n.get().saturating_sub(1)));
+    }
+}
+
 impl AppState {
     pub fn new(host: Host) -> AppState {
         AppState(Mutex::new(host))
@@ -306,8 +365,40 @@ impl AppState {
     /// A poisoned lock means a command panicked mid-write. Every write in the
     /// catalog is a transaction and every append is a whole event, so the data
     /// is consistent; recovering beats bricking the next click.
-    pub fn lock(&self) -> MutexGuard<'_, Host> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    pub fn lock(&self) -> HostGuard<'_> {
+        let guard = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        HOLDING.with(|n| n.set(n.get() + 1));
+        HostGuard(guard)
+    }
+}
+
+#[cfg(test)]
+mod lock_discipline {
+    use super::*;
+
+    /// The counter is what `assert_unlocked` reads, so it has to be right at
+    /// every depth and after every early return.
+    #[test]
+    fn the_guard_counts_itself_and_assert_unlocked_reads_it() {
+        let state = AppState::new(Host::open(CatalogLocation::Memory).expect("in-memory host"));
+        assert!(!host_lock_held());
+        assert_unlocked("nothing is held");
+        {
+            let _guard = state.lock();
+            assert!(host_lock_held(), "a guard is held and nobody noticed");
+        }
+        assert!(!host_lock_held(), "the guard did not release the count");
+        // The assertion this whole mechanism exists for.
+        let guard = state.lock();
+        assert!(
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| assert_unlocked(
+                "windows::ensure_stage"
+            )))
+            .is_err(),
+            "touching a window under the lock has to be refused in a debug build"
+        );
+        drop(guard);
+        assert!(!host_lock_held());
     }
 }
 

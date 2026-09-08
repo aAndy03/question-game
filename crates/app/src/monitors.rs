@@ -18,6 +18,7 @@ use tauri::AppHandle;
 
 /// The connected displays, primary first-class rather than positional.
 pub fn list(app: &AppHandle) -> Vec<MonitorInfo> {
+    crate::state::assert_unlocked("monitors::list");
     let primary = app
         .primary_monitor()
         .ok()
@@ -50,6 +51,7 @@ pub fn list(app: &AppHandle) -> Vec<MonitorInfo> {
 /// has to be set in. `list` reports logical pixels for the operator's sake;
 /// moving a window needs the untranslated ones back.
 pub fn physical_origin(app: &AppHandle, key: &MonitorKey) -> Option<tauri::PhysicalPosition<i32>> {
+    crate::state::assert_unlocked("monitors::physical_origin");
     app.available_monitors().ok()?.into_iter().find_map(|m| {
         let scale = m.scale_factor();
         let size = m.size().to_logical::<u32>(scale);

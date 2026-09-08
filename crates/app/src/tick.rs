@@ -103,13 +103,16 @@ fn spawn_monitor_watch(app: AppHandle) {
             ticker.tick().await;
             let list = crate::monitors::list(&app);
             let state: tauri::State<'_, AppState> = tauri::Manager::state(&app);
-            let mut host = state.lock();
-            if host.display.monitors() == list.as_slice() {
+            // The guard ends with the `if`: `windows::refresh` must be called
+            // with the lock free, because everything it does to a window pumps
+            // the message loop and can re-enter a synchronous command that
+            // wants this very lock.
+            if state.lock().display.monitors() == list.as_slice() {
                 continue;
             }
             // §9: the window moves, the Play does not. Nothing on this path can
             // reach a Play, and the notice is what the operator sees instead.
-            if let Err(error) = windows::refresh(&app, &mut host) {
+            if let Err(error) = windows::refresh(&app, &state) {
                 tracing::error!(%error, "handling a display change");
             }
         }

@@ -42,6 +42,7 @@ const STATS_PATH: &str = "studio/index.html?stats";
 /// Studio. A normal window: one display is a valid configuration, and then
 /// Studio is an Alt-Tab away from a fullscreen Stage (§9).
 pub fn open_studio(app: &AppHandle) -> AppResult<WebviewWindow> {
+    crate::state::assert_unlocked("windows::open_studio");
     if let Some(existing) = app.get_webview_window(MAIN) {
         return Ok(existing);
     }
@@ -58,6 +59,7 @@ pub fn open_studio(app: &AppHandle) -> AppResult<WebviewWindow> {
 /// fullscreen on the primary display and waits until the operator sends it
 /// somewhere (§9 — the host never picks a display).
 pub fn ensure_stage(app: &AppHandle) -> AppResult<WebviewWindow> {
+    crate::state::assert_unlocked("windows::ensure_stage");
     if let Some(existing) = app.get_webview_window(STAGE) {
         return Ok(existing);
     }
@@ -88,6 +90,7 @@ pub fn ensure_stage(app: &AppHandle) -> AppResult<WebviewWindow> {
 /// wants the same lock. That is what left the window white and unresponsive
 /// when it was built inside `monitors_list`.
 pub fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool) -> AppResult<()> {
+    crate::state::assert_unlocked("windows::open_stats");
     let origin = match key {
         Some(k) => monitors::physical_origin(app, k),
         None => app.primary_monitor()?.map(|m| *m.position()),
@@ -122,6 +125,7 @@ pub fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool) -
 /// Close the Statistics window if it is open. Closing it changes nothing about
 /// the Play — there is nothing on the other side of it but numbers.
 pub fn close_stats(app: &AppHandle) -> AppResult<()> {
+    crate::state::assert_unlocked("windows::close_stats");
     if let Some(window) = app.get_webview_window(STATS) {
         window.close()?;
     }
@@ -140,18 +144,22 @@ pub fn stats_is_open(app: &AppHandle) -> bool {
 /// Called from the monitor watch, where creating a window would be the host
 /// deciding to show something. A window whose display is gone is closed, and
 /// the operator is told.
-fn follow_stats(app: &AppHandle, host: &crate::state::Host) -> AppResult<()> {
+fn follow_stats(
+    app: &AppHandle,
+    list: &[questiongame_host::MonitorInfo],
+    stats_monitor_id: Option<String>,
+    fullscreen: bool,
+) -> AppResult<()> {
     let Some(window) = app.get_webview_window(STATS) else {
         return Ok(());
     };
-    let control = host.flags.control();
-    let Some(id) = control.stats_monitor_id.clone() else {
+    let Some(id) = stats_monitor_id else {
         // No remembered display: it opened on primary and stays there.
         return Ok(());
     };
     let key = MonitorKey::new(id.clone());
-    if crate::monitors::list(app).iter().any(|m| m.key == key) {
-        place(&window, monitors::physical_origin(app, &key), control.stats_fullscreen)?;
+    if list.iter().any(|m| m.key == key) {
+        place(&window, monitors::physical_origin(app, &key), fullscreen)?;
         return Ok(());
     }
 
@@ -171,7 +179,11 @@ fn follow_stats(app: &AppHandle, host: &crate::state::Host) -> AppResult<()> {
 
 /// Put a window on a display. A fullscreen window belongs to its monitor, so
 /// it leaves fullscreen, moves, and goes back — the same dance Stage does.
-fn place(window: &WebviewWindow, origin: Option<tauri::PhysicalPosition<i32>>, fullscreen: bool) -> AppResult<()> {
+fn place(
+    window: &WebviewWindow,
+    origin: Option<tauri::PhysicalPosition<i32>>,
+    fullscreen: bool,
+) -> AppResult<()> {
     let Some(origin) = origin else {
         tracing::warn!("statistics was sent to a display that is no longer listed");
         return Ok(());
@@ -190,16 +202,41 @@ fn place(window: &WebviewWindow, origin: Option<tauri::PhysicalPosition<i32>>, f
 /// One function, because a caller that only refreshed the list would leave
 /// `StageDisplay` believing Stage had moved when the window had not: the policy
 /// decides and the window follows, always together.
-pub fn refresh(app: &AppHandle, host: &mut crate::state::Host) -> AppResult<()> {
+///
+/// # Read the OS, then decide, then act — and never under the lock
+///
+/// Every OS call in here — `available_monitors`, `primary_monitor`,
+/// `set_position`, `set_fullscreen`, closing a window — pumps the platform's
+/// message loop, and pumping it dispatches whatever IPC the webview has
+/// queued. If that turns out to be one of the **synchronous** commands
+/// (`get_state`, `settings_get`, `health_get`, `monitors_list`,
+/// `catalog_seed_status`) it runs on this very thread and takes the host lock,
+/// which is a plain `Mutex` and is not reentrant. Holding the lock across any
+/// of these deadlocks the app against itself, with no second thread to blame:
+/// the window stops repainting, stops taking input, and does not even reload.
+///
+/// This function therefore takes `&AppState` and not a guard, and it takes the
+/// lock exactly once, for the decision, with no OS call inside it. Do not
+/// "simplify" it back to a `&mut Host` parameter — the caller would then be
+/// holding the lock for the whole of it, which is the bug this shape exists to
+/// prevent (§9, 2026-09-08).
+pub fn refresh(app: &AppHandle, state: &crate::state::AppState) -> AppResult<()> {
     let list = crate::monitors::list(app);
-    let control = host.flags.control();
-    let wanted = control.stage_monitor_id.clone().map(MonitorKey::new);
-    let reattach = control.stage_reattach;
-    let play_is_open = host.runtime().play_is_open();
+    let stats_open = stats_is_open(app);
 
-    let mv = host
-        .display
-        .monitors_changed(list, wanted.as_ref(), reattach, play_is_open);
+    let (mv, stats_monitor_id, stats_fullscreen) = {
+        let mut host = state.lock();
+        let control = host.flags.control();
+        let wanted = control.stage_monitor_id.clone().map(MonitorKey::new);
+        let reattach = control.stage_reattach;
+        let stats_monitor_id = control.stats_monitor_id.clone();
+        let stats_fullscreen = control.stats_fullscreen;
+        let play_is_open = host.runtime().play_is_open();
+        let mv =
+            host.display
+                .monitors_changed(list.clone(), wanted.as_ref(), reattach, play_is_open);
+        (mv, stats_monitor_id, stats_fullscreen)
+    };
 
     apply(app, &mv)?;
     if let Some(notice) = &mv.notice {
@@ -209,9 +246,12 @@ pub fn refresh(app: &AppHandle, host: &mut crate::state::Host) -> AppResult<()> 
     // The Statistics window follows its own display and is never opened by
     // this path: it is on screen because the operator asked for it, and it
     // goes when its display does (§11.K).
-    follow_stats(app, host)?;
+    follow_stats(app, &list, stats_monitor_id, stats_fullscreen)?;
 
-    crate::emit::monitors_changed(app, host);
+    {
+        let host = state.lock();
+        crate::emit::monitors_changed(app, &host, stats_open);
+    }
     Ok(())
 }
 
@@ -219,6 +259,7 @@ pub fn refresh(app: &AppHandle, host: &mut crate::state::Host) -> AppResult<()> 
 /// the pick is remembered either way, and [`ensure_stage`] plus the next
 /// monitor event will land it.
 pub fn apply(app: &AppHandle, mv: &StageMove) -> AppResult<()> {
+    crate::state::assert_unlocked("windows::apply");
     let Some(target) = mv.to.as_ref() else {
         return Ok(());
     };
@@ -266,13 +307,20 @@ mod tests {
             .split_once("pub fn refresh(")
             .expect("refresh exists")
             .1;
-        let refresh = refresh.split_once("
-/// ").map_or(refresh, |(body, _)| body);
+        let refresh = refresh
+            .split_once(
+                "
+/// ",
+            )
+            .map_or(refresh, |(body, _)| body);
         assert!(
             !refresh.contains("open_stats"),
             "the monitor watch opened a window"
         );
-        assert!(refresh.contains("follow_stats"), "it should still follow one");
+        assert!(
+            refresh.contains("follow_stats"),
+            "it should still follow one"
+        );
     }
 
     #[test]
