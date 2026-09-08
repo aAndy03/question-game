@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Profiler, useEffect, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { Text } from '@/atoms'
@@ -25,6 +25,7 @@ import { useRoute, useNavStore, type Route } from '@/chrome/nav'
 import { useApplyTheme } from '@/chrome/theme'
 import { useNoticeStore } from '@/chrome/notices'
 import { APP, SCREENS_TAB } from '@/copy'
+import { installDiagnostics, onPageCommit, setDiagnosticRoute } from '@/chrome/diagnostics'
 import { HostBridge } from '@/host/bridge'
 import { hasHost } from '@/host/host'
 import { isPlayOpen, peekPlayState } from '@/host/playState'
@@ -82,8 +83,12 @@ function StatsWindow() {
 }
 
 function Shell() {
+  installDiagnostics()
+  // Which page the watchdog would be reporting about, if it fires.
+
   useApplyTheme()
   const route = useRoute()
+  setDiagnosticRoute(JSON.stringify(route))
   const settings = useSettings()
   const operators = useCatalogList('operator', 'all')
   const setOperator = useChromeStore((s) => s.setOperator)
@@ -151,7 +156,13 @@ function Shell() {
         </>
       }
     >
-      <Page route={route} />
+      {/* The `Profiler` is how the watchdog counts commits: a page that
+        * commits hundreds of times a second is spinning, and nothing else in
+        * the app would ever notice. It wraps only the routed page, so the
+        * count is the page's own and not the shell's. */}
+      <Profiler id="page" onRender={onPageCommit}>
+        <Page route={route} />
+      </Profiler>
     </ShellLayout>
   )
 }

@@ -24,7 +24,13 @@ pub const STATS: &str = "stats";
 /// mounted, and this is the contract version I was built against";
 /// `overlay_ack_complete` says "that timeline finished". Neither carries an
 /// opinion about the Play.
-pub const STAGE_COMMANDS: [&str; 3] = ["overlay_ack_complete", "stage_ready", "stage_report"];
+pub const STAGE_COMMANDS: [&str; 4] = [
+    "overlay_ack_complete",
+    "stage_ready",
+    "stage_report",
+    // Reporting on itself, into the log. Writes nothing a Play can read.
+    "client_log",
+];
 
 /// What the Statistics window may ask for: reads, and only reads.
 ///
@@ -32,8 +38,9 @@ pub const STAGE_COMMANDS: [&str; 3] = ["overlay_ack_complete", "stage_ready", "s
 /// display is Studio's Statistics page in a window of its own, so it needs the
 /// same reads that page makes and nothing else. A write reaching the host from
 /// this label is a bug in Studio, and this is where it stops.
-pub const STATS_COMMANDS: [&str; 9] = [
+pub const STATS_COMMANDS: [&str; 10] = [
     "stats_query",
+    "client_log",
     "get_state",
     "settings_get",
     "monitors_list",

@@ -209,6 +209,7 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::flags::paths_reveal,
         commands::flags::uninstall_data,
         commands::flags::health_get,
+        commands::flags::client_log,
         // Statistics — read-only (§11.K)
         commands::stats::stats_query,
         commands::stats::stats_window,

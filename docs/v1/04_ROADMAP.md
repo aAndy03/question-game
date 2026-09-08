@@ -851,9 +851,40 @@ is why one tab looked innocent and three looked guilty.
   `the_event_loop_thread_may_not_take_the_lock`.
 - ☑ The app boots clean with both assertions armed, through
   `settings_get` · `health_get` · `get_state` · `monitors_list`.
-- ☐ **Unconfirmed by the operator.** Both violations are real and both symptoms
-  match; the freeze itself was never reproduced here, so this is a diagnosis,
-  not a sighting.
+- ☒ **Both fixes are real; neither was this freeze.** The operator measured it:
+  the window's **title bar still works** — it can be dragged — while the
+  content is dead, CPU sits at 8–10% and RSS climbs by ~200 MB and stays there.
+  A blocked event loop drags no windows. So the host was never stuck; the
+  *webview* is spinning, in a scheduled loop (a pegged core would be 100% of
+  one, not 10%) that allocates as it goes. The lock work stands on its own
+  merits and is not withdrawn — it was two genuine defects — but it did not
+  cause this.
+
+**Where it actually is**
+
+Two facts narrow it hard. The host log shows **no repeated commands** after the
+click, so the loop issues no host traffic and is entirely client-side. And the
+one archive toggle that works — Domains & Questions' left rail — is the one
+that does not go through `LibraryList`: `DomainPane` renders its own
+`EmptyState` (`DomainPane.tsx`), while Teams, Operators and Games all render
+`LibraryList`'s empty branch. The questions list on that same tab uses
+`LibraryList` too and is expected to fail with them.
+
+It does not reproduce against the fake host in a browser — 0 DOM mutations per
+second on the empty archived list, with and without an open Play — so it needs
+something the real webview has. That is what the diagnostics below are for.
+
+**Diagnostics (P11.3)**
+
+`client_log` + `chrome/diagnostics.ts`: uncaught errors, rejections and
+`console.error`/`console.warn` (deduplicated), plus a render-loop watchdog
+counting React commits through a `Profiler` around the routed page. All of it
+lands in `questiongame.log` beside the host's lines, which is the only place it
+can survive a window that has to be killed. Verified end to end — `studio
+ready … heapMb=28` appears in the file on boot, and it caught a real
+`[TAURI] Couldn't find callback id …` warning on the first reload.
+
+- ☐ **Still open.** Awaiting one reproduction with the watchdog armed.
 
 ---
 

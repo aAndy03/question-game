@@ -404,6 +404,34 @@ pub fn uninstall_data(
     Ok(())
 }
 
+/// A webview reporting on itself into the host's log.
+///
+/// A webview's console does not survive the window being killed, and in a
+/// frozen window nobody can open one — so the things worth reading afterwards
+/// (an uncaught error, a warning, the render-loop watchdog) come here and land
+/// in `questiongame.log` beside the host's own lines. Diagnostic only: it
+/// touches no state, so every webview may call it.
+///
+/// The level is the webview's word, not a severity the operator ever sees:
+/// §14 notices are how the host talks to the operator, and this is not that.
+#[tauri::command(async)]
+pub fn client_log(
+    window: WebviewWindow,
+    level: String,
+    message: String,
+    detail: Option<String>,
+) -> AppResult<()> {
+    guard::allow(window.label(), "client_log")?;
+    let webview = window.label();
+    let detail = detail.unwrap_or_default();
+    match level.as_str() {
+        "error" => tracing::error!(webview, detail, "{message}"),
+        "warn" => tracing::warn!(webview, detail, "{message}"),
+        _ => tracing::debug!(webview, detail, "{message}"),
+    }
+    Ok(())
+}
+
 /// The current health report — what `health` last emitted (§12.6).
 #[tauri::command(async)]
 pub fn health_get(window: WebviewWindow, state: State<'_, AppState>) -> AppResult<HealthReport> {

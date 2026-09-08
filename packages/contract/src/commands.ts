@@ -124,6 +124,11 @@ export const COMMAND_GROUPS = {
     'uninstall_data',
     /** The current health report — what `health` last emitted. */
     'health_get',
+    /** A webview reporting on itself into the host's log — an uncaught error,
+     * a console warning, a render loop the watchdog noticed. Diagnostic only:
+     * it changes nothing, and a webview's console does not otherwise survive
+     * the window being killed. */
+    'client_log',
   ],
   /** Read-only projections. */
   stats: [
