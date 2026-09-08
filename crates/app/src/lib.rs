@@ -86,11 +86,15 @@ pub const LOG_FILE: &str = "questiongame.log";
 /// show. The **file** records `debug` for both crates, which includes
 /// `guard::allow`'s line for every command the webviews ask for.
 ///
-/// The file exists because stderr does not survive the trip: `npm run dev:app`
-/// spawns the binary through the Tauri CLI and nothing it prints reaches the
-/// terminal, so in dev the app had no way to say anything at all — and an app
-/// that stops responding leaves no console to read. It leaves a file instead,
-/// truncated at each boot so it is the current run and not a year of them.
+/// The file is not there because stderr is lost — `npm run dev:app` does print
+/// it. It is there because the quiet default has *nothing* to say once the app
+/// is up: every command goes through `guard::allow` at `debug`, so an operator
+/// clicking around produces no output at all, and neither does an app that
+/// stops responding. Asking for `RUST_LOG=…=debug` only works if you knew to
+/// ask before the thing went wrong, and a window that has stopped responding
+/// is usually killed rather than read. The file is always on, always at
+/// `debug`, and truncated at each boot, so it is the current run and it is
+/// still there afterwards.
 fn tracing_logging(dir: Option<&std::path::Path>) {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
