@@ -18,6 +18,14 @@ import { useNavStore, type Route } from '@/chrome/nav'
 export interface Draft<T> {
   readonly value: T
   readonly isDirty: boolean
+  /**
+   * Dirty **as of now**, before React has re-rendered. `adopt` runs in the
+   * same task as the navigation that follows a save, so the rendered
+   * `isDirty` is still `true` at the moment `go` consults the nav guard —
+   * which is how saving used to raise the "unsaved changes" dialog *after*
+   * the row had already been written. The guard reads this instead.
+   */
+  isDirtyNow(): boolean
   set(patch: Partial<T>): void
   replace(next: T): void
   reset(): void
@@ -30,6 +38,12 @@ export function useDraft<T extends object>(source: T | null | undefined, empty: 
   const [origin, setOrigin] = useState<T>(base)
   const [value, setValue] = useState<T>(base)
   const seen = useRef(base)
+  // The same two values, readable synchronously. Kept in step with the state
+  // on every render, and written ahead of it by the setters below.
+  const originNow = useRef(origin)
+  const valueNow = useRef(value)
+  originNow.current = origin
+  valueNow.current = value
 
   // A new source (a different row, or the row after a save) resets the draft
   // only when the editor is clean — an operator's typing is never overwritten.
@@ -43,16 +57,35 @@ export function useDraft<T extends object>(source: T | null | undefined, empty: 
 
   const isDirty = useMemo(() => JSON.stringify(value) !== JSON.stringify(origin), [value, origin])
 
-  const set = useCallback((patch: Partial<T>) => setValue((prev) => ({ ...prev, ...patch })), [])
-  const replace = useCallback((next: T) => setValue(next), [])
-  const reset = useCallback(() => setValue(origin), [origin])
+  const set = useCallback((patch: Partial<T>) => {
+    const next = { ...valueNow.current, ...patch }
+    valueNow.current = next
+    setValue(next)
+  }, [])
+  const replace = useCallback((next: T) => {
+    valueNow.current = next
+    setValue(next)
+  }, [])
+  const reset = useCallback(() => {
+    valueNow.current = originNow.current
+    setValue(originNow.current)
+  }, [])
   const adopt = useCallback((next: T) => {
     seen.current = next
+    originNow.current = next
+    valueNow.current = next
     setOrigin(next)
     setValue(next)
   }, [])
+  const isDirtyNow = useCallback(() => JSON.stringify(valueNow.current) !== JSON.stringify(originNow.current), [])
 
-  return { value, isDirty, set, replace, reset, adopt }
+  return { value, isDirty, isDirtyNow, set, replace, reset, adopt }
+}
+
+/** What the guard needs from a draft: the rendered flag, and the live one. */
+export interface DirtySource {
+  readonly isDirty: boolean
+  isDirtyNow(): boolean
 }
 
 export interface DirtyGuardState {
@@ -66,29 +99,35 @@ export interface DirtyGuardState {
 }
 
 /**
- * Registers a nav guard while `isDirty`; a blocked navigation is held until
- * the operator chooses. Unregisters on unmount.
+ * Registers a nav guard while the draft is dirty; a blocked navigation is
+ * held until the operator chooses. Unregisters on unmount.
+ *
+ * The registered guard asks the draft whether it is *still* dirty rather than
+ * trusting the flag it was registered with: an editor saves and navigates in
+ * one act, and between the two React has not re-rendered yet.
  */
-export function useDirtyGuard(isDirty: boolean): DirtyGuardState {
+export function useDirtyGuard(draft: DirtySource): DirtyGuardState {
   const setGuard = useNavStore((s) => s.setGuard)
   const go = useNavStore((s) => s.go)
   const [pending, setPending] = useState<Route | null>(null)
   const resolver = useRef<((allow: boolean) => void) | null>(null)
+  const isDirtyNow = useRef(draft.isDirtyNow)
+  isDirtyNow.current = draft.isDirtyNow
 
   useEffect(() => {
-    if (!isDirty) {
+    if (!draft.isDirty) {
       setGuard(null)
       return
     }
-    setGuard(
-      (to) =>
-        new Promise<boolean>((resolve) => {
-          resolver.current = resolve
-          setPending(to)
-        }),
-    )
+    setGuard((to) => {
+      if (!isDirtyNow.current()) return true
+      return new Promise<boolean>((resolve) => {
+        resolver.current = resolve
+        setPending(to)
+      })
+    })
     return () => setGuard(null)
-  }, [isDirty, setGuard])
+  }, [draft.isDirty, setGuard])
 
   const finish = useCallback((allow: boolean) => {
     resolver.current?.(allow)

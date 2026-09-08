@@ -66,7 +66,11 @@ export function ControlPage() {
               </MosaicPanel>
             )
           case 'game':
-            return <MosaicPanel floor={floor}>{(density) => <GamePanel density={density} />}</MosaicPanel>
+            return (
+              <MosaicPanel floor={floor} fills>
+                {(density, box) => <GamePanel density={density} box={box} />}
+              </MosaicPanel>
+            )
           case 'action':
             return <MosaicPanel floor={floor}>{(density) => <ActionPanel density={density} />}</MosaicPanel>
           case 'strips':

@@ -30,32 +30,36 @@ export function disabledReasonText(disabled: Disabled | undefined): string | nul
 /**
  * Label · description · control · reason, on one row. Used by the Games
  * Rules section now, the Settings tab (P10) and the Control float (P8).
+ *
+ * **Two columns only when two columns fit.** The row is a container query, not
+ * a fixed grid: the Settings tab is wide and reads label-left / control-right,
+ * while the Control float is a 32rem popover where a 20rem control column left
+ * the label eight characters wide and broke every description into one word
+ * per line. Below the threshold the row stacks — label, description, then the
+ * control at full width — and the nesting indent shrinks with it.
  */
 export function SettingRow({ label, description, children, disabled, nested }: SettingRowProps) {
   const reason = disabledReasonText(disabled)
   return (
-    <div
-      className={[
-        'grid grid-cols-[minmax(0,1fr)_minmax(0,20rem)] items-start gap-6 py-3',
-        nested ? 'ml-6 border-l-2 border-[var(--separator)] pl-4' : '',
-      ].join(' ')}
-    >
-      <div className="flex min-w-0 flex-col gap-0.5 pt-1.5">
-        <Text as="div" variant="studio-label" tone={reason ? 'muted' : 'default'}>
-          {label}
-        </Text>
-        {description ? (
-          <Text as="div" variant="studio-caption" tone="muted">
-            {description}
+    <div className={['@container/setting-row', nested ? 'ml-2 border-l-2 border-[var(--separator)] pl-3 @[34rem]/setting-row:ml-6 @[34rem]/setting-row:pl-4' : ''].join(' ')}>
+      <div className="grid grid-cols-1 gap-x-6 gap-y-2 py-3 @[34rem]/setting-row:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] @[34rem]/setting-row:items-start">
+        <div className="flex min-w-0 flex-col gap-0.5 @[34rem]/setting-row:pt-1.5">
+          <Text as="div" variant="studio-label" tone={reason ? 'muted' : 'default'}>
+            {label}
           </Text>
-        ) : null}
-        {reason ? (
-          <Text as="div" variant="studio-caption" tone="warning">
-            {reason}
-          </Text>
-        ) : null}
+          {description ? (
+            <Text as="div" variant="studio-caption" tone="muted">
+              {description}
+            </Text>
+          ) : null}
+          {reason ? (
+            <Text as="div" variant="studio-caption" tone="warning">
+              {reason}
+            </Text>
+          ) : null}
+        </div>
+        <div className="min-w-0">{children}</div>
       </div>
-      <div className="min-w-0">{children}</div>
     </div>
   )
 }

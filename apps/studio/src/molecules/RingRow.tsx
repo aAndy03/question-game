@@ -21,7 +21,8 @@ export interface RingRowProps {
   turns: number
   variant: RingRowVariant
   position: number
-  /** Comfortable shows name · score · turns; compact drops turns; dense is the mark alone. */
+  /** Comfortable shows name · score · turns; compact drops turns; dense keeps
+   * the mark and the score and hangs the name on a tooltip. */
   density?: 'comfortable' | 'compact' | 'dense'
   /** Draggable handle (future rows only). Refs from the sortable hook. */
   handleRef?: ((el: Element | null) => void) | undefined
@@ -92,7 +93,7 @@ export function RingRow({
       }}
       className={[
         'flex items-center gap-2 rounded-[calc(var(--radius)/1.5)] px-2 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--focus)]',
-        density === 'dense' ? 'h-9 justify-center px-1' : density === 'compact' ? 'h-10' : 'h-12',
+        density === 'dense' ? 'h-9 gap-1 px-1.5' : density === 'compact' ? 'h-10' : 'h-12',
         pressable ? 'cursor-pointer' : '',
         isDragging ? 'opacity-40' : '',
         FRAME[variant],
@@ -109,24 +110,27 @@ export function RingRow({
       ) : null}
       <Avatar mark={mark} size="sm" />
       {density !== 'dense' ? (
-        <>
-          <Text variant="studio-label" tone={isCurrent ? 'accent' : 'default'} truncate className="min-w-0 flex-1">
-            {name}
-          </Text>
-          <Text variant="studio-label" tabular>
-            {score}
-          </Text>
-          {density === 'comfortable' ? (
-            <Text variant="studio-caption" tone="muted" tabular className="w-6 text-right">
-              {`×${turns}`}
-            </Text>
-          ) : null}
-        </>
+        <Text variant="studio-label" tone={isCurrent ? 'accent' : 'default'} truncate className="min-w-0 flex-1">
+          {name}
+        </Text>
+      ) : null}
+      {/* The score survives every step down: a ring row with no number on it
+        * is decoration, and the panel narrows long before it stops mattering. */}
+      <Text variant="studio-label" tabular className={density === 'dense' ? 'ms-auto' : ''}>
+        {score}
+      </Text>
+      {density === 'comfortable' ? (
+        <Text variant="studio-caption" tone="muted" tabular className="w-6 text-right">
+          {`×${turns}`}
+        </Text>
       ) : null}
       {isCurrent && density !== 'dense' ? <Icon name="token" size="sm" style={{ color: 'var(--accent)' }} label={RING.current} /> : null}
       {trailing}
     </div>
   )
+  // Dense hides the name, so dense always carries one — with the variant's
+  // meaning appended when there is one to append.
   const hint = HINT[variant]
-  return hint && density !== 'comfortable' ? <Tooltip content={`${name} · ${hint}`}>{row}</Tooltip> : row
+  if (density === 'dense') return <Tooltip content={hint ? `${name} · ${hint}` : name}>{row}</Tooltip>
+  return hint && density === 'compact' ? <Tooltip content={`${name} · ${hint}`}>{row}</Tooltip> : row
 }

@@ -29,7 +29,7 @@ use crate::snapshot::AnswerMode;
 
 /// Must equal `CONTRACT_VERSION` in `packages/contract/src/play-state.ts`.
 /// A mismatch is a notice, not a blank screen — see the P1 exit criteria.
-pub const CONTRACT_VERSION: u32 = 4;
+pub const CONTRACT_VERSION: u32 = 5;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -144,6 +144,36 @@ pub struct StageGameState {
     pub leaderboard_revealed_ranks: Vec<u32>,
     /// Questions issued so far this Play, the current one included.
     pub questions_issued: u32,
+}
+
+/// The game half with **no Play behind it** — what Stage draws between shows.
+///
+/// It exists because "no Play" has to reach Stage as a state like any other.
+/// Unloading a recipe leaves the host with nothing to project, and a webview
+/// that is simply not sent anything goes on drawing the Play that ended; the
+/// screen would still be showing a finished question while Control has moved
+/// on. Mirrors `EMPTY_PLAY_STATE` in `packages/contract`, which is what Stage
+/// draws before the first emission — the same picture, from the other side.
+pub fn empty_game() -> StageGameState {
+    StageGameState {
+        contract_version: CONTRACT_VERSION,
+        play_id: String::new(),
+        status: PlayStatus::Loaded,
+        teams: Vec::new(),
+        ring: StageRing {
+            order: Vec::new(),
+            current_team_id: None,
+            round_index: 1,
+        },
+        domains: Vec::new(),
+        session: None,
+        clock: StagePlayClock {
+            elapsed_ms: 0,
+            running: false,
+        },
+        leaderboard_revealed_ranks: Vec::new(),
+        questions_issued: 0,
+    }
 }
 
 /// Project a Play as of `now_ms`. Read-only, and cheap enough to run per
@@ -368,6 +398,15 @@ pub struct StageOverlay {
     /// `overlay_animations.enabled`. False skips the queue entirely; the token
     /// still moves (§5.6).
     pub enabled: bool,
+    /// **Which occurrence is running**, counted from the start of the process.
+    ///
+    /// Two identical requests are two occurrences, and the queue advances on an
+    /// ack (§2.6) — so when the operator calls the same overlay twice, the
+    /// promotion puts back a value equal to the one that just finished. Without
+    /// this counter Stage cannot tell that from "still the same run", plays
+    /// nothing, acks nothing, and the queue stops for the rest of the Play.
+    /// `0` is "nothing has ever run".
+    pub run_id: u64,
 }
 
 /// How the decorative bodies move. Never static, never game truth — see

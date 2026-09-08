@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  leaderboard,
   STAGE_FRAME,
   VIEWER_SOURCE,
   isViewerMessage,
@@ -12,10 +13,12 @@ import {
 } from '@questiongame/contract'
 import { HitTarget, Text } from '@/atoms'
 import { EmptyState } from '@/molecules'
-import { CONTROL, RING, SESSION } from '@/copy'
+import { CONTROL, RING_ROLE, SESSION } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { hasTauri } from '@/host/host'
 import { usePlayState } from '@/host/playState'
+import { ringEntries, ringRole } from '@/host/ring'
+import { canChooseDomain, liveSession } from '@/host/session'
 import { useSettings } from '@/host/queries'
 
 /**
@@ -165,8 +168,18 @@ interface Target {
 
 /** The node → command table of 05_STUDIO_DESIGN.md §10.2. */
 function nodesToTargets(play: PlayStateForMain, nodes: readonly ViewerNodeRect[], scale: number): Target[] {
+  // The **live** session (`host/session.ts`), not `play.session`: a resolved
+  // question stays in the projection so Stage can keep drawing it, and reading
+  // it as "a question is in progress" is what left the operator with no legal
+  // domain card for the rest of the Play.
   const session = play.session
+  const live = liveSession(play)
+  const canChoose = canChooseDomain(play)
+  const playOpen = play.status === 'playing' || play.status === 'paused'
   const legalTargets = new Set(play.operator.legalTokenTargets)
+  // The same sentence the Action Panel's rows carry, so a target reads the
+  // same wherever the operator is looking.
+  const roles = new Map(ringEntries(play).map((e) => [e.team.id, ringRole(play, e)]))
   const out: Target[] = []
   for (const n of nodes) {
     const parsed = parseNodeId(n.id)
@@ -176,8 +189,8 @@ function nodesToTargets(play: PlayStateForMain, nodes: readonly ViewerNodeRect[]
     if (slot === 'chooseDomain.card' && parsed.key) {
       const domain = play.domains.find((d) => d.id === parsed.key)
       if (!domain) continue
-      const legal = !domain.exhausted && session === null && play.ring.currentTeamId !== null && play.status === 'playing'
-      out.push({ ...geom, label: domain.name, legal, reason: domain.exhausted ? SESSION.exhausted : session ? SESSION.noSession : null, selected: false, command: 'choose_domain', args: { domainId: domain.id } })
+      const legal = !domain.exhausted && canChoose
+      out.push({ ...geom, label: domain.name, legal, reason: domain.exhausted ? SESSION.exhausted : live ? SESSION.revealFirst : null, selected: false, command: 'choose_domain', args: { domainId: domain.id } })
     } else if (slot === 'question.option' && parsed.key && session) {
       const option = session.options.find((o) => o.id === parsed.key)
       if (!option) continue
@@ -192,12 +205,21 @@ function nodesToTargets(play: PlayStateForMain, nodes: readonly ViewerNodeRect[]
     } else if ((slot === 'teamOrder.row' || slot === 'scoreboard.row') && parsed.key) {
       const team = play.teams.find((t) => t.id === parsed.key)
       if (!team) continue
-      const legal = legalTargets.has(team.id) && play.operator.showGiveToken
-      out.push({ ...geom, label: SESSION.giveTokenTo(team.name), legal, reason: legal ? null : RING.dropIllegal, selected: play.ring.currentTeamId === team.id, command: 'give_token', args: { teamId: team.id } })
+      // A closed Play refuses `give_token` (`require_open`), so the row is not
+      // a target once the board is empty — it would only refuse.
+      const legal = playOpen && legalTargets.has(team.id) && play.operator.showGiveToken
+      const role = roles.get(team.id)
+      out.push({ ...geom, label: legal ? SESSION.giveTokenTo(team.name) : `${team.name} — ${role ? RING_ROLE[role] : ''}`, legal, reason: legal || !role ? null : RING_ROLE[role], selected: play.ring.currentTeamId === team.id, command: 'give_token', args: { teamId: team.id } })
     } else if (slot === 'finalLeaderboard.row' && parsed.key) {
-      const rank = Number(parsed.key)
-      const revealed = play.leaderboardRevealedRanks.includes(rank)
-      out.push({ ...geom, label: SESSION.leaderboardNext, legal: !revealed, reason: null, selected: revealed, command: 'reveal_leaderboard_rank', args: { rank } })
+      // **The node key is the finishing position, not the rank** — two tied
+      // teams are positions 1 and 2 sharing rank 1, and `LeaderboardList`
+      // keys its cards by position so the ids stay distinct. The command
+      // takes a rank, so read it off the team standing in that position;
+      // sending the position would reveal a rank nobody holds.
+      const team = leaderboard(play)[Number(parsed.key) - 1]
+      if (!team) continue
+      const revealed = play.leaderboardRevealedRanks.includes(team.rank)
+      out.push({ ...geom, label: SESSION.leaderboardNext, legal: !revealed, reason: null, selected: revealed, command: 'reveal_leaderboard_rank', args: { rank: team.rank } })
     }
   }
   return out

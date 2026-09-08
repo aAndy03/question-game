@@ -789,11 +789,13 @@ Removing a team from a recipe does not mutate an open Play of that recipe.
 
 ### 11.C Play
 
-Commands: `play_load`, `play_start`, `pause`, `resume`, `restart`, `abandon`, `get_state`.
+Commands: `play_load`, `play_unload`, `play_start`, `pause`, `resume`, `restart`, `abandon`, `get_state`.
 
 Events on C2 include `PlayStarted|Paused|Resumed|Completed|Abandoned|Restarted`, session events, `TokenGiven`, `OverlayQueued`, `TurnInverted|Reapplied`, `SettingsLiveChanged`.
 
 `play_load` attaches the recipe. Until `play_start`, Game tab and Control Current game write the same B5.
+
+`play_unload` detaches it, and is legal whenever something is attached — before the start, mid-show and after the end (added 2026-09-07; before it, the only way out of Control was to load a different recipe). Anything not already closed is closed on the way out, because a Play that vanished while still `playing` would be resumed at the next boot and a `loaded` row is reached by no cleanup. It carries `discard`: keeping the record is the default, and discarding deletes that one Play's log and projection — the only hard delete in v1 besides *Wipe Plays* (§12.3), so Studio asks and never assumes. **The Stage window is not touched**: the screens are the same whatever is loaded, so it stays on its display and returns to Idle, which is where the next game finds it.
 
 ### 11.D–F
 
@@ -893,7 +895,7 @@ Banner: open Plays keep their frozen copy. Global award default does not rewrite
 
 ## 13. Host commands, events, frontend map
 
-Commands: `catalog_*`, `recipe_*`, `recipe_set_overlay`, `play_load|start|pause|resume|restart|abandon|get_state`, `choose_domain`, `reveal_stem`, `reveal_next_option`, `set_selection`, `lock_selection`, `start_timer`, `pause_timer`, `reveal_outcome`, `give_token`, `reorder_ring`, `show_screen`, `stage_set_monitor`, `overlay_ack_complete`, `undo_turn`, `redo_turn`, `settings_get|set_global|set_current_game`, `settings_set_shortcut`, `stats_query`.
+Commands: `catalog_*`, `recipe_*`, `recipe_set_overlay`, `play_load|unload|start|pause|resume|restart|abandon|get_state`, `choose_domain`, `reveal_stem`, `reveal_next_option`, `set_selection`, `lock_selection`, `start_timer`, `pause_timer`, `reveal_outcome`, `give_token`, `reorder_ring`, `show_screen`, `stage_set_monitor`, `overlay_ack_complete`, `undo_turn`, `redo_turn`, `settings_get|set_global|set_current_game`, `settings_set_shortcut`, `stats_query`.
 
 Events: `catalog-changed`, `recipe-changed`, `play-state` (full to main, stripped to stage), `health`, `monitors-changed`, `anim-complete`.
 

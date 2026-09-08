@@ -196,6 +196,8 @@ export interface PlayEvent {
 export interface PlayRecord {
   readonly id: string
   readonly recipeId: string
+  /** Who ran it, from the log. Null for a Play run with no active operator. */
+  readonly operatorId: string | null
   readonly status: string
   readonly startedAtMs: number | null
   readonly endedAtMs: number | null

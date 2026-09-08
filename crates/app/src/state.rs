@@ -158,12 +158,18 @@ impl Host {
 
     /// What `stage` receives: the game half plus the presentation half, and
     /// nothing else. A leak here is a leak on camera (§5.7).
-    pub fn stage_state(&self, now_ms: u64) -> Option<PlayStateForStage> {
-        let game = self.game_state(now_ms)?;
-        Some(
-            self.presentation
-                .play_state(game, self.flags.reveal_modes(), self.overlays_enabled(), self.flags.audio()),
-        )
+    ///
+    /// **Never optional.** With no Play loaded — before the first load, and
+    /// after `play_unload` — the game half is `stage::empty_game()`: the idle
+    /// screen with no roster and no board. Stage is a surface on a display,
+    /// not a view of a Play; leaving it unaddressed between shows is what
+    /// makes it go on drawing the game that ended.
+    pub fn stage_state(&self, now_ms: u64) -> PlayStateForStage {
+        let game = self
+            .game_state(now_ms)
+            .unwrap_or_else(questiongame_host::stage::empty_game);
+        self.presentation
+            .play_state(game, self.flags.reveal_modes(), self.overlays_enabled(), self.flags.audio())
     }
 
     /// What `main` receives: the same state plus the operator half — the
@@ -173,8 +179,8 @@ impl Host {
     /// command; shipping it ten times a second would put the whole history on
     /// the wire for a countdown.
     pub fn main_state(&self, now_ms: u64) -> Option<PlayStateForMain> {
-        let stage = self.stage_state(now_ms)?;
         let play = self.play.get_state()?;
+        let stage = self.stage_state(now_ms);
         Some(PlayStateForMain {
             operator: OperatorState::of(self, play),
             stage,

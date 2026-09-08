@@ -344,6 +344,17 @@ pub(super) fn question_upsert(
 
 // ------------------------------------------------------------------- operators
 
+/// Every column an operator is read from. `plays_run` is **not** the stored
+/// column of the same name — that one was never incremented by anything, which
+/// is why the Operators tab reported 0 Plays for an operator who had run a
+/// dozen. It is a count over the `plays` projection, which is itself rebuilt
+/// from the log at every open, so it cannot drift from what happened. A Play
+/// that was loaded and never started is not one the operator ran.
+const OPERATOR_COLUMNS: &str = "o.id, o.display_name, o.pin_hash, o.last_active_at,
+     o.created_at, o.updated_at, o.archived_at,
+     (SELECT COUNT(*) FROM plays p
+       WHERE p.operator_id = o.id AND p.started_at_ms IS NOT NULL) AS plays_run";
+
 fn operator_row(row: &Row<'_>) -> rusqlite::Result<Operator> {
     Ok(Operator {
         id: OperatorId::new(row.get::<_, String>("id")?),
@@ -357,7 +368,7 @@ fn operator_row(row: &Row<'_>) -> rusqlite::Result<Operator> {
 
 pub(super) fn operator_get(conn: &Connection, id: &OperatorId) -> CatalogResult<Operator> {
     conn.query_row(
-        "SELECT * FROM operators WHERE id = ?1",
+        &format!("SELECT {OPERATOR_COLUMNS} FROM operators o WHERE o.id = ?1"),
         params![id.as_str()],
         operator_row,
     )
@@ -370,7 +381,7 @@ pub(super) fn operator_list(
     scope: ArchiveScope,
 ) -> CatalogResult<Vec<Operator>> {
     let sql = format!(
-        "SELECT * FROM operators WHERE {} ORDER BY display_name, id",
+        "SELECT {OPERATOR_COLUMNS} FROM operators o WHERE {} ORDER BY o.display_name, o.id",
         scope.sql()
     );
     let mut stmt = conn.prepare(&sql)?;
@@ -935,14 +946,15 @@ pub(super) fn play_projection_put(
 ) -> CatalogResult<()> {
     conn.execute(
         "INSERT INTO plays (id, recipe_id, status, started_at_ms, ended_at_ms,
-                            event_count, questions_consumed, scores_json)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                            event_count, questions_consumed, scores_json, operator_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
          ON CONFLICT(id) DO UPDATE SET
              recipe_id = excluded.recipe_id, status = excluded.status,
              started_at_ms = excluded.started_at_ms, ended_at_ms = excluded.ended_at_ms,
              event_count = excluded.event_count,
              questions_consumed = excluded.questions_consumed,
-             scores_json = excluded.scores_json",
+             scores_json = excluded.scores_json,
+             operator_id = excluded.operator_id",
         params![
             record.id.as_str(),
             record.recipe_id.as_str(),
@@ -952,6 +964,7 @@ pub(super) fn play_projection_put(
             record.event_count as i64,
             i64::from(record.questions_consumed),
             serde_json::to_string(&record.scores)?,
+            record.operator_id.as_ref().map(|id| id.as_str()),
         ],
     )?;
     Ok(())
@@ -963,6 +976,9 @@ fn play_record_row(row: &Row<'_>) -> CatalogResult<super::model::PlayRecord> {
     Ok(super::model::PlayRecord {
         id: PlayId::new(row.get::<_, String>("id")?),
         recipe_id: RecipeId::new(row.get::<_, String>("recipe_id")?),
+        operator_id: row
+            .get::<_, Option<String>>("operator_id")?
+            .map(OperatorId::new),
         status: row.get("status")?,
         started_at_ms: read_opt_u64(row, "started_at_ms")?,
         ended_at_ms: read_opt_u64(row, "ended_at_ms")?,

@@ -132,12 +132,18 @@ export function StageRoot({ state }: StageRootProps) {
         decor: root?.querySelector<HTMLElement>('[data-stage-decor]') ?? null,
         swapDecor: () => setPresented(screen),
       }
-      running.current = runTransition(ctx, () => {
+      // Assigned only if the timeline is still running: `motionConfig.
+      // immediate` completes inside `runTransition`, and overwriting the
+      // `null` its callback wrote would leave the lane looking busy for ever.
+      let finished = false
+      const started = runTransition(ctx, () => {
+        finished = true
         running.current = null
         release()
         setPresented(screen)
         setLeaving(null)
       })
+      if (!finished) running.current = started
     })
     return () => {
       // Another jump before this one started: it never runs. A running one

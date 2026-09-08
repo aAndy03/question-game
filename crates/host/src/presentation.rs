@@ -51,6 +51,10 @@ pub struct PresentationService {
     screen: StageScreen,
     /// Running. Retired only by an `anim-complete` for its own key.
     active: Option<OverlayRequest>,
+    /// Which occurrence `active` is — see [`crate::stage::StageOverlay::run_id`].
+    /// Bumped every time something *becomes* active, which is the only way
+    /// Stage can tell one run from an identical one that follows it.
+    run_id: u64,
     /// Waiting. Queue depth is one, and a newer request replaces an older one
     /// (§2.6) rather than growing a backlog nobody asked to watch.
     pending: Option<OverlayRequest>,
@@ -130,6 +134,18 @@ impl PresentationService {
         Ok(())
     }
 
+    /// The recipe left Control (`play_unload`). Back to Idle with an empty
+    /// queue: the screens are the same whatever is loaded, so nothing here is
+    /// destroyed — the Stage window stays where the operator put it and simply
+    /// shows the idle screen again, ready for the next game.
+    ///
+    /// Decor and layout stay as they are; the next `play_load` sets them.
+    pub fn reset(&mut self) {
+        self.screen = StageScreen::default();
+        self.active = None;
+        self.pending = None;
+    }
+
     // ------------------------------------------------------------- overlay queue
 
     /// `show_overlay` — the operator calling an overlay by hand, over whatever
@@ -146,10 +162,17 @@ impl PresentationService {
             return;
         }
         if self.active.is_none() {
-            self.active = Some(request);
+            self.run(request);
         } else {
             self.pending = Some(request);
         }
+    }
+
+    /// Put a request on air. One place, so the occurrence counter cannot be
+    /// bumped by an enqueue and forgotten by a promotion.
+    fn run(&mut self, request: OverlayRequest) {
+        self.active = Some(request);
+        self.run_id += 1;
     }
 
     pub fn active_overlay(&self) -> Option<&OverlayRequest> {
@@ -164,7 +187,10 @@ impl PresentationService {
         if self.active.as_ref().is_none_or(|o| o.anim_key() != key) {
             return false;
         }
-        self.active = self.pending.take();
+        self.active = None;
+        if let Some(next) = self.pending.take() {
+            self.run(next);
+        }
         true
     }
 
@@ -397,6 +423,7 @@ impl PresentationService {
                 active: self.active.clone(),
                 pending: self.pending.clone(),
                 enabled: overlay_enabled,
+                run_id: self.run_id,
             },
             reveal_modes: modes,
             audio,

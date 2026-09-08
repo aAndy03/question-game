@@ -20,7 +20,7 @@ import type { StageLayoutNodes } from './layout'
  * not bump it. Stage compares this against its own build so a host/webview
  * mismatch surfaces as a notice instead of a blank screen.
  */
-export const CONTRACT_VERSION = 4
+export const CONTRACT_VERSION = 5
 
 /** Spec §5.1. */
 export type PlayStatus =
@@ -177,6 +177,20 @@ export interface StageOverlay {
   readonly pending: OverlayRequest | null
   /** False disables the queue entirely; the token still updates (spec §5.6). */
   readonly enabled: boolean
+  /**
+   * **Which occurrence of `active` is running**, counted from the host's start.
+   *
+   * Two identical requests are two occurrences. The operator may call the same
+   * overlay twice — and `round-advance` on the same round, or `current-team`
+   * for the same team, are equal by value — so when the queue promotes the
+   * pending one, `active` is a value equal to the one that just finished.
+   * Stage keys its overlay layer on this, never on the request's value: keyed
+   * on the value it would play nothing, ack nothing, and the queue would stop
+   * for the rest of the Play (§2.6 — the queue advances on an ack).
+   *
+   * `0` means nothing has run yet.
+   */
+  readonly runId: number
 }
 
 /**
@@ -349,7 +363,7 @@ export const EMPTY_PLAY_STATE: PlayStateForStage = {
   layout: { nodes: {}, screens: {} },
   questionsIssued: 0,
   currentScreen: 'idle',
-  overlay: { busy: false, active: null, pending: null, enabled: true },
+  overlay: { busy: false, active: null, pending: null, enabled: true, runId: 0 },
   revealModes: {
     question: 'operator',
     answers: 'operator',

@@ -32,14 +32,23 @@ describe('Control', () => {
     receivePlayState(null)
   })
 
-  async function openControl(state: PlayStateForMain) {
+  /** `anchor` is what says the panel has drawn — the Lock button, unless the
+    * phase has no question in it. */
+  async function openControl(state: PlayStateForMain, anchorText?: string) {
     fake.playState = state
     render(<App />)
     await act(async () => {
       receivePlayState(state)
       await useNavStore.getState().go({ tab: 'control' })
     })
-    await screen.findByLabelText('Lock')
+    if (anchorText) await screen.findByText(anchorText)
+    else await screen.findByLabelText('Lock')
+  }
+
+  /** A disabled control keeps its tooltip wrapper (§4.2), so look inside it. */
+  const isDisabled = (el: HTMLElement) => {
+    const button = el.tagName === 'BUTTON' ? el : (el.querySelector('button') ?? el)
+    return (button as HTMLButtonElement).disabled === true || button.getAttribute('aria-disabled') === 'true'
   }
 
   const lockCalls = () => fake.calls.filter((c) => c.name === 'lock_selection').length
@@ -74,10 +83,124 @@ describe('Control', () => {
     expect(fake.calls.map((c) => c.name)).toEqual(expect.arrayContaining(['lock_selection', 'lock_selection', 'reveal_stem']))
   })
 
+  /**
+   * The 2026-09-07 report, replayed: Red answers the first Geography question
+   * correctly, the operator reveals the outcome — and the game has to be able
+   * to go on. The token stays with Red (`token_ends: false`), so the next act
+   * is another question, from any screen.
+   *
+   * `question-outcome-correct` is that state: a session that is issued,
+   * locked, revealed and scored. `play.session` is still non-null there, and
+   * every surface that read *that* as "a question is in progress" left the
+   * operator with nothing legal to press for the rest of the Play.
+   */
+  it('after the outcome is revealed, the next question is one press away', async () => {
+    const resolved = demoPlay('question-outcome-correct')
+    expect(resolved.session, 'the projection keeps the resolved session').not.toBeNull()
+    await openControl(resolved, 'Next question')
+
+    const domain = resolved.domains.find((d) => !d.exhausted)!
+    const button = screen.getAllByRole('button').find((b) => b.textContent?.startsWith(domain.name))
+    expect(button, 'a domain button on the Action Panel').toBeTruthy()
+    expect(isDisabled(button!)).toBe(false)
+
+    fireEvent.click(button!)
+    await waitFor(() => expect(fake.calls.filter((c) => c.name === 'choose_domain')).toHaveLength(1))
+    expect(fake.calls.find((c) => c.name === 'choose_domain')?.args).toEqual({ domainId: domain.id })
+  })
+
+  it('while the question is still live, the panel shows the question and nothing else', async () => {
+    const live = demoPlay('question-locked')
+    expect(live.session?.outcome).toBeNull()
+    await openControl(live)
+
+    // One phase, one block: the reveal controls are there, the domains are
+    // not — `choose_domain` would be refused, and a control the host refuses
+    // is not a disabled control, it is the wrong block.
+    expect(screen.getByLabelText('Reveal outcome')).toBeTruthy()
+    const domain = live.domains.find((d) => !d.exhausted)!
+    expect(screen.queryAllByRole('button').find((b) => b.textContent?.startsWith(domain.name))).toBeUndefined()
+  })
+
+  /**
+   * The 2026-09-07 report, second half: the board empties, the Play completes
+   * — and Control went on showing the last question's dead controls with no
+   * way to reveal the standings. `reveal_leaderboard_rank` is legal on a
+   * completed Play; nothing in Studio offered it.
+   */
+  it('a completed Play offers the standings, not the question that ended it', async () => {
+    const done = demoPlay('final-leaderboard-partial')
+    expect(done.status).toBe('completed')
+    await openControl(done, 'Reveal next place')
+
+    // Gone: the question controls, the domains and the token rows — every one
+    // of them a refusal on a completed Play.
+    expect(screen.queryByLabelText('Reveal outcome')).toBeNull()
+    expect(screen.queryByText('Give token')).toBeNull()
+    for (const d of done.domains) {
+      expect(screen.queryAllByRole('button').find((b) => b.textContent?.startsWith(d.name))).toBeUndefined()
+    }
+
+    // Ranks 4 and 2 are up; the next place is rank 2's neighbour above — 1.
+    fireEvent.click(screen.getByText('Reveal next place'))
+    await waitFor(() => expect(fake.calls.filter((c) => c.name === 'reveal_leaderboard_rank')).toHaveLength(1))
+    expect(fake.calls.find((c) => c.name === 'reveal_leaderboard_rank')?.args).toEqual({ rank: 1 })
+  })
+
+  it('with the token free, the panel says so and the ring is the way on', async () => {
+    const base = demoPlay('question-outcome-incorrect')
+    const free: PlayStateForMain = {
+      ...base,
+      ring: { ...base.ring, currentTeamId: null },
+      operator: { ...base.operator, legalTokenTargets: [base.teams[1]!.id], defaultNextTeamId: base.teams[1]!.id },
+    }
+    await openControl(free, 'The token is free')
+
+    // No domains: `choose_domain` needs a holder, so the only way on is the
+    // hand-over — and that is what the panel names.
+    for (const d of free.domains) {
+      expect(screen.queryAllByRole('button').find((b) => b.textContent?.startsWith(d.name))).toBeUndefined()
+    }
+    expect(screen.queryByText('Give the token')).not.toBeNull()
+  })
+
+  it('the token rows disappear once the Play can no longer take one', async () => {
+    const playing = demoPlay('question-outcome-correct')
+    await openControl(playing, 'Next question')
+    expect(screen.queryByText('Give token')).not.toBeNull()
+  })
+
+  /**
+   * The way back out of Control. Before this there was none: a loaded recipe
+   * could only be replaced by loading another one, so a finished or mistaken
+   * game stayed in Control for ever.
+   */
+  it('a game that was never played is unloaded without a question, and discarded', async () => {
+    const loaded: PlayStateForMain = { ...demoPlay('question-issued'), status: 'loaded', session: null }
+    await openControl(loaded, 'Unload game')
+
+    fireEvent.click(screen.getByText('Unload game'))
+    await waitFor(() => expect(fake.calls.filter((c) => c.name === 'play_unload')).toHaveLength(1))
+    // Nothing was played, so there is no record worth keeping and nothing to ask.
+    expect(fake.calls.find((c) => c.name === 'play_unload')?.args).toEqual({ discard: true })
+    expect(screen.queryByText('Unload the game?')).toBeNull()
+  })
+
+  it('a game that was played asks whether to keep the record, and keeps it by default', async () => {
+    await openControl(demoPlay('question-outcome-correct'), 'Unload game')
+
+    fireEvent.click(screen.getByText('Unload game'))
+    await screen.findByText('Unload the game?')
+    // Keep is the standing answer; the confirm button says which act it runs.
+    fireEvent.click(screen.getByText('Unload', { selector: 'button, button *' }))
+    await waitFor(() => expect(fake.calls.filter((c) => c.name === 'play_unload')).toHaveLength(1))
+    expect(fake.calls.find((c) => c.name === 'play_unload')?.args).toEqual({ discard: false })
+  })
+
   it('undo, restart and abandon wait for a busy overlay', async () => {
     const busy: PlayStateForMain = {
       ...demoPlay('question-issued'),
-      overlay: { busy: true, active: { kind: 'current-team', teamId: null }, pending: null, enabled: true },
+      overlay: { busy: true, active: { kind: 'current-team', teamId: null }, pending: null, enabled: true, runId: 1 },
     }
     await openControl(busy)
     for (const label of ['Undo turn', 'Restart', 'Abandon']) {

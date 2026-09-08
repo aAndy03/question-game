@@ -66,6 +66,26 @@ describe('host bridge', () => {
     expect(useHealthStore.getState().report?.status).toBe('ok')
   })
 
+  /**
+   * A subscription that outlives the component is one the host goes on
+   * emitting to — and after a reload, one it emits to a callback id that no
+   * longer exists (`[TAURI] Couldn't find callback id …`, ten a second under
+   * the show loop). `listen` resolves asynchronously, so the case that
+   * actually leaked was an unmount *before* it resolved: StrictMode's double
+   * mount, every boot.
+   */
+  it('releases every subscription on unmount, including ones still registering', async () => {
+    const early = render(<App />)
+    early.unmount()
+    await waitFor(() => expect(fake.listenerCount()).toBe(0))
+
+    const view = render(<App />)
+    await screen.findByText('Alpha')
+    expect(fake.listenerCount('play-state')).toBe(1)
+    view.unmount()
+    await waitFor(() => expect(fake.listenerCount()).toBe(0))
+  })
+
   it('a renamed team reaches the list and the aside through catalog-changed alone', async () => {
     render(<App />)
     expect(await screen.findByText('Alpha')).toBeTruthy()

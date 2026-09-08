@@ -39,7 +39,7 @@ export interface OverlayLayerProps {
   state: PlayStateForStage
 }
 
-const requestKey = (r: OverlayRequest | null) => (r ? JSON.stringify(r) : '')
+
 
 function Sheet({ kind, children, ref }: { kind: OverlayRequest['kind']; children: ReactNode; ref: Ref<HTMLDivElement> }) {
   const coverage = OVERLAY_COVERAGE[kind]
@@ -156,19 +156,25 @@ function Content({ state, request }: { state: PlayStateForStage; request: Overla
 export function OverlayLayer({ state }: OverlayLayerProps) {
   const active = state.overlay.active
   const enabled = state.overlay.enabled
-  const key = requestKey(active)
+  // **The occurrence, never the value.** The operator may call the same
+  // overlay twice, and `round-advance` on the same round — or `current-team`
+  // for the same team — is equal by value to the one that just ran. Keyed on
+  // the value, the promoted duplicate would look like "still the same run":
+  // nothing would play, nothing would be acked, and the host's queue would
+  // stop for the rest of the Play (spec §2.6 — the queue advances on an ack).
+  const runId = state.overlay.runId
 
   // What is on screen right now: kept locally so it runs to completion.
   const [showing, setShowing] = useState<OverlayRequest | null>(null)
   const running = useRef<RunningOverlay | null>(null)
   const next = useRef<OverlayRequest | null>(null)
   const sheet = useRef<HTMLDivElement | null>(null)
-  const lastKey = useRef('')
+  const lastRun = useRef(0)
 
   // A new active request: show it now, or queue it (depth 1) behind the running one.
   useEffect(() => {
-    if (key === lastKey.current) return
-    lastKey.current = key
+    if (runId === lastRun.current) return
+    lastRun.current = runId
     if (!active) return
     if (!enabled) {
       // No visual; the host still needs the handshake to advance its token.
@@ -177,7 +183,7 @@ export function OverlayLayer({ state }: OverlayLayerProps) {
     }
     if (running.current) next.current = active
     else setShowing(active)
-  }, [key, active, enabled])
+  }, [runId, active, enabled])
 
   // Play whatever is showing once the sheet exists and no transition runs.
   useEffect(() => {
@@ -189,13 +195,21 @@ export function OverlayLayer({ state }: OverlayLayerProps) {
       // StrictMode runs this effect twice in dev; one timeline per request.
       if (running.current && running.current.request === request) return
       release = sequencer.acquire('overlay')
-      running.current = runOverlay({ request, sheet: el }, () => {
+      // A timeline can finish *inside* `runOverlay` — `motionConfig.immediate`
+      // does exactly that, and so does a zero-length one. Assigning the return
+      // value afterwards would then overwrite the `null` the callback just
+      // wrote and leave a finished overlay marked as running for ever, so
+      // every later one would queue behind it and never play.
+      let finished = false
+      const started = runOverlay({ request, sheet: el }, () => {
+        finished = true
         running.current = null
         release()
         const queued = next.current
         next.current = null
         setShowing(queued)
       })
+      if (!finished) running.current = started
     })
     return () => {
       cancel()

@@ -38,7 +38,7 @@ function emptyTeam(): Team {
 export function TeamEditor({ id }: TeamEditorProps) {
   const source = useCatalogItem('team', id)
   const draft = useDraft<Team>(source.data, emptyTeam())
-  const guard = useDirtyGuard(draft.isDirty)
+  const guard = useDirtyGuard(draft)
   const run = useHostCommand()
   const go = useNavStore((s) => s.go)
   const notices = useNoticeStore((s) => s.notices)

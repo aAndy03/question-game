@@ -251,7 +251,7 @@ someone remembers to add.
 | `NavCrumbs` | HeroUI `Breadcrumbs` | from `Route` | `PageHeader` |
 | `MetaList` | label / value pairs | `items`, `columns` | detail views |
 | `StatCard` | `Panel` · `Text studio-display` · caption | `value`, `label`, `tone?` | detail views, Games |
-| `SettingRow` | label · description · control · reason | `disabled: { reason, detail }` from host | Games rules, Settings (P10), float (P8) |
+| `SettingRow` | label · description · control · reason | `disabled: { reason, detail }` from host | Games rules, Settings (P10), float (P8) — a **container query**: two columns at ≥ 34rem, stacked below, so the Control float reads label-over-control |
 | `DifficultyField` | `NumberField` + `Slider` + band chip | 1–100; band easy/medium/hard | question editor |
 | `OptionRow` | drag handle · `TextField` · correct `Checkbox` · remove | `isLastCorrect` disables the untick | question editor |
 | `TeamMark` | `Swatch`/logo + short code | `size` | roster, rows |
@@ -483,11 +483,11 @@ the last word.
 
 | Panel | Reads | Writes | Density behaviour |
 | --- | --- | --- | --- |
-| **Game panel** | play-state: teams, ring, scores, domains | — | comfortable: mark · name · score · turns; compact: mark · score; dense: marks only, scores as tooltips |
-| **Action Panel** | play-state + operator | `TransportButton`s → `play_start` `pause` `resume` · `TimerCluster` → `start_timer` `pause_timer` · `RevealControls` → `reveal_stem` `reveal_next_option` `reveal_outcome` · `lock_selection` · `give_token` / `reveal_and_pass` (the arm→confirm of §2.6) · `undo_turn` `redo_turn` · `restart` `abandon` (`ConfirmDialog`, stacked "Are you sure?") | compact drops labels to icons with tooltips |
-| **Strips** | play-state | `ScreenStrip` → `show_screen`; `OverlayStrip` → `show_overlay` (five kinds) | dense: icons only |
+| **Game panel** | play-state: teams, ring, scores, domains | — | comfortable: mark · name · score · turns; compact: mark · name · score; dense: mark · score, name on a tooltip. The ring scrolls in its own column under a fixed round header, the domain footer stays; the roster's *height* steps the row density down further when the tile is short |
+| **Action Panel** | play-state + operator | `TransportButton`s → `play_start` `pause` `resume` · `TimerCluster` → `start_timer` `pause_timer` · `RevealControls` → `reveal_stem` `reveal_next_option` `reveal_outcome` · `lock_selection` · **one button per domain → `choose_domain`** (the next question, from any screen) · `give_token` / `reveal_and_pass` (the arm→confirm of §2.6) · `undo_turn` `redo_turn` · `restart` `abandon` (`ConfirmDialog`, stacked "Are you sure?") | compact drops labels to icons with tooltips |
+| **Strips** | play-state | `ScreenStrip` → `show_screen`; `OverlayStrip` → `show_overlay` (five kinds) | both strips **wrap**; never `fullWidth`, because seven labelled screens fit no single row the mosaic offers. comfortable: icon + label; below it the screens are icon-only with the label on a tooltip, and the overlay pills keep their whole label |
 | **Timeline** | `play_events` (a Query keyed on `playId` + `eventCount`, invalidated by the tick's `eventCount`, never a Play field) | `undo_turn` `redo_turn` | collapsed: one line (last event + counts) |
-| **Settings float** | `settings_get` | `settings_set_global` (Global) · `settings_set_current_game` (Current game) | a HeroUI `Popover` from the top bar's ⚙; two `Tabs`; `SettingRow`s with the host's `disabled` list, game-affecting rows visible but disabled while playing |
+| **Settings float** | `settings_get` | `settings_set_global` (Global) · `settings_set_current_game` (Current game) | a HeroUI `Popover` from the top bar's ⚙ (`min(34rem, 92vw)`); two `Tabs`; `SettingRow`s with the host's `disabled` list, game-affecting rows visible but disabled while playing. The popover is narrower than `SettingRow`'s two-column threshold, so every row in it stacks |
 | **Display pickers** | `monitors_list` + `monitors-changed` | `stage_set_monitor` · `stage_open` | — |
 
 Ring rows (Action Panel and Game panel share `RingRow`) carry the nine
@@ -515,6 +515,65 @@ redo · `[` / `]` previous / next screen.
 
 ### 10.5 Rules
 
+- **A ring row says what it is** (added 2026-09-07). Colour and position carry
+  a lot but not enough: the operator has to tell the team the invariant serves
+  **next in order** from the ones a hand-over would jump to (**out of order**),
+  and see why an ordinary-looking row cannot be pressed. `ringRole` in
+  `host/ring.ts` answers every case a Play can be in — `holder · next ·
+  override · reveal-first · served · inactive · solo · closed` — and both the
+  Action Panel's rows and the Viewer's hit targets read their wording from
+  `RING_ROLE`, so a target says the same thing wherever it is met.
+- **Unload is in the Control top bar** (added 2026-09-07). `play_unload` is the
+  way back out of a loaded game and the only one; before it, the sole way to
+  clear Control was to load a different recipe. It sits in the top bar rather
+  than in a panel because it is about what is *in* Control and must be reachable
+  whatever the mosaic looks like, and it is live from the moment a recipe is
+  loaded — before the start, mid-show and after the end. A game that was never
+  played goes without a question (there is no record worth keeping); anything
+  that was played asks one dialog with two answers, **Keep the record**
+  (default) or **Discard it** — a hard delete of that Play's log, so it is
+  chosen, never assumed, and the confirm button names which act it runs.
+- **The panel draws one phase at a time** (added 2026-09-07). `controlPhase`
+  in `host/session.ts` answers where the operator stands — `ready · question ·
+  resolved · handover · standings · ended` — and the Action Panel draws
+  transport, that phase's single block, and the token rows, in that order.
+  Within a block an illegal control stays visible and disabled with its reason
+  (§4.2); *across* blocks the panel hides, because a control belonging to
+  another phase is not a disabled control but one the host would refuse. The
+  reveals, the clock and the option buttons therefore leave with the question
+  they belong to, the domains appear only once it is resolved, and the token
+  rows only while the Play can still take a hand-over.
+- **`standings` is a phase, not a leftover** (fixed 2026-09-07). When the last
+  question resolves the host appends `PlayCompleted`, and Control used to go on
+  showing that question's spent controls with no way to reveal a place — the
+  Play was over and the operator was stuck. The phase now offers *Reveal next
+  place* (`reveal_leaderboard_rank` with the lowest unrevealed **rank**, ties
+  sharing one), *Show final leaderboard* when Stage is elsewhere, and a count
+  of the places up. Restart is enabled here too: a completed Play may be
+  played again, an abandoned one is a closed record.
+- **Leaderboard nodes are keyed by finishing position, the command takes a
+  rank.** `LeaderboardList` keys its cards `1..n` so tied teams keep distinct
+  ids; the Viewer maps the position back to that team's rank before calling.
+  Sending the position revealed a place nobody stood in — the host now refuses
+  an unknown rank rather than appending an event that shows nothing.
+- **A resolved question is not a live one** (fixed 2026-09-07). The projection
+  keeps the session after `reveal_outcome` — Stage has to go on drawing the
+  question with its outcome — and only ever *replaces* it, at the next
+  `QuestionIssued`. So `play.session !== null` is true from the first question
+  of a Play to its end, and every surface that read it as "a question is in
+  progress" went permanently inert after the first reveal: the Viewer's domain
+  cards, the `1`–`9` chords. With `choose_domain` unreachable and no other
+  affordance for it, the operator was simply stuck — the Play could not
+  continue, on any screen. `host/session.ts` now spells the host's rule
+  (`liveSession` · `isSessionLive` · `canChooseDomain`, issued **and
+  unresolved**) and Control, the Viewer and the chords read it from there.
+- **The Action Panel offers the next question** — one outline button per
+  domain, labelled with the domain's next difficulty, disabled with a reason
+  when the domain is exhausted or the current question is still live. It is on
+  the panel rather than only on the ChooseDomain screen because the operator is
+  not obliged to be showing that screen: after a correct answer the token stays
+  put and the usual next act is another question, often with the audience still
+  looking at the outcome or the scoreboard.
 - **An overlay busy blocks undo, restart and abandon** with a wait notice
   (P8 exit criterion); the buttons stay visible and disabled with the reason.
 - **Nothing on Control is remembered locally** except the mosaic layout. Armed
@@ -1261,6 +1320,18 @@ Settings ▸ Monitors ─ Statistics window                   [Show Statistics]
   Studio's tokens, the Statistics page alone, no screen, no overlay queue, no
   `anim-complete`. Its empty state offers no "Go to Control" — that window has
   no route stack to go anywhere with.
+- **It is addressed, not overheard** (fixed 2026-09-07). `emit::play_state`
+  sends the `stats` label the same `main` shape Studio's own window gets, and
+  `catalog-changed` / `recipe-changed` go to it too, so a rename relabels the
+  numbers. Until that fix this window only worked by accident: every webview
+  called `listen()` with no target, which registers `EventTarget::Any`, and
+  Tauri lets an `Any` listener past the `emit_to` filter entirely — so all
+  three windows received every event, whoever it was addressed to. Studio then
+  also received Stage's *stripped* `play-state`, which has no `operator` half,
+  and `TopBar` threw on `play.operator.recipeId` the moment a recipe was
+  loaded, taking the whole window down while Stage kept drawing. Both webviews
+  now listen as their own label (`{ target: { kind: 'AnyLabel', label } }`),
+  with a test each.
 - `guard.rs` gains `STATS_COMMANDS` — `stats_query`, `get_state`,
   `settings_get`, `monitors_list`, `play_list`, `catalog_list`, `catalog_get`,
   `recipe_list`, `health_get` — and the `stats` label may call nothing else:

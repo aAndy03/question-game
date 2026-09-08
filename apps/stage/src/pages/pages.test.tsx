@@ -313,6 +313,24 @@ describe('Overlays draw over the live screen', () => {
     expect(events).toEqual(['overlay:token-handoff'])
   })
 
+  it('plays the promoted request even when it is identical to the one that just ran', () => {
+    // The operator clicks one overlay button twice. `round-advance` on the
+    // same round is equal *by value* to the run that just finished, so Stage
+    // has to follow `runId` — the occurrence — or it plays nothing, acks
+    // nothing, and the host's queue never advances again (§2.6).
+    const base = FIXTURES['overlay-handoff']
+    const request = { kind: 'round-advance', roundIndex: 2 } as const
+    const at = (runId: number, pending: typeof request | null) => ({
+      ...base,
+      overlay: { busy: true, active: request, pending, enabled: true, runId },
+    })
+    const { rerender } = render(<StageRoot state={{ ...base, overlay: { ...base.overlay, busy: false, active: null, runId: 0 } }} />)
+    rerender(<StageRoot state={at(1, null)} />)
+    rerender(<StageRoot state={at(1, request)} />)
+    rerender(<StageRoot state={at(2, null)} />)
+    expect(events.filter((k) => k === 'overlay:round-advance')).toHaveLength(2)
+  })
+
   it('nothing is drawn while the queue is idle', () => {
     const { container } = render(<StageRoot state={FIXTURES['question-locked']} />)
     expect(container.querySelector('[data-overlay]')).toBeNull()
@@ -469,7 +487,7 @@ describe('Reveals arrive with a beat and report reveal:<key>', () => {
   it('a current-team overlay draws the shared block over any screen, without node ids', () => {
     motionConfig.immediate = false
     const base = FIXTURES.scoreboard
-    const state = { ...base, overlay: { ...base.overlay, busy: true, active: { kind: 'current-team' as const, teamId: 'team-beta' } } }
+    const state = { ...base, overlay: { ...base.overlay, busy: true, active: { kind: 'current-team' as const, teamId: 'team-beta' }, runId: 1 } }
     const { container } = render(<StageRoot state={state} />)
     const overlay = container.querySelector('[data-overlay="current-team"]') as HTMLElement
     expect(overlay.dataset.coverage).toBe('full')

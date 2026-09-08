@@ -156,6 +156,43 @@ fn the_queue_advances_only_on_an_ack_for_the_running_overlay() {
     assert!(!presentation.overlay_busy());
 }
 
+/// The operator clicks one overlay button twice. Both requests are equal *by
+/// value* — `round-advance` carries only the round — so the promotion puts
+/// back an `active` indistinguishable from the one that just finished. The
+/// occurrence counter is what makes it distinguishable: without it Stage plays
+/// nothing, acks nothing, and the queue never advances again for the rest of
+/// the Play (reported from a real show, 2026-09-07).
+#[test]
+fn the_same_overlay_twice_is_two_runs() {
+    let mut service = started(snapshot(2, 2, 1, FrozenSettings::default()));
+    let mut presentation = PresentationService::new();
+    let modes = auto(false);
+    let request = OverlayRequest::RoundAdvance { round_index: 2 };
+    let state = |p: &PresentationService| p.play_state(dummy_game(), modes, ON, AudioSettings::default());
+
+    assert_eq!(state(&presentation).overlay.run_id, 0, "nothing has run");
+
+    presentation.show_overlay(request.clone(), ON);
+    let first = state(&presentation).overlay.run_id;
+    assert!(first > 0);
+
+    presentation.show_overlay(request.clone(), ON);
+    assert_eq!(state(&presentation).overlay.run_id, first, "still the first run");
+
+    presentation
+        .anim_complete(&request.anim_key(), &mut service, modes, 200)
+        .unwrap();
+    let promoted = state(&presentation).overlay;
+    assert_eq!(promoted.active.as_ref(), Some(&request));
+    assert!(promoted.run_id > first, "the promoted duplicate is a new run");
+
+    // And it retires on its own ack, like any other run.
+    presentation
+        .anim_complete(&request.anim_key(), &mut service, modes, 300)
+        .unwrap();
+    assert_eq!(presentation.active_overlay(), None);
+}
+
 #[test]
 fn overlays_off_skips_the_queue_and_the_token_still_moves() {
     let mut service = started(snapshot(3, 2, 2, FrozenSettings::default()));

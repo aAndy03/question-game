@@ -32,7 +32,7 @@ function emptyOperator(): Operator {
 export function OperatorEditor({ id }: OperatorEditorProps) {
   const source = useCatalogItem('operator', id)
   const draft = useDraft<Operator>(source.data, emptyOperator())
-  const guard = useDirtyGuard(draft.isDirty)
+  const guard = useDirtyGuard(draft)
   const run = useHostCommand()
   const go = useNavStore((s) => s.go)
   const notices = useNoticeStore((s) => s.notices)

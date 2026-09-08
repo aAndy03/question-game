@@ -2,14 +2,39 @@ import { useState } from 'react'
 import { DragDropProvider } from '@dnd-kit/react'
 import { useSortable } from '@dnd-kit/react/sortable'
 import { MeaningChip, Text } from '@/atoms'
-import { EmptyState, RingRow, type RingRowVariant } from '@/molecules'
+import { EmptyState, RingRow, type PanelBox, type PanelDensity, type RingRowVariant } from '@/molecules'
 import { CONTROL, RING, SESSION } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { usePlayState } from '@/host/playState'
 import { isDropLegal, reorderedRing, ringEntries, type RingEntry } from '@/host/ring'
 
 export interface GamePanelProps {
-  density: 'comfortable' | 'compact' | 'dense'
+  density: PanelDensity
+  /** The tile's measured box; the ring steps down when the roster outgrows it. */
+  box?: PanelBox | undefined
+}
+
+/** Row height + gap, per density, for the fit calculation below. */
+const ROW_HEIGHT: Record<PanelDensity, number> = { comfortable: 52, compact: 44, dense: 40 }
+
+/** Round header, the separator and the domain footer, at their smallest. */
+const CHROME_HEIGHT = 108
+
+/**
+ * The narrowest density is decided by width; the roster then decides whether
+ * that density still fits *vertically*. Eight teams at `comfortable` are
+ * 416px of rows — taller than most tiles — and a ring the operator has to
+ * scroll to see the token holder is a ring that failed at its one job. The
+ * list still scrolls past the point where even `dense` cannot fit; this only
+ * pushes that point out.
+ */
+function ringDensityFor(width: PanelDensity, teams: number, box: PanelBox | undefined): PanelDensity {
+  const height = box?.height ?? Number.POSITIVE_INFINITY
+  if (!Number.isFinite(height) || teams === 0) return width
+  const order: readonly PanelDensity[] = ['comfortable', 'compact', 'dense']
+  const room = Math.max(0, height - CHROME_HEIGHT)
+  const candidates = order.slice(order.indexOf(width))
+  return candidates.find((d) => teams * ROW_HEIGHT[d] <= room) ?? 'dense'
 }
 
 /**
@@ -17,7 +42,7 @@ export interface GamePanelProps {
  * questions. Drag reorders the **future** ring only (spec §5.4); the same
  * `RingRow` the Action Panel uses, so one language across both.
  */
-export function GamePanel({ density }: GamePanelProps) {
+export function GamePanel({ density, box }: GamePanelProps) {
   const play = usePlayState()
   const run = useHostCommand()
   const [dragging, setDragging] = useState<string | null>(null)
@@ -26,6 +51,7 @@ export function GamePanel({ density }: GamePanelProps) {
   if (!play) return <EmptyState kind="empty" what={CONTROL.panels.game.toLowerCase()} detail={CONTROL.noRecipeBody} compact />
   const entries = ringEntries(play)
   const canReorder = play.status === 'playing' || play.status === 'paused'
+  const rowDensity = ringDensityFor(density, entries.length, box)
 
   const variantOf = (e: RingEntry): RingRowVariant => {
     if (play.operator.isRehearsal) return 'rehearsal-solo'
@@ -37,8 +63,8 @@ export function GamePanel({ density }: GamePanelProps) {
   }
 
   return (
-    <div className="flex flex-col gap-3" data-game-panel>
-      <div className="flex items-center justify-between gap-2">
+    <div className="flex h-full min-h-0 flex-col gap-3" data-game-panel>
+      <div className="flex shrink-0 items-center justify-between gap-2">
         <Text variant="studio-label">{SESSION.round(play.ring.roundIndex)}</Text>
         <div className="flex items-center gap-1.5">
           {play.operator.isRehearsal ? <MeaningChip meaning="frozen">{SESSION.rehearsal}</MeaningChip> : null}
@@ -60,26 +86,26 @@ export function GamePanel({ density }: GamePanelProps) {
           if (order) void run('reorder_ring', { order })
         }}
       >
-        <ol className="flex flex-col gap-1" aria-label={RING.title}>
+        <ol className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden" aria-label={RING.title}>
           {entries.map((e) => (
-            <SortableRingRow key={e.team.id} entry={e} index={e.index} variant={variantOf(e)} density={density} sortable={canReorder && e.phase === 'future'} />
+            <SortableRingRow key={e.team.id} entry={e} index={e.index} variant={variantOf(e)} density={rowDensity} sortable={canReorder && e.phase === 'future'} />
           ))}
         </ol>
       </DragDropProvider>
-      {density !== 'dense' ? (
-        <div className="flex flex-col gap-1 border-t border-[var(--separator)] pt-3">
-          {play.domains.map((d) => (
-            <div key={d.id} className="flex items-center justify-between gap-2">
-              <Text variant="studio-caption" tone={d.exhausted ? 'muted' : 'default'} truncate>
-                {d.name}
-              </Text>
-              <Text variant="studio-mono" tone="muted" tabular>
-                {d.exhausted ? SESSION.exhausted : SESSION.domainsLeft(d.remaining)}
-              </Text>
-            </div>
-          ))}
-        </div>
-      ) : null}
+      {/* The board's remaining questions, at every density: how many are left
+        * is the one number that decides whether the show is nearly over. */}
+      <div className="flex max-h-[40%] shrink-0 flex-col gap-1 overflow-y-auto overflow-x-hidden border-t border-[var(--separator)] pt-3">
+        {play.domains.map((d) => (
+          <div key={d.id} className="flex items-center justify-between gap-2">
+            <Text variant="studio-caption" tone={d.exhausted ? 'muted' : 'default'} truncate>
+              {d.name}
+            </Text>
+            <Text variant="studio-mono" tone="muted" tabular>
+              {d.exhausted ? SESSION.exhausted : rowDensity === 'dense' ? String(d.remaining) : SESSION.domainsLeft(d.remaining)}
+            </Text>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -94,7 +120,7 @@ function SortableRingRow({
   entry: RingEntry
   index: number
   variant: RingRowVariant
-  density: 'comfortable' | 'compact' | 'dense'
+  density: PanelDensity
   sortable: boolean
 }) {
   const { ref, handleRef, isDragging } = useSortable({ id: entry.team.id, index, disabled: !sortable })

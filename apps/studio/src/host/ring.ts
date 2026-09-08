@@ -10,6 +10,7 @@
  */
 
 import type { PlayStateForMain, StageTeam } from '@questiongame/contract'
+import { isSessionLive } from './session'
 
 export type RingPhase = 'history' | 'current' | 'future' | 'inactive'
 
@@ -74,4 +75,41 @@ export function reorderedRing(state: PlayStateForMain, fromId: string, toId: str
   moved.splice(toIndex, 0, fromId)
   let cursor = 0
   return entries.map((e) => (e.phase === 'future' ? (moved[cursor++] ?? e.team.id) : e.team.id))
+}
+
+/**
+ * What a ring row *is*, right now, in one word — the row's own answer to "can
+ * I press this, and what happens if I do?".
+ *
+ * Colour and position say a lot but not enough: the operator has to be able to
+ * tell the team the round invariant will serve next from the ones a hand-over
+ * would jump to, and to see why a row that looks ordinary cannot be pressed.
+ * Every case a Play can be in is answered here, once, so the panel and the
+ * Viewer read the same sentence:
+ *
+ *   holder        has the token; the turn is theirs
+ *   next          the team the ring serves next — pressing it is *not* an
+ *                 override, it is the order (§5.4)
+ *   override      a legal target, but out of order: served after the next one
+ *   reveal-first  a legal target that the live question is holding back (§2.6)
+ *   served        already played this round; the invariant will not serve it
+ *                 again until everyone has
+ *   inactive      not in this Play
+ *   solo          the only team — a rehearsal (§4.3)
+ *   closed        the Play can no longer take a hand-over
+ */
+export type RingRole = 'holder' | 'next' | 'override' | 'reveal-first' | 'served' | 'inactive' | 'solo' | 'closed'
+
+export function ringRole(state: PlayStateForMain, entry: RingEntry): RingRole {
+  if (state.operator.isRehearsal) return 'solo'
+  if (entry.phase === 'inactive') return 'inactive'
+  if (entry.phase === 'current') return 'holder'
+  const open = state.status === 'playing' || state.status === 'paused'
+  if (!open) return 'closed'
+  if (!entry.isLegalTarget) return 'served'
+  // §2.6 path 2: a question that is issued and unrevealed holds every
+  // hand-over back, and `override.after_lock` decides whether Control offers
+  // *Reveal & pass* instead of nothing.
+  if (isSessionLive(state) && state.operator.overrideAfterLock === 'refuse_until_reveal') return 'reveal-first'
+  return entry.team.id === state.operator.defaultNextTeamId ? 'next' : 'override'
 }

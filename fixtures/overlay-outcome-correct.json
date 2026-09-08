@@ -1,5 +1,5 @@
 {
-  "contractVersion": 4,
+  "contractVersion": 5,
   "playId": "play-fixture-1",
   "status": "playing",
   "teams": [
@@ -200,7 +200,8 @@
       "verdict": "correct"
     },
     "pending": null,
-    "enabled": true
+    "enabled": true,
+    "runId": 1
   },
   "revealModes": {
     "question": "operator",

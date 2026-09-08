@@ -125,7 +125,7 @@ Consult these rather than memory; several moved fast in the last year.
 
 ```
 P0 ─┬─ P1 → P2 → P3 ──────────────┐
-    │                             ├─ P6 → P7 → P8 → P9 → P10 → P11 → P12
+    │                             ├─ P6 → P7 → P8 → P9 → P10 → P11 → P11.1 → P12
     └─ P4 → P5 ───────────────────┘
 ```
 
@@ -626,6 +626,129 @@ dev-only `crates/app/src/demo.rs`.
   `overlay_ack_complete`.
 
 **As built:** the design section is `05_STUDIO_DESIGN.md` §13. `stats_query` is one command over one document: `crates/host/src/stats.rs` folds a Play log into `TurnFact`s and aggregates them (pure, ten unit tests), and `CatalogService::stats_query` decides which logs to read and relabels rows from the current catalog (§12's rename rule). There is no `StatsService` — Statistics owns no state. The optional Statistics window is opened by the operator alone (`stats_window`, added to §13's list on 2026-09-07): `stats.monitor_id` says where it *would* go, `stats.fullscreen` says how, and nothing in the host puts it on a display.
+
+---
+
+## P11.1 — The show that could not go on  ☑
+
+Not a phase: a day of fixes from the first end-to-end runs of the Demo on real
+hardware (2026-09-07). Every one of them was the same shape — **the host was
+right and Studio had no door** — so they are recorded together, with the
+scenarios that now hold them down.
+
+**What was wrong**
+
+- **Both webviews received each other's events.** `listen()` with no target
+  registers `EventTarget::Any`, and Tauri lets an `Any` listener past the
+  `emit_to` filter entirely, so Studio also got the *stripped* `play-state`
+  meant for Stage — no `operator` half, and `TopBar` threw on the first load,
+  taking the window down while Stage kept drawing. Stage, symmetrically, was
+  receiving the operator half on camera. Both now listen as their own label,
+  and the Statistics window is addressed rather than overhearing.
+- **A reload left its listeners registered.** Tauri drops a JS listener only on
+  `unlisten`, and the callback ids live in `window`, which a reload clears — so
+  the 100ms show loop wrote `[TAURI] Couldn't find callback id …` ten times a
+  second for the life of the app. Subscriptions are released on `pagehide`, and
+  `bridge.tsx` no longer loses one that resolves after unmount.
+- **The operator could not issue a second question.** `play.session` is only
+  ever *replaced*, never cleared, so `session !== null` is true from the first
+  question to the end of the Play — and every surface that read it as "a
+  question is in progress" went inert after the first reveal. There was then no
+  way to call `choose_domain` at all.
+- **The overlay queue stopped for good.** Stage keyed its overlay layer on the
+  request's *value*, so a promoted duplicate — one overlay button pressed twice,
+  `round-advance` on the same round — looked like "still the same run": nothing
+  played, nothing was acked, and the queue advances only on an ack.
+- **The end of a Play was a dead end.** `PlayCompleted` was appended correctly;
+  Control went on showing the finished question's disabled controls, offered
+  no `reveal_leaderboard_rank`, and disabled Restart on the one status where
+  restarting is the obvious next act.
+- **A loaded recipe could not be put down** — the only way out of Control was
+  to load a different one.
+
+**What changed**
+
+| | |
+| --- | --- |
+| Events | Each webview listens as its own label; `main`, `stage` and `stats` each get what is addressed to them, and `null`/the empty projection when there is no Play |
+| Contract | v4 → **v5**: `StageOverlay.run_id`, the occurrence a request is on. Two identical requests are two runs |
+| Studio | `host/session.ts` — `liveSession` / `canChooseDomain` / `controlPhase` / `nextLeaderboardRank`; the Action Panel draws **one phase block** and the ring rows say what they are (`ringRole`) |
+| Host | `play_unload { discard }`, `CatalogService::play_delete`, `stage::empty_game`, `restart` restricted to Playing/Paused/Completed, `reveal_leaderboard_rank` refuses a rank nobody holds |
+
+**Exit criteria**
+
+- ☑ The Demo plays start to finish and back out again with no dead end —
+  `crates/host/tests/demo_scenarios.rs`, fifteen scenarios written in the
+  Demo's own vocabulary (Red · Blue, Geography · Science, 10/20/30), each
+  ending on *is there a legal way on?*
+- ☑ Control's predicate and the host's rule agree at every beat of a turn —
+  `the_predicate_matches_the_command_at_every_step`.
+- ☑ The same overlay twice is two runs, host and Stage —
+  `the_same_overlay_twice_is_two_runs` and the Stage page test.
+- ☑ No subscription outlives the component or the page —
+  `bridge.test.tsx` and `host/host.test.ts`.
+
+---
+
+## P11.2 — Panels that fit, and an editor that lets go  ☑
+
+Not a phase either: the second pass of fixes from operating the built app
+(2026-09-08). Four of them are one sentence — **a control the operator cannot
+aim at is not a control** — and two are the state machinery underneath.
+
+**What was wrong**
+
+- **The Strips panel got worse as it got wider.** `ScreenStrip` was one
+  `fullWidth` `ToggleButtonGroup`, so seven labelled screens were laid out on a
+  single row that no mosaic tile is wide enough for; the panel clips
+  horizontally by design (§8), so the operator was handed half a word at each
+  end and no whole target. The overlay pills, in the other direction, shrank to
+  the first two letters of the kind — *To*, *Ro*, *Mu*.
+- **The Control settings float was a 30rem popover with a 20rem control
+  column.** That left about eight characters for the label, so every label and
+  description broke one word per line, and the wider controls (the segmented
+  density and reattach rows) ran off the edge.
+- **The Game panel stepped down too early and dropped the score.** `compact`
+  started at 360px and `dense` at 220px, and `dense` rendered the team mark
+  alone — a ring row with no number on it. Nothing adapted to the panel's
+  *height*, so a roster longer than two teams simply scrolled at full row
+  height, and the board's remaining questions disappeared entirely at `dense`.
+- **An operator had run no Plays, ever.** `operators.plays_run` was a stored
+  counter that no command incremented, and nothing recorded *who* ran a Play:
+  `OperatorSwitched` was appended only on a mid-Play switch, and only while the
+  status was `playing | paused` — never at `play_load`, where the fact is
+  always available. Statistics grouped by operator was empty for the same
+  reason.
+- **Saving an editor asked whether to save.** `useDirtyGuard` registered a
+  guard closed over a rendered `isDirty`; an editor saves and navigates in one
+  act, so at the moment `go` consulted the guard React had not re-rendered and
+  the flag was still `true`. The operator got "Unsaved changes" *after* the row
+  was written — and answering *Save* ran the whole save body a second time.
+- **…against a draft that had been blanked.** `QuestionEditor` re-derived a new
+  question's blank inside a `useMemo` keyed on the domain list, which the save
+  itself invalidates. The second save therefore wrote an empty stem, and the
+  host's "a question needs a stem" was the correct answer to the wrong question.
+
+**What changed**
+
+| | |
+| --- | --- |
+| Strips | Both strips **wrap**. `ScreenStrip` is a detached `ToggleButtonGroup` with `flex-wrap` and no `fullWidth`; labels below `comfortable` move to tooltips, and overlay pills keep their whole label at every density |
+| `SettingRow` | A container query: two columns at ≥ 34rem, stacked below, nesting indent included. The Control float is `min(34rem, 92vw)`, so every row in it stacks |
+| `MosaicPanel` | Steps at 300px / 180px, not 360px / 220px — a step down removes information, so it is the last resort. The render prop also receives the measured box, and `fills` hands a panel the full height when it scrolls its own list |
+| Game panel | Fixed round header, the ring scrolling in its own column, the domain footer always present; the roster's height steps the row density down further when the tile is short. `RingRow` keeps the score at `dense` and hangs the name on a tooltip |
+| Host | `plays.operator_id` (migration 3), `PlayRecord.operator_id`, `Play::operator_id()`; `operator_switched` appends while `Loaded` too, `play_load` records the active operator and `restart` carries it over. `operators.plays_run` is now `COUNT(*)` over started Plays — derived, never stored |
+| Studio | `Draft.isDirtyNow()` — the live flag the nav guard reads; `useDirtyGuard(draft)`. A new question's blank is minted once and never re-derived |
+
+**Exit criteria**
+
+- ☑ Every Control panel is usable at every width the mosaic allows: no clipped
+  label, no two-letter button, no row without its score.
+- ☑ An operator's card counts the Plays the log says they ran, survives a
+  projection rebuild, and does not move on a rename —
+  `an_operator_counts_the_plays_the_log_says_they_ran`.
+- ☑ Saving a new question writes it once, raises no dialog and lands on the row
+  it wrote — `the question editor saves once and leaves`.
 
 ---
 

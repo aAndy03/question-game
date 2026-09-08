@@ -39,6 +39,13 @@ pub fn play_load(
     let snapshot = host.catalog.build_snapshot(&recipe_id, play_id, settings)?;
 
     host.play.play_load(snapshot, now)?;
+    // Who is running the show, recorded in the log at the door (§2.26). The
+    // event is the only place the fact lives: `stats.rs` groups by it, and the
+    // `plays` projection carries it so an operator's Play count is a count of
+    // rows rather than a counter someone has to remember to increment.
+    if let Some(operator_id) = host.flags.globals().active_operator_id.clone() {
+        host.play.operator_switched(operator_id, now)?;
+    }
     let live = host.flags.live();
     host.play.set_live_settings(live);
     host.presentation
@@ -59,7 +66,22 @@ pub fn play_start(
 ) -> AppResult<()> {
     play_write(&window, &app, &state, "play_start", |h, now| {
         Ok(h.play.play_start(now)?)
-    })
+    })?;
+    // An operator's Play count is a count of started Plays, so starting one
+    // changes that operator's row. Say so, or the Operators tab keeps showing
+    // the number it read before the show.
+    let operator = state.lock().flags.globals().active_operator_id.clone();
+    if let Some(id) = operator {
+        emit::catalog_changed(
+            &app,
+            &questiongame_host::catalog::CatalogChange {
+                kind: questiongame_host::catalog::CatalogKind::Operator,
+                id: id.as_str().to_owned(),
+                op: questiongame_host::catalog::ChangeOp::Upserted,
+            },
+        );
+    }
+    Ok(())
 }
 
 #[tauri::command(async)]
@@ -92,6 +114,63 @@ pub fn abandon(window: WebviewWindow, app: AppHandle, state: State<'_, AppState>
 /// The closed Play is persisted before the new one opens, because it is a
 /// record under the recipe (§2.8) and losing it to a crash three seconds later
 /// would be losing a whole show.
+/// `play_unload` — take the recipe out of Control (§5.1).
+///
+/// The way back out of a loaded game, and available whenever one is loaded:
+/// before it starts, mid-show, and after it ends. An open Play is abandoned
+/// on the way out and persisted, because a Play that disappeared while still
+/// `playing` would be resumed at the next boot.
+///
+/// **The Stage window is not touched.** The screens are the same whatever is
+/// loaded; only the content changes. So the window stays on the display the
+/// operator put it on and goes back to Idle, which is where the next game will
+/// find it — `emit::play_state` sends the empty projection precisely so the
+/// audience surface does not keep showing a Play that is no longer in Control.
+#[tauri::command(async)]
+pub fn play_unload(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    discard: bool,
+) -> AppResult<()> {
+    guard::allow(window.label(), "play_unload")?;
+    let now = now_ms();
+    let mut host = state.lock();
+
+    // Explicit persist: `Host::write` persists what is still loaded, and by
+    // the time this returns there is nothing loaded to persist.
+    let unloaded = host.write(now, |h| {
+        let closed = h.play.unload(now)?;
+        if let Some(play) = closed.as_ref() {
+            h.catalog.play_persist(play)?;
+        }
+        h.flags.unload_recipe();
+        h.presentation.reset();
+        Ok(closed.map(|p| (p.id().clone(), p.snapshot().recipe_id.clone())))
+    })?;
+
+    // `discard` is the operator saying this run was never a show — a wrong
+    // game loaded, or a rehearsal. It is a hard delete of that one Play, so it
+    // is asked for explicitly and never assumed (§12.3's delete, narrowed).
+    if let Some((play_id, recipe_id)) = unloaded
+        && discard
+    {
+        host.catalog.play_delete(&play_id)?;
+        // The recipe's Plays section listed it; this is what refreshes it.
+        emit::catalog_changed(
+            &app,
+            &questiongame_host::catalog::CatalogChange {
+                kind: questiongame_host::CatalogKind::Recipe,
+                id: recipe_id.to_string(),
+                op: questiongame_host::catalog::ChangeOp::Upserted,
+            },
+        );
+    }
+
+    emit::play_state(&app, &mut host, now, true);
+    Ok(())
+}
+
 #[tauri::command(async)]
 pub fn restart(
     window: WebviewWindow,

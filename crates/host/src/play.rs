@@ -208,6 +208,24 @@ impl Play {
         self.consumed.len()
     }
 
+    /// Who ran this Play: the last `OperatorSwitched` the log still holds
+    /// (§2.26). Read from the events rather than kept in the projection —
+    /// nothing in the *game* reads it, and deriving it here is what lets the
+    /// `plays` row and `stats.rs` agree without a second copy.
+    ///
+    /// An inverted span is skipped like everywhere else, except that an
+    /// operator switch inside one still counts: undoing a turn does not undo
+    /// who was sitting at the keyboard.
+    pub fn operator_id(&self) -> Option<&crate::ids::OperatorId> {
+        self.events
+            .iter()
+            .rev()
+            .find_map(|event| match &event.kind {
+                EventKind::OperatorSwitched { operator_id } => Some(operator_id),
+                _ => None,
+            })
+    }
+
     /// The next question this domain would issue: first in the queue that this
     /// Play has not consumed. Difficulty walks easy→hard because the queue is
     /// sorted, never because anyone picked (§5.2).

@@ -52,6 +52,12 @@ pub enum MatchError {
     #[error("domain {0} has no questions left in this play")]
     DomainEmpty(DomainId),
 
+    /// `reveal_leaderboard_rank` for a place no team stands in. Ties share a
+    /// rank — `1, 1, 3` has no rank 2 — so a caller that counted positions
+    /// instead of ranks would otherwise append an event that reveals nothing.
+    #[error("no team is in place {0}")]
+    UnknownRank(u32),
+
     #[error("a question is already issued")]
     SessionAlreadyIssued,
 

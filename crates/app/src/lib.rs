@@ -117,6 +117,7 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::catalog::wipe_plays,
         // MatchService
         commands::play::play_load,
+        commands::play::play_unload,
         commands::play::play_start,
         commands::play::pause,
         commands::play::resume,

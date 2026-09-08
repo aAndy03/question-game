@@ -141,7 +141,7 @@ function withDecor(state: PlayStateForStage, mode: DecorMotionMode | null): Play
   return mode ? { ...state, decor: { ...state.decor, mode } } : state
 }
 
-const NO_OVERLAY = { busy: false, active: null, pending: null, enabled: true } as const
+const NO_OVERLAY = { busy: false, active: null, pending: null, enabled: true, runId: 0 } as const
 
 const link = (active: boolean, activeBg: string) =>
   ({
@@ -168,7 +168,11 @@ function FixtureFed() {
   const [overlayDone, setOverlayDone] = useState(false)
   const state = useMemo(() => {
     const base = withDecor(FIXTURES[name], decor)
-    return overlayDone && base.overlay.active ? { ...base, overlay: { ...NO_OVERLAY, enabled: base.overlay.enabled } } : base
+    if (overlayDone && base.overlay.active) return { ...base, overlay: { ...NO_OVERLAY, enabled: base.overlay.enabled } }
+    // `runId` is the occurrence, so re-arming the same fixture is a new run —
+    // the strip's Replay is the fixture-fed stand-in for the host promoting a
+    // second identical request.
+    return { ...base, overlay: { ...base.overlay, runId: base.overlay.runId + overlayRun } }
   }, [name, decor, overlayDone, overlayRun])
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { App } from '@/App'
 import { HOME, useNavStore, type Route } from '@/chrome/nav'
 import { useNoticeStore } from '@/chrome/notices'
@@ -114,5 +114,70 @@ describe('pages', () => {
     const notice = useNoticeStore.getState().notices[0]
     expect(notice?.code).toBe('screens.blocked')
     expect(notice?.actions.length).toBe(2)
+  })
+})
+
+/**
+ * Saving is one act: write the row, then go to it. The editor used to ask
+ * "unsaved changes?" *after* the write, because the nav guard read a dirty
+ * flag React had not re-rendered yet — and answering Save re-ran a save
+ * against a draft the refetch had meanwhile reset to blank, which is where the
+ * empty editor and "a question needs a stem" came from.
+ */
+describe('the question editor saves once and leaves', () => {
+  beforeEach(() => {
+    useNavStore.setState({ route: HOME, back: [], forward: [], guard: null })
+    useNoticeStore.setState({ notices: [] })
+    receivePlayState(null)
+  })
+  afterEach(() => setHostTransport(null))
+
+  const typeAQuestion = async () => {
+    const stem = await screen.findByLabelText('Question', { selector: 'textarea' })
+    fireEvent.change(stem, { target: { value: 'What is the capital of Chile?' } })
+    const options = screen.getAllByLabelText(/^Option [AB]$/)
+    fireEvent.change(options[0] as HTMLElement, { target: { value: 'Santiago' } })
+    fireEvent.change(options[1] as HTMLElement, { target: { value: 'Valparaiso' } })
+  }
+
+  it('writes a new question, keeps no dialog, and lands on the row it wrote', async () => {
+    const fake = createFakeHost()
+    fake.seed(demoLibrary(), [demoRecipe()])
+    setHostTransport(fake)
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'library', mode: 'new', domainId: 'dom-history' })
+    })
+    await typeAQuestion()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    await waitFor(() => expect(useNavStore.getState().route).toMatchObject({ tab: 'library', mode: 'view' }))
+    expect(screen.queryByText('Unsaved changes')).toBeNull()
+    // One write, not two: the dialog's own Save used to run the whole body a
+    // second time, against a draft that had already been reset.
+    expect(fake.calls.filter((c) => c.name === 'catalog_upsert').length).toBe(1)
+  })
+
+  it('keeps what was typed when a catalog refresh arrives under the editor', async () => {
+    const fake = createFakeHost()
+    fake.seed(demoLibrary(), [demoRecipe()])
+    setHostTransport(fake)
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'library', mode: 'new', domainId: 'dom-history' })
+    })
+    await typeAQuestion()
+
+    // The domain list changing under the editor is the ordinary case — the
+    // membership write emits `catalog-changed` for every domain it touched.
+    await act(async () => {
+      fake.emit('catalog-changed', { kind: 'domain', id: 'dom-history', op: 'upserted' })
+    })
+
+    const stem = await screen.findByLabelText('Question', { selector: 'textarea' })
+    expect((stem as HTMLTextAreaElement).value).toBe('What is the capital of Chile?')
   })
 })

@@ -21,11 +21,21 @@ const ICON: Record<StageScreen, IconName> = {
   currentTeam: 'token',
 }
 
-/** Every Screen, in show order; the operator may jump anywhere (spec §5.5). */
+/**
+ * Every Screen, in show order; the operator may jump anywhere (spec §5.5).
+ *
+ * The group is **detached and wrapping**, never `fullWidth`: seven labelled
+ * pills do not fit one row at any panel width the mosaic offers, and an
+ * attached full-width group answers that by clipping — the operator was left
+ * with half a word and no target. Wrapping is the only layout that is right at
+ * every width, so the density decides one thing only: whether the label is
+ * printed beside the icon or hung on a tooltip.
+ */
 export function ScreenStrip({ current, overlayBusy, density = 'comfortable', onShow }: ScreenStripProps) {
+  const labelled = density === 'comfortable'
   return (
     <div className="flex flex-col gap-2" data-screen-strip>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <Text variant="studio-caption" tone="muted">
           {STRIPS.screens}
         </Text>
@@ -36,22 +46,23 @@ export function ScreenStrip({ current, overlayBusy, density = 'comfortable', onS
         ) : null}
       </div>
       <ToggleButtonGroup
+        isDetached
         selectionMode="single"
         selectedKeys={[current]}
         disallowEmptySelection
         size="sm"
-        fullWidth
         aria-label={STRIPS.screens}
+        className="flex w-full flex-wrap justify-start gap-1.5"
         onSelectionChange={(keys) => {
           const next = [...keys][0]
           if (typeof next === 'string' && (STAGE_SCREENS as readonly string[]).includes(next)) onShow(next as StageScreen)
         }}
       >
         {STAGE_SCREENS.map((screen) => (
-          <Tooltip key={screen} content={SCREENS[screen]} isDisabled={density === 'comfortable'}>
-            <ToggleButton id={screen} aria-label={SCREENS[screen]}>
+          <Tooltip key={screen} content={SCREENS[screen]} isDisabled={labelled}>
+            <ToggleButton id={screen} aria-label={SCREENS[screen]} isIconOnly={!labelled}>
               <Icon name={ICON[screen]} size="sm" />
-              {density === 'comfortable' ? <span className="truncate">{SCREENS[screen]}</span> : null}
+              {labelled ? <span className="truncate">{SCREENS[screen]}</span> : null}
             </ToggleButton>
           </Tooltip>
         ))}

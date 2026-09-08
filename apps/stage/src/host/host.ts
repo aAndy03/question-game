@@ -60,7 +60,12 @@ export function hasTauriHost(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
 
-function tauriHost(): StageHost {
+/**
+ * The Stage window's host: Tauri's IPC. Exported so `tauriHost.test.ts` can
+ * assert the label it listens as — that is a contract with `emit.rs`, not an
+ * implementation detail.
+ */
+export function tauriHost(): StageHost {
   const listeners = new Set<StateListener>()
   let last: PlayStateForStage = EMPTY_PLAY_STATE
   let versionWarned = false
@@ -71,8 +76,16 @@ function tauriHost(): StageHost {
   }
 
   void (async () => {
-    const { listen } = await import('@tauri-apps/api/event')
-    await listen<PlayStateForStage>('play-state', ({ payload }) => {
+    const [{ listen }, { getCurrentWebviewWindow }] = await Promise.all([
+      import('@tauri-apps/api/event'),
+      import('@tauri-apps/api/webviewWindow'),
+    ])
+    // Listen **as this label**. A bare `listen()` registers
+    // `EventTarget::Any`, which Tauri lets past the `emit_to` filter — Stage
+    // would then also receive the `main` emission, operator half and all. The
+    // stripping in `emit.rs` is only half the boundary; this is the other.
+    const label = getCurrentWebviewWindow().label
+    const unlisten = await listen<PlayStateForStage>('play-state', ({ payload }) => {
       // A contract mismatch is a notice, not a blank screen (P1 exit
       // criterion). Stage keeps drawing what it was sent; the operator-facing
       // notice comes from the host, which `stage_ready` told the version to.
@@ -84,7 +97,16 @@ function tauriHost(): StageHost {
       }
       last = payload
       for (const listener of listeners) listener(payload)
-    })
+    }, { target: { kind: 'AnyLabel', label } })
+
+    // **A reload must unlisten first.** Tauri keeps the JS listener registered
+    // on the Rust side until `unlisten` — a navigation does not clear it —
+    // while the callback id lives in `window`, which a reload wipes. The host
+    // would go on emitting `play-state` to a callback that no longer exists,
+    // and the 100ms show loop makes that ten `[TAURI] Couldn't find callback
+    // id …` a second for the life of the app. `pagehide` is the last event a
+    // reload and a close both fire.
+    window.addEventListener('pagehide', () => void unlisten(), { once: true })
 
     // Announce the version and ask for the current state. Without this, a Stage
     // window that mounts after the host's last emission waits for the next

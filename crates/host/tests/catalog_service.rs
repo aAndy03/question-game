@@ -25,7 +25,7 @@ use questiongame_host::catalog::{
 use questiongame_host::flags::{FlagService, GameSetting, GameSettings};
 use questiongame_host::settings::{FrozenSettings, ScoringMode};
 use questiongame_host::stats::{StatsFilter, StatsQuery};
-use questiongame_host::{DomainId, MatchService, PlayId, QuestionId, RecipeId, TeamId};
+use questiongame_host::{DomainId, MatchService, OperatorId, PlayId, QuestionId, RecipeId, TeamId};
 
 use support::option_id;
 
@@ -699,6 +699,64 @@ fn played(service: &CatalogService, recipe: &RecipeId) -> MatchService {
     play.lock_selection(300).unwrap();
     play.reveal_outcome(400).unwrap();
     play
+}
+
+/// §12.1: "Plays run" on an operator's card. The number was a stored counter
+/// nothing ever incremented, so it read 0 for an operator who had run a dozen
+/// shows. It is now a count over the `plays` projection, keyed by the
+/// `OperatorSwitched` the app appends at `play_load` — which means it survives
+/// a projection rebuild, and a Play that was loaded but never started is not
+/// one anybody ran.
+#[test]
+fn an_operator_counts_the_plays_the_log_says_they_ran() {
+    each_adapter("operator-plays", |service| {
+        let recipe = seed(service);
+        service
+            .catalog_upsert(&Operator::new("op-andy", "Andy").into(), 1_000)
+            .unwrap();
+
+        let count = |service: &CatalogService| {
+            service
+                .catalog_get(CatalogKind::Operator, "op-andy")
+                .unwrap()
+                .as_operator()
+                .unwrap()
+                .plays_run
+        };
+        assert_eq!(count(service), 0, "nothing has been run yet");
+
+        // Loaded, with an operator at the keyboard, but not started.
+        let snapshot = service
+            .build_snapshot(&recipe.id, PlayId::from("play-loaded"), frozen())
+            .unwrap();
+        let mut play = MatchService::new();
+        play.play_load(snapshot, 0).unwrap();
+        play.operator_switched(OperatorId::from("op-andy"), 0)
+            .unwrap();
+        service.play_persist(play.get_state().unwrap()).unwrap();
+        assert_eq!(count(service), 0, "a game put down before it began");
+
+        play.play_start(10).unwrap();
+        service.play_persist(play.get_state().unwrap()).unwrap();
+        assert_eq!(count(service), 1);
+        assert_eq!(
+            service.play_list(None).unwrap()[0].operator_id,
+            Some(OperatorId::from("op-andy")),
+            "the projection carries who ran it"
+        );
+
+        // Derived, not stored: throwing the projection away and rebuilding it
+        // from the log lands on the same number.
+        assert_eq!(service.rebuild_projections().unwrap(), 1);
+        assert_eq!(count(service), 1);
+
+        // A rename does not touch it — `catalog_upsert` writes the row the
+        // editor sent, and the count is not on that row.
+        service
+            .catalog_upsert(&Operator::new("op-andy", "Andy M.").into(), 2_000)
+            .unwrap();
+        assert_eq!(count(service), 1);
+    });
 }
 
 #[test]

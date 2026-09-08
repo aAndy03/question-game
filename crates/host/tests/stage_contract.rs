@@ -90,7 +90,9 @@ fn played(with_session: bool) -> MatchService {
         service.reveal_next_option(120).unwrap();
         service.start_timer(130).unwrap();
         answer_correctly(&mut service, 5_000);
-        service.reveal_leaderboard_rank(4, 6_000).unwrap();
+        // One team has scored, so the standings are 1, 2, 2, 2 — there is no
+        // place 4 to reveal, and the host refuses one that nobody holds.
+        service.reveal_leaderboard_rank(2, 6_000).unwrap();
     }
     service
 }

@@ -68,15 +68,24 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
   const dismiss = useNoticeStore((s) => s.dismiss)
   const [saving, setSaving] = useState(false)
 
+  /**
+   * A **new** question has no source: it is the operator's blank, and the
+   * blank is minted once (`useState`, not `useMemo`) so it survives every
+   * refetch. It used to be re-derived whenever `domains.data` changed, which
+   * meant saving — a write that invalidates the domain list — handed the
+   * editor a fresh empty question with a new id and wiped what had just been
+   * typed. An existing question re-reads its row and its membership.
+   */
+  const [blank] = useState<QuestionDraft>(() => ({ question: emptyQuestion(), domainIds: domainId ? [domainId] : [] }))
   const sourceDraft = useMemo<QuestionDraft | null>(() => {
-    if (id && !source.data) return null
-    const question = source.data ?? emptyQuestion()
+    if (!id || !source.data) return null
+    const question = source.data
     const memberOf = (domains.data ?? []).filter((d) => d.questions.some((m) => m.questionId === question.id)).map((d) => d.id)
-    return { question, domainIds: id ? memberOf : domainId ? [domainId] : [] }
-  }, [id, source.data, domains.data, domainId])
+    return { question, domainIds: memberOf }
+  }, [id, source.data, domains.data])
 
-  const draft = useDraft<QuestionDraft>(sourceDraft, { question: emptyQuestion(), domainIds: domainId ? [domainId] : [] })
-  const guard = useDirtyGuard(draft.isDirty)
+  const draft = useDraft<QuestionDraft>(sourceDraft, blank)
+  const guard = useDirtyGuard(draft)
   const q = draft.value.question
   const setQ = (patch: Partial<Question>) => draft.set({ question: { ...q, ...patch } })
 

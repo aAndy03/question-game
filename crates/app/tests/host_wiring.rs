@@ -126,7 +126,7 @@ fn booted() -> Host {
 #[test]
 fn the_three_services_compose_into_one_start() {
     let host = booted();
-    let state = host.stage_state(2_000).expect("a play is loaded");
+    let state = host.stage_state(2_000);
 
     assert_eq!(state.game.status, PlayStatus::Playing);
     assert_eq!(state.game.teams.len(), 2);
@@ -141,7 +141,7 @@ fn the_three_services_compose_into_one_start() {
 fn stage_never_receives_the_operator_half() {
     let host = booted();
 
-    let stage = serde_json::to_value(host.stage_state(2_000).unwrap()).unwrap();
+    let stage = serde_json::to_value(host.stage_state(2_000)).unwrap();
     assert!(
         stage.get("operator").is_none(),
         "stage sees no operator chrome",
@@ -204,7 +204,7 @@ fn a_tick_that_changes_nothing_grows_neither_the_log_nor_the_disk() {
 #[test]
 fn an_unchanged_emission_is_not_re_sent() {
     let mut host = booted();
-    let state = host.stage_state(4_000).unwrap();
+    let state = host.stage_state(4_000);
 
     assert!(host.emission_changed(&state), "the first one always goes");
     assert!(!host.emission_changed(&state), "the second one does not");
@@ -213,7 +213,7 @@ fn an_unchanged_emission_is_not_re_sent() {
         Ok(h.play.choose_domain(&DomainId::from("dom-1"), 5_000)?)
     })
     .unwrap();
-    let next = host.stage_state(5_000).unwrap();
+    let next = host.stage_state(5_000);
     assert!(host.emission_changed(&next), "a real change goes");
 }
 
@@ -293,7 +293,7 @@ fn boot_takes_back_the_play_that_was_open_with_its_score() {
     }
 
     let host = Host::open(temp.location()).unwrap();
-    let state = host.stage_state(7_000).expect("the play came back");
+    let state = host.stage_state(7_000);
     assert_eq!(state.game.play_id, "play-1");
     assert_eq!(state.game.status, PlayStatus::Playing);
     assert!(
@@ -309,8 +309,13 @@ fn boot_takes_back_the_play_that_was_open_with_its_score() {
 #[test]
 fn a_fresh_install_boots_with_no_play_and_the_default_document() {
     let host = Host::open(CatalogLocation::Memory).unwrap();
-    assert!(host.stage_state(0).is_none());
-    assert!(host.main_state(0).is_none());
+    // Stage always has something to draw; with no Play it is the empty
+    // projection — the idle screen with no roster and no board.
+    let empty = host.stage_state(0);
+    assert_eq!(empty.game.play_id, "");
+    assert!(empty.game.teams.is_empty());
+    assert_eq!(empty.current_screen, questiongame_host::StageScreen::Idle);
+    assert!(host.main_state(0).is_none(), "and no operator half at all");
     assert!(host.overlays_enabled(), "§4.2 defaults");
     assert_eq!(
         host.catalog
@@ -361,7 +366,7 @@ fn unplugging_the_stage_display_leaves_the_play_playing() {
     assert_eq!(mv.to, Some(None), "the window comes back to primary");
     assert_eq!(mv.notice.expect("a notice").code, "stage.monitor_lost");
     assert_eq!(
-        host.stage_state(8_000).unwrap().game.status,
+        host.stage_state(8_000).game.status,
         PlayStatus::Playing,
         "the show carries on",
     );
@@ -404,7 +409,7 @@ fn the_demo_library_seeds_a_playable_show() {
     host.write(2_000, |h| Ok(h.play.play_start(2_000)?))
         .unwrap();
 
-    let state = host.stage_state(2_000).unwrap();
+    let state = host.stage_state(2_000);
     assert_eq!(
         state.game.teams.len(),
         2,
@@ -434,7 +439,6 @@ fn the_demo_library_seeds_a_playable_show() {
 
     assert!(
         host.stage_state(6_000)
-            .unwrap()
             .game
             .teams
             .iter()
@@ -474,7 +478,7 @@ fn a_restart_empties_the_overlay_queue_and_persists_both_plays() {
     })
     .unwrap();
 
-    assert_eq!(host.stage_state(3_000).unwrap().game.play_id, "play-2");
+    assert_eq!(host.stage_state(3_000).game.play_id, "play-2");
     assert_eq!(
         host.presentation.active_overlay().map(|o| o.kind()),
         Some("token-handoff"),

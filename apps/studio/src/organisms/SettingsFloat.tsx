@@ -34,7 +34,7 @@ export function SettingsFloat() {
         * pressable around the child, which is a second button and a React Aria
         * warning; HeroUI v3 puts the Button directly under `Popover`. */}
       <IconButton icon="settings" label={CONTROL.settings} size="sm" hideTooltip />
-      <Popover.Content placement="bottom end" className="w-[30rem] max-w-[90vw]">
+      <Popover.Content placement="bottom end" className="w-[min(34rem,92vw)]">
         <Popover.Dialog aria-label={CONTROL.settings}>
           <Tabs variant="secondary" defaultSelectedKey={play ? 'game' : 'global'}>
             <Tabs.ListContainer>
@@ -50,7 +50,7 @@ export function SettingsFloat() {
               </Tabs.List>
             </Tabs.ListContainer>
             <Tabs.Panel id="global">
-              <div className="flex max-h-[60vh] flex-col overflow-y-auto pr-1">
+              <div className="flex max-h-[min(60vh,34rem)] flex-col overflow-y-auto overflow-x-hidden pr-1">
                 <SettingsForm groups={['control', 'audio', 'reveal', 'timer']} compact />
               </div>
             </Tabs.Panel>
@@ -60,7 +60,7 @@ export function SettingsFloat() {
                   {CONTROL.settingsNoGame}
                 </Text>
               ) : (
-                <div className="flex max-h-[60vh] flex-col overflow-y-auto">
+                <div className="flex max-h-[min(60vh,34rem)] flex-col divide-y divide-[var(--separator)] overflow-y-auto overflow-x-hidden pr-1">
                   <SettingRow label={RULES.scoringMode} disabled={disabledFor('scoring.mode')}>
                     <SelectField
                       label={RULES.scoringMode}
@@ -99,7 +99,7 @@ export function SettingsFloat() {
                     <NumberField label={RULES.timerDuration} hideLabel value={game.timer.duration_ms} onChange={(value) => setGame({ key: 'timer_duration_ms', value })} minValue={1000} step={1000} disabledReason={frozenReason} />
                   </SettingRow>
                   <SettingRow label={RULES.reveal} description={RULES.revealHint}>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 @[18rem]/setting-row:grid-cols-2">
                       {CHANNELS.map((channel) => (
                         <SelectField<RevealMode>
                           key={channel}

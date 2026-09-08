@@ -3,6 +3,7 @@ import { STAGE_SCREENS } from '@questiongame/contract'
 import { HOTKEYS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { usePlayState } from '@/host/playState'
+import { canChooseDomain, liveSession } from '@/host/session'
 import { useSettings } from '@/host/queries'
 
 /**
@@ -17,7 +18,9 @@ export function useControlHotkeys(enabled: boolean): void {
   const run = useHostCommand()
   const chord = (command: string) => settings.data?.globals.shortcuts[command] ?? HOTKEYS.defaults[command] ?? ''
   const open = play !== null && (play.status === 'playing' || play.status === 'paused')
-  const session = play?.session ?? null
+  // The live one: a resolved question is still in `play.session`, and the
+  // number keys have to fall back to picking a domain once it is revealed.
+  const session = liveSession(play)
 
   const screenStep = (dir: -1 | 1) => {
     if (!play) return
@@ -37,7 +40,7 @@ export function useControlHotkeys(enabled: boolean): void {
       return
     }
     const domain = play.domains[position - 1]
-    if (domain && !domain.exhausted) void run('choose_domain', { domainId: domain.id })
+    if (domain && !domain.exhausted && canChooseDomain(play)) void run('choose_domain', { domainId: domain.id })
   }
 
   const definitions = [
@@ -50,7 +53,7 @@ export function useControlHotkeys(enabled: boolean): void {
       hotkey: chord('give_token'),
       callback: () => {
         const target = play?.operator.defaultNextTeamId
-        if (target && (!session || session.outcome !== null)) void run('give_token', { teamId: target })
+        if (target && !session) void run('give_token', { teamId: target })
       },
     },
     { hotkey: chord('undo_turn'), callback: () => void run('undo_turn') },

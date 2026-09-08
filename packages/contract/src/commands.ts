@@ -56,6 +56,10 @@ export const COMMAND_GROUPS = {
   /** MatchService — the only writer of a Play. */
   match: [
     'play_load',
+    /** Take the recipe back out of Control. Legal whenever one is loaded; an
+     * open Play is abandoned on the way out, and Stage returns to Idle
+     * without the window moving or closing. */
+    'play_unload',
     'play_start',
     'pause',
     'resume',

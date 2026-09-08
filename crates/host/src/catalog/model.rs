@@ -561,6 +561,10 @@ impl Recipe {
 pub struct PlayRecord {
     pub id: crate::ids::PlayId,
     pub recipe_id: RecipeId,
+    /// Who was at the keyboard, from the log's last `OperatorSwitched`. `None`
+    /// for a Play logged before the operator was recorded, or run with no
+    /// active operator set.
+    pub operator_id: Option<crate::ids::OperatorId>,
     /// `PlayStatus` as it serializes in `play-state`.
     pub status: String,
     pub started_at_ms: Option<u64>,

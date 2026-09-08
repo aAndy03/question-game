@@ -51,6 +51,27 @@ export const TRANSPORT = {
   notStarted: 'Press Start Play first',
 } as const
 
+/** Taking the recipe back out of Control (§5.1). */
+export const UNLOAD = {
+  action: 'Unload game',
+  hint: 'Take this recipe out of Control. Stage goes back to Idle and stays where it is.',
+  title: 'Unload the game?',
+  /** An open Play is abandoned on the way out — say so before it happens. */
+  bodyOpen: 'This Play is still open. Unloading abandons it.',
+  bodyClosed: 'Stage returns to Idle. The recipe stays in the library.',
+  /** The record question. Keeping is the answer that needs no thought. */
+  keep: 'Keep the record',
+  keepHint: 'The Play, its Timeline and its numbers stay under this game.',
+  discard: 'Discard it',
+  discardHint: 'Delete this Play and its Timeline. It leaves Statistics too. This cannot be undone.',
+  confirm: 'Unload',
+  confirmDiscard: 'Unload and discard',
+  done: 'Game unloaded',
+  doneDiscarded: 'Game unloaded, Play discarded',
+  /** Nothing was played, so there is nothing to keep or discard. */
+  neverStarted: 'Nothing was played, so no record is kept.',
+} as const
+
 export const TIMER = {
   start: 'Start timer',
   pause: 'Pause timer',
@@ -61,7 +82,11 @@ export const TIMER = {
 
 export const SESSION = {
   noSession: 'No question issued',
-  chooseDomainHint: 'Pick a domain on the Viewer or in the list.',
+  chooseDomainHint: 'Pick a domain below, on the Viewer, or with 1-9.',
+  nextQuestion: 'Next question',
+  nextQuestionHint: 'The same team keeps the token until it answers wrong.',
+  domainDifficulty: (n: number) => `D${n}`,
+  revealFirstToContinue: 'Reveal the outcome first',
   revealStem: 'Reveal question',
   revealOption: 'Reveal next answer',
   revealOutcome: 'Reveal outcome',
@@ -70,6 +95,8 @@ export const SESSION = {
   selection: 'Selection',
   noSelection: 'Nothing selected',
   giveToken: 'Give token',
+  giveTokenNow: 'Give the token',
+  placesRevealed: (shown: number, total: number) => `${shown} of ${total} places revealed`,
   giveTokenTo: (name: string) => `Give token to ${name}`,
   revealAndPass: 'Reveal & pass',
   revealFirst: 'Reveal first',
@@ -88,6 +115,35 @@ export const SESSION = {
   exhausted: 'Exhausted',
   leaderboardNext: 'Reveal next place',
   leaderboardDone: 'All places revealed',
+} as const
+
+/**
+ * The Action Panel's phase headings (`host/session.ts`'s `ControlPhase`). One
+ * block is shown at a time: what the host would accept now, and nothing else.
+ */
+export const PHASE = {
+  ready: { title: 'Not started', hint: 'Press Start Play to begin.' },
+  resolved: { title: 'Question resolved', hint: null },
+  handover: { title: 'The token is free', hint: 'Give it to a team to continue.' },
+  standings: { title: 'Final standings', hint: 'Every question is used. Reveal the places, lowest first.' },
+  ended: { title: 'Play abandoned', hint: 'Restart the recipe to play it again.' },
+  showLeaderboard: 'Show final leaderboard',
+  onLeaderboard: 'Showing on Stage',
+} as const
+
+/**
+ * One line per `RingRole` (`host/ring.ts`). The row says what it is, so the
+ * operator never has to infer legality from a border colour.
+ */
+export const RING_ROLE = {
+  holder: 'Has the token',
+  next: 'Next in order',
+  override: 'Out of order',
+  'reveal-first': 'Reveal the outcome first',
+  served: 'Played this round',
+  inactive: 'Not in this Play',
+  solo: 'The only team',
+  closed: 'The Play has ended',
 } as const
 
 export const RING = {

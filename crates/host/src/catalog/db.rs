@@ -205,6 +205,16 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     ALTER TABLE questions ADD COLUMN origin TEXT NOT NULL DEFAULT 'operator';
     ALTER TABLE recipes   ADD COLUMN origin TEXT NOT NULL DEFAULT 'operator';
     "#,
+    // 3 — P11.1: who ran a Play. The fact is already in the log (the
+    // `OperatorSwitched` event `play_load` appends), so this column is a
+    // projection like every other column of `plays`, and the boot rebuild
+    // fills it in for logs written before this step existed. `operators`
+    // still carries a `plays_run` column; nothing reads it any more — the
+    // count is `COUNT(*)` over this column, so it cannot drift from the log.
+    r#"
+    ALTER TABLE plays ADD COLUMN operator_id TEXT;
+    CREATE INDEX plays_by_operator ON plays(operator_id);
+    "#,
 ];
 
 /// Open the writer connection and bring the schema up to date.

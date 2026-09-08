@@ -54,16 +54,31 @@ export function hasTauri(): boolean {
 
 /**
  * `@tauri-apps/api` is imported dynamically: the module reaches for IPC
- * globals a plain browser does not have.
+ * globals a plain browser does not have. Exported so `host.test.ts` can hold
+ * the adapter itself — the label it listens as is a contract with `emit.rs`,
+ * not an implementation detail.
  */
-const tauriTransport: HostTransport = {
+export const tauriTransport: HostTransport = {
   async invoke<T>(name: Command, args?: Record<string, unknown>): Promise<T> {
     const { invoke } = await import('@tauri-apps/api/core')
     return invoke<T>(name, args)
   },
   async listen<T>(name: EventName, handler: (payload: T) => void): Promise<() => void> {
-    const { listen } = await import('@tauri-apps/api/event')
-    return listen<T>(name, ({ payload }) => handler(payload))
+    const [{ listen }, { getCurrentWebviewWindow }] = await Promise.all([
+      import('@tauri-apps/api/event'),
+      import('@tauri-apps/api/webviewWindow'),
+    ])
+    // **The target is not optional.** `listen()` with no options registers
+    // `EventTarget::Any`, and Tauri short-circuits an `Any` listener past the
+    // `emit_to` filter entirely (`tauri/src/event/listener.rs`) — so this
+    // window would also receive the *stripped* `play-state` meant for `stage`,
+    // whose shape has no `operator` half, and every organism reading
+    // `play.operator` would throw. Listening as this label is what makes
+    // `emit_to(MAIN, …)` mean what `emit.rs` says it means.
+    const label = getCurrentWebviewWindow().label
+    return listen<T>(name, ({ payload }) => handler(payload), {
+      target: { kind: 'AnyLabel', label },
+    })
   },
 }
 
@@ -87,8 +102,59 @@ export function command<T>(name: Command, args?: Record<string, unknown>): Promi
   return transport.invoke<T>(name, args)
 }
 
-/** Subscribe to a host event. Resolves to an unsubscribe. */
+/**
+ * Every live subscription's unsubscribe, so the page can hand them all back
+ * before it goes away. See [`releaseOnUnload`].
+ */
+const live = new Set<() => void>()
+let unloadHooked = false
+
+/**
+ * **A reload must unlisten first.** Tauri registers a JS listener on the Rust
+ * side and drops it only on `unlisten` — it does not clear them when the
+ * webview navigates — while the callback ids themselves live in `window`, which
+ * a reload wipes. Every dev reload therefore left the host emitting `play-state`
+ * to callbacks that no longer exist, and the 100ms show loop turned that into
+ * `[TAURI] Couldn't find callback id …` ten times a second, forever.
+ *
+ * `pagehide` is the last event that fires for both a reload and a close, and
+ * `unlisten` is a fire-and-forget IPC post, so this is the one place it can be
+ * done. A missed release is only the old noise, never a broken page.
+ */
+function releaseOnUnload(): void {
+  if (unloadHooked || typeof window === 'undefined') return
+  unloadHooked = true
+  window.addEventListener('pagehide', () => {
+    for (const off of [...live]) off()
+  })
+}
+
+/**
+ * Subscribe to a host event. Resolves to an unsubscribe.
+ *
+ * The unsubscribe is idempotent, and releasing before the underlying listener
+ * has finished registering works. What it cannot help with is a caller that
+ * unmounts before this promise resolves — it has no unsubscribe to call yet —
+ * so `bridge.tsx` holds a `live` flag of its own. What this function
+ * guarantees is that a subscription is released exactly once, and that the
+ * page never leaves one behind.
+ */
 export function on<T>(name: EventName, handler: (payload: T) => void): Promise<() => void> {
   if (!transport) return Promise.resolve(() => {})
-  return transport.listen<T>(name, handler)
+  releaseOnUnload()
+  let unlisten: (() => void) | null = null
+  let released = false
+  const release = () => {
+    released = true
+    live.delete(release)
+    unlisten?.()
+    unlisten = null
+  }
+  live.add(release)
+  return transport.listen<T>(name, handler).then((off) => {
+    // Released while the subscription was still resolving: honour it now.
+    if (released) off()
+    else unlisten = off
+    return release
+  })
 }

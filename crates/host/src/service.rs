@@ -138,7 +138,18 @@ impl MatchService {
     /// `restart`. Closes the current Play and opens a new one immediately.
     /// Returns the closed Play so the caller can persist it (§2.8: Play records
     /// under a recipe).
+    ///
+    /// A **completed** Play may be restarted — the board is empty and playing
+    /// it again is the obvious next act, so Control offers it there. A Play
+    /// that was abandoned or already restarted may not: it is a closed record,
+    /// and appending `PlayRestarted` to it would overwrite how it ended. The
+    /// way to play that recipe again is to load it (§5.1).
     pub fn restart(&mut self, mode: RestartMode, now_ms: u64) -> MatchResult<Play> {
+        self.require_status(&[
+            PlayStatus::Playing,
+            PlayStatus::Paused,
+            PlayStatus::Completed,
+        ])?;
         let old = self.play.as_ref().ok_or(MatchError::NoPlay)?;
         let (snapshot, same_questions) = match mode {
             RestartMode::SameQuestions { new_play_id } => {
@@ -159,10 +170,45 @@ impl MatchService {
             now_ms,
         )?;
         let closed = self.play.take().expect("play was present");
+        // The new Play is a new log, and who is running the show did not
+        // change because the operator pressed Restart — carry the fact over,
+        // or the restarted Play would belong to nobody in Statistics and in
+        // the operator's own count.
+        let operator = closed.operator_id().cloned();
 
         self.play = Some(Play::load(snapshot, now_ms));
+        if let Some(operator_id) = operator {
+            self.operator_switched(operator_id, now_ms)?;
+        }
         self.play_start(now_ms)?;
         Ok(closed)
+    }
+
+    /// `play_unload` — take the recipe out of Control (§5.1's other direction).
+    ///
+    /// Available whenever something is loaded, whatever its status: the
+    /// operator has to be able to put a game down. An **open** Play is
+    /// abandoned on the way out and returned so the caller can persist it —
+    /// a Play that vanished while still `playing` would be resumed at the next
+    /// boot, which is the opposite of what unloading means. A closed one is
+    /// already a record and is returned untouched.
+    ///
+    /// Returns `None` when nothing was loaded, so the command is idempotent.
+    pub fn unload(&mut self, now_ms: u64) -> MatchResult<Option<Play>> {
+        let Some(play) = self.play.as_ref() else {
+            return Ok(None);
+        };
+        // Anything not already closed is closed on the way out — a Play that
+        // was only *loaded* included. A `loaded` row is resumed by nothing and
+        // reached by no cleanup (`wipe_plays` takes closed records only), so
+        // leaving one behind would strand it in the library for ever.
+        if matches!(
+            play.status(),
+            PlayStatus::Loaded | PlayStatus::Playing | PlayStatus::Paused
+        ) {
+            self.play_mut()?.append(EventKind::PlayAbandoned, now_ms)?;
+        }
+        Ok(self.play.take())
     }
 
     /// `get_state`. The projection every read surface renders — Studio, Stage
@@ -171,12 +217,25 @@ impl MatchService {
         self.play.as_ref()
     }
 
-    /// Another operator took the keyboard (§2.26). Appended only while a Play
-    /// is open — with no Play there is no log for the fact to land in, and that
-    /// is not a refusal: the switch itself is a settings write that already
+    /// Another operator took the keyboard (§2.26). Appended while a Play is
+    /// **loaded, playing or paused** — with no Play there is no log for the
+    /// fact to land in, and a closed one is a record that may not move. That is
+    /// not a refusal: the switch itself is a settings write that already
     /// happened. Nothing in the projection changes, and the timer keeps running.
+    ///
+    /// `Loaded` counts because a loaded Play already has a log (its first event
+    /// carries the snapshot), and `play_load` is where the app records who is
+    /// running the show. Reading `is_open` here instead — which is
+    /// `playing | paused` — meant the fact was dropped at the one moment it was
+    /// always available, and every Play belonged to nobody.
     pub fn operator_switched(&mut self, operator_id: OperatorId, now_ms: u64) -> MatchResult<()> {
-        if self.require_open().is_err() {
+        let takes_events = self.play.as_ref().is_some_and(|play| {
+            matches!(
+                play.status(),
+                PlayStatus::Loaded | PlayStatus::Playing | PlayStatus::Paused
+            )
+        });
+        if !takes_events {
             return Ok(());
         }
         self.play_mut()?
@@ -250,6 +309,13 @@ impl MatchService {
             PlayStatus::Paused,
             PlayStatus::Completed,
         ])?;
+        // A rank nobody holds reveals nothing, so it is a caller's mistake
+        // rather than an operator's choice: `1, 1, 3` has no place 2, and a
+        // caller counting finishing positions instead of ranks would land
+        // there silently.
+        if !self.play_mut()?.ranks().contains(&rank) {
+            return Err(MatchError::UnknownRank(rank));
+        }
         self.play_mut()?
             .append(EventKind::LeaderboardRankRevealed { rank }, now_ms)
     }

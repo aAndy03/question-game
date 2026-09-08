@@ -860,6 +860,25 @@ impl CatalogService {
         })
     }
 
+    /// Delete **one** Play — its log and its projection row (§12.3's delete,
+    /// narrowed to a single record).
+    ///
+    /// The other half of `play_unload`: an operator who loaded the wrong game,
+    /// or rehearsed one, must be able to put it down without leaving a record
+    /// in the Plays list and in Statistics. It is a hard delete and the only
+    /// one besides *Wipe Plays*, so it is never a default — Studio asks, and
+    /// keeping is the answer that needs no thought.
+    ///
+    /// Deleting a Play that is still open in `MatchService` would leave the
+    /// service holding a Play with no log; the caller unloads first.
+    pub fn play_delete(&self, play: &PlayId) -> CatalogResult<()> {
+        let mut guard = self.conn();
+        let tx = guard.transaction()?;
+        store::play_delete(&tx, play)?;
+        tx.commit()?;
+        Ok(())
+    }
+
     /// The Play that was still open when the process stopped, replayed from
     /// its log. This is what "kill the process mid-write; boot loses nothing"
     /// hands back to `MatchService`.
@@ -929,6 +948,7 @@ fn record_of(play: &Play) -> PlayRecord {
     PlayRecord {
         id: play.id().clone(),
         recipe_id: play.snapshot().recipe_id.clone(),
+        operator_id: play.operator_id().cloned(),
         status: play.status().as_str().to_owned(),
         started_at_ms,
         ended_at_ms,

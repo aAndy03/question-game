@@ -51,6 +51,14 @@ export interface FakeHost extends HostTransport {
   emit(name: EventName, payload: unknown): void
   /** Seed rows without going through a command (no event). */
   seed(items: CatalogItem[], recipes?: Recipe[]): void
+  /**
+   * How many subscriptions are live — all of them, or one event's.
+   *
+   * The real host holds its JS listeners on the Rust side until `unlisten`, so
+   * one left behind is one the host keeps emitting to. This is how a test sees
+   * that.
+   */
+  listenerCount(name?: EventName): number
   /** Every command that reached the fake, in order. */
   readonly calls: Array<{ name: Command; args: Record<string, unknown> | undefined }>
   /** The current documents, for assertions. */
@@ -634,6 +642,14 @@ export function createFakeHost(): FakeHost {
     },
     play_events: () => [],
     get_state: () => fake.playState,
+    // The recipe leaves Control: the host emits `null`, and so does this.
+    play_unload: (a) => {
+      const id = fake.playState?.playId
+      fake.playState = null
+      if (a.discard === true && id) fake.plays = fake.plays.filter((p) => p.id !== id)
+      emit('play-state', null)
+      return null
+    },
   }
 
   const fake: FakeHost = {
@@ -647,6 +663,12 @@ export function createFakeHost(): FakeHost {
     uninstalled: false,
     statsOpen: false,
     emit,
+    listenerCount(name) {
+      if (name) return listeners.get(name)?.size ?? 0
+      let total = 0
+      for (const set of listeners.values()) total += set.size
+      return total
+    },
     seed(items, seededRecipes = []) {
       items.forEach((i) => library.set(key(i.kind, i.item.id), i))
       seededRecipes.forEach((r) => recipes.set(r.id, r))

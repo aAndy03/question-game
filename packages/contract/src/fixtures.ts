@@ -82,7 +82,7 @@ function base(overrides: Partial<PlayStateForStage> = {}): PlayStateForStage {
     layout: { nodes: {}, screens: {} },
     questionsIssued: 5,
     currentScreen: 'idle',
-    overlay: { busy: false, active: null, pending: null, enabled: true },
+    overlay: { busy: false, active: null, pending: null, enabled: true, runId: 0 },
     revealModes: {
       question: 'operator',
       answers: 'operator',
@@ -328,6 +328,7 @@ export const FIXTURES = {
       active: { kind: 'token-handoff', fromTeamId: 'team-beta', toTeamId: 'team-gamma' },
       pending: null,
       enabled: true,
+      runId: 1,
     },
   }),
 
@@ -340,6 +341,7 @@ export const FIXTURES = {
       active: { kind: 'multiple-answers', optionIds: OPTIONS.map((o) => o.id) },
       pending: null,
       enabled: true,
+      runId: 1,
     },
   }),
 
@@ -353,7 +355,7 @@ export const FIXTURES = {
       outcome: { verdict: 'correct', pointsAwarded: 500, correctOptionIds: ['opt-a'], bonusAwarded: null },
       timer: { durationMs: 30_000, remainingMs: 21_400, running: false, remainingMsAtLock: 21_400, expiredOpen: false },
     }),
-    overlay: { busy: true, active: { kind: 'outcome', verdict: 'correct' }, pending: null, enabled: true },
+    overlay: { busy: true, active: { kind: 'outcome', verdict: 'correct' }, pending: null, enabled: true, runId: 1 },
   }),
 
   'overlay-outcome-incorrect': base({
@@ -365,7 +367,7 @@ export const FIXTURES = {
       outcome: { verdict: 'incorrect', pointsAwarded: 0, correctOptionIds: ['opt-a'], bonusAwarded: null },
       timer: { durationMs: 30_000, remainingMs: 12_000, running: false, remainingMsAtLock: 12_000, expiredOpen: false },
     }),
-    overlay: { busy: true, active: { kind: 'outcome', verdict: 'incorrect' }, pending: null, enabled: true },
+    overlay: { busy: true, active: { kind: 'outcome', verdict: 'incorrect' }, pending: null, enabled: true, runId: 1 },
   }),
 
   /** Two of four ranks revealed, lowest first: 4 then 2 (a tie). */
@@ -399,6 +401,7 @@ export const FIXTURES = {
       active: { kind: 'token-handoff', fromTeamId: 'team-beta', toTeamId: 'team-gamma' },
       pending: null,
       enabled: true,
+      runId: 1,
     },
   }),
 

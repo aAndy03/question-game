@@ -48,14 +48,27 @@ export function HostBridge() {
 
   useEffect(() => {
     if (!hasHost()) return
+    // `listen` resolves a tick or two after it is called, and React can unmount
+    // this effect before then — StrictMode's double mount does it every boot.
+    // Pushing into `offs` from inside the `then` would push into an array
+    // nobody reads any more, and the subscription would outlive the component:
+    // a second copy of every handler, and a callback the host keeps emitting
+    // to. `live` closes that window.
+    let live = true
     const offs: Array<() => void> = []
-    const add = (p: Promise<() => void>) => void p.then((off) => offs.push(off))
+    const add = (p: Promise<() => void>) =>
+      void p.then((off) => {
+        if (live) offs.push(off)
+        else off()
+      })
     const receiveHealth = (report: HealthReport) => {
       setReport(report)
       replaceSource('health', report.items)
     }
 
-    add(on<PlayStateForMain>('play-state', receivePlayState))
+    // `null` is a value here: it is what the host emits when the recipe
+    // leaves Control (`play_unload`), and Control reads it as "no Play".
+    add(on<PlayStateForMain | null>('play-state', receivePlayState))
     add(on<CatalogChange>('catalog-changed', (c) => invalidateForCatalogChange(client, c.kind, c.id)))
     add(on<RecipeChange>('recipe-changed', (c) => invalidateForRecipeChange(client, c.id)))
     add(
@@ -76,7 +89,10 @@ export function HostBridge() {
       .then(receiveHealth)
       .catch(() => setReport(null))
 
-    return () => offs.forEach((off) => off())
+    return () => {
+      live = false
+      offs.forEach((off) => off())
+    }
   }, [client, pushNotice, replaceSource, setReport, setStatsOpen])
 
   return null
