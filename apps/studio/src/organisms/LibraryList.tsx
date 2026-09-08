@@ -118,10 +118,14 @@ export function LibraryList({
   if (error) return <EmptyState kind="error" what={what} detail={error} action={onRetry ? <RetryButton onRetry={onRetry} /> : null} />
   if (!rows || rows.length === 0) return <EmptyState kind={emptyKind} what={what} action={emptyAction} />
 
-  const render = (row: (typeof sorted)[number]) => (
+  // The number is the row's place in the list as it stands — filtered, sorted,
+  // and counted from one. It is not an id: an archived row does not keep a
+  // number to come back to, it takes the next one in whatever list it lands in.
+  const render = (row: (typeof sorted)[number], position: number) => (
     <RecordRow
       key={row.id}
       layout={layout}
+      index={layout === 'table' ? position + 1 : undefined}
       leading={row.original.leading}
       title={row.original.title}
       subtitle={row.original.subtitle}
@@ -151,7 +155,7 @@ export function LibraryList({
       ) : null}
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" role={layout === 'table' ? 'table' : undefined}>
         {layout === 'grid' ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3">{sorted.map(render)}</div>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3">{sorted.map((row, i) => render(row, i))}</div>
         ) : virtual ? (
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {virtualizer.getVirtualItems().map((item) => {
@@ -162,14 +166,17 @@ export function LibraryList({
                   key={row.id}
                   style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${item.start}px)` }}
                 >
-                  {render(row)}
+                  {render(row, item.index)}
                 </div>
               )
             })}
           </div>
         ) : (
-          <div className="rounded-[var(--radius)] border border-[var(--border)]" style={{ background: 'var(--surface)' }}>
-            {sorted.map(render)}
+          // `overflow-hidden` is what makes a row's hover and selection
+          // respect the container's rounded corners: without it the first and
+          // last rows paint square over them.
+          <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)]" style={{ background: 'var(--surface)' }}>
+            {sorted.map((row, i) => render(row, i))}
           </div>
         )}
       </div>

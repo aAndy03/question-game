@@ -66,8 +66,34 @@ describe('Settings', () => {
       await useNavStore.getState().go({ tab: 'settings', inner: 'settings' })
     })
     for (const group of SETTINGS_GROUPS) {
-      expect(await screen.findByLabelText(group.title), group.id).toBeTruthy()
+      // By section: a group's title can also be a row's label inside it
+      // ("Timer"), and a switch now carries its label as `aria-label`.
+      expect(await screen.findByLabelText(group.title, { selector: 'section' }), group.id).toBeTruthy()
     }
+  })
+
+  /**
+   * Every switch in Studio is a `SwitchField`, and a `SwitchField` that
+   * renders no `Switch.Content` is decorative markup: HeroUI v3's `Switch`
+   * root is React Aria's `SwitchField`, which has no input and no ARIA of its
+   * own. This asserts the thing the operator actually needs — that a switch
+   * can be operated and that the host hears about it — rather than that one
+   * is on screen.
+   */
+  it('a settings switch is an operable control and reaches the host', async () => {
+    const fake = mount()
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'settings' })
+    })
+    const label = SETTINGS.rows['judging.partial_credit'].label
+    const control = await screen.findByRole('switch', { name: label })
+    const before = (control as HTMLInputElement).checked
+    await act(async () => {
+      fireEvent.click(control)
+    })
+    await waitFor(() => expect(commandNames(fake)).toContain('settings_set_global'))
+    await waitFor(() => expect((screen.getByRole('switch', { name: label }) as HTMLInputElement).checked).toBe(!before))
   })
 
   it("shows the host's reason on a key frozen by an open Play", async () => {

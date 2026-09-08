@@ -21,6 +21,12 @@ export interface RecordRowProps {
   isOverridden?: boolean | undefined
   /** Highlighted as the currently open record (an aside is showing it). */
   isCurrent?: boolean | undefined
+  /**
+   * 1-based position in the list as it is currently filtered and sorted —
+   * a running count, not an id (an archived row does not hold a number).
+   * Table layout prints it; the grid does not.
+   */
+  index?: number | undefined
   onOpen?: (() => void) | undefined
 }
 
@@ -42,13 +48,18 @@ export function RecordRow({
   isArchived,
   isOverridden,
   isCurrent,
+  index,
   onOpen,
 }: RecordRowProps) {
   const selectable = onSelectChange !== undefined
   const tone = isArchived ? 'muted' : 'default'
+  // A table row is a slice of one rounded, clipped container, so its ring is
+  // drawn **inside**: an outer ring on the first or last row is a square
+  // corner over the container's rounded one, and half of it is clipped away.
+  // A card owns its whole outline, so its ring stays outside.
   const frame = [
     'group relative outline-none transition-colors',
-    isCurrent ? 'ring-2 ring-[var(--accent)]' : '',
+    isCurrent ? (layout === 'table' ? 'ring-2 ring-inset ring-[var(--accent)]' : 'ring-2 ring-[var(--accent)]') : '',
     isSelected ? 'bg-[var(--accent)]/8' : '',
     isOverridden ? 'border-l-2 border-l-[var(--accent)]' : '',
     isArchived ? 'opacity-70' : '',
@@ -127,11 +138,17 @@ export function RecordRow({
       }}
       className={[
         frame,
-        'flex h-10 items-center gap-3 border-b border-[var(--separator)] px-3',
+        // The last row's separator is the container's own bottom border.
+        'flex h-10 items-center gap-3 border-b border-[var(--separator)] px-3 last:border-b-0',
         onOpen ? 'cursor-pointer hover:bg-[var(--surface-secondary)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]' : '',
       ].join(' ')}
     >
       {checkbox}
+      {index !== undefined ? (
+        <Text variant="studio-mono" tone="muted" className="w-7 shrink-0 text-right" tabular>
+          {index}
+        </Text>
+      ) : null}
       {leading ? <div className="shrink-0">{leading}</div> : null}
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Text variant="studio-label" tone={tone} truncate className="min-w-0 flex-1">

@@ -252,6 +252,7 @@ someone remembers to add.
 | `MetaList` | label / value pairs | `items`, `columns` | detail views |
 | `StatCard` | `Panel` · `Text studio-display` · caption | `value`, `label`, `tone?` | detail views, Games |
 | `SettingRow` | label · description · control · reason | `disabled: { reason, detail }` from host | Games rules, Settings (P10), float (P8) — a **container query**: two columns at ≥ 34rem, stacked below, so the Control float reads label-over-control |
+| `RecordRow` | one record, two layouts | `index` (1-based place in the list as filtered and sorted, table only) · `isCurrent` · `isSelected` | the table row's ring is `ring-inset` and its container is `overflow-hidden`, so hover and selection follow the rounded corners |
 | `DifficultyField` | `NumberField` + `Slider` + band chip | 1–100; band easy/medium/hard | question editor |
 | `OptionRow` | drag handle · `TextField` · correct `Checkbox` · remove | `isLastCorrect` disables the untick | question editor |
 | `TeamMark` | `Swatch`/logo + short code | `size` | roster, rows |

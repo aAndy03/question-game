@@ -752,6 +752,58 @@ aim at is not a control** — and two are the state machinery underneath.
 
 ---
 
+## P11.3 — Controls that are controls  ☑
+
+A third pass from operating the app (2026-09-08).
+
+**What was wrong**
+
+- **Every settings switch was decorative markup.** HeroUI v3's `Switch` root is
+  React Aria's `SwitchField` — a field wrapper with no input and no ARIA — and
+  the clickable `SwitchButton` is `Switch.Content`. `SwitchField` rendered
+  `Switch.Content` only when there was a visible label to put in it, and every
+  `SettingRow` passes `hideLabel`, so the whole Settings tab and the Control
+  float shipped switches that rendered `<div class="switch">` and nothing else:
+  no input, no `role`, no `aria-label`, no click target. Nothing failed, because
+  nothing was ever asked.
+- **A table row painted square over a rounded container.** The list container
+  is rounded and bordered; the rows are plain rectangles, so the first and last
+  rows' hover background, selection tint and `isCurrent` ring covered the
+  corners — and the ring, being drawn outside the row, was a rectangle laid
+  over a rounded box.
+- **Nothing counted the rows.** A long table gave the operator no way to say
+  where they were in it.
+
+**What changed**
+
+| | |
+| --- | --- |
+| `SwitchField` | `Switch.Content` is always rendered and always wraps the control; only the `Label` inside it is conditional, and `Description` stays its sibling |
+| `LibraryList` | the table container is `overflow-hidden`, so every row's hover and selection is clipped to the container's radius at any row count |
+| `RecordRow` | a table row's `isCurrent` ring is `ring-inset` (a card's stays outside, because a card owns its whole outline); the last row drops its separator |
+| `RecordRow` | a new `index` — the row's 1-based place in the list **as currently filtered and sorted**, printed in table layout only. A running count, not an id: an archived row does not keep a number to come back to |
+
+**Exit criteria**
+
+- ☑ A settings switch is an operable control and the host hears about it —
+  `a settings switch is an operable control and reaches the host`, which asks
+  for `role="switch"` and for the command, not for pixels.
+- ☑ Hover and selection respect the container's corners at the first row, the
+  last row and a list of one.
+- ☑ Table rows are numbered from one, and the numbers follow the filter and
+  the sort rather than the row's identity.
+
+**Still open**
+
+- ☐ **The Archived freeze (reported 2026-09-08) is not reproduced.** The
+  archived path was cleared end to end: `catalog_list(kind, Archived)` answers
+  in ~30 µs against a real library, `ArchiveToggle` switches in isolation, the
+  four library tabs switch scope against the fake host, and an archived row
+  renders. Whatever freezes is not in any of those. It needs a capture from the
+  real app — the console of `npm run dev:app` at the moment it stops.
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.
