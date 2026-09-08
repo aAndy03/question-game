@@ -108,15 +108,18 @@ export function LibraryList({
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const virtual = sorted.length > VIRTUAL_ABOVE && layout === 'table'
   const virtualizer = useVirtualizer({
+    // `enabled` matters more than `count`. A disabled virtualizer observes
+    // nothing; an enabled one asks `getScrollElement()` on every render and
+    // sets up observers around whatever it gets — including `null`, which is
+    // what this ref is on every branch that does not render the list. Two of
+    // those branches are the ordinary ones (loading, and an empty archive), so
+    // the common case was handing an observer an element that does not exist.
+    enabled: virtual,
     count: virtual ? sorted.length : 0,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 40,
     overscan: 12,
   })
-
-  if (isLoading && !rows) return <Skeleton shape={layout === 'grid' ? 'card' : 'row'} count={layout === 'grid' ? 4 : 8} />
-  if (error) return <EmptyState kind="error" what={what} detail={error} action={onRetry ? <RetryButton onRetry={onRetry} /> : null} />
-  if (!rows || rows.length === 0) return <EmptyState kind={emptyKind} what={what} action={emptyAction} />
 
   // The number is the row's place in the list as it stands — filtered, sorted,
   // and counted from one. It is not an id: an archived row does not keep a
@@ -141,6 +144,46 @@ export function LibraryList({
     />
   )
 
+  /**
+   * Skeleton, empty, error and the list itself are all *inside* the scroll
+   * box rather than instead of it. The box is the list's shape, so it should
+   * not appear and disappear underneath the operator as rows arrive — and the
+   * ref the virtualizer is pointed at stays mounted for the life of the list
+   * instead of going null on every state that is not "rows".
+   */
+  const body = () => {
+    if (isLoading && !rows) return <Skeleton shape={layout === 'grid' ? 'card' : 'row'} count={layout === 'grid' ? 4 : 8} />
+    if (error) return <EmptyState kind="error" what={what} detail={error} action={onRetry ? <RetryButton onRetry={onRetry} /> : null} />
+    if (!rows || rows.length === 0) return <EmptyState kind={emptyKind} what={what} action={emptyAction} />
+    if (layout === 'grid') {
+      return <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3">{sorted.map((row, i) => render(row, i))}</div>
+    }
+    if (virtual) {
+      return (
+        <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+          {virtualizer.getVirtualItems().map((item) => {
+            const row = sorted[item.index]
+            if (!row) return null
+            return (
+              <div key={row.id} style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${item.start}px)` }}>
+                {render(row, item.index)}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
+    // `overflow-hidden` is what makes a row's hover and selection respect the
+    // container's rounded corners: without it the first and last rows paint
+    // square over them.
+    return (
+      <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)]" style={{ background: 'var(--surface)' }}>
+        {sorted.map((row, i) => render(row, i))}
+      </div>
+    )
+  }
+
+  const hasRows = Boolean(rows && rows.length > 0)
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {bulk ? (
@@ -153,32 +196,12 @@ export function LibraryList({
           isPending={bulk.isPending}
         />
       ) : null}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" role={layout === 'table' ? 'table' : undefined}>
-        {layout === 'grid' ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3">{sorted.map((row, i) => render(row, i))}</div>
-        ) : virtual ? (
-          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-            {virtualizer.getVirtualItems().map((item) => {
-              const row = sorted[item.index]
-              if (!row) return null
-              return (
-                <div
-                  key={row.id}
-                  style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${item.start}px)` }}
-                >
-                  {render(row, item.index)}
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          // `overflow-hidden` is what makes a row's hover and selection
-          // respect the container's rounded corners: without it the first and
-          // last rows paint square over them.
-          <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)]" style={{ background: 'var(--surface)' }}>
-            {sorted.map((row, i) => render(row, i))}
-          </div>
-        )}
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto"
+        role={layout === 'table' && hasRows ? 'table' : undefined}
+      >
+        {body()}
       </div>
     </div>
   )
