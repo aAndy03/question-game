@@ -200,7 +200,7 @@ pub fn reveal_leaderboard_rank(
 // ------------------------------------------------------------------- monitors
 
 /// The connected displays, for Control's top picker and Settings ▸ Monitors.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn monitors_list(
     window: WebviewWindow,
     app: AppHandle,

@@ -823,12 +823,37 @@ why it looked like Archived.
 | `monitors_list` · `stage_set_monitor` · `play_load` · the monitor watch | window and display work moved out from under the guard |
 | `AppState::lock` | returns a `HostGuard` that counts itself; `state::assert_unlocked` is a `debug_assert!` on every window and monitor entry point, so the next violation is a panic naming the call site rather than a hang |
 
-- ☑ The rule is a test, not a comment —
-  `the_guard_counts_itself_and_assert_unlocked_reads_it`.
-- ☐ **Unconfirmed by the operator.** The violation is real, it is on a path
-  that runs at every boot, and its symptom is exactly the one reported; but the
-  freeze itself was never reproduced here, so this is a diagnosis, not a
-  sighting.
+Then the operator narrowed it further: **Domains & Questions ▸ Archived
+works; Teams, Operators and Games freeze.** The four pages are structurally
+identical — same hooks, same `useArchive`, same toggle, same empty state — so
+an asymmetry between them is not a difference in logic. It is a race, which is
+what a lock deadlock looks like from the outside.
+
+That pointed at the second half, which is the architectural one:
+
+**No command may run on the event-loop thread.** `get_state`, `settings_get`,
+`health_get` and `monitors_list` were plain `#[tauri::command]`, and a plain
+command runs on the thread that pumps window messages. They were synchronous
+because they are cheap — but cheapness was never the question. Each takes the
+host lock, so *any* other command holding it stopped being a slow reply and
+became a frozen window: no repaint, no input, no reload. Which command you were
+waiting on decided nothing; what you had clicked decided everything, and that
+is why one tab looked innocent and three looked guilty.
+
+| | |
+| --- | --- |
+| The five plain commands | all `(async)` now; the crate has no synchronous command left |
+| `AppState::lock` | `debug_assert!`s it is not on the event-loop thread, so a plain command added later panics in dev with its own name on the stack |
+| The boot health report | moved into the health watch's first tick; computing it in `setup` took the lock on the event loop |
+
+- ☑ Both rules are tests, not comments —
+  `the_guard_counts_itself_and_assert_unlocked_reads_it` and
+  `the_event_loop_thread_may_not_take_the_lock`.
+- ☑ The app boots clean with both assertions armed, through
+  `settings_get` · `health_get` · `get_state` · `monitors_list`.
+- ☐ **Unconfirmed by the operator.** Both violations are real and both symptoms
+  match; the freeze itself was never reproduced here, so this is a diagnosis,
+  not a sighting.
 
 ---
 

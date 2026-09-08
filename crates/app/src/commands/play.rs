@@ -230,7 +230,7 @@ pub fn restart(
 /// `get_state` — the projection every read surface renders. Synchronous: it is
 /// a fold over data already in memory, and hopping threads would cost more than
 /// the work.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn get_state(
     window: WebviewWindow,
     state: State<'_, AppState>,

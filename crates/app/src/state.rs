@@ -307,6 +307,19 @@ thread_local! {
     static HOLDING: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
+/// The thread Tauri runs its event loop on, recorded once at boot.
+static MAIN_THREAD: std::sync::OnceLock<std::thread::ThreadId> = std::sync::OnceLock::new();
+
+/// Called once, from `run`'s `setup`, which Tauri runs on the event-loop thread.
+pub fn mark_main_thread() {
+    let _ = MAIN_THREAD.set(std::thread::current().id());
+}
+
+/// True on the thread that pumps the OS message loop.
+pub fn on_main_thread() -> bool {
+    MAIN_THREAD.get() == Some(&std::thread::current().id())
+}
+
 /// True while this thread holds the host lock.
 pub fn host_lock_held() -> bool {
     HOLDING.with(|n| n.get() > 0)
@@ -365,11 +378,58 @@ impl AppState {
     /// A poisoned lock means a command panicked mid-write. Every write in the
     /// catalog is a transaction and every append is a whole event, so the data
     /// is consistent; recovering beats bricking the next click.
+    ///
+    /// # Never on the main thread
+    ///
+    /// The event-loop thread is the one that pumps window messages: while it
+    /// waits, the app does not repaint, does not take input, and cannot even
+    /// be reloaded. If it waits on *this* lock, every other command becomes a
+    /// freeze of the whole application rather than a slow reply — and the
+    /// operator sees a window that is still painted and completely dead.
+    ///
+    /// So every `#[tauri::command]` that reaches the host is `(async)`, and
+    /// this asserts it: a plain command would run here on the event loop and
+    /// panic in a debug build with its own name on the stack, instead of
+    /// hanging the show months later. It is not about how cheap the command
+    /// is — `get_state` is a projection over memory — it is about who is
+    /// waiting.
     pub fn lock(&self) -> HostGuard<'_> {
+        debug_assert!(
+            !on_main_thread(),
+            "the host lock was taken on the event-loop thread — make the              command `#[tauri::command(async)]`, or the next command to hold              this lock freezes the window instead of merely delaying a reply"
+        );
         let guard = self.0.lock().unwrap_or_else(PoisonError::into_inner);
         HOLDING.with(|n| n.set(n.get() + 1));
         HostGuard(guard)
     }
+}
+
+impl std::fmt::Debug for AppState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("AppState")
+    }
+}
+
+/// Where the catalog lives. Under the OS app-data directory, which Tauri
+/// resolves — the host never builds a path.
+pub fn catalog_location(app: &tauri::AppHandle) -> AppResult<CatalogLocation> {
+    use tauri::Manager;
+
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Window(format!("no app data directory: {e}")))?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| AppError::Window(format!("cannot create {}: {e}", dir.display())))?;
+    Ok(CatalogLocation::File(dir.join("questiongame.sqlite3")))
+}
+
+/// The user-data directory, where the catalog and everything generated live.
+pub fn user_data_dir(app: &tauri::AppHandle) -> AppResult<std::path::PathBuf> {
+    use tauri::Manager;
+    app.path()
+        .app_data_dir()
+        .map_err(|e| AppError::Window(format!("no app data directory: {e}")))
 }
 
 #[cfg(test)]
@@ -400,32 +460,28 @@ mod lock_discipline {
         drop(guard);
         assert!(!host_lock_held());
     }
-}
 
-impl std::fmt::Debug for AppState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("AppState")
+    /// The invariant that keeps a slow command from becoming a frozen window:
+    /// the event-loop thread never waits on the host lock. A plain
+    /// `#[tauri::command]` would run there, so this is what catches one being
+    /// added — in a test, rather than in a show.
+    #[test]
+    fn the_event_loop_thread_may_not_take_the_lock() {
+        // A thread of our own stands in for the event loop; `ThreadId` is
+        // never reused, so marking it cannot affect any other test.
+        std::thread::spawn(|| {
+            mark_main_thread();
+            assert!(on_main_thread());
+            let state =
+                AppState::new(Host::open(CatalogLocation::Memory).expect("in-memory host"));
+            let taken =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(state.lock())));
+            assert!(
+                taken.is_err(),
+                "the event loop took the host lock and nothing stopped it"
+            );
+        })
+        .join()
+        .expect("the stand-in event loop");
     }
-}
-
-/// Where the catalog lives. Under the OS app-data directory, which Tauri
-/// resolves — the host never builds a path.
-pub fn catalog_location(app: &tauri::AppHandle) -> AppResult<CatalogLocation> {
-    use tauri::Manager;
-
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Window(format!("no app data directory: {e}")))?;
-    std::fs::create_dir_all(&dir)
-        .map_err(|e| AppError::Window(format!("cannot create {}: {e}", dir.display())))?;
-    Ok(CatalogLocation::File(dir.join("questiongame.sqlite3")))
-}
-
-/// The user-data directory, where the catalog and everything generated live.
-pub fn user_data_dir(app: &tauri::AppHandle) -> AppResult<std::path::PathBuf> {
-    use tauri::Manager;
-    app.path()
-        .app_data_dir()
-        .map_err(|e| AppError::Window(format!("no app data directory: {e}")))
 }

@@ -31,7 +31,7 @@ use crate::{emit, guard, windows};
 /// `SettingsView` borrows from the lock, so this hands back an owned JSON value
 /// rather than fighting the lifetime: the alternative is cloning three structs
 /// into a mirror type that would then have to be kept in step with §4.2.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn settings_get(
     window: WebviewWindow,
     state: State<'_, AppState>,
@@ -344,7 +344,7 @@ fn cue_pack_dir(app: &AppHandle) -> AppResult<std::path::PathBuf> {
 }
 
 /// Where the generated files live (§12.1 first run, §12.3). Read-only.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn paths_get(window: WebviewWindow, app: AppHandle) -> AppResult<AppPaths> {
     guard::allow(window.label(), "paths_get")?;
     let user_data = crate::state::user_data_dir(&app)?;
@@ -405,7 +405,7 @@ pub fn uninstall_data(
 }
 
 /// The current health report — what `health` last emitted (§12.6).
-#[tauri::command]
+#[tauri::command(async)]
 pub fn health_get(window: WebviewWindow, state: State<'_, AppState>) -> AppResult<HealthReport> {
     guard::allow(window.label(), "health_get")?;
     let host = state.lock();

@@ -64,6 +64,9 @@ fn spawn_health_watch(app: AppHandle) {
         let mut ticker = tokio::time::interval(HEALTH_POLL);
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
+            // `interval` fires immediately the first time, so the boot report
+            // is this loop's first tick — off the event-loop thread, which is
+            // the point (§12.6, and `AppState::lock`).
             ticker.tick().await;
             health_once(&app);
         }

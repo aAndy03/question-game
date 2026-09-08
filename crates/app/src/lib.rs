@@ -62,11 +62,16 @@ pub fn run() {
             // worth reading — the library open, every command, every refusal —
             // happens after this line.
             tracing_logging(crate::state::user_data_dir(&handle).ok().as_deref());
+            // `setup` runs on the event loop, so this is where that thread is
+            // identified — everything after it may be asserted against.
+            crate::state::mark_main_thread();
             let host = Host::open(catalog_location(&handle)?)?;
             app.manage(AppState::new(host));
 
             windows::open_studio(&handle)?;
-            tick::health_once(&handle);
+            // The first health report is the watch's own first tick: computing
+            // it here would take the host lock on the event-loop thread, which
+            // is the one thing that must never happen (`AppState::lock`).
             tick::spawn(handle);
             Ok(())
         })
