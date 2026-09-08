@@ -65,6 +65,10 @@ pub fn run() {
             // `setup` runs on the event loop, so this is where that thread is
             // identified — everything after it may be asserted against.
             crate::state::mark_main_thread();
+            // One library, one process — before anything opens the database.
+            if let Ok(dir) = crate::state::user_data_dir(&handle) {
+                crate::state::take_single_instance_lock(&dir)?;
+            }
             let host = Host::open(catalog_location(&handle)?)?;
             app.manage(AppState::new(host));
 

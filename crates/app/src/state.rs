@@ -410,6 +410,47 @@ impl std::fmt::Debug for AppState {
     }
 }
 
+/// The lock that keeps one library to one process.
+///
+/// SQLite in WAL mode lets several processes open the same file, so nothing
+/// stopped two copies of the app running at once — and a second `dev:app` on a
+/// taken port still starts the binary, so it happens by accident. Both then run
+/// migrations, both rebuild the projections and both reindex, and each sees a
+/// snapshot the other is moving underneath it: on 2026-09-08 one instance
+/// listed six teams the file did not contain and reported a play count the
+/// other never saw. That is not a race to tune, it is two writers of one
+/// document (§4.3's rule, one level up).
+///
+/// So the first process takes an exclusive OS lock on `questiongame.lock` and
+/// holds it for its life; a second finds the lock held and says so. The handle
+/// is deliberately leaked — dropping it would release the lock, and it should
+/// last exactly as long as the process does.
+pub fn take_single_instance_lock(dir: &std::path::Path) -> AppResult<()> {
+    use fs4::fs_std::FileExt;
+
+    std::fs::create_dir_all(dir).ok();
+    let path = dir.join("questiongame.lock");
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(&path)
+        .map_err(|e| AppError::Window(format!("cannot open {}: {e}", path.display())))?;
+
+    match FileExt::try_lock_exclusive(&file) {
+        Ok(true) => {
+            // Held for the life of the process, on purpose.
+            std::mem::forget(file);
+            Ok(())
+        }
+        _ => Err(AppError::Window(format!(
+            "questiongame is already running (its lock on {} is held).              Two copies share one library and would write over each other;              close the other window and start again.",
+            path.display()
+        ))),
+    }
+}
+
 /// Where the catalog lives. Under the OS app-data directory, which Tauri
 /// resolves — the host never builds a path.
 pub fn catalog_location(app: &tauri::AppHandle) -> AppResult<CatalogLocation> {

@@ -17,6 +17,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import type { ArchiveScope } from '@/host/types'
 import type { Tab } from './nav'
+import { crumb } from './diagnostics'
 
 export type SidebarMode = 'expanded' | 'rail' | 'hidden'
 export type ThemeChoice = 'system' | 'light' | 'dark'
@@ -97,6 +98,9 @@ export const useChromeStore = create<ChromeState>()(
           update({ view: { ...current(get()).view, [tab]: view } })
         },
         setArchiveScope(tab, scope) {
+          // Before the state change, so the log has it even if the render that
+          // follows never returns.
+          crumb('scope', `${tab}=${scope}`)
           set((s) => ({ archiveScope: { ...s.archiveScope, [tab]: scope } }))
         },
         setSettingsInner(settingsInner) {

@@ -158,7 +158,14 @@ describe('Statistics', () => {
     await waitFor(() => expect(statsCalls(fake).length).toBeGreaterThan(1))
 
     // Every command this surface reached for is a read.
+    //
+    // `client_log` is on the list because it is not a write in the sense this
+    // criterion means: it changes no state a Play or the library could read,
+    // it is a webview reporting on itself into the log, and the host allows it
+    // from the Statistics window for exactly that reason
+    // (`guard::STATS_COMMANDS`). A projector may say what it saw.
     const READS = [
+      'client_log',
       'stats_query',
       'catalog_list',
       'catalog_get',

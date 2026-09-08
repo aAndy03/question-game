@@ -98,6 +98,31 @@ export function onPageCommit(): void {
   )
 }
 
+/**
+ * A breadcrumb, posted **now**, before whatever comes next.
+ *
+ * The watchdog above counts commits, which only works if commits happen. A
+ * synchronous loop inside a render or a layout effect never finishes one, so
+ * nothing is counted, no effect runs, and the file records the click and then
+ * silence — which is exactly what a freeze looks like from the log. The way to
+ * see into that is to say what you are *about* to do: `invoke` posts to the
+ * host as it is called, so a crumb dropped before the render survives a render
+ * that never returns, and the last crumb in the file names the step that hung.
+ *
+ * Throttled per distinct message, because these sit on hot paths.
+ */
+const crumbs = new Map<string, number>()
+const CRUMB_EVERY_MS = 2000
+
+export function crumb(step: string, detail?: string): void {
+  const key = `${step}|${detail ?? ''}`
+  const now = Date.now()
+  const last = crumbs.get(key)
+  if (last !== undefined && now - last < CRUMB_EVERY_MS) return
+  crumbs.set(key, now)
+  send('debug', `. ${step}`, detail)
+}
+
 /** Set by `App` so a report can say which page was on screen. */
 let currentRoute = 'unknown'
 export function setDiagnosticRoute(route: string): void {

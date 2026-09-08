@@ -10,6 +10,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { Skeleton } from '@/atoms'
 import { BulkBar, EmptyState, RecordRow, type RecordLayout } from '@/molecules'
 import { LIST } from '@/copy'
+import { crumb } from '@/chrome/diagnostics'
 
 /**
  * What a record list needs from a row to draw it. Each tab maps its entity to
@@ -78,6 +79,10 @@ export function LibraryList({
   bulk,
   onRetry,
 }: LibraryListProps) {
+  // Step-by-step crumbs through the one render the operator's freeze happens
+  // in. The last one in the log is the step that did not return.
+  const where = `${what} rows=${rows?.length ?? 'none'} layout=${layout}`
+  crumb('list:enter', where)
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
   const sorting = useMemo<SortingState>(() => [{ id: sortBy, desc: sortDesc }], [sortBy, sortDesc])
 
@@ -103,7 +108,9 @@ export function LibraryList({
     enableRowSelection: bulk !== undefined,
   })
 
+  crumb('list:table', where)
   const sorted = table.getRowModel().rows
+  crumb('list:sorted', `${where} sorted=${sorted.length}`)
   const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id])
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const virtual = sorted.length > VIRTUAL_ABOVE && layout === 'table'
@@ -120,6 +127,7 @@ export function LibraryList({
     estimateSize: () => 40,
     overscan: 12,
   })
+  crumb('list:virtual', `${where} virtual=${virtual}`)
 
   // The number is the row's place in the list as it stands — filtered, sorted,
   // and counted from one. It is not an id: an archived row does not keep a
@@ -183,6 +191,7 @@ export function LibraryList({
     )
   }
 
+  crumb('list:body', where)
   const hasRows = Boolean(rows && rows.length > 0)
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
