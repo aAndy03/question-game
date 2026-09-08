@@ -97,9 +97,17 @@ pub const LOG_FILE: &str = "questiongame.log";
 /// clicking around produces no output at all, and neither does an app that
 /// stops responding. Asking for `RUST_LOG=…=debug` only works if you knew to
 /// ask before the thing went wrong, and a window that has stopped responding
-/// is usually killed rather than read. The file is always on, always at
-/// `debug`, and truncated at each boot, so it is the current run and it is
-/// still there afterwards.
+/// is usually killed rather than read.
+///
+/// **It appends; it does not truncate.** Two copies of the app can be running
+/// at once — a dev launch that failed on a taken port still starts the binary,
+/// and an orphan outlives the `tauri dev` that spawned it — and they share this
+/// path. Truncating at boot meant the newer process silently erased the older
+/// one's evidence, which is exactly the evidence anyone is here to read
+/// (2026-09-08: it cost an evening of the operator's log going missing). Each
+/// boot writes a banner with its pid instead, so runs interleave and none is
+/// lost. `wipe_logs` is not a feature; delete the file between runs if it gets
+/// long.
 fn tracing_logging(dir: Option<&std::path::Path>) {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
@@ -111,7 +119,11 @@ fn tracing_logging(dir: Option<&std::path::Path>) {
 
     let file = dir.and_then(|dir| {
         std::fs::create_dir_all(dir).ok()?;
-        std::fs::File::create(dir.join(LOG_FILE)).ok()
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(dir.join(LOG_FILE))
+            .ok()
     });
     let Some(file) = file else {
         let _ = registry.try_init();
@@ -129,7 +141,12 @@ fn tracing_logging(dir: Option<&std::path::Path>) {
         )
         .try_init();
     if let Some(path) = path {
-        tracing::info!(path = %path.display(), "logging to file");
+        // The banner is what tells two interleaved runs apart in one file.
+        tracing::info!(
+            path = %path.display(),
+            pid = std::process::id(),
+            "---- run start ----"
+        );
     }
 }
 
