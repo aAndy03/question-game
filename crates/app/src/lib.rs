@@ -43,7 +43,6 @@ use crate::state::{AppState, Host, catalog_location};
 /// says first Control Load, and an empty fullscreen window on the projector
 /// while the operator is still choosing a game is worse than no window.
 pub fn run() {
-    tracing_logging();
     tauri::Builder::default()
         .invoke_handler(handlers())
         // Studio is the app. Stage and Statistics are surfaces it puts on
@@ -58,6 +57,11 @@ pub fn run() {
         })
         .setup(|app| {
             let handle = app.handle().clone();
+            // Logging first, and inside `setup`, because the log file lives in
+            // the app-data directory and only Tauri can resolve it. Everything
+            // worth reading — the library open, every command, every refusal —
+            // happens after this line.
+            tracing_logging(crate::state::user_data_dir(&handle).ok().as_deref());
             let host = Host::open(catalog_location(&handle)?)?;
             app.manage(AppState::new(host));
 
@@ -70,18 +74,54 @@ pub fn run() {
         .expect("the app runs");
 }
 
+/// The name of the log file, beside the library in the app-data directory.
+pub const LOG_FILE: &str = "questiongame.log";
+
 /// The host has emitted `tracing` spans since P5 with nobody listening. This
 /// is the subscriber — here rather than in the library, because a library must
 /// not choose a global one for whoever embeds it.
 ///
-/// `RUST_LOG` overrides; the default is quiet enough to leave on in a show and
-/// loud enough to explain a boot.
-fn tracing_logging() {
-    use tracing_subscriber::{EnvFilter, fmt};
+/// **Two sinks, two levels.** stderr keeps the quiet default: `RUST_LOG`
+/// overrides it, and it is loud enough to explain a boot without narrating a
+/// show. The **file** records `debug` for both crates, which includes
+/// `guard::allow`'s line for every command the webviews ask for.
+///
+/// The file exists because stderr does not survive the trip: `npm run dev:app`
+/// spawns the binary through the Tauri CLI and nothing it prints reaches the
+/// terminal, so in dev the app had no way to say anything at all — and an app
+/// that stops responding leaves no console to read. It leaves a file instead,
+/// truncated at each boot so it is the current run and not a year of them.
+fn tracing_logging(dir: Option<&std::path::Path>) {
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    use tracing_subscriber::{EnvFilter, Layer, fmt};
 
-    let filter = EnvFilter::try_from_default_env()
+    let console = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("questiongame_host=info,questiongame_app=info,warn"));
-    let _ = fmt().with_env_filter(filter).try_init();
+    let registry = tracing_subscriber::registry().with(fmt::layer().with_filter(console));
+
+    let file = dir.and_then(|dir| {
+        std::fs::create_dir_all(dir).ok()?;
+        std::fs::File::create(dir.join(LOG_FILE)).ok()
+    });
+    let Some(file) = file else {
+        let _ = registry.try_init();
+        return;
+    };
+    let path = dir.map(|d| d.join(LOG_FILE));
+    let _ = registry
+        .with(
+            fmt::layer()
+                .with_ansi(false)
+                .with_writer(std::sync::Mutex::new(file))
+                .with_filter(EnvFilter::new(
+                    "questiongame_host=debug,questiongame_app=debug,info",
+                )),
+        )
+        .try_init();
+    if let Some(path) = path {
+        tracing::info!(path = %path.display(), "logging to file");
+    }
 }
 
 /// The §13 surface. Grouped the way `COMMAND_GROUPS` in `packages/contract`

@@ -185,6 +185,7 @@ decor · demo · error
 - **One lock, not four.** Every service is single-writer and the operator is one human; one lock makes every command atomic against every other and makes lock order unspellable.
 - **`main` gets `PlayStateForStage` + `OperatorState`; `stage` gets the stripped shape.** A leak here is a leak on camera. The event **log** is in neither — Timeline reads it with `play_events`.
 - **Tauri does not gate app-defined commands behind capabilities**, so `guard::allow` is the §5.7 boundary: the `stage` label may call only `STAGE_COMMANDS` (`overlay_ack_complete`, `stage_ready`), and an unknown label is treated as Stage. Keep that list identical to `packages/contract`.
+- **The app logs to a file, because stderr does not survive dev.** `npm run dev:app` spawns the binary through the Tauri CLI and nothing it prints reaches the terminal, so in dev the app could say nothing at all — and an app that stops responding leaves no console to read anyway. `tracing_logging` runs inside `setup` (it needs Tauri to resolve the app-data directory) and installs two sinks: stderr at the quiet default (`RUST_LOG` overrides), and `<app data>/questiongame.log` at **debug** for both crates, truncated at each boot. `guard::allow` logs every command there, so a hang is "the last line names a command that never came back".
 - `crates/app/src/demo.rs` + `seed_demo_library` are a **dev-build harness** so P6 can be run before P7 has library tabs; §10's sample catalog replaces them.
 
 #### The Studio shell as built (`apps/studio`, P7)
