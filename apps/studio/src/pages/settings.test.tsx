@@ -59,7 +59,10 @@ describe('Settings', () => {
   beforeEach(reset)
   afterEach(() => setHostTransport(null))
 
-  it('renders every settings group from the one table', async () => {
+  // The whole Settings tab, every group, under a full `npm test` with every
+  // project's workers competing: 4.7 s of the 5 s default on 2026-09-08. The
+  // budget is set to what the test needs, not to what a quiet machine allows.
+  it('renders every settings group from the one table', { timeout: 20_000 }, async () => {
     mount()
     render(<App />)
     await act(async () => {

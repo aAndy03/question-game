@@ -46,13 +46,47 @@ pub fn open_studio(app: &AppHandle) -> AppResult<WebviewWindow> {
     if let Some(existing) = app.get_webview_window(MAIN) {
         return Ok(existing);
     }
-    Ok(
+    Ok(debuggable(
         WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App(STUDIO_PATH.into()))
             .title("questiongame Studio")
             .inner_size(1440.0, 920.0)
-            .min_inner_size(1100.0, 720.0)
-            .build()?,
+            .min_inner_size(1100.0, 720.0),
     )
+    .build()?)
+}
+
+/// The switches wry hands WebView2 when nobody else does — the "mini menu"
+/// and SmartScreen off. Passing our own replaces them, so they are repeated.
+#[cfg(windows)]
+const WRY_DEFAULT_BROWSER_ARGS: &str =
+    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
+
+/// Debug builds only: let a debugger reach the webview **from outside**.
+///
+/// A webview that has stopped responding cannot be inspected from inside it —
+/// the context menu is drawn by the page that is hung — and the log can only
+/// say which step did not return, not where inside it. With
+/// `--remote-debugging-port`, `scripts/js-stack.mjs` attaches over the Chrome
+/// DevTools Protocol, interrupts the busy thread, and prints the JavaScript
+/// stack it was on. That is the difference between a night of bisecting and
+/// one look. It goes through the builder rather than
+/// `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` because wry sets
+/// `AdditionalBrowserArguments` itself, and the option is what the browser
+/// process reads. All webviews share one browser process, so the first window
+/// built decides; every window says it anyway. Release builds add nothing: an
+/// open debug port on a shipped app is a hole, not a feature.
+/// `QUESTIONGAME_DEBUG_PORT` overrides the port (default 9222).
+fn debuggable<'a>(
+    builder: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
+) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    #[cfg(all(windows, debug_assertions))]
+    {
+        let port = std::env::var("QUESTIONGAME_DEBUG_PORT").unwrap_or_else(|_| "9222".into());
+        let args = format!("{WRY_DEFAULT_BROWSER_ARGS} --remote-debugging-port={port}");
+        return builder.additional_browser_args(&args);
+    }
+    #[allow(unreachable_code)]
+    builder
 }
 
 /// Stage, ready. Created on first Control Load and then left alone: it sits
@@ -63,13 +97,15 @@ pub fn ensure_stage(app: &AppHandle) -> AppResult<WebviewWindow> {
     if let Some(existing) = app.get_webview_window(STAGE) {
         return Ok(existing);
     }
-    let window = WebviewWindowBuilder::new(app, STAGE, WebviewUrl::App(STAGE_PATH.into()))
-        .title("questiongame Stage")
-        .decorations(false)
-        .fullscreen(true)
-        // Nobody clicks Stage; a focus steal mid-question is a lost lock.
-        .focused(false)
-        .build()?;
+    let window = debuggable(
+        WebviewWindowBuilder::new(app, STAGE, WebviewUrl::App(STAGE_PATH.into()))
+            .title("questiongame Stage")
+            .decorations(false)
+            .fullscreen(true)
+            // Nobody clicks Stage; a focus steal mid-question is a lost lock.
+            .focused(false),
+    )
+    .build()?;
     Ok(window)
 }
 
@@ -108,10 +144,12 @@ pub fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool) -
     // Built at its destination rather than moved there afterwards: a window
     // that is created centred and then thrown across the desktop flashes on
     // the wrong display first.
-    let mut builder = WebviewWindowBuilder::new(app, STATS, WebviewUrl::App(STATS_PATH.into()))
-        .title("questiongame Statistics")
-        .inner_size(1280.0, 800.0)
-        .focused(false);
+    let mut builder = debuggable(
+        WebviewWindowBuilder::new(app, STATS, WebviewUrl::App(STATS_PATH.into()))
+            .title("questiongame Statistics")
+            .inner_size(1280.0, 800.0)
+            .focused(false),
+    );
     if let Some(origin) = origin {
         builder = builder.position(f64::from(origin.x), f64::from(origin.y));
     }

@@ -513,8 +513,7 @@ mod lock_discipline {
         std::thread::spawn(|| {
             mark_main_thread();
             assert!(on_main_thread());
-            let state =
-                AppState::new(Host::open(CatalogLocation::Memory).expect("in-memory host"));
+            let state = AppState::new(Host::open(CatalogLocation::Memory).expect("in-memory host"));
             let taken =
                 std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(state.lock())));
             assert!(

@@ -33,12 +33,43 @@ let installed = false
 const seen = new Set<string>()
 let lastReport = 0
 
+/**
+ * Tauri's injected IPC, when this is the desktop app. `@tauri-apps/api/core`'s
+ * `invoke` is one line over this and nothing more; naming it here lets a line
+ * be posted **synchronously**.
+ */
+interface TauriInternals {
+  invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown>
+}
+function internals(): TauriInternals | null {
+  const w = window as Window & { __TAURI_INTERNALS__?: TauriInternals }
+  return typeof w.__TAURI_INTERNALS__?.invoke === 'function' ? w.__TAURI_INTERNALS__ : null
+}
+
+/**
+ * **Posted now, on this stack.** The transport's `invoke` awaits a dynamic
+ * `import()` before it posts, so a line sent through it leaves the webview
+ * only after the current task ends — and the one task this file exists to
+ * see into is the task that never ends. Through the transport, a hang lost
+ * every crumb of the render it happened in and the click's own (2026-09-08:
+ * `. scope` never reached the log although the state change it precedes did).
+ * The injected `__TAURI_INTERNALS__.invoke` posts on the spot; the transport
+ * stays the path for everything that is not this file.
+ */
 function send(level: Level, message: string, detail?: string): void {
   if (!hasHost()) return
+  const args = { level, message: message.slice(0, 2000), detail: detail?.slice(0, 2000) ?? null }
   // The log is a courtesy; it must never be able to break the thing it watches.
-  void command('client_log', { level, message: message.slice(0, 2000), detail: detail?.slice(0, 2000) ?? null }).catch(
-    () => {},
-  )
+  try {
+    const direct = internals()
+    if (direct) {
+      void direct.invoke('client_log', args).catch(() => {})
+      return
+    }
+  } catch {
+    // fall through to the transport
+  }
+  void command('client_log', args).catch(() => {})
 }
 
 /** Once per distinct message, so a loop reports once rather than forever. */

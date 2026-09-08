@@ -57,6 +57,17 @@ export interface LibraryListProps {
 }
 
 const VIRTUAL_ABOVE = 200
+/**
+ * What the table is given while `rows` is still `undefined`. **One array, not
+ * a new `[]` per render.** TanStack Table memoizes the core row model on the
+ * identity of `data`, and every change queues `resetPageIndex` on a
+ * microtask; that is a `setState`, which renders the list again, which — with
+ * a fresh `[]` — is another change. Nothing in that loop is a nested update
+ * React would refuse, and the host reply that would have made `rows` an array
+ * never got a turn: Studio froze on every Archived toggle whose list came back
+ * empty (2026-09-08, ~120 commits a second). `LibraryList.test.tsx` holds it.
+ */
+const NO_ROWS: readonly RecordView[] = []
 
 /**
  * Every record list: TanStack Table for sorting and selection, `RecordRow`
@@ -98,7 +109,7 @@ export function LibraryList({
   )
 
   const table = useReactTable({
-    data: (rows ?? []) as RecordView[],
+    data: (rows ?? NO_ROWS) as RecordView[],
     columns,
     state: { sorting, rowSelection },
     onRowSelectionChange: setRowSelection,

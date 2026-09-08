@@ -886,6 +886,65 @@ ready … heapMb=28` appears in the file on boot, and it caught a real
 
 - ☐ **Still open.** Awaiting one reproduction with the watchdog armed.
 
+**Second pass on the evidence (2026-09-08, evening)**
+
+Three corrections to the paragraphs above, from reading the log the watchdog
+produced rather than the theory it was built on:
+
+1. **The crumbs were not synchronous, so their absence proved nothing.**
+   `send` went through `HostTransport.invoke`, which `await`s a dynamic
+   `import('@tauri-apps/api/core')` before it posts. A crumb dropped inside a
+   task that never yields therefore never leaves the webview, and neither
+   does the click's own `. scope`. `diagnostics.ts` now posts on
+   `window.__TAURI_INTERNALS__.invoke` directly, on the calling stack, and
+   falls back to the transport only outside the desktop app.
+2. **The Domains & Questions toggle that had been exercised was the domain
+   pane's, not the question list's.** `DomainPane` keeps its scope in
+   `useState` and never renders `LibraryList`; the question list's toggle
+   goes through the chrome store and `LibraryList` like the other three —
+   and, tested afterwards, it froze exactly like them.
+3. **8–10% CPU on this machine is one core.** Twelve threads; one spinning
+   reads as 8.3%. "A scheduled loop, not a pegged core" is withdrawn.
+
+**What it was.** With the crumbs synchronous, the next reproduction wrote it
+down: `. scope teams=archived`, then `LibraryList` rendering `teams
+rows=none` **twenty-one times in forty seconds at the crumb throttle** — i.e.
+continuously — the watchdog reporting 120 commits a second and the heap
+climbing 44 → 80 → 152 MB, and **no `catalog_list` for the archived scope
+ever reaching the host.**
+
+`LibraryList` handed TanStack Table `data: rows ?? []` — a **new array on
+every render** while the query had not answered. TanStack Table memoizes the
+core row model on the identity of `data`, and every change runs
+`_autoResetPageIndex`, which queues `resetPageIndex()` on a **microtask**
+(`table-core` 8.21.3, `_queue`). That is a `setState` on `useReactTable`'s
+own state, so the list renders again, builds another `[]`, changes the data
+again, queues another reset. Nothing in the cycle is an update scheduled
+*during* a commit, so React's nested-update limit never trips and no
+"Maximum update depth" is thrown; and the cycle never yields to a task, so the
+IPC reply that would have made `rows` an array — the one thing that would
+have ended it — never got a turn. Why it looked fine at boot: the auto-reset
+only *registers* on its first sight of the data and resets from the second
+on, so the boot render registered and the toggle's render, seconds later,
+was the second. Why one tab looked innocent: `DomainPane` does not use
+`LibraryList`. Why it "did not reproduce in a browser": it does — the
+Archived click on `?fake` at this commit hangs a plain Chromium the same way,
+with or without `&slow=`. Whatever the earlier 0-mutations measurement
+observed, it was not this list at this commit.
+
+| | |
+| --- | --- |
+| `LibraryList` | `data: rows ?? NO_ROWS`, one module-level empty array. That is the whole fix |
+| `organisms/LibraryList.test.tsx` | renders the list with `rows` undefined three times, spaced across microtask turns, and asserts three commits — the buggy list commits fifteen and counting |
+| `host/devFake.ts` | `?fake&slow=<ms>` answers every command a task later, the way the real IPC does, so a page that only stays healthy because the fake is instant can be caught in a browser |
+| `chrome/diagnostics.ts` `send` | synchronous, see (1) |
+| `windows::debuggable` (`crates/app`) | Windows debug builds start WebView2 with `--remote-debugging-port=9222` (`QUESTIONGAME_DEBUG_PORT` overrides), through the builder because wry sets `AdditionalBrowserArguments` itself; release builds add nothing |
+| `scripts/js-stack.mjs` (`npm run js-stack`) | attaches over the Chrome DevTools Protocol, sends `Debugger.pause` — a V8 interrupt, delivered inside a loop that never yields — and prints every frame. Not needed in the end; kept because the next hang will not announce itself either |
+
+- ☑ **Closed.** All four Archived toggles render "Nothing archived" under
+  `?fake&slow=400`; the regression test is red on the old list and green on
+  the new one.
+
 ---
 
 ## P12 — Packaging and release  ☐

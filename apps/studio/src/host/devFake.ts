@@ -14,9 +14,9 @@
  * first-run flow (§12.1) can be walked in a browser too.
  */
 
-import { FIXTURES, type FixtureName, type PlayStateForMain } from '@questiongame/contract'
+import { FIXTURES, type Command, type FixtureName, type PlayStateForMain } from '@questiongame/contract'
 import { createFakeHost, DEFAULT_GAME_SETTINGS, type FakeHost } from './fake'
-import { hasTauri, setHostTransport } from './host'
+import { hasTauri, setHostTransport, type HostTransport } from './host'
 import type { CatalogItem, Recipe, StatsResult } from './types'
 
 export function installDevFakeIfAsked(): FakeHost | null {
@@ -37,8 +37,25 @@ export function installDevFakeIfAsked(): FakeHost | null {
   // Statistics reads a fold the fake does not do (§13.1); a canned answer is
   // what lets the tab be worked on in a browser, the way `play=` does Control.
   fake.stats = demoStats()
-  setHostTransport(fake)
+  // `&slow=<ms>` answers every command a task later, the way the real IPC
+  // does — a round trip through Rust is never a microtask. A page that only
+  // stays healthy because the fake answers before the next render can be
+  // caught this way: the archived-teams loop of 2026-09-08 never reproduced
+  // against an instant fake, because the render loop it was let microtasks
+  // through and starved tasks.
+  const slow = Number(params.get('slow') ?? 0)
+  setHostTransport(slow > 0 ? delayed(fake, slow) : fake)
   return fake
+}
+
+function delayed(fake: FakeHost, ms: number): HostTransport {
+  return {
+    invoke: <T,>(name: Command, args?: Record<string, unknown>) =>
+      new Promise<T>((ok, no) => {
+        setTimeout(() => fake.invoke<T>(name, args).then(ok, no), ms)
+      }),
+    listen: (name, handler) => fake.listen(name, handler),
+  }
 }
 
 export function demoPlay(name: FixtureName): PlayStateForMain {
