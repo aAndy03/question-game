@@ -694,6 +694,7 @@ export type PreviewWarning =
   | { readonly code: 'bonusUnreachable'; readonly count: number; readonly cap: number }
   | { readonly code: 'raggedBoard'; readonly min: number; readonly max: number }
   | { readonly code: 'flatBoard'; readonly difficulty: number }
+  | { readonly code: 'duplicateDifficulty'; readonly difficulty: number; readonly questions: number }
 
 /**
  * What a setting is set to, structured. The host sends codes and numbers; the

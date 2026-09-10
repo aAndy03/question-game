@@ -27,6 +27,7 @@
 //! play      the materialized projection; a pure fold over the log
 //! event     the append-only log, undo as an inversion span
 //! explain   why an award is what it is — the one copy of the formula
+//! board     one question per difficulty, per board domain (§2.31)
 //! ring      the round invariant (§5.4)
 //! session   one question, issue → outcome (§5.3)
 //! timer     the countdown; no clock inside, zero is a computed instant
@@ -50,6 +51,7 @@
 //! is right and the code is a bug.
 
 pub mod award;
+pub mod board;
 pub mod catalog;
 pub mod error;
 pub mod event;

@@ -103,12 +103,15 @@ export function demoLibrary(): CatalogItem[] {
     { kind: 'team', item: { id: 'team-bravo', origin: 'operator', name: 'Bravo', shortCode: 'BRAVO', color: '#16a34a', logoAssetId: null, notes: null, playCount: 1, lastPlayAt: t0 + 86_400_000 * 9, ...stamps(2) } },
     { kind: 'team', item: { id: 'team-charlie', origin: 'operator', name: 'Charlie', shortCode: 'CHARL', color: '#dc2626', logoAssetId: null, notes: null, playCount: 0, lastPlayAt: null, ...stamps(3) } },
     { kind: 'team', item: { id: 'team-delta', origin: 'operator', name: 'Delta', shortCode: 'DELTA', color: '#d97706', logoAssetId: null, notes: 'New this season', playCount: 0, lastPlayAt: null, ...stamps(4) } },
-    { kind: 'domain', item: { id: 'dom-history', origin: 'operator', name: 'History', code: 'HIS_204', description: 'From antiquity to 1990.', questions: [{ questionId: 'q-h1', sortKey: 1 }, { questionId: 'q-h2', sortKey: 2 }, { questionId: 'q-h3', sortKey: 3 }], ...stamps(1) } },
+    { kind: 'domain', item: { id: 'dom-history', origin: 'operator', name: 'History', code: 'HIS_204', description: 'From antiquity to 1990.', questions: [{ questionId: 'q-h1', sortKey: 1 }, { questionId: 'q-h2', sortKey: 2 }, { questionId: 'q-h3', sortKey: 3 }, { questionId: 'q-h4', sortKey: 4 }], ...stamps(1) } },
     { kind: 'domain', item: { id: 'dom-tech', origin: 'operator', name: 'Technology', code: 'TEC_881', description: null, questions: [{ questionId: 'q-t1', sortKey: 1 }, { questionId: 'q-t2', sortKey: 2 }], ...stamps(2) } },
     { kind: 'domain', item: { id: 'dom-sport', origin: 'operator', name: 'Sport', code: 'SPO_117', description: null, questions: [{ questionId: 'q-s1', sortKey: 1 }], ...stamps(3) } },
     q('q-h1', 'Which empire built the road network that reached Britain?', 20, [['Roman', true], ['Ottoman', false], ['Persian', false], ['Mongol', false]], 1),
     q('q-h2', 'In which year did the Berlin Wall fall?', 45, [['1987', false], ['1989', true], ['1991', false]], 2),
     q('q-h3', 'Which two of these were signatories of the Treaty of Westphalia?', 80, [['France', true], ['Sweden', true], ['Portugal', false], ['Russia', false]], 3),
+    // P11.13: a second difficulty-20 history question, so `?fake` shows the
+    // rule — `q-h1` is on the board and this one greys out behind it.
+    q('q-h4', 'Which city was the capital of the Byzantine empire?', 20, [['Constantinople', true], ['Rome', false], ['Athens', false]], 3),
     q('q-t1', 'What does the L in HTML stand for?', 15, [['Language', true], ['Layout', false], ['Link', false]], 4),
     q('q-t2', 'Which of these is not a sorting algorithm?', 60, [['Quicksort', false], ['Heapsort', false], ['Dijkstra', true], ['Mergesort', false]], 5),
     q('q-s1', 'How many players are on a water polo team in the water?', 35, [['6', false], ['7', true], ['8', false]], 6),

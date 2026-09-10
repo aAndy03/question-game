@@ -200,6 +200,8 @@ export const PREVIEW = {
         return `Domains hold between ${warning.min} and ${warning.max} questions, so they empty at different rates. What a question pays is unaffected.`
       case 'flatBoard':
         return `Every question on this board is difficulty ${warning.difficulty}, so awarding by difficulty pays the same as a flat award.`
+      case 'duplicateDifficulty':
+        return `${warning.questions} questions in one domain are difficulty ${warning.difficulty}. A domain plays one question per difficulty, so this game will not start until one of them comes off the board.`
     }
   },
 

@@ -637,6 +637,167 @@ fn a_board_that_names_an_archived_row_stops_before_the_play_starts() {
     );
 }
 
+// ------------------------------------------- one question per difficulty (P11.13)
+
+/// `seed` plus a third question in the same domain at the *same* difficulty as
+/// `q-1`. The library is allowed to hold it; the board is not allowed to select
+/// both.
+fn seed_with_a_twin(service: &CatalogService) -> Recipe {
+    let recipe = seed(service);
+    service
+        .catalog_upsert(&question("q-3", 10).into(), 1_000)
+        .unwrap();
+    let mut domain = match service.catalog_get(CatalogKind::Domain, "dom-1").unwrap() {
+        questiongame_host::catalog::CatalogItem::Domain(domain) => *domain,
+        other => panic!("expected a domain, got {other:?}"),
+    };
+    domain.questions.push(DomainMember {
+        question_id: QuestionId::from("q-3"),
+        sort_key: 2,
+    });
+    service.catalog_upsert(&domain.into(), 1_000).unwrap();
+    recipe
+}
+
+#[test]
+fn a_domain_may_hold_many_questions_at_one_difficulty_and_a_board_may_select_one() {
+    each_adapter("one-per-difficulty", |service| {
+        let recipe = seed_with_a_twin(service);
+        let rev_before = service.recipe_get(&recipe.id).unwrap().rev;
+
+        let error = service
+            .recipe_set_membership(
+                &recipe.id,
+                recipe.teams.clone(),
+                vec![BoardDomain {
+                    domain_id: DomainId::from("dom-1"),
+                    question_ids: vec![
+                        QuestionId::from("q-1"),
+                        QuestionId::from("q-2"),
+                        QuestionId::from("q-3"),
+                    ],
+                }],
+                2_000,
+            )
+            .unwrap_err();
+        assert!(
+            matches!(&error, CatalogError::Invalid { target_path, .. }
+                if target_path == "recipe.recipe-1.board.dom-1.difficulty.10"),
+            "expected the clash named, got {error:?}"
+        );
+        assert_eq!(
+            service.recipe_get(&recipe.id).unwrap().rev,
+            rev_before,
+            "a refused write changes nothing"
+        );
+
+        // Swapping one for the other is the whole point of the rule.
+        service
+            .recipe_set_membership(
+                &recipe.id,
+                recipe.teams.clone(),
+                vec![BoardDomain {
+                    domain_id: DomainId::from("dom-1"),
+                    question_ids: vec![QuestionId::from("q-3"), QuestionId::from("q-2")],
+                }],
+                3_000,
+            )
+            .unwrap();
+    });
+}
+
+#[test]
+fn a_difficulty_override_that_would_collide_is_refused_too() {
+    // The checkbox is not the only door into the board's difficulties: the
+    // inline override is the other one, and it does not go through
+    // `recipe_upsert`.
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed(&service);
+
+    let error = service
+        .recipe_set_overlay(
+            &recipe.id,
+            OverlayTarget::Question(
+                QuestionId::from("q-2"),
+                Some(QuestionOverlay {
+                    difficulty: Some(10),
+                    ..QuestionOverlay::default()
+                }),
+            ),
+            EditScope::ThisGame,
+            2_000,
+        )
+        .unwrap_err();
+    assert!(
+        matches!(&error, CatalogError::Invalid { target_path, .. }
+            if target_path == "recipe.recipe-1.board.dom-1.difficulty.10"),
+        "expected the clash named, got {error:?}"
+    );
+    assert!(
+        service
+            .recipe_get(&recipe.id)
+            .unwrap()
+            .overlays
+            .questions
+            .is_empty(),
+        "a refused overlay is not written"
+    );
+}
+
+#[test]
+fn applying_a_difficulty_to_the_original_is_refused_on_the_same_rule() {
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed(&service);
+
+    let error = service
+        .recipe_set_overlay(
+            &recipe.id,
+            OverlayTarget::Question(
+                QuestionId::from("q-2"),
+                Some(QuestionOverlay {
+                    difficulty: Some(10),
+                    ..QuestionOverlay::default()
+                }),
+            ),
+            EditScope::Original,
+            2_000,
+        )
+        .unwrap_err();
+    assert!(
+        matches!(&error, CatalogError::Invalid { target_path, .. }
+            if target_path == "recipe.recipe-1.board.dom-1.difficulty.10"),
+        "expected the clash named, got {error:?}"
+    );
+    let question = match service.catalog_get(CatalogKind::Question, "q-2").unwrap() {
+        questiongame_host::catalog::CatalogItem::Question(question) => *question,
+        other => panic!("expected a question, got {other:?}"),
+    };
+    assert_eq!(question.difficulty, 20, "the catalog row is untouched");
+}
+
+#[test]
+fn a_difficulty_override_on_a_question_the_board_does_not_hold_is_none_of_the_rules_business() {
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed_with_a_twin(&service);
+
+    // `q-3` is a member of the domain but is not on the board, so it may sit
+    // at `q-1`'s difficulty for as long as it likes.
+    service
+        .recipe_set_overlay(
+            &recipe.id,
+            OverlayTarget::Question(
+                QuestionId::from("q-3"),
+                Some(QuestionOverlay {
+                    difficulty: Some(10),
+                    ..QuestionOverlay::default()
+                }),
+            ),
+            EditScope::ThisGame,
+            2_000,
+        )
+        .unwrap();
+}
+
 #[test]
 fn a_catalog_edit_during_an_open_play_leaves_the_snapshot_byte_identical() {
     each_adapter("snapshot-frozen", |service| {

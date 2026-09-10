@@ -319,6 +319,31 @@ export function createFakeHost(): FakeHost {
     control = { ...control, audio: { ...control.audio, ...patch } }
   }
 
+  /**
+   * P11.13 — one question per difficulty, per board domain. The real host runs
+   * this inside `recipe_upsert` and `recipe_set_overlay`; a fake that never
+   * refuses is exactly the fake a shell passes against and the app rejects.
+   */
+  const checkBoardDifficulties = (recipe: Recipe, pending?: readonly [string, number]) => {
+    for (const board of recipe.board) {
+      const claimed = new Map<number, string>()
+      for (const qid of board.questionIds) {
+        const row = library.get(key('question', qid))
+        const catalogDifficulty =
+          pending && pending[0] === qid ? pending[1] : row?.kind === 'question' ? row.item.difficulty : undefined
+        const difficulty = recipe.overlays.questions[qid]?.difficulty ?? catalogDifficulty
+        if (difficulty === undefined) continue
+        if (claimed.has(difficulty)) {
+          refuse(
+            'catalog',
+            `recipe.${recipe.id}.board.${board.domainId}.difficulty.${difficulty}: two questions in this domain share a difficulty; a domain holds one question per difficulty`,
+          )
+        }
+        claimed.set(difficulty, qid)
+      }
+    }
+  }
+
   const bumpRecipe = (recipe: Recipe): Recipe => {
     const existing = recipes.get(recipe.id)
     const next = { ...stamp(recipe, existing), rev: (existing?.rev ?? 0) + 1 }
@@ -434,6 +459,7 @@ export function createFakeHost(): FakeHost {
     recipe_upsert: (a) => {
       const r = a.recipe as Recipe
       if (!r.name.trim()) refuse('catalog', `recipe.${r.id}.name: a recipe needs a name`)
+      checkBoardDifficulties(r)
       const next = bumpRecipe(r)
       return { id: next.id, rev: next.rev }
     },
@@ -461,7 +487,9 @@ export function createFakeHost(): FakeHost {
     recipe_set_membership: (a) => {
       const r = recipes.get(a.id as string)
       if (!r) refuse('catalog', `recipe ${a.id} not found`)
-      const next = bumpRecipe({ ...r, teams: a.teams as string[], board: a.board as Recipe['board'] })
+      const board = a.board as Recipe['board']
+      checkBoardDifficulties({ ...r, board })
+      const next = bumpRecipe({ ...r, teams: a.teams as string[], board })
       return { id: next.id, rev: next.rev }
     },
     recipe_set_settings: (a) => {
@@ -483,6 +511,23 @@ export function createFakeHost(): FakeHost {
       const bucket = `${target.target}s` as keyof Recipe['overlays']
       const overlays = { ...r.overlays, [bucket]: { ...r.overlays[bucket] } } as Recipe['overlays']
       const map = overlays[bucket] as Record<string, unknown>
+
+      // P11.13, before anything is written — a refused write changes nothing,
+      // and the `original` scope below would otherwise have already touched
+      // the catalog row by the time the board was found illegal.
+      if (target.target === 'question') {
+        const patch = target.patch as { difficulty?: number } | null
+        const questions = { ...overlays.questions } as Record<string, unknown>
+        if (a.scope === 'original' || patch === null) delete questions[target.id]
+        else questions[target.id] = patch
+        checkBoardDifficulties(
+          { ...r, overlays: { ...overlays, questions } as Recipe['overlays'] },
+          a.scope === 'original' && typeof patch?.difficulty === 'number'
+            ? [target.id, patch.difficulty]
+            : undefined,
+        )
+      }
+
       if (a.scope === 'original') {
         delete map[target.id]
         const row = library.get(key(target.target, target.id))

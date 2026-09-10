@@ -114,12 +114,28 @@ pub(super) fn build(
                 })
                 .collect::<CatalogResult<Vec<_>>>()?;
 
-            Ok(SnapshotDomain::new(
+            let snapshot_domain = SnapshotDomain::new(
                 board.domain_id.clone(),
                 pick(overlay.and_then(|o| o.name.clone()), &domain.name),
                 pick(overlay.and_then(|o| o.code.clone()), &domain.code),
                 questions,
-            ))
+            );
+            // P11.13. `recipe_upsert` refuses this board, so reaching here
+            // means a row written by an older build — the same second line
+            // `play_load` keeps for a snapshot's settings. Measured on the
+            // *snapshot* difficulty, which is the overlay-applied one.
+            if let Some(clash) = clash_in(&snapshot_domain) {
+                return Err(CatalogError::invalid(
+                    format!(
+                        "recipe.{}.board.{}.difficulty.{}",
+                        recipe.id,
+                        board.domain_id.as_str(),
+                        clash
+                    ),
+                    "two questions in this domain share a difficulty; a domain holds one question per difficulty",
+                ));
+            }
+            Ok(snapshot_domain)
         })
         .collect::<CatalogResult<Vec<_>>>()?;
 
@@ -130,6 +146,21 @@ pub(super) fn build(
         domains,
         settings,
     ))
+}
+
+/// The lowest difficulty this domain's queue holds twice, if it holds one.
+/// The whole rule lives in [`crate::board`]; this is only the adapter from a
+/// built queue to the `(id, difficulty)` pairs it reads.
+fn clash_in(domain: &SnapshotDomain) -> Option<u8> {
+    let pairs: Vec<_> = domain
+        .questions
+        .iter()
+        .map(|q| (q.id.clone(), q.difficulty))
+        .collect();
+    crate::board::clashes(&pairs)
+        .into_iter()
+        .next()
+        .map(|clash| clash.difficulty)
 }
 
 fn snapshot_question(question: &Question, recipe: &Recipe, id: &QuestionId) -> SnapshotQuestion {
@@ -321,6 +352,76 @@ mod tests {
         assert!(matches!(
             build(&recipe, &bodies, PlayId::from("play-1"), FrozenSettings::default()),
             Err(CatalogError::Invalid { target_path, .. }) if target_path == "recipe.recipe-1.board"
+        ));
+    }
+
+    #[test]
+    fn two_questions_at_one_difficulty_in_one_domain_stop_the_snapshot() {
+        // `recipe_upsert` refuses this board, so the only way to reach here is
+        // a row written by an older build (P11.13). It is caught before a
+        // Stage window is created for a show that would walk 10, 10, 30.
+        let (mut recipe, mut bodies) = fixture();
+        let twin = Question::new("q-2", "Another stem?", 40);
+        recipe.board[0].question_ids.push(twin.id.clone());
+        bodies.questions.insert(twin.id.clone(), twin);
+
+        let error = build(
+            &recipe,
+            &bodies,
+            PlayId::from("play-1"),
+            FrozenSettings::default(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "recipe.recipe-1.board.dom-1.difficulty.40: two questions in this domain share a difficulty; a domain holds one question per difficulty"
+        );
+    }
+
+    #[test]
+    fn the_same_difficulty_in_two_different_domains_is_fine() {
+        let (mut recipe, mut bodies) = fixture();
+        let twin = Question::new("q-2", "Another stem?", 40);
+        let other = Domain::new("dom-2", "History", "HIS_101");
+        recipe.board.push(BoardDomain {
+            domain_id: other.id.clone(),
+            question_ids: vec![twin.id.clone()],
+        });
+        bodies.questions.insert(twin.id.clone(), twin);
+        bodies.domains.insert(other.id.clone(), other);
+
+        assert!(
+            build(
+                &recipe,
+                &bodies,
+                PlayId::from("play-1"),
+                FrozenSettings::default(),
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn a_difficulty_overlay_is_what_the_clash_is_measured_on() {
+        // The catalog difficulties differ; the recipe's own overlay is what
+        // collides, which is exactly the case a check reading catalog rows
+        // would miss.
+        let (mut recipe, mut bodies) = fixture();
+        let twin = Question::new("q-2", "Another stem?", 70);
+        recipe.board[0].question_ids.push(twin.id.clone());
+        bodies.questions.insert(twin.id.clone(), twin);
+        recipe.overlays.questions.insert(
+            QuestionId::from("q-2"),
+            QuestionOverlay {
+                difficulty: Some(40),
+                ..QuestionOverlay::default()
+            },
+        );
+
+        assert!(matches!(
+            build(&recipe, &bodies, PlayId::from("play-1"), FrozenSettings::default()),
+            Err(CatalogError::Invalid { target_path, .. })
+                if target_path == "recipe.recipe-1.board.dom-1.difficulty.40"
         ));
     }
 

@@ -73,6 +73,8 @@ Expiry = per-Play consumption. Never a library delete. A resolved question does 
 
 A recipe may mix them. The Game tab **Shape manager** (floating dialog) manages these flags. It does not only display warnings. See §11.B4.
 
+These four freedoms are about *domains*. What a **board** may select from one is narrowed by §2.31: one question per difficulty. A domain's difficulty progression is therefore strictly increasing on the board, however many questions the library holds at each step.
+
 ### 2.3 Award — flat, difficulty, lock-speed both ways
 
 Modes: **flat**, **difficulty**, and **lock-speed exclusive**.
@@ -398,6 +400,19 @@ The seven named components from the design system — `Header`, `ResultWidget`, 
 #### The layers that only look like Stage
 
 **Viewer hit targets** and **Screens-canvas selection handles** render in the *Studio* webview under Studio tokens, on top of a copy of the Stage tree. They never enter the Stage tree (§5.7).
+
+### 2.31 One question per difficulty, per domain, on a board
+
+*(Decided 2026-09-10.)*
+
+**A recipe board selects at most one question at each difficulty within one domain.** The **library** is unconstrained: a domain may hold as many difficulty-10 history questions as the author cares to write, and §11.A never refuses one. The rule applies where a show is prepared — Game ▸ Board — and nowhere else.
+
+Why: teams choose a **domain**, never a question, and difficulty walks easy→hard inside it (§1, §5.3). Two questions at one difficulty are therefore two rungs of the walk that are the same rung — they pay the same (§2.3: the award is a pure function of difficulty, verdict, lock progress and streak, and never reads which question it was), they are indistinguishable to the team choosing, and the ladder §11.B draws has a step of zero in the middle of it.
+
+- The difficulty compared is the **effective** one — the recipe overlay if there is one, else the catalog's (§2.17, §4.3). A `ThisGame` override that would collide is refused; so is `Original`, which would collide by changing the catalog row underneath.
+- **Cross-domain is untouched.** History 10 and Science 10 are two different walks and stay legal.
+- **The rule is enforced on the write.** `recipe_upsert` refuses an illegal board and a refused write changes nothing. `build_snapshot` refuses to start a Play from one, because a board can become illegal from *outside* the recipe — the library does not veto an edit on a recipe's behalf (§11.A `referenced_by` exists for exactly that reason), so re-grading a question in Questions can collide a board that was legal when it was saved. The Rules preview says so before Load rather than leaving Load to be the first anyone hears of it.
+- **Studio disables the illegal sibling** with the reason on a still-visible control (§4.2). Adding a domain to a board ticks one question per difficulty, `difficulty ASC, id ASC`.
 
 ---
 

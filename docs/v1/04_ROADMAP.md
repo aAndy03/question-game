@@ -1450,6 +1450,78 @@ with the divergence marked.
 
 ---
 
+## P11.13 — One question per difficulty, per domain  ☑
+
+A board could select two difficulty-10 history questions, and nothing said
+otherwise. That is two rungs of the easy→hard walk that are the same rung:
+teams choose a **domain**, never a question, and the award is a pure function
+of `(difficulty, verdict, lock progress, streak)` — it never reads *which*
+question it was. So the two pay the same, they are indistinguishable to the
+team choosing, and `BoardShape`'s ladder has a step of zero in the middle of
+it. Locked as §2.31.
+
+**The library keeps its freedom.** A domain may hold as many questions at one
+difficulty as the author writes; §11.A refuses none of them. The rule lives
+where a show is *prepared* — Game ▸ Board — and the point of it is the swap:
+tick a question and its twins grey out with the reason, untick it and they
+come back.
+
+**One rule, one module.** `crates/host/src/board.rs` is pure and is the only
+place the rule is spelled; every enforcement point adapts its own data into
+`(id, effective difficulty)` pairs and calls it. `apps/studio/src/host/board.ts`
+does the same job for the Board section that `host/session.ts` does for the
+Action Panel — it spells the host's rule so the operator does not have to be
+refused in order to discover it.
+
+**Two doors, not one.** `recipe_upsert` is the funnel for the checkbox and for
+every other recipe write, but `recipe_set_overlay` writes overlays directly and
+bumps `rev` on its own — so the inline difficulty override is a second door,
+and a *reset* is one too, since it hands a question back its catalog
+difficulty. Both are checked on the recipe the write would produce, before
+anything is written.
+
+**A board can become illegal from outside.** Re-grading a question in the
+Questions tab can collide a board that was legal when it was saved, and the
+library deliberately does not veto an edit on a recipe's behalf — that is what
+`referenced_by` is for. `build_snapshot` is therefore the second line, refusing
+before a Stage window exists, and `PreviewWarning::DuplicateDifficulty` says it
+in Game ▸ Rules so Load is not the first anyone hears of it.
+
+**Exit criteria**
+
+- ☑ The rule is one pure function with its own tests, and every enforcement
+  point calls it rather than restating it (`board.rs`).
+- ☑ `recipe_set_membership` refuses a domain holding one difficulty twice, and
+  a refused write leaves `rev` where it was (`catalog_service.rs`).
+- ☑ A `ThisGame` difficulty override that would collide is refused and not
+  written; so is `Original`, and the catalog row is untouched
+  (`catalog_service.rs`).
+- ☑ The same override on a domain member that is **not** on the board is
+  accepted — the library is not the thing being constrained
+  (`catalog_service.rs`).
+- ☑ The same difficulty in two different domains stays legal
+  (`snapshot.rs`, `preview.rs`).
+- ☑ A clash is measured on the **effective** difficulty, so a recipe overlay
+  that collides is caught where a check reading catalog rows would miss it
+  (`snapshot.rs`).
+- ☑ A board written by an older build refuses the Play with the domain and the
+  difficulty in the `target_path`, and raises `DuplicateDifficulty` in the
+  Rules preview first (`snapshot.rs`, `preview.rs`).
+- ☑ Ticking one question disables its twins with the reason and leaves the
+  other difficulties alone; unticking frees them; a question already on the
+  board is never disabled (`BoardSection.test.tsx`).
+- ☑ Add domain ticks one question per difficulty, `difficulty ASC, id ASC`
+  (`board.test.ts`).
+- ☑ The fake host refuses what the app refuses, `Original` included
+  (`board.test.ts`).
+- ☑ Checked in a browser under `?fake`, which now seeds a second
+  difficulty-20 history question so the rule has something to show: the twin
+  is dimmed and disabled behind the one on the board, unticking the holder
+  frees it, and ticking the twin dims the holder in its place.
+- ☐ Checked in the built app against the operator's own library.
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.

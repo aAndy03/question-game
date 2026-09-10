@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Button, CheckboxField, IconButton, MeaningChip, Panel, SelectField, Text } from '@/atoms'
-import { BoardBalance, EmptyState, ScopeConfirm } from '@/molecules'
+import { BoardBalance, EmptyState, InlineNotice, ScopeConfirm } from '@/molecules'
 import { DOMAIN, GAME, QUESTION } from '@/copy'
+import { noticesAt, useNoticeStore } from '@/chrome/notices'
+import { blockedMembers, oneQuestionPerDifficulty } from '@/host/board'
 import { useHostCommand } from '@/host/commands'
 import { useCatalogList, useRulesPreview } from '@/host/queries'
 import { difficultyBand, type BoardDomain, type EditScope, type Recipe } from '@/host/types'
@@ -16,6 +18,15 @@ export interface BoardSectionProps {
  * Difficulty overrides are inline edits with `ScopeConfirm` (§2.17); the
  * snapshot re-sorts by difficulty at Play start, so the authored order shown
  * here is for the operator's eye only.
+ *
+ * **One question per difficulty, per domain** (P11.13). The library may hold
+ * as many difficulty-20 history questions as the author wrote — this is where
+ * the show picks one. A member whose difficulty another selected question has
+ * claimed is disabled with the reason rather than hidden (§4.2), so unticking
+ * the holder frees it again in the same breath. The rule itself is the host's:
+ * `recipe_upsert` refuses the board and `build_snapshot` refuses the Play;
+ * `host/board.ts` spells it here so the operator does not have to be refused
+ * in order to find out.
  */
 export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
   const preview = useRulesPreview(recipe.id, recipe.rev)
@@ -25,11 +36,17 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
   const [adding, setAdding] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [scopeFor, setScopeFor] = useState<{ questionId: string; difficulty: number } | null>(null)
+  const notices = useNoticeStore((s) => s.notices)
+  const dismiss = useNoticeStore((s) => s.dismiss)
 
   const domainById = new Map((domains.data ?? []).map((d) => [d.id, d]))
   const questionById = new Map((questions.data ?? []).map((q) => [q.id, q]))
   const onBoard = new Set(recipe.board.map((b) => b.domainId))
   const available = (domains.data ?? []).filter((d) => !onBoard.has(d.id))
+  /** Overlay if this recipe set one, else the catalog's — the §4.3 one-liner. */
+  const difficultyOf = (questionId: string) =>
+    recipe.overlays.questions[questionId]?.difficulty ?? questionById.get(questionId)?.difficulty ?? 0
+  const boardNotices = noticesAt(notices, `recipe.${recipe.id}.board`)
 
   const write = async (board: readonly BoardDomain[]) => {
     setPending(true)
@@ -37,8 +54,14 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
     setPending(false)
   }
   const addDomain = (id: string) => {
-    const d = domainById.get(id)
-    void write([...recipe.board, { domainId: id, questionIds: d ? d.questions.map((m) => m.questionId) : [] }])
+    // One per difficulty, `difficulty ASC, id ASC` — the order the snapshot
+    // queue walks, so a freshly added domain is already a playable ladder
+    // rather than a board the host would refuse (P11.13).
+    const members = (domainById.get(id)?.questions ?? []).map((m) => ({
+      questionId: m.questionId,
+      difficulty: difficultyOf(m.questionId),
+    }))
+    void write([...recipe.board, { domainId: id, questionIds: oneQuestionPerDifficulty(members) }])
   }
   const toggleQuestion = (domainId: string, questionId: string, on: boolean) =>
     void write(
@@ -74,6 +97,10 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
         </Text>
       </div>
 
+      {boardNotices.map((n) => (
+        <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} compact />
+      ))}
+
       {recipe.board.length === 0 ? <EmptyState kind="empty" what={DOMAIN.many} compact /> : null}
 
       {/*
@@ -87,6 +114,13 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
       {recipe.board.map((b) => {
         const d = domainById.get(b.domainId)
         const members = d ? d.questions.map((m) => m.questionId) : b.questionIds
+        const blocked = blockedMembers(
+          members.map((qid) => ({
+            questionId: qid,
+            difficulty: difficultyOf(qid),
+            selected: b.questionIds.includes(qid),
+          })),
+        )
         const overlay = recipe.overlays.domains[b.domainId]
         return (
           <div key={b.domainId} className="flex flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] p-3">
@@ -123,15 +157,20 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
                   const qOverlay = recipe.overlays.questions[qid]
                   const difficulty = qOverlay?.difficulty ?? q?.difficulty ?? 0
                   const band = difficultyBand(difficulty)
+                  const takenAt = blocked.get(qid)
                   return (
-                    <li key={qid} className="flex h-9 items-center gap-3 rounded px-1.5 hover:bg-[var(--surface-secondary)]">
+                    <li
+                      key={qid}
+                      data-blocked={takenAt === undefined ? undefined : ''}
+                      className="flex h-9 items-center gap-3 rounded px-1.5 hover:bg-[var(--surface-secondary)] data-[blocked]:opacity-40"
+                    >
                       <CheckboxField
                         label={q?.stem ?? qid}
                         hideLabel
                         isSelected={b.questionIds.includes(qid)}
                         onChange={(on) => toggleQuestion(b.domainId, qid, on)}
                         isDisabled={pending}
-                        disabledReason={frozenReason}
+                        disabledReason={frozenReason ?? (takenAt === undefined ? null : GAME.difficultyTaken(takenAt))}
                       />
                       <Text variant="studio-body" truncate className="min-w-0 flex-1">
                         {qOverlay?.stem ?? q?.stem ?? qid}

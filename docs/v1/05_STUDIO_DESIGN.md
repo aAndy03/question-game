@@ -298,7 +298,7 @@ someone remembers to add.
 | `TeamDetail` `QuestionDetail` `OperatorDetail` | one item Query, `referenced_by` | archive / restore | read view with `MetaList`, `StatCard`s, chips |
 | `RecipeEditor` | recipe, teams, domains, questions Queries | `recipe_upsert`, `recipe_set_membership`, `recipe_set_settings`, `recipe_set_overlay` | sections Roster · Board · Rules · Plays; frozen when that recipe's Play is `playing\|paused` (banner + all controls disabled with reason) |
 | `RosterSection` | recipe, teams | `recipe_set_membership` | order via HeroUI `ListBox` with up/down actions in P7; dnd-kit arrives with P8 |
-| `BoardSection` | recipe, domains, questions | `recipe_set_membership`, `recipe_set_overlay` (ScopeConfirm) | domain chips → question checklist; shape summary (a)(b)(c)(d) read-only in P7, Shape manager dialog is P8+ |
+| `BoardSection` | recipe, domains, questions | `recipe_set_membership`, `recipe_set_overlay` (ScopeConfirm) | domain chips → question checklist; `BoardBalance` reports the shape (P11.12); **one question per difficulty** — a member whose difficulty is taken is disabled with the reason (§15) |
 | `RulesSection` | recipe settings, `settings_get.disabled` | `recipe_set_settings` | `SettingRow`s; interlocks come from the host's `disabled` list, never recomputed |
 | `PlaysSection` | `play_list(recipeId)` | — | history table; read-only |
 | `DevHarness` | play-state, monitors | any command | **dev builds only** (`import.meta.env.DEV`); the P6 harness restyled, lives under Control until P8 replaces it |
@@ -1697,3 +1697,64 @@ the same question, not a second stats verb. `TurnFact` gained `streak` and
   already follows. They describe the demo recipe the fake seeds — History 20 /
   45 / 70 and Technology 15 / 60, deliberately ragged — so shell work can lay
   the panels out; they do not change when the settings do.
+
+---
+
+## 15. One question per difficulty, per domain (P11.13)
+
+The rule is `optimized_first_spec.md` §2.31 and it is the host's. This section
+is only what Studio does with it.
+
+### 15.1 Where the answer comes from
+
+`apps/studio/src/host/board.ts`, beside `host/ring.ts` and `host/session.ts` —
+the established pattern for *spelling a host rule so the operator meets it as a
+greyed control rather than as a refusal*. Two pure functions:
+
+```ts
+blockedMembers(members)            // questionId → the difficulty already taken
+oneQuestionPerDifficulty(members)  // difficulty ASC, id ASC — one id each
+```
+
+They read only the **effective** difficulty each row already shows
+(`recipe.overlays.questions[id]?.difficulty ?? catalog`), and they decide
+nothing about whether the rule applies — it always applies. Deriving the dim
+locally rather than from `rules_preview` is deliberate: the preview is a
+separate Query keyed on `rev`, so it lags a checkbox by a refetch, and the dim
+has to be instant to read as *dynamic*.
+
+### 15.2 What the operator sees
+
+- A member whose difficulty another **selected** question has claimed renders
+  at 40% with its checkbox disabled and `GAME.difficultyTaken(n)` as the
+  reason — visible, disabled, explained (§4.2). Not hidden: an operator who
+  cannot see the alternative cannot choose it.
+- **A selected member is never disabled.** A board written by an older build
+  can hold two at one difficulty, and disabling both would take away the very
+  checkbox needed to fix it.
+- **Add domain** ticks one question per difficulty rather than all of them, so
+  a freshly added domain is a playable ladder instead of a board the host would
+  refuse the moment it was written.
+- A host refusal at `recipe.<id>.board.…` renders as an `InlineNotice` at the
+  top of the section — `useHostCommand` already routes `<path>: <reason>`
+  there, the section just had nowhere to put it before.
+
+### 15.3 The fake refuses too
+
+`host/fake.ts` runs the same check in `recipe_upsert`, `recipe_set_membership`
+and `recipe_set_overlay` — including *before* the `Original` scope touches a
+catalog row, so a refused write changes nothing there as well. A shell that
+only stays legal because the fake never refuses is exactly the shell the app
+rejects.
+
+### 15.4 As built — departures worth knowing
+
+- **React Aria's listbox cannot be opened under jsdom.** Its selection utils
+  throw from a mount effect, so the Add-domain picker is not drivable from a
+  component test; the rule it applies is asserted in `board.test.ts` instead,
+  where it lives. The `Select` does render a real hidden `<select>` for form
+  submission, which is a usable seam for the *value* — but not for the popover.
+- **Two controls in this section share the name "Add domain"** — the select
+  trigger and the button — and an open React Aria popover marks the rest of the
+  tree `aria-hidden`, so a query for the button after opening it finds nothing.
+  Capture both before opening.

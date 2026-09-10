@@ -244,6 +244,12 @@ pub enum PreviewWarning {
     /// Every question on the board is the same difficulty, so a difficulty
     /// base is a flat base with extra steps.
     FlatBoard { difficulty: u8 },
+    /// One board domain selects two questions at the same difficulty (P11.13).
+    /// `recipe_upsert` refuses to write such a board, so this is a recipe
+    /// saved by an older build, or one whose questions were re-graded in the
+    /// library afterwards. The Play will not start until it is fixed, and
+    /// hearing that here is better than hearing it from Load.
+    DuplicateDifficulty { difficulty: u8, questions: u32 },
 }
 
 /// Everything the Rules preview draws.
@@ -732,6 +738,27 @@ fn warnings_for(
     shape: &BoardShape,
 ) -> Vec<PreviewWarning> {
     let mut out: Vec<PreviewWarning> = Vec::new();
+
+    // P11.13, and the most severe thing this function can say: a domain that
+    // selects two questions at one difficulty cannot start a Play at all.
+    // `recipe_upsert` refuses to write such a board, so reaching here means an
+    // older build's row, or a library re-grade that reached in from outside —
+    // and the operator should hear it before pressing Load, not from Load.
+    for domain in &board.domains {
+        let pairs: Vec<_> = domain
+            .questions
+            .iter()
+            .map(|q| (q.id.clone(), q.difficulty))
+            .collect();
+        if let Some(clash) = crate::board::clashes(&pairs).into_iter().next() {
+            out.push(PreviewWarning::DuplicateDifficulty {
+                difficulty: clash.difficulty,
+                questions: clash.question_ids.len() as u32,
+            });
+            break;
+        }
+    }
+
     let scoring = &game.scoring;
 
     // A per-question duration changes the denominator, so a one-second answer
@@ -872,6 +899,38 @@ mod tests {
         });
         let effects = flags.interlocks_for(game, false);
         build(game, board, globals_timer, effects)
+    }
+
+    #[test]
+    fn a_domain_holding_one_difficulty_twice_is_a_warning_naming_it() {
+        let board = PreviewBoard {
+            domains: vec![domain("d1", &[10, 10, 30])],
+        };
+        let p = preview(&game(), &board);
+        assert!(
+            p.warnings
+                .contains(&PreviewWarning::DuplicateDifficulty {
+                    difficulty: 10,
+                    questions: 2
+                }),
+            "got {:?}",
+            p.warnings
+        );
+    }
+
+    #[test]
+    fn the_same_difficulty_in_two_domains_is_not_a_duplicate() {
+        let board = PreviewBoard {
+            domains: vec![domain("d1", &[10, 20, 30]), domain("d2", &[10, 20, 30])],
+        };
+        let p = preview(&game(), &board);
+        assert!(
+            !p.warnings
+                .iter()
+                .any(|w| matches!(w, PreviewWarning::DuplicateDifficulty { .. })),
+            "got {:?}",
+            p.warnings
+        );
     }
 
     #[test]

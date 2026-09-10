@@ -238,13 +238,17 @@ export const GAME = {
   moveUp: 'Move up',
   moveDown: 'Move down',
   board: 'Board',
-  boardHint: 'Pick domains for this show, then the questions from each. Consumed questions never return in a Play.',
+  boardHint:
+    'Pick domains for this show, then the questions from each. One question per difficulty in each domain; consumed questions never return in a Play.',
   boardEmpty: 'No domains on the board yet.',
   addDomain: 'Add domain',
   removeDomain: 'Remove from board',
   questionsOn: (n: number, of: number) => `${n} of ${of} questions`,
   shape: 'Shape',
-  shapeHint: 'Shape enforcement and the Shape manager arrive with Control (P8).',
+  shapeHint:
+    'A domain can hold many questions at one difficulty — a game plays one of them. Untick the one on the board to free the others.',
+  difficultyTaken: (difficulty: number) =>
+    `Difficulty ${difficulty} is already taken by another question in this domain. Untick that one to use this.`,
   rules: 'Rules',
   rulesHint: 'Award, judging, cap and bonus, the timer. Frozen at Play start.',
   plays: 'Plays',
