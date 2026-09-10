@@ -1160,6 +1160,50 @@ and a per-tick `to_vec` measurement; the user-timing fold sampled.
 
 ---
 
+## P11.8 — A warning the app raised against itself  ☑
+
+The status-bar dot turned amber the moment a game was loaded into Control and
+stayed amber after unloading it, after closing the Stage window, until the app
+was restarted — while the notices panel it opened said *No notices yet*, and
+the audio played perfectly throughout.
+
+Three faults stacked. `howlerAudio` starts all eight cue preloads during
+render; `main.tsx` renders under `StrictMode`, so React mounts `useAudio`'s
+effect and immediately unmounts it, and the cleanup calls `unload()` on eight
+Howls still in flight. Howler delivers an aborted decode through the same
+`onloaderror` a genuinely missing file uses, so eight `audio_missing_cue`
+reports left Stage in one millisecond, every single open. `HealthState` had no
+way to withdraw one — `missing_cue` only ever added. And the notice they
+produced is addressed to `audio.cues`, which `surfaceOf` routes to `inline`,
+so it rendered in neither the collector nor the status-bar text while the dot,
+which reads the report's status directly, went amber over it.
+
+**Deliverables:** an epoch per cue in `howlerAudio` so a deliberately retired
+Howl cannot report; `audio_ok` from Stage and `HealthState::cue_ok` so a
+finding can be withdrawn; the collector's "needs attention elsewhere" line.
+
+**Exit criteria**
+
+- ☑ A `dispose()` that aborts all eight preloads reports nothing, and a cue
+  that genuinely fails still does (`audio/howler.test.ts`).
+- ☑ A changed cue map retires the old file silently.
+- ☑ A cue that loads after having been reported sends `audio_ok`; a healthy
+  open sends nothing at all.
+- ☑ `cue_ok` clears exactly its cue and returns the report to `ok`
+  (`host_wiring.rs`).
+- ☑ The collector names an inline finding and offers the way to it, groups
+  several by place, and still shows the empty state when there is nothing
+  (`NoticeCollector.test.tsx`).
+- ☐ Verified on the built app: load a game, and the dot stays green.
+
+**Left alone deliberately:** `audio_failed` — a playback fault, where the file
+is present and the browser refused to sound it — is still reported as
+`health.audio_missing_cue`. The remedy the operator is offered is the same;
+the wording is wrong, and it wants its own notice code rather than a wider
+change here.
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.

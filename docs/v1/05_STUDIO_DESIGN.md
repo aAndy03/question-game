@@ -1133,6 +1133,20 @@ family.
   *Retry* · *Open data folder* · `health.search_degraded` → *Rebuild index*
   (`catalog_rebuild_search`) · `health.stage_not_ready` → *Open Stage* ·
   `health.audio_missing_cue` → *Reinstall*.
+- **Every input needs a reverse (P11.8).** A finding that can only be added
+  latches: `missing_cue` had no partner, so one report from Stage held the dot
+  amber until the app restarted — through `play_unload`, through closing the
+  Stage window. Stage reports `audio_ok` when a cue it had reported loads after
+  all, and `cue_ok` withdraws it. There is deliberately no clear on
+  `play_unload`: a cue file that really is missing is still missing.
+- **An `inline` health item must still be findable (P11.8).** The dot reads
+  `report.status`; the collector renders only notices whose `surfaceOf` is
+  `collector`. `health.audio_missing_cue` carries `.at("audio.cues")`, so it
+  was `inline` and appeared in neither — the dot went amber over a panel
+  reading *No notices yet*. The collector now ends with a **"needs attention
+  elsewhere"** line, one row per place, each with *Show*. `inlineNotices` is
+  the selector and `CHROME.elsewhereAt` maps a `targetPath` to a place; add an
+  entry there whenever a new inline notice is introduced.
 - **Studio:** `bridge.tsx` subscribes to `health`, replaces the previous
   report's items in the notice store (health notices carry
   `detail.source = 'health'` and are replaced, never accumulated), and the

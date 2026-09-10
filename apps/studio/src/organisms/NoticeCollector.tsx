@@ -1,7 +1,7 @@
 import { AlertDialog, Drawer } from '@heroui/react'
 import { Button, Text } from '@/atoms'
 import { EmptyState, InlineNotice } from '@/molecules'
-import { surfaceOf, useNoticeStore, type OpenNotice } from '@/chrome/notices'
+import { inlineNotices, surfaceOf, useNoticeStore, type OpenNotice } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
 import { CHROME, CONFIRM, SCREENS_TAB, noticeAction, noticeTitle } from '@/copy'
 import { useHostCommand } from '@/host/commands'
@@ -83,8 +83,33 @@ export function NoticeCollector() {
     }
   }
 
+  /**
+   * Take the operator to where an inline notice actually renders. The notice
+   * is not dismissed — it belongs to the field, and the field is what clears
+   * it (or, for a health item, the host's next report).
+   */
+  const goTo = async (notice: OpenNotice) => {
+    const path = notice.targetPath ?? ''
+    setOpen(false)
+    const section = /^recipe\.([^.]+)\.(roster|board)$/.exec(path)
+    if (section?.[1] && (section[2] === 'roster' || section[2] === 'board')) {
+      await go({ tab: 'games', id: section[1], section: section[2] })
+      return
+    }
+    if (path.startsWith('stage.') || path.startsWith('stats.')) {
+      await go({ tab: 'settings', inner: 'monitors' })
+      return
+    }
+    await go({ tab: 'settings', inner: 'settings' })
+  }
+
   const collected = notices.filter((n) => surfaceOf(n) === 'collector')
   const blocking = notices.find((n) => surfaceOf(n) === 'dialog') ?? null
+  // Findings that render at a field. They are the reason the status dot can be
+  // amber over an empty collector, so the collector names them and offers the
+  // way there (P11.8).
+  const elsewhere = inlineNotices(notices)
+  const elsewhereGroups = [...new Map(elsewhere.map((n) => [placeOf(n), n])).entries()]
 
   // Neither overlay has a `<Drawer>` / `<AlertDialog>` root: a root exists to
   // wire a trigger, and a controlled overlay has none — it then mounts a
@@ -101,7 +126,7 @@ export function NoticeCollector() {
               <Drawer.Heading>{CHROME.notices}</Drawer.Heading>
             </Drawer.Header>
             <Drawer.Body>
-              {collected.length === 0 ? (
+              {collected.length === 0 && elsewhere.length === 0 ? (
                 <EmptyState kind="empty" what="notices" compact />
               ) : (
                 <div className="flex flex-col gap-3">
@@ -115,6 +140,26 @@ export function NoticeCollector() {
                       onCancelFrame={() => popFrame(n.id)}
                     />
                   ))}
+                  {elsewhere.length > 0 ? (
+                    <div
+                      className="flex flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] p-3"
+                      data-notices-elsewhere
+                    >
+                      <Text variant="studio-label" tone="muted">
+                        {CHROME.elsewhere(elsewhere.length)}
+                      </Text>
+                      {elsewhereGroups.map(([place, n]) => (
+                        <div key={place} className="flex items-center justify-between gap-2">
+                          <Text variant="studio-caption" tone="muted" truncate>
+                            {place}
+                          </Text>
+                          <Button size="sm" variant="tertiary" onPress={() => void goTo(n)}>
+                            {CHROME.elsewhereGo}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               )}
             </Drawer.Body>
@@ -172,4 +217,12 @@ export function NoticeCollector() {
       ) : null}
     </>
   )
+}
+
+/** Where an inline notice renders, for the collector's "elsewhere" line. */
+function placeOf(notice: OpenNotice): string {
+  const path = notice.targetPath ?? ''
+  const exact = CHROME.elsewhereAt[path as keyof typeof CHROME.elsewhereAt]
+  if (exact) return exact
+  return path.startsWith('recipe.') ? CHROME.elsewhereAt.recipe : path
 }

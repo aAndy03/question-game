@@ -139,6 +139,18 @@ export function latestForStatusBar(notices: readonly OpenNotice[]): OpenNotice |
   return notices.find((n) => surfaceOf(n) !== 'inline') ?? null
 }
 
+/**
+ * Notices that render at a field rather than in the collector.
+ *
+ * The status-bar dot reads the health report's status, not the notice list, so
+ * an inline health item turned the dot amber while the panel the operator
+ * clicked stayed empty (P11.8). The collector shows these as a "needs
+ * attention elsewhere" line so there is always a way to the finding.
+ */
+export function inlineNotices(notices: readonly OpenNotice[]): OpenNotice[] {
+  return notices.filter((n) => surfaceOf(n) === 'inline')
+}
+
 /** Notices addressed to a field or row, by path prefix. */
 export function noticesAt(notices: readonly OpenNotice[], path: string): OpenNotice[] {
   return notices.filter((n) => n.targetPath !== null && n.targetPath.startsWith(path))

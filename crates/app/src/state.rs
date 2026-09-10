@@ -294,6 +294,19 @@ impl HealthState {
         self.inputs.missing_cues.push((cue, file));
     }
 
+    /// Stage loaded a cue it had previously reported. **The finding goes
+    /// away.**
+    ///
+    /// Without this the input only ever grew: one report latched a warn for
+    /// the life of the process, so a fault that had already corrected itself
+    /// kept the status-bar dot orange through a `play_unload`, through closing
+    /// the Stage window, and until the app was restarted (P11.8). Health is
+    /// meant to be silent when there is nothing to say, which means every
+    /// input needs a way back.
+    pub fn cue_ok(&mut self, cue: CueKey) {
+        self.inputs.missing_cues.retain(|(k, _)| *k != cue);
+    }
+
     /// The current report, and whether it differs from the last one handed
     /// out — the tick emits only on a change, so an idle app is silent.
     pub fn report(

@@ -140,15 +140,28 @@ pub fn stage_report(
 ) -> AppResult<()> {
     guard::allow(window.label(), "stage_report")?;
     let detail = detail.unwrap_or_default();
-    if code == "audio_missing_cue" || code == "audio_failed" {
-        let cue = detail.get("cue").and_then(|c| {
-            questiongame_host::CueKey::ALL
-                .into_iter()
-                .find(|k| k.as_str() == c)
-        });
-        if let Some(cue) = cue {
-            let file = detail.get("file").cloned().unwrap_or_default();
-            state.lock().health.missing_cue(cue, file);
+    let cue = detail.get("cue").and_then(|c| {
+        questiongame_host::CueKey::ALL
+            .into_iter()
+            .find(|k| k.as_str() == c)
+    });
+    if let Some(cue) = cue {
+        match code.as_str() {
+            "audio_missing_cue" => {
+                let file = detail.get("file").cloned().unwrap_or_default();
+                state.lock().health.missing_cue(cue, file);
+            }
+            // A playback fault. Still reported as a cue finding: the operator's
+            // remedy is the same and there is only one cue notice. That it
+            // reads as "missing" when the file is present is a wording bug,
+            // left alone here rather than widened into a new notice code.
+            "audio_failed" => {
+                let file = detail.get("file").cloned().unwrap_or_default();
+                state.lock().health.missing_cue(cue, file);
+            }
+            // It loaded after all. Every input needs a way back.
+            "audio_ok" => state.lock().health.cue_ok(cue),
+            _ => {}
         }
     }
     crate::tick::health_once(&app);

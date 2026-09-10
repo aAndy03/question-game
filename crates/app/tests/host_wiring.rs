@@ -17,7 +17,8 @@ use questiongame_host::catalog::{
     ArchiveScope, BoardDomain, CatalogLocation, CatalogService, Domain, DomainMember, Question,
     QuestionOption, Recipe, Team,
 };
-use questiongame_host::flags::{GameSetting, GameSettings, GlobalSetting};
+use questiongame_host::flags::{CueKey, GameSetting, GameSettings, GlobalSetting};
+use questiongame_host::health::HealthStatus;
 use questiongame_host::stage::StageScreen;
 use questiongame_host::{
     DomainId, MonitorInfo, MonitorKey, OptionId, PlayId, PlayStatus, QuestionId, RecipeId,
@@ -497,4 +498,52 @@ fn a_restart_empties_the_overlay_queue_and_persists_both_plays() {
     // because losing it to a crash three seconds later is losing a whole show.
     let plays = host.catalog.play_list(Some(&recipe)).unwrap();
     assert_eq!(plays.len(), 2);
+}
+
+/// P11.8: a cue finding has a way back.
+///
+/// `missing_cue` used to be the only writer of `missing_cues`, and it only
+/// ever added — so one report from Stage latched a health warning for the life
+/// of the process. It survived `play_unload`, it survived closing the Stage
+/// window, and the only way out was restarting the app. Health is meant to be
+/// silent when there is nothing to say, which means every input needs a
+/// reverse.
+#[test]
+fn a_cue_that_loads_after_all_clears_its_finding() {
+    let mut host = booted();
+    assert_eq!(
+        host.health.report(false, None).0.status,
+        HealthStatus::Ok,
+        "a quiet app says nothing"
+    );
+
+    host.health
+        .missing_cue(CueKey::Lock, "lock.wav".to_owned());
+    let (warned, _) = host.health.report(false, None);
+    assert_eq!(warned.status, HealthStatus::Warn);
+    assert_eq!(warned.items.len(), 1);
+    assert_eq!(warned.items[0].code, "health.audio_missing_cue");
+
+    host.health.cue_ok(CueKey::Lock);
+    let (cleared, changed) = host.health.report(false, None);
+    assert_eq!(cleared.status, HealthStatus::Ok, "the dot goes quiet again");
+    assert!(cleared.items.is_empty());
+    assert!(changed, "and the webviews are told");
+}
+
+/// One entry per key either way: a cue reported twice is one finding, and
+/// clearing it clears exactly it.
+#[test]
+fn cue_findings_are_keyed_by_cue() {
+    let mut host = booted();
+    host.health.missing_cue(CueKey::Lock, "lock.wav".to_owned());
+    host.health.missing_cue(CueKey::Lock, "lock.wav".to_owned());
+    host.health
+        .missing_cue(CueKey::Correct, "correct.wav".to_owned());
+    assert_eq!(host.health.report(false, None).0.items.len(), 2);
+
+    host.health.cue_ok(CueKey::Lock);
+    let items = host.health.report(false, None).0.items;
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].detail["cue"], "correct");
 }

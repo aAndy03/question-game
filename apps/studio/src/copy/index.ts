@@ -63,6 +63,21 @@ export const CHROME = {
   notices: 'Notices',
   openCollector: 'Open notices',
   noNotices: 'No notices',
+  /**
+   * The collector's line for notices that are addressed to a field and render
+   * there instead (`surfaceOf` → `inline`). Without it the status dot could go
+   * amber over a finding the operator had no way to reach: the dot reads the
+   * health status, the collector renders only `collector` notices, and an
+   * inline health item appeared in neither (P11.8).
+   */
+  elsewhere: (n: number) => (n === 1 ? '1 item needs attention elsewhere' : `${n} items need attention elsewhere`),
+  elsewhereGo: 'Show',
+  /** Where an inline notice's `targetPath` lives, for that line. */
+  elsewhereAt: {
+    'audio.cues': 'Settings ▸ Audio',
+    'stage.monitor_id': 'Settings ▸ Monitors',
+    recipe: 'Games',
+  } as const,
   timer: 'Timer',
   dirty: 'Unsaved changes',
 } as const
