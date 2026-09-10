@@ -1025,6 +1025,70 @@ pill, which is harmless with the buffer swept but is where the next
 
 ---
 
+## P11.5 — The performance log  ☑
+
+P11.4 was found with a harness bolted on from outside. This is the same
+measurement built in, so the next question of that kind is answered by
+reading a file rather than by writing a probe: **one JSON line per second**,
+what the machine saw, what the host did, what each webview did, and — on a
+second that was abnormal — what explains it. Written for two readers: a
+developer with `jq`, and an agent handed the file.
+
+**Where and when**
+
+`<app data>/perf/perf-<UTC stamp>-<pid>.jsonl`, one file per run, the ten
+newest kept (`perf::prune` at boot). Dev builds write it by default; a release
+build only with `QUESTIONGAME_PERF=1`, and `QUESTIONGAME_PERF=0` turns it off
+in either. `questiongame.log` names the path at boot (`perf log path=…`).
+
+**The line**
+
+| key | from | what |
+| --- | --- | --- |
+| `t`, `sec` | writer | UTC time; seconds since the file opened |
+| `os` | `sysinfo` | every process in our tree — `host`, and each WebView2 child by its `--type=` (`renderer`, `gpu-process`, `utility`, `browser`) — with CPU % of one core and working set; totals; the size of the database, its WAL, the log and this file, and free space |
+| `host` | the `tracing` layer | per command: count, lock time held (sum and max); refused commands; `play-state` emissions and their bytes; appends that reached `play_persist` and the fsync time; show-loop ticks |
+| `main`, `stage`, `stats` | `perf_report` | heap, live DOM elements, React commits (Studio), user-timing entries swept, long tasks and the longest; Studio adds the route, the Play (id, status, Control phase, screen); Stage adds the screen, the overlay on air, whether a transition or overlay timeline is running, and the decor body count. A webview that stopped reporting is a missing key |
+| `spike` | writer | only when the second crossed a threshold: `trigger` (working set +20 MB, any process ≥ 25 % CPU, one command ≥ 100 ms of lock, ≥ 60 commits, a task ≥ 100 ms), the five commands with the longest lock, and each webview's `top` — the five components with the most render time and the five longest tasks with their first script |
+
+The detail is collected every second and written only on a spike, so a quiet
+minute is sixty short lines and a bad second explains itself.
+
+**How attribution works without touching the commands**
+
+Every command already passes `guard::allow`, every lock is a `HostGuard`,
+every append goes through `Host::write`, every emission through
+`emit::play_state`. Each now emits one `tracing::trace!(target: "perf", …)`
+event; `perf::PerfLayer` sees only that target and adds it to the current
+second, and the two text sinks never print it. The guard also remembers the
+command on the thread it is running on, so the guard drop can say whose lock
+time it was; the show loop names itself `tick`. Nothing here takes the host
+lock, and the writer runs on the tokio runtime beside the other watches.
+
+The components come from the same `performance.measure` entries that were the
+P11.4 leak: the sweep hands them to the accumulator before clearing them, so
+React's own render attribution costs nothing extra.
+
+| | |
+| --- | --- |
+| `crates/app/src/perf/` | `line` (shape, spike decision — pure), `layer` (the tracing layer), `os` (`sysinfo`), `mod` (writer, prune, the `perf_report` inbox, the enable switch) |
+| `perf_report` | a new §13 command, in `STAGE_COMMANDS` and `STATS_COMMANDS` like `client_log` |
+| `apps/studio/src/chrome/perf.ts` · `apps/stage/src/perf.ts` | the accumulator, the `PerformanceObserver`, the second's post |
+| removed | `memory.rs` and the 30-second memory lines of P11.4, which this supersedes |
+
+**Exit criteria**
+
+- ☑ `line::build`, the layer's fold and reset, the prune, the file name and
+  the report inbox are unit-tested with literals; the OS sampler's test
+  finds the test process itself.
+- ☑ The webview accumulators are tested against fake entries: top-five by
+  render time, the longest task, reset on take.
+- ☑ Verified on the built app: the file appears at boot with `os` and `host`
+  on every line, `main` and `stage` once the webviews are up, and a spike
+  with `trigger` and `top` on the second a Play loads.
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.

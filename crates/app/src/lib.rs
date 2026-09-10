@@ -12,7 +12,7 @@
 //! windows       the two webviews, and where the Stage one stands
 //! monitors      the real end of the monitor seam
 //! tick          the 100ms show loop and the monitor watch
-//! memory        what the process and its webviews weigh, for the log
+//! perf          the per-second performance log: OS, host and webview layers
 //! decor         `StageDecorSettings` out of the recipe's layout document
 //! error         what a refused command looks like on the wire
 //! ```
@@ -27,8 +27,8 @@ pub mod decor;
 pub mod emit;
 pub mod error;
 pub mod guard;
-pub mod memory;
 pub mod monitors;
+pub mod perf;
 pub mod state;
 pub mod tick;
 pub mod windows;
@@ -63,7 +63,16 @@ pub fn run() {
             // the app-data directory and only Tauri can resolve it. Everything
             // worth reading — the library open, every command, every refusal —
             // happens after this line.
-            tracing_logging(crate::state::user_data_dir(&handle).ok().as_deref());
+            // The perf layer is installed with the subscriber, so its counters
+            // exist before the first command; the writer starts last, once
+            // the data directory is known to be ours.
+            let perf_state = perf::PerfState::default();
+            let perf_layer = perf::PerfLayer::new(perf_state.counters.clone());
+            app.manage(perf_state);
+            tracing_logging(
+                crate::state::user_data_dir(&handle).ok().as_deref(),
+                perf_layer,
+            );
             // `setup` runs on the event loop, so this is where that thread is
             // identified — everything after it may be asserted against.
             crate::state::mark_main_thread();
@@ -78,7 +87,10 @@ pub fn run() {
             // The first health report is the watch's own first tick: computing
             // it here would take the host lock on the event-loop thread, which
             // is the one thing that must never happen (`AppState::lock`).
-            tick::spawn(handle);
+            tick::spawn(handle.clone());
+            // The performance log, one line a second (`perf`). Dev builds by
+            // default; it takes no lock and cannot delay a command.
+            perf::spawn(handle.clone(), crate::state::user_data_dir(&handle).ok());
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -114,14 +126,25 @@ pub const LOG_FILE: &str = "questiongame.log";
 /// boot writes a banner with its pid instead, so runs interleave and none is
 /// lost. `wipe_logs` is not a feature; delete the file between runs if it gets
 /// long.
-fn tracing_logging(dir: Option<&std::path::Path>) {
+///
+/// The third layer is the performance log's (`perf::PerfLayer`): it sees only
+/// `target: "perf"` events and folds them into the current second. The two
+/// text sinks never print those — their filters name the crates, not that
+/// target — so attribution costs the log file nothing.
+fn tracing_logging(dir: Option<&std::path::Path>, perf_layer: perf::PerfLayer) {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
     use tracing_subscriber::{EnvFilter, Layer, fmt};
 
     let console = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("questiongame_host=info,questiongame_app=info,warn"));
-    let registry = tracing_subscriber::registry().with(fmt::layer().with_filter(console));
+    // Per-layer filter, not `Layer::enabled`: a layer's `enabled` decides for
+    // the whole subscriber, and one that says no to everything but `perf`
+    // silences the log file.
+    let perf_only = tracing_subscriber::filter::filter_fn(|m| m.target() == perf::TARGET);
+    let registry = tracing_subscriber::registry()
+        .with(perf_layer.with_filter(perf_only))
+        .with(fmt::layer().with_filter(console));
 
     let file = dir.and_then(|dir| {
         std::fs::create_dir_all(dir).ok()?;
@@ -233,6 +256,7 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::flags::uninstall_data,
         commands::flags::health_get,
         commands::flags::client_log,
+        commands::flags::perf_report,
         // Statistics — read-only (§11.K)
         commands::stats::stats_query,
         commands::stats::stats_window,

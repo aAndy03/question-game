@@ -13,9 +13,10 @@
  *    `Profiler`; a page that commits hundreds of times a second is not
  *    rendering, it is spinning, and the watchdog says so once with the route
  *    that was on screen and the heap it had grown to.
- * 3. **What the webview weighs, every thirty seconds** — JS heap, live DOM
- *    elements, commits and user-timing entries since the last line, with the
- *    rates per minute. A leak is a rate that never comes down, and a rate is
+ * 3. **Its second, for the performance log** (`perf.ts`, P11.5) — heap, live
+ *    DOM, commits, the components that rendered, long tasks, and what was on
+ *    screen, posted once a second to become the `main` key on the host's
+ *    per-second line. A leak is a rate that never comes down, and a rate is
  *    what a log can show that a screenshot of Task Manager cannot.
  *
  * One thing here *does* change what the page holds: the user-timing sweep.
@@ -34,6 +35,7 @@
  */
 
 import { command, hasHost } from '@/host/host'
+import { second, startPerfReporting } from './perf'
 
 /** Commits per second above which a page is spinning rather than rendering. */
 const LOOP_COMMITS_PER_SECOND = 120
@@ -47,8 +49,6 @@ const SEEN_LIMIT = 200
  * transient entries; clearing is O(n) and nothing waits on it.
  */
 export const USER_TIMING_SWEEP_MS = 2_000
-/** How often a webview writes its memory line. Matches the host's health watch. */
-export const MEMORY_LINE_EVERY_MS = 30_000
 
 type Level = 'error' | 'warn' | 'debug'
 
@@ -80,19 +80,26 @@ function internals(): TauriInternals | null {
  * stays the path for everything that is not this file.
  */
 function send(level: Level, message: string, detail?: string): void {
+  postCommand('client_log', { level, message: message.slice(0, 2000), detail: detail?.slice(0, 2000) ?? null })
+}
+
+/**
+ * Post a diagnostic command now, on this stack. `client_log` and
+ * `perf_report` both go through here; neither may throw, and neither waits.
+ */
+export function postCommand(name: 'client_log' | 'perf_report', args: Record<string, unknown>): void {
   if (!hasHost()) return
-  const args = { level, message: message.slice(0, 2000), detail: detail?.slice(0, 2000) ?? null }
   // The log is a courtesy; it must never be able to break the thing it watches.
   try {
     const direct = internals()
     if (direct) {
-      void direct.invoke('client_log', args).catch(() => {})
+      void direct.invoke(name, args).catch(() => {})
       return
     }
   } catch {
     // fall through to the transport
   }
-  void command('client_log', args).catch(() => {})
+  void command(name, args).catch(() => {})
 }
 
 /** Once per distinct message, so a loop reports once rather than forever. */
@@ -130,10 +137,17 @@ function heapMb(): number | null {
 /** The part of `Performance` the sweep needs; a test hands in Node's. */
 export type UserTimingBuffer = Pick<Performance, 'getEntriesByType' | 'clearMeasures' | 'clearMarks'>
 
-/** Empty the user-timing buffer. Returns how many entries it held. */
-export function sweepUserTiming(perf: UserTimingBuffer): number {
-  const held = perf.getEntriesByType('measure').length + perf.getEntriesByType('mark').length
+/**
+ * Empty the user-timing buffer. Returns how many entries it held; `inspect`
+ * sees the entries first, which is how the performance log learns which
+ * components React measured (`perf.ts`) before they are gone.
+ */
+export function sweepUserTiming(perf: UserTimingBuffer, inspect?: (entries: readonly PerformanceEntry[]) => void): number {
+  const measures = perf.getEntriesByType('measure')
+  const marks = perf.getEntriesByType('mark')
+  const held = measures.length + marks.length
   if (held > 0) {
+    inspect?.([...measures, ...marks])
     perf.clearMeasures()
     perf.clearMarks()
   }
@@ -141,88 +155,22 @@ export function sweepUserTiming(perf: UserTimingBuffer): number {
 }
 
 /**
- * Sweep on an interval for as long as the page lives. `onSwept` receives the
- * count each time so the memory line can carry the rate. Returns a stop.
+ * Sweep on an interval for as long as the page lives. `onSwept` receives what
+ * each sweep removed. Returns a stop.
  */
 export function startUserTimingSweep(
   perf: UserTimingBuffer,
   everyMs: number = USER_TIMING_SWEEP_MS,
-  onSwept: (count: number) => void = () => {},
+  onSwept: (entries: readonly PerformanceEntry[]) => void = () => {},
 ): () => void {
   const id = setInterval(() => {
     try {
-      onSwept(sweepUserTiming(perf))
+      sweepUserTiming(perf, onSwept)
     } catch {
       // The buffer is a courtesy; a browser without it is not an error.
     }
   }, everyMs)
   return () => clearInterval(id)
-}
-
-// ------------------------------------------------------------ memory line
-
-export interface MemorySample {
-  readonly atMs: number
-  readonly heapMb: number | null
-  readonly heapTotalMb: number | null
-  /** Live elements in this document. Detached ones are the heap's to count. */
-  readonly domEls: number
-  /** User-timing entries swept since the previous sample. */
-  readonly userTimingSwept: number
-  /** React commits of the routed page since the previous sample. */
-  readonly commits: number
-}
-
-/**
- * One line, absolute numbers first, then the rates against the previous
- * sample. The rates are the point: a heap that is 40 MB is fine, a heap that
- * gains 10 MB a minute while nothing happens is the bug.
- */
-export function formatMemoryLine(next: MemorySample, prev: MemorySample | null): string {
-  const parts = [
-    `heapMb=${next.heapMb ?? 'n/a'}`,
-    `heapTotalMb=${next.heapTotalMb ?? 'n/a'}`,
-    `domEls=${next.domEls}`,
-    `userTimingSwept=${next.userTimingSwept}`,
-    `commits=${next.commits}`,
-  ]
-  if (prev && next.atMs > prev.atMs) {
-    const minutes = (next.atMs - prev.atMs) / 60_000
-    const signed = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}`
-    if (next.heapMb !== null && prev.heapMb !== null) {
-      const delta = next.heapMb - prev.heapMb
-      parts.push(`heapDeltaMb=${signed(delta)}`, `heapMbPerMin=${signed(delta / minutes)}`)
-    }
-    parts.push(
-      `userTimingPerMin=${Math.round(next.userTimingSwept / minutes)}`,
-      `commitsPerMin=${Math.round(next.commits / minutes)}`,
-    )
-  }
-  return parts.join(' ')
-}
-
-// Running totals; each memory line reports the difference since the last one.
-let userTimingSweptTotal = 0
-let commitsTotal = 0
-let reportedSwept = 0
-let reportedCommits = 0
-let lastSample: MemorySample | null = null
-
-function reportMemory(): void {
-  const perf = performance as Performance & { memory?: { totalJSHeapSize: number } }
-  const total = perf.memory?.totalJSHeapSize
-  const next: MemorySample = {
-    atMs: Date.now(),
-    heapMb: heapMb(),
-    heapTotalMb: total === undefined ? null : Math.round(total / 1_048_576),
-    domEls: document.getElementsByTagName('*').length,
-    userTimingSwept: userTimingSweptTotal - reportedSwept,
-    commits: commitsTotal - reportedCommits,
-  }
-  reportedSwept = userTimingSweptTotal
-  reportedCommits = commitsTotal
-  send('debug', 'memory', formatMemoryLine(next, lastSample))
-  lastSample = next
 }
 
 /**
@@ -240,7 +188,7 @@ export function onPageCommit(): void {
     commits = 0
   }
   commits += 1
-  commitsTotal += 1
+  second.commit()
   if (commits !== LOOP_COMMITS_PER_SECOND) return
   const at = Date.now()
   if (at - lastReport < REPORT_EVERY_MS) return
@@ -283,7 +231,7 @@ let currentRoute = 'unknown'
 export function setDiagnosticRoute(route: string): void {
   currentRoute = route
 }
-function routeLabel(): string {
+export function routeLabel(): string {
   return currentRoute
 }
 
@@ -310,10 +258,11 @@ export function installDiagnostics(): void {
 
   // The sweep runs whether or not there is a host: the buffer grows in a plain
   // browser too, and a `?fake` session is where a shell change gets measured.
-  startUserTimingSweep(performance, USER_TIMING_SWEEP_MS, (n) => {
-    userTimingSweptTotal += n
-  })
-  setInterval(reportMemory, MEMORY_LINE_EVERY_MS)
+  // What it removes is the performance log's view of which components
+  // rendered, so the accumulator sees the entries first.
+  startUserTimingSweep(performance, USER_TIMING_SWEEP_MS, (entries) => second.swept(entries))
+  // The second, posted every second (`perf.ts`); quiet without a host.
+  startPerfReporting()
 
   // One line, so the log shows the webview's own boot on the host's timeline —
   // and so "nothing from Studio" can be told apart from "Studio never started".

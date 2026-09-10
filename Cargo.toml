@@ -47,3 +47,7 @@ rand_core = { version = "0.6", features = ["getrandom"] }
 # P10. Free space on the user-data volume, for `health.disk_low`. Only the app
 # crate names it: the host takes the number as an input (§12.6).
 fs4 = { version = "0.13", default-features = false, features = ["sync"] }
+# P11.5. The per-second performance log (`crates/app/src/perf`): CPU and
+# memory of the host process and every WebView2 child, from one crate on both
+# platforms. Replaced the hand-rolled Win32 sampler of P11.4.
+sysinfo = { version = "0.38", default-features = false, features = ["system"] }

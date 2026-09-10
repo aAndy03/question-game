@@ -50,6 +50,16 @@ pub fn play_state(app: &AppHandle, host: &mut Host, now_ms: u64, force: bool) ->
     // store means "no Play" by `null`, and Control's panels read it that way.
     let full = host.main_state(now_ms);
     let _ = app.emit_to(MAIN, "play-state", &full);
+    // The performance log counts emissions and their size. The size costs a
+    // second serialization, so it is measured only when the log is on; the
+    // count is free.
+    let bytes = if crate::perf::enabled_cached() {
+        serde_json::to_vec(&stage).map_or(0, |v| v.len()) as u64
+            + serde_json::to_vec(&full).map_or(0, |v| v.len()) as u64 * 2
+    } else {
+        0
+    };
+    tracing::trace!(target: crate::perf::TARGET, kind = "emit", bytes);
     // Statistics draws the Live view from the same shape Studio's own window
     // reads. It cannot write it (`guard::STATS_COMMANDS`).
     let _ = app.emit_to(STATS, "play-state", &full);

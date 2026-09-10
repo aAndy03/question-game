@@ -42,24 +42,6 @@ pub fn spawn(app: AppHandle) {
     spawn_show_loop(app.clone());
     spawn_monitor_watch(app.clone());
     spawn_health_watch(app);
-    spawn_memory_watch();
-}
-
-/// The memory line (`memory.rs`): the host process and its WebView2 tree,
-/// every thirty seconds, with the rate since the last line. It takes no lock
-/// and touches no window — it reads the OS and writes the log.
-fn spawn_memory_watch() {
-    async_runtime::spawn(async move {
-        let mut ticker = tokio::time::interval(HEALTH_POLL);
-        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        let mut watch = crate::memory::Watch::default();
-        loop {
-            ticker.tick().await;
-            let rows = crate::memory::sample();
-            let line = watch.line(&rows, std::time::Instant::now());
-            tracing::debug!("memory {line}");
-        }
-    });
 }
 
 /// Compute the health report now and emit it if it changed. Called at boot,
@@ -70,6 +52,7 @@ pub fn health_once(app: &AppHandle) {
         .ok()
         .and_then(|dir| fs4::available_space(&dir).ok());
     let stage_exists = tauri::Manager::get_webview_window(app, crate::guard::STAGE).is_some();
+    crate::perf::set_current("health");
     let mut host = state.lock();
     let (report, changed) = host.health.report(stage_exists, free);
     if changed {
@@ -99,6 +82,9 @@ fn spawn_show_loop(app: AppHandle) {
             ticker.tick().await;
             let now = now_ms();
             let state: tauri::State<'_, AppState> = tauri::Manager::state(&app);
+            // The perf log attributes the lock it is about to take to "tick".
+            crate::perf::set_current("tick");
+            tracing::trace!(target: crate::perf::TARGET, kind = "tick");
             let mut host = state.lock();
             if host.play.get_state().is_none() {
                 continue;
@@ -128,6 +114,7 @@ fn spawn_monitor_watch(app: AppHandle) {
             // with the lock free, because everything it does to a window pumps
             // the message loop and can re-enter a synchronous command that
             // wants this very lock.
+            crate::perf::set_current("monitors");
             if state.lock().display.monitors() == list.as_slice() {
                 continue;
             }

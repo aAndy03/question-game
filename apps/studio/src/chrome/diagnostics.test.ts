@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { formatMemoryLine, startUserTimingSweep, sweepUserTiming, type MemorySample, type UserTimingBuffer } from './diagnostics'
+import { startUserTimingSweep, sweepUserTiming, type UserTimingBuffer } from './diagnostics'
 
 /**
  * jsdom's `performance` has no user-timing buffer, so this is the one the
@@ -21,22 +21,25 @@ function fakeBuffer(): UserTimingBuffer & { measure(name: string): void; mark(na
 }
 
 describe('sweepUserTiming', () => {
-  it('empties the user-timing buffer and reports how many entries it held', () => {
+  it('shows the entries to the inspector, then empties the buffer', () => {
     const perf = fakeBuffer()
     perf.mark('a')
     perf.measure('m1')
     perf.measure('m2')
     perf.measure('m3')
-    expect(perf.getEntriesByType('measure')).toHaveLength(3)
+    const seen: string[] = []
 
-    expect(sweepUserTiming(perf)).toBe(4)
+    expect(sweepUserTiming(perf, (entries) => seen.push(...entries.map((e) => e.name)))).toBe(4)
 
+    expect(seen.sort()).toEqual(['a', 'm1', 'm2', 'm3'])
     expect(perf.getEntriesByType('measure')).toHaveLength(0)
     expect(perf.getEntriesByType('mark')).toHaveLength(0)
   })
 
-  it('reports zero on an empty buffer', () => {
-    expect(sweepUserTiming(fakeBuffer())).toBe(0)
+  it('reports zero on an empty buffer and does not call the inspector', () => {
+    const inspect = vi.fn()
+    expect(sweepUserTiming(fakeBuffer(), inspect)).toBe(0)
+    expect(inspect).not.toHaveBeenCalled()
   })
 })
 
@@ -51,7 +54,7 @@ describe('startUserTimingSweep', () => {
   it('keeps the buffer bounded on an interval and stops when asked', () => {
     const perf = fakeBuffer()
     const swept: number[] = []
-    const stop = startUserTimingSweep(perf, 1000, (n) => swept.push(n))
+    const stop = startUserTimingSweep(perf, 1000, (entries) => swept.push(entries.length))
     perf.measure('render')
     perf.measure('render')
     vi.advanceTimersByTime(1000)
@@ -63,32 +66,5 @@ describe('startUserTimingSweep', () => {
     vi.advanceTimersByTime(5000)
     expect(perf.getEntriesByType('measure')).toHaveLength(1)
     expect(swept).toEqual([2])
-  })
-})
-
-describe('formatMemoryLine', () => {
-  const at = (atMs: number, heapMb: number, swept: number, commits: number): MemorySample => ({
-    atMs,
-    heapMb,
-    heapTotalMb: heapMb + 10,
-    domEls: 500,
-    userTimingSwept: swept,
-    commits,
-  })
-
-  it('carries the absolute numbers and the rates since the previous sample', () => {
-    const line = formatMemoryLine(at(60_000, 40, 6000, 600), at(0, 30, 0, 0))
-    expect(line).toContain('heapMb=40')
-    expect(line).toContain('heapDeltaMb=+10.0')
-    expect(line).toContain('heapMbPerMin=+10.0')
-    expect(line).toContain('domEls=500')
-    expect(line).toContain('userTimingPerMin=6000')
-    expect(line).toContain('commitsPerMin=600')
-  })
-
-  it('has no rates on the first sample', () => {
-    const line = formatMemoryLine(at(0, 30, 0, 0), null)
-    expect(line).toContain('heapMb=30')
-    expect(line).not.toContain('PerMin')
   })
 })

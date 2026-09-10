@@ -137,7 +137,14 @@ impl Host {
         {
             // A failed save is a health finding until a save succeeds; the
             // command still fails so the operator hears about it now too.
-            match self.catalog.play_persist(play) {
+            let started = std::time::Instant::now();
+            let persisted = self.catalog.play_persist(play);
+            tracing::trace!(
+                target: crate::perf::TARGET,
+                kind = "persist",
+                ms = started.elapsed().as_secs_f64() * 1000.0
+            );
+            match persisted {
                 Ok(()) => self.health.inputs.last_persist_error = None,
                 Err(error) => {
                     self.health.inputs.last_persist_error = Some(error.to_string());
@@ -349,7 +356,7 @@ pub fn assert_unlocked(what: &str) {
 }
 
 /// A host guard that counts itself, so [`assert_unlocked`] can tell.
-pub struct HostGuard<'a>(MutexGuard<'a, Host>);
+pub struct HostGuard<'a>(MutexGuard<'a, Host>, std::time::Instant);
 
 impl std::ops::Deref for HostGuard<'_> {
     type Target = Host;
@@ -367,6 +374,11 @@ impl std::ops::DerefMut for HostGuard<'_> {
 impl Drop for HostGuard<'_> {
     fn drop(&mut self) {
         HOLDING.with(|n| n.set(n.get().saturating_sub(1)));
+        // The performance log's attribution: how long this command held the
+        // one lock. `take_current` also clears the name, so a worker thread
+        // reused by tokio does not hand the next lock to the last command.
+        let ms = self.1.elapsed().as_secs_f64() * 1000.0;
+        tracing::trace!(target: crate::perf::TARGET, kind = "lock", name = crate::perf::take_current(), ms);
     }
 }
 
@@ -400,7 +412,7 @@ impl AppState {
         );
         let guard = self.0.lock().unwrap_or_else(PoisonError::into_inner);
         HOLDING.with(|n| n.set(n.get() + 1));
-        HostGuard(guard)
+        HostGuard(guard, std::time::Instant::now())
     }
 }
 

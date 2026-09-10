@@ -432,6 +432,22 @@ pub fn client_log(
     Ok(())
 }
 
+/// A webview's second, for the performance log (`perf`): heap, DOM, commits,
+/// long tasks, and what it was showing. Untyped on the host side on purpose —
+/// the webview owns its shape and the host writes it under the webview's
+/// label. Diagnostic only, so every webview may call it; it never takes the
+/// host lock, so it cannot delay a command either.
+#[tauri::command(async)]
+pub fn perf_report(
+    window: WebviewWindow,
+    perf: State<'_, crate::perf::PerfState>,
+    report: serde_json::Value,
+) -> AppResult<()> {
+    guard::allow(window.label(), "perf_report")?;
+    perf.report(window.label(), report);
+    Ok(())
+}
+
 /// The current health report — what `health` last emitted (§12.6).
 #[tauri::command(async)]
 pub fn health_get(window: WebviewWindow, state: State<'_, AppState>) -> AppResult<HealthReport> {

@@ -24,12 +24,14 @@ pub const STATS: &str = "stats";
 /// mounted, and this is the contract version I was built against";
 /// `overlay_ack_complete` says "that timeline finished". Neither carries an
 /// opinion about the Play.
-pub const STAGE_COMMANDS: [&str; 4] = [
+pub const STAGE_COMMANDS: [&str; 5] = [
     "overlay_ack_complete",
     "stage_ready",
     "stage_report",
     // Reporting on itself, into the log. Writes nothing a Play can read.
     "client_log",
+    // Its second's numbers, into the performance log. Same footing.
+    "perf_report",
 ];
 
 /// What the Statistics window may ask for: reads, and only reads.
@@ -38,9 +40,10 @@ pub const STAGE_COMMANDS: [&str; 4] = [
 /// display is Studio's Statistics page in a window of its own, so it needs the
 /// same reads that page makes and nothing else. A write reaching the host from
 /// this label is a bug in Studio, and this is where it stops.
-pub const STATS_COMMANDS: [&str; 10] = [
+pub const STATS_COMMANDS: [&str; 11] = [
     "stats_query",
     "client_log",
+    "perf_report",
     "get_state",
     "settings_get",
     "monitors_list",
@@ -69,7 +72,7 @@ pub fn stats_may_call(command: &str) -> bool {
 pub fn allow(label: &str, command: &'static str) -> AppResult<()> {
     if label == STATS {
         if stats_may_call(command) {
-            tracing::debug!(webview = label, command, "invoke");
+            accepted(label, command);
             return Ok(());
         }
         tracing::warn!(
@@ -77,17 +80,30 @@ pub fn allow(label: &str, command: &'static str) -> AppResult<()> {
             command,
             "refused: statistics is a projector"
         );
+        refused(command);
         return Err(AppError::NotForStage { command });
     }
     if label == MAIN || stage_may_call(command) {
-        // Every command passes through here, so this is the one place that can
-        // say what the webviews are actually asking for. Off unless asked for:
-        // `RUST_LOG=questiongame_app=debug`.
-        tracing::debug!(webview = label, command, "invoke");
+        accepted(label, command);
         return Ok(());
     }
     tracing::warn!(webview = label, command, "refused: stage is a projection");
+    refused(command);
     Err(AppError::NotForStage { command })
+}
+
+/// Every command passes through here, so this is the one place that can say
+/// what the webviews are actually asking for — to the log (off unless asked
+/// for: `RUST_LOG=questiongame_app=debug`) and to the performance log, which
+/// also learns which command the next host lock on this thread belongs to.
+fn accepted(label: &str, command: &'static str) {
+    tracing::debug!(webview = label, command, "invoke");
+    crate::perf::set_current(command);
+    tracing::trace!(target: crate::perf::TARGET, kind = "command", name = command);
+}
+
+fn refused(command: &'static str) {
+    tracing::trace!(target: crate::perf::TARGET, kind = "refused", name = command);
 }
 
 #[cfg(test)]

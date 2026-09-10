@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { formatMemoryLine, startUserTimingSweep, sweepUserTiming, type UserTimingBuffer } from './diagnostics'
+import { startUserTimingSweep, sweepUserTiming, type UserTimingBuffer } from './diagnostics'
 
 /** jsdom's `performance` has no user-timing buffer; this is the browser's, at its simplest. */
 function fakeBuffer(): UserTimingBuffer & { measure(name: string): void } {
@@ -17,11 +17,13 @@ function fakeBuffer(): UserTimingBuffer & { measure(name: string): void } {
 }
 
 describe('sweepUserTiming', () => {
-  it('empties the user-timing buffer and reports how many entries it held', () => {
+  it('shows the entries to the inspector, then empties the buffer', () => {
     const perf = fakeBuffer()
     perf.measure('m1')
     perf.measure('m2')
-    expect(sweepUserTiming(perf)).toBe(2)
+    const seen: string[] = []
+    expect(sweepUserTiming(perf, (entries) => seen.push(...entries.map((e) => e.name)))).toBe(2)
+    expect(seen).toEqual(['m1', 'm2'])
     expect(perf.getEntriesByType('measure')).toHaveLength(0)
     expect(sweepUserTiming(perf)).toBe(0)
   })
@@ -38,7 +40,7 @@ describe('startUserTimingSweep', () => {
   it('keeps the buffer bounded on an interval and stops when asked', () => {
     const perf = fakeBuffer()
     const swept: number[] = []
-    const stop = startUserTimingSweep(perf, 1000, (n) => swept.push(n))
+    const stop = startUserTimingSweep(perf, 1000, (entries) => swept.push(entries.length))
     perf.measure('render')
     vi.advanceTimersByTime(1000)
     expect(perf.getEntriesByType('measure')).toHaveLength(0)
@@ -47,17 +49,5 @@ describe('startUserTimingSweep', () => {
     perf.measure('render')
     vi.advanceTimersByTime(3000)
     expect(perf.getEntriesByType('measure')).toHaveLength(1)
-  })
-})
-
-describe('formatMemoryLine', () => {
-  it('carries the rates since the previous sample', () => {
-    const prev = { atMs: 0, heapMb: 20, heapTotalMb: 30, domEls: 100, userTimingSwept: 0 }
-    const next = { atMs: 30_000, heapMb: 25, heapTotalMb: 30, domEls: 100, userTimingSwept: 300 }
-    const line = formatMemoryLine(next, prev)
-    expect(line).toContain('heapMb=25')
-    expect(line).toContain('heapMbPerMin=+10.0')
-    expect(line).toContain('userTimingPerMin=600')
-    expect(formatMemoryLine(next, null)).not.toContain('PerMin')
   })
 })

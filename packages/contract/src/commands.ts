@@ -129,6 +129,10 @@ export const COMMAND_GROUPS = {
      * it changes nothing, and a webview's console does not otherwise survive
      * the window being killed. */
     'client_log',
+    /** A webview's second for the performance log (P11.5): heap, DOM,
+     * commits, long tasks, what it was showing. Untyped on the host side —
+     * the webview owns the shape. Diagnostic only, callable by every webview. */
+    'perf_report',
   ],
   /** Read-only projections. */
   stats: [
