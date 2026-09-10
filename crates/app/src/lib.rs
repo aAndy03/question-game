@@ -12,6 +12,7 @@
 //! windows       the two webviews, and where the Stage one stands
 //! monitors      the real end of the monitor seam
 //! tick          the 100ms show loop and the monitor watch
+//! memory        what the process and its webviews weigh, for the log
 //! decor         `StageDecorSettings` out of the recipe's layout document
 //! error         what a refused command looks like on the wire
 //! ```
@@ -26,6 +27,7 @@ pub mod decor;
 pub mod emit;
 pub mod error;
 pub mod guard;
+pub mod memory;
 pub mod monitors;
 pub mod state;
 pub mod tick;

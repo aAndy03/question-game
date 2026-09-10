@@ -13,9 +13,24 @@
  *    `Profiler`; a page that commits hundreds of times a second is not
  *    rendering, it is spinning, and the watchdog says so once with the route
  *    that was on screen and the heap it had grown to.
+ * 3. **What the webview weighs, every thirty seconds** — JS heap, live DOM
+ *    elements, commits and user-timing entries since the last line, with the
+ *    rates per minute. A leak is a rate that never comes down, and a rate is
+ *    what a log can show that a screenshot of Task Manager cannot.
  *
- * Nothing here changes what the app does. It is off the critical path, it
- * never throws, and it stays quiet until something is wrong.
+ * One thing here *does* change what the page holds: the user-timing sweep.
+ * React's development build calls `performance.measure()` for every component
+ * whose props changed, on every commit, with a props diff in `detail`
+ * (`logComponentRender`, the Component Performance Track). The browser keeps
+ * those entries until something clears them and never trims the buffer, so a
+ * Control page ticking ten times a second put 1.9 million `PerformanceMeasure`
+ * objects — 2.8 GB — into the Studio process over three Plays (2026-09-09).
+ * Nothing in the app reads the buffer, so it is swept on a short interval in
+ * every webview. The production build never measures; the sweep costs nothing
+ * there and is kept so the number is on the same line either way.
+ *
+ * Everything else is off the critical path, never throws, and stays quiet
+ * until something is wrong.
  */
 
 import { command, hasHost } from '@/host/host'
@@ -26,6 +41,14 @@ const LOOP_COMMITS_PER_SECOND = 120
 const REPORT_EVERY_MS = 10_000
 /** How many distinct console messages to remember, so repeats stay quiet. */
 const SEEN_LIMIT = 200
+/**
+ * How often the user-timing buffer is emptied. At the worst rate measured
+ * (7,700 entries a second on an open Control page) two seconds is ~15 MB of
+ * transient entries; clearing is O(n) and nothing waits on it.
+ */
+export const USER_TIMING_SWEEP_MS = 2_000
+/** How often a webview writes its memory line. Matches the host's health watch. */
+export const MEMORY_LINE_EVERY_MS = 30_000
 
 type Level = 'error' | 'warn' | 'debug'
 
@@ -102,6 +125,106 @@ function heapMb(): number | null {
   return used === undefined ? null : Math.round(used / 1_048_576)
 }
 
+// ------------------------------------------------------------ user timing
+
+/** The part of `Performance` the sweep needs; a test hands in Node's. */
+export type UserTimingBuffer = Pick<Performance, 'getEntriesByType' | 'clearMeasures' | 'clearMarks'>
+
+/** Empty the user-timing buffer. Returns how many entries it held. */
+export function sweepUserTiming(perf: UserTimingBuffer): number {
+  const held = perf.getEntriesByType('measure').length + perf.getEntriesByType('mark').length
+  if (held > 0) {
+    perf.clearMeasures()
+    perf.clearMarks()
+  }
+  return held
+}
+
+/**
+ * Sweep on an interval for as long as the page lives. `onSwept` receives the
+ * count each time so the memory line can carry the rate. Returns a stop.
+ */
+export function startUserTimingSweep(
+  perf: UserTimingBuffer,
+  everyMs: number = USER_TIMING_SWEEP_MS,
+  onSwept: (count: number) => void = () => {},
+): () => void {
+  const id = setInterval(() => {
+    try {
+      onSwept(sweepUserTiming(perf))
+    } catch {
+      // The buffer is a courtesy; a browser without it is not an error.
+    }
+  }, everyMs)
+  return () => clearInterval(id)
+}
+
+// ------------------------------------------------------------ memory line
+
+export interface MemorySample {
+  readonly atMs: number
+  readonly heapMb: number | null
+  readonly heapTotalMb: number | null
+  /** Live elements in this document. Detached ones are the heap's to count. */
+  readonly domEls: number
+  /** User-timing entries swept since the previous sample. */
+  readonly userTimingSwept: number
+  /** React commits of the routed page since the previous sample. */
+  readonly commits: number
+}
+
+/**
+ * One line, absolute numbers first, then the rates against the previous
+ * sample. The rates are the point: a heap that is 40 MB is fine, a heap that
+ * gains 10 MB a minute while nothing happens is the bug.
+ */
+export function formatMemoryLine(next: MemorySample, prev: MemorySample | null): string {
+  const parts = [
+    `heapMb=${next.heapMb ?? 'n/a'}`,
+    `heapTotalMb=${next.heapTotalMb ?? 'n/a'}`,
+    `domEls=${next.domEls}`,
+    `userTimingSwept=${next.userTimingSwept}`,
+    `commits=${next.commits}`,
+  ]
+  if (prev && next.atMs > prev.atMs) {
+    const minutes = (next.atMs - prev.atMs) / 60_000
+    const signed = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}`
+    if (next.heapMb !== null && prev.heapMb !== null) {
+      const delta = next.heapMb - prev.heapMb
+      parts.push(`heapDeltaMb=${signed(delta)}`, `heapMbPerMin=${signed(delta / minutes)}`)
+    }
+    parts.push(
+      `userTimingPerMin=${Math.round(next.userTimingSwept / minutes)}`,
+      `commitsPerMin=${Math.round(next.commits / minutes)}`,
+    )
+  }
+  return parts.join(' ')
+}
+
+// Running totals; each memory line reports the difference since the last one.
+let userTimingSweptTotal = 0
+let commitsTotal = 0
+let reportedSwept = 0
+let reportedCommits = 0
+let lastSample: MemorySample | null = null
+
+function reportMemory(): void {
+  const perf = performance as Performance & { memory?: { totalJSHeapSize: number } }
+  const total = perf.memory?.totalJSHeapSize
+  const next: MemorySample = {
+    atMs: Date.now(),
+    heapMb: heapMb(),
+    heapTotalMb: total === undefined ? null : Math.round(total / 1_048_576),
+    domEls: document.getElementsByTagName('*').length,
+    userTimingSwept: userTimingSweptTotal - reportedSwept,
+    commits: commitsTotal - reportedCommits,
+  }
+  reportedSwept = userTimingSweptTotal
+  reportedCommits = commitsTotal
+  send('debug', 'memory', formatMemoryLine(next, lastSample))
+  lastSample = next
+}
+
 /**
  * Count React commits in a rolling second. `Profiler`'s `onRender` fires once
  * per commit of the tree it wraps, which is exactly the signal: a loop commits
@@ -117,6 +240,7 @@ export function onPageCommit(): void {
     commits = 0
   }
   commits += 1
+  commitsTotal += 1
   if (commits !== LOOP_COMMITS_PER_SECOND) return
   const at = Date.now()
   if (at - lastReport < REPORT_EVERY_MS) return
@@ -183,6 +307,13 @@ export function installDiagnostics(): void {
       sendOnce(level, text(args))
     }
   }
+
+  // The sweep runs whether or not there is a host: the buffer grows in a plain
+  // browser too, and a `?fake` session is where a shell change gets measured.
+  startUserTimingSweep(performance, USER_TIMING_SWEEP_MS, (n) => {
+    userTimingSweptTotal += n
+  })
+  setInterval(reportMemory, MEMORY_LINE_EVERY_MS)
 
   // One line, so the log shows the webview's own boot on the host's timeline —
   // and so "nothing from Studio" can be told apart from "Studio never started".

@@ -947,6 +947,84 @@ observed, it was not this list at this commit.
 
 ---
 
+## P11.4 — The Studio process that grew  ☑
+
+From operating the app (2026-09-09): Studio started at ~200 MB and stood at
+2.8 GB after three or four Plays, growing by roughly 10 MB a minute whatever
+the operator did. The JS heap said nothing — `heapMb` stayed near 40 the whole
+time — and the log said nothing either, because nothing in it measured
+process memory.
+
+**How it was found**
+
+Not by reading code: none of the stores grow (`playState.ts` holds one Play,
+the Query cache is bounded, the notice store is replaced wholesale), and a
+read-through of every Play-shaped path in both webviews turned up nothing that
+retains. It was measured instead, over the Chrome DevTools Protocol the debug
+build already exposes (P11.3):
+
+1. **Counters under GC, per scenario.** `Memory.getDOMCounters` and
+   `Runtime.getHeapUsage` after `HeapProfiler.collectGarbage`, at t0 and t90,
+   in five conditions — no Play; a Play loaded and nothing ticking; a
+   countdown ticking with Control open; the same with Control closed; the
+   Stage window on its own. Growth in every condition with a Play loaded, so
+   the tick was not the cause; growth with Control closed, so the Viewer and
+   the panels were not either.
+2. **Heap snapshots diffed by constructor.** Two `HeapProfiler.takeHeapSnapshot`
+   per scenario, aggregated by `(type, name)` and diffed. One row dominated
+   every diff: `native:PerformanceMeasure`, +691,654 objects and +81 MB in 90
+   idle seconds; 1.94 million on the page by then.
+3. **Who calls `performance.measure`.** A wrapper over it for four seconds,
+   counting by name and stack: every call came from `logComponentRender` in
+   `react-dom`'s development build.
+
+**What it was**
+
+React 19.2's development build records a Component Performance Track: on
+every commit, for every component whose props object changed identity (which
+is every component whose parent re-rendered), it calls `performance.measure()`
+with a props diff in `detail`. Browsers keep user-timing entries until
+something clears them and never trim the buffer. Studio commits ten times a
+second under the show loop, the tree has a few hundred components, and each
+entry carries its diff strings — ~1.4 KB apiece, 1,900–7,700 a second
+depending on what was mounted. That is the whole 2.8 GB, and it is why the
+V8 heap never moved: the entries are Blink objects.
+
+The production build never measures, so a packaged release (P12) would not
+have had it. Every show so far has run under `tauri dev`.
+
+**What changed**
+
+| | |
+| --- | --- |
+| `chrome/diagnostics.ts` (Studio) · `diagnostics.ts` (Stage) | the user-timing buffer is swept every 2 s in every webview, host or not. Stage's own sweep matters because the Viewer is the Stage bundle in an iframe with a `performance` buffer of its own that Studio's cannot reach |
+| both diagnostics | a **memory line** every 30 s through `client_log`: JS heap, live DOM elements, commits and user-timing entries swept since the last line, and each as a rate per minute |
+| `crates/app/src/memory.rs` · `tick.rs` | the host logs the **working set of its own process and every WebView2 child** every 30 s, with the delta and rate since the last line. This is the number Task Manager shows and the one the JS heap cannot; Windows only, elsewhere the line says so |
+
+**Exit criteria**
+
+- ☑ Re-measured on the fixed build with the same harness: 60 s idle, heap
+  60.3 → 61.1 MB; 60 s ticking with Control open, 61.0 → 62.7 MB;
+  `PerformanceMeasure` capped at one sweep window (~8 k entries) instead of
+  growing without bound.
+- ☑ Both memory lines appear in `questiongame.log` 30 s apart
+  (`memory totalWsMb=… mbPerMin=…` from the host, `memory … heapMbPerMin=…
+  userTimingPerMin=…` from each webview).
+- ☑ The sweep and the line format are unit-tested against an in-memory
+  buffer in both apps; `memory::tests` cover the rate arithmetic and that a
+  real sample contains the process itself.
+
+**What it is not**
+
+The DOM-node and listener counts oscillate between GC runs (detached nodes
+waiting for collection) and show no trend over a minute; nothing in the
+React tree leaks. Second-order and left alone: the sidebar re-renders at
+10 Hz during a countdown because `Shell` reads the whole Play for its status
+pill, which is harmless with the buffer swept but is where the next
+"why does idle Control commit so much" question will land.
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.

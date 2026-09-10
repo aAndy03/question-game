@@ -42,6 +42,24 @@ pub fn spawn(app: AppHandle) {
     spawn_show_loop(app.clone());
     spawn_monitor_watch(app.clone());
     spawn_health_watch(app);
+    spawn_memory_watch();
+}
+
+/// The memory line (`memory.rs`): the host process and its WebView2 tree,
+/// every thirty seconds, with the rate since the last line. It takes no lock
+/// and touches no window — it reads the OS and writes the log.
+fn spawn_memory_watch() {
+    async_runtime::spawn(async move {
+        let mut ticker = tokio::time::interval(HEALTH_POLL);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let mut watch = crate::memory::Watch::default();
+        loop {
+            ticker.tick().await;
+            let rows = crate::memory::sample();
+            let line = watch.line(&rows, std::time::Instant::now());
+            tracing::debug!("memory {line}");
+        }
+    });
 }
 
 /// Compute the health report now and emit it if it changed. Called at boot,

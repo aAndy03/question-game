@@ -28,7 +28,8 @@
     "decor:hulls": "vite-node scripts/decor-hulls.ts",
     "studio:icons": "vite-node scripts/studio-icons.ts",
     "audio:placeholders": "vite-node scripts/audio-placeholders.ts",
-    "js-stack": "node scripts/js-stack.mjs"
+    "js-stack": "node scripts/js-stack.mjs",
+    "leak-probe": "node scripts/leak-probe.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
