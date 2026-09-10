@@ -1522,6 +1522,45 @@ in Game ▸ Rules so Load is not the first anyone hears of it.
 
 ---
 
+## P11.14 — A team's Play count was a column nobody wrote  ☑
+
+The Teams tab reported **0 Plays** for teams that had played all season, and
+the detail card's *Last play* was empty beside it. Not a projection bug and not
+a query cache: `teams.play_count` and `teams.last_play_at` are stored columns
+with a `DEFAULT 0`, faithfully carried through every `team_upsert` — and
+written by nothing at all. There is no `UPDATE teams SET play_count` anywhere
+in the crate, and never was.
+
+This is `operators.plays_run` exactly, one entity over, and it takes the same
+fix (P11.1): the number is **derived from the `plays` projection**, which is
+itself rebuilt from the log at every open, so it cannot drift from what
+happened. A Play's roster is the key set of its `scores_json` — `record_of`
+maps over the snapshot's teams, so a team that scored nothing is still in
+there — and a Play that was loaded and never started is not one anybody
+played. The stored columns stay in the schema, dead, next to `plays_run`;
+dropping a column is not a forward-only migration worth writing.
+
+One host change fixes all three surfaces, because they read one field: the
+Teams list row meta, and the two `StatCard`s on the team detail.
+
+**Exit criteria**
+
+- ☑ A started Play makes every team on its roster report one Play and that
+  Play's start as its last, and a team in the library that was not in it still
+  reports none (`catalog_service.rs`).
+- ☑ A Play loaded and put down before it began counts for nobody
+  (`catalog_service.rs`).
+- ☑ Derived, not stored: throwing the projection away and rebuilding it from
+  the log lands on the same number, and a rename does not touch it
+  (`catalog_service.rs`).
+- ☑ An abandoned Play still happened, and a second show makes the count 2 with
+  the later start as the last play (`catalog_service.rs`).
+- ☑ The same body passes against both storage adapters, so the JSON query is
+  not a memory-only trick (`each_adapter`).
+- ☐ Checked in the built app against the operator's own library.
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.

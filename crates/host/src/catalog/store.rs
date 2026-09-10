@@ -69,6 +69,27 @@ fn carried_created_at(
 
 // ----------------------------------------------------------------------- teams
 
+/// Every column a team is read from. `play_count` and `last_play_at` are
+/// **not** the stored columns of the same name — those were never written by
+/// anything, which is why the Teams tab reported 0 Plays for a team that had
+/// played all season. They are derived from the `plays` projection, which is
+/// itself rebuilt from the log at every open, so they cannot drift from what
+/// happened. The same fix `operators.plays_run` got in P11.1, one entity over.
+///
+/// A Play's roster is the key set of its `scores_json` — `record_of` maps over
+/// the snapshot's teams, so a team that scored nothing is still in there. A
+/// Play that was loaded and never started is not one anybody played.
+const TEAM_COLUMNS: &str = "t.id, t.name, t.short_code, t.color, t.logo_asset_id, t.notes,
+     t.origin, t.created_at, t.updated_at, t.archived_at,
+     (SELECT COUNT(*) FROM plays p
+       WHERE p.started_at_ms IS NOT NULL
+         AND EXISTS (SELECT 1 FROM json_each(p.scores_json) j WHERE j.key = t.id))
+       AS play_count,
+     (SELECT MAX(p.started_at_ms) FROM plays p
+       WHERE p.started_at_ms IS NOT NULL
+         AND EXISTS (SELECT 1 FROM json_each(p.scores_json) j WHERE j.key = t.id))
+       AS last_play_at";
+
 pub(super) fn team_row(row: &Row<'_>) -> rusqlite::Result<Team> {
     Ok(Team {
         id: TeamId::new(row.get::<_, String>("id")?),
@@ -88,7 +109,7 @@ pub(super) fn team_row(row: &Row<'_>) -> rusqlite::Result<Team> {
 
 pub(super) fn team_get(conn: &Connection, id: &TeamId) -> CatalogResult<Team> {
     conn.query_row(
-        "SELECT * FROM teams WHERE id = ?1",
+        &format!("SELECT {TEAM_COLUMNS} FROM teams t WHERE t.id = ?1"),
         params![id.as_str()],
         team_row,
     )
@@ -98,7 +119,7 @@ pub(super) fn team_get(conn: &Connection, id: &TeamId) -> CatalogResult<Team> {
 
 pub(super) fn team_list(conn: &Connection, scope: ArchiveScope) -> CatalogResult<Vec<Team>> {
     let sql = format!(
-        "SELECT * FROM teams WHERE {} ORDER BY name, id",
+        "SELECT {TEAM_COLUMNS} FROM teams t WHERE {} ORDER BY t.name, t.id",
         scope.sql()
     );
     let mut stmt = conn.prepare(&sql)?;
@@ -113,6 +134,9 @@ pub(super) fn team_upsert(tx: &Transaction<'_>, team: &Team, now_ms: u64) -> Cat
                             created_at, updated_at, archived_at, play_count, last_play_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
                  COALESCE((SELECT archived_at FROM teams WHERE id = ?1), NULL),
+                 -- Dead columns, kept because they are NOT NULL and dropping a
+                 -- column is not a forward-only migration worth writing. The
+                 -- count read back is `TEAM_COLUMNS`, never these.
                  COALESCE((SELECT play_count FROM teams WHERE id = ?1), 0),
                  (SELECT last_play_at FROM teams WHERE id = ?1))
          ON CONFLICT(id) DO UPDATE SET

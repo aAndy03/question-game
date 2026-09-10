@@ -869,6 +869,71 @@ fn played(service: &CatalogService, recipe: &RecipeId) -> MatchService {
 /// a projection rebuild, and a Play that was loaded but never started is not
 /// one anybody ran.
 #[test]
+fn a_team_counts_the_plays_the_log_says_it_played() {
+    each_adapter("team-plays", |service| {
+        let recipe = seed(service);
+        // In the library, on no roster — the count is participation, not
+        // existence.
+        service.catalog_upsert(&team("team-c").into(), 1_000).unwrap();
+
+        let read = |service: &CatalogService, id: &str| {
+            let row = service.catalog_get(CatalogKind::Team, id).unwrap();
+            let team = row.as_team().unwrap().clone();
+            (team.play_count, team.last_play_at)
+        };
+        assert_eq!(read(service, "team-a"), (0, None), "nothing has been played");
+
+        // Loaded but never started: a game put down before it began is not a
+        // Play anyone played, the same rule the operator count keeps.
+        let snapshot = service
+            .build_snapshot(&recipe.id, PlayId::from("play-loaded"), frozen())
+            .unwrap();
+        let mut play = MatchService::new();
+        play.play_load(snapshot, 0).unwrap();
+        service.play_persist(play.get_state().unwrap()).unwrap();
+        assert_eq!(read(service, "team-a"), (0, None));
+
+        play.play_start(10_000).unwrap();
+        service.play_persist(play.get_state().unwrap()).unwrap();
+        assert_eq!(read(service, "team-a"), (1, Some(10_000)));
+        assert_eq!(read(service, "team-b"), (1, Some(10_000)), "the whole roster");
+        assert_eq!(
+            read(service, "team-c"),
+            (0, None),
+            "a team that was not in the Play did not play"
+        );
+
+        // Derived, not stored: throw the projection away and rebuild it from
+        // the log, and the number is the same.
+        service.rebuild_projections().unwrap();
+        assert_eq!(read(service, "team-a"), (1, Some(10_000)));
+
+        // A rename does not touch it — `catalog_upsert` writes the row the
+        // editor sent, and the count is not on that row.
+        let mut renamed = team("team-a");
+        renamed.name = "The Reds".to_owned();
+        service.catalog_upsert(&renamed.into(), 2_000).unwrap();
+        assert_eq!(read(service, "team-a"), (1, Some(10_000)));
+
+        // A second show: the count grows and the last play is the later one.
+        // The first has to be closed — two Plays of one recipe cannot both be
+        // open — and an abandoned Play still happened.
+        play.abandon(15_000).unwrap();
+        service.play_persist(play.get_state().unwrap()).unwrap();
+        assert_eq!(read(service, "team-a"), (1, Some(10_000)));
+
+        let snapshot = service
+            .build_snapshot(&recipe.id, PlayId::from("play-2"), frozen())
+            .unwrap();
+        let mut play = MatchService::new();
+        play.play_load(snapshot, 20_000).unwrap();
+        play.play_start(20_000).unwrap();
+        service.play_persist(play.get_state().unwrap()).unwrap();
+        assert_eq!(read(service, "team-a"), (2, Some(20_000)));
+    });
+}
+
+#[test]
 fn an_operator_counts_the_plays_the_log_says_they_ran() {
     each_adapter("operator-plays", |service| {
         let recipe = seed(service);
