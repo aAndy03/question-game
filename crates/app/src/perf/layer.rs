@@ -16,8 +16,13 @@
 //! lock      command, ms               a HostGuard was dropped
 //! persist   ms                        Host::write reached play_persist
 //! emit      bytes                     play_state went out
+//! tick_emit bytes                     play_tick went out (the show loop)
 //! tick                                the show loop took the lock
 //! ```
+//!
+//! **A new emission path needs a kind here**, or the wire is under-reported —
+//! `play-tick` shipped in P11.9 without one, and the log then said 1.66 MB
+//! over a run that had put roughly 2.6 MB on the wire.
 
 use std::sync::{Arc, Mutex};
 
@@ -60,6 +65,13 @@ impl Counters {
             }
             "emit" => {
                 s.emits += 1;
+                s.emit_bytes += seen.bytes;
+            }
+            // The show loop's own channel. Its bytes join `emit_bytes` — that
+            // number answers "how much went on the wire", and leaving the
+            // ticks out of it under-reported the total by about half (P11.10).
+            "tick_emit" => {
+                s.tick_emits += 1;
                 s.emit_bytes += seen.bytes;
             }
             "tick" => {
@@ -156,6 +168,8 @@ mod tests {
             tracing::trace!(target: TARGET, kind = "refused", name = "give_token");
             tracing::trace!(target: TARGET, kind = "persist", ms = 2.5_f64);
             tracing::trace!(target: TARGET, kind = "emit", bytes = 4096_u64);
+            tracing::trace!(target: TARGET, kind = "tick_emit", bytes = 270_u64);
+            tracing::trace!(target: TARGET, kind = "tick_emit", bytes = 270_u64);
             tracing::trace!(target: TARGET, kind = "tick");
             // Not ours: ignored, whatever it carries.
             tracing::trace!(kind = "command", name = "give_token");
@@ -167,8 +181,13 @@ mod tests {
         assert!((get_state.lock_ms_max - 1.2).abs() < 1e-9);
         assert_eq!(second.refused, 1);
         assert_eq!(second.persists, 1);
-        assert_eq!(second.emits, 1);
-        assert_eq!(second.emit_bytes, 4096);
+        assert_eq!(second.emits, 1, "the event-driven channel");
+        assert_eq!(second.tick_emits, 2, "and the show loop's, counted apart");
+        assert_eq!(
+            second.emit_bytes,
+            4096 + 540,
+            "`emit_bytes` is the whole wire, both channels in it"
+        );
         assert_eq!(second.ticks, 1);
         assert!(!second.commands.contains_key("give_token"));
 

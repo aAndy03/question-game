@@ -107,9 +107,19 @@ pub fn play_tick(app: &AppHandle, host: &mut Host, now_ms: u64) -> bool {
     let _ = app.emit_to(STAGE, "play-tick", &tick);
     let _ = app.emit_to(MAIN, "play-tick", &tick);
     let _ = app.emit_to(STATS, "play-tick", &tick);
+    // Measured the same way `play_state` measures: a counting sink rather than
+    // a `to_vec`, and only when the log is on. Without it the perf log's
+    // `emit_bytes` counted the event-driven half and called it the wire.
+    let bytes = if crate::perf::enabled_cached() {
+        let mut sink = crate::state::Digest::default();
+        let _ = serde_json::to_writer(&mut sink, &tick);
+        sink.bytes * 3
+    } else {
+        0
+    };
     // After the last use of `tick`, which borrows the Play out of `host`.
     host.remember_clock(clock);
-    tracing::trace!(target: crate::perf::TARGET, kind = "tick_emit");
+    tracing::trace!(target: crate::perf::TARGET, kind = "tick_emit", bytes);
     true
 }
 

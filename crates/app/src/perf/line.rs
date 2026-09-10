@@ -76,8 +76,16 @@ pub struct HostSecond {
     pub commands: BTreeMap<String, CommandStat>,
     /// Commands the guard refused.
     pub refused: u64,
-    /// `play-state` emissions, and the serialized bytes sent to all webviews.
+    /// `play-state` emissions — the event-driven channel.
     pub emits: u64,
+    /// `play-tick` emissions — the 100 ms show loop's channel (P11.9).
+    ///
+    /// Counted apart from `emits` because the split is the thing worth
+    /// watching: a run where `emits` is large is a run where something kept
+    /// changing the Play, and a run where `tick_emits` is large is just a
+    /// timer running. `emit_bytes` is the **total** of both, so it stays a
+    /// straight answer to "how much went on the wire".
+    pub tick_emits: u64,
     pub emit_bytes: u64,
     /// Play appends that reached `play_persist`, and the fsync time they cost.
     pub persists: u64,

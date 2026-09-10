@@ -1289,8 +1289,19 @@ is not where the GPU process's growth comes from.
   `pages.test.tsx`).
 - ☑ The Viewer draws decor at its settled positions and does not move it —
   verified in a browser, shapes unchanged over 900 ms, hit targets intact.
-- ☐ Re-measured on the built app: the Stage renderer, which was ~11% of a core
-  with ~9% GPU beside it.
+- ☑ Re-measured on the built app (`perf-2026-09-10T12-31-33Z-16616.jsonl`):
+  the Stage renderer 8–12% (was ~17%), Studio 6–25% — ~22% while the operator
+  is working, ~7% while they are watching — the whole tree ~50% (was ~130%
+  before P11.7), React commits ~5.5/s (was 27.5), `play-state` emissions 200
+  over nine minutes (was 3,396), host tick lock 0.15 ms each (was 0.81), and
+  Stage's JS heap peak 19 MB (was 61). Working-set peak 917 MB, down from
+  1,352, still climbing ~16–22 MB/min under Control — the residual is ~400
+  `performance.measure()` calls a second from React's **development** build,
+  which a production bundle removes.
+- ☑ `play-tick` is counted on the wire. It shipped in P11.9 without a `kind`
+  in `perf::PerfLayer`, so the first measurement read `emit_bytes` 1.66 MB over
+  a run that had put roughly 2.6 MB out. `tick_emits` sits beside `emits` and
+  the bytes join the total.
 
 ---
 
