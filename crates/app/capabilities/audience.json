@@ -1,6 +1,6 @@
 {
   "identifier": "audience",
-  "description": "Stage is a projection, not a controller (spec 5.7). It listens for play-state and reports its animations; it gets no window, path, or webview verbs, and the command layer refuses everything but overlay_ack_complete from this label.",
-  "windows": ["stage"],
+  "description": "Stage is a projection, not a controller (spec 5.7). It listens for play-state and play-tick and reports its animations; it gets no window, path, or webview verbs, and the command layer refuses everything but overlay_ack_complete and the self-reports from these labels. The glob covers the mirrors: `stage` is the pacer and `stage-2`, `stage-3`, ... show the same picture on other displays (P11.11). A label matching no capability gets no core permissions at all, so `listen` is denied and the window draws the empty play-state for ever - which is exactly what the mirrors did before the glob was here.",
+  "windows": ["stage", "stage-*"],
   "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
 }

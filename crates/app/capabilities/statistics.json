@@ -1,0 +1,6 @@
+{
+  "identifier": "statistics",
+  "description": "The Statistics window (spec 11.K): Studio's Statistics page in a window of its own. A projector - it reads projections and never writes rules - so it needs the same core event verbs Stage does and nothing else; `guard::STATS_COMMANDS` is what it may ask the host for. Without a capability of its own it matched none, and a window that matches none gets no core permissions, so its `listen` was denied and the Live view never moved.",
+  "windows": ["stats"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}
