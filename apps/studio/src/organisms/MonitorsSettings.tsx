@@ -69,12 +69,21 @@ export function MonitorsSettings() {
 
   const removeStage = (key: string) => void run.ok('stage_remove_mirror', { monitorId: key })
 
+  /**
+   * The card's state for a display **in `list`**, which is to say a connected
+   * one — `monitors_list` reports nothing else.
+   *
+   * There is deliberately no `remembered` branch here. That state means *the
+   * pick, unplugged*, and `MonitorCard` draws it as a dashed warning border
+   * reading "Not connected"; returning it for a display that is sitting right
+   * there told the operator a connected display was missing. A remembered
+   * display that Stage simply is not standing on is `free` — it offers *Send
+   * Stage here*, which is exactly what the operator wants from it — and the
+   * "Remembered:" line below the cards is where the pick is reported.
+   */
   const stateOf = (key: string): 'stage' | 'mirror' | 'remembered' | 'free' => {
     if (placement.on === key) return 'stage'
     if (mirrors.includes(key)) return 'mirror'
-    // The pick, unplugged or not yet taken: worth showing, and not the same
-    // thing as Stage standing there.
-    if (remembered === key) return 'remembered'
     return 'free'
   }
 

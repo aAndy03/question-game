@@ -131,10 +131,14 @@ describe('Settings ▸ Monitors, with several displays', () => {
     })
 
     await waitFor(() => expect(cardFor('primary').dataset['monitorCard']).toBe('stage'))
+    // The remembered display is a pick, not a place — and it is *connected*,
+    // so it must not be dressed as missing. `free` offers Send Stage here,
+    // which is what the operator wants from it.
+    expect(cardFor('tv@1920x1080').dataset['monitorCard']).toBe('free')
     expect(
-      cardFor('tv@1920x1080').dataset['monitorCard'],
-      'the remembered display is a pick, not a place',
-    ).toBe('remembered')
+      cardFor('tv@1920x1080').textContent,
+      'a connected display is never labelled Not connected',
+    ).not.toContain('Not connected')
     expect(document.body.textContent).toContain('Stage stands on: Built-in display')
   })
 
@@ -154,6 +158,35 @@ describe('Settings ▸ Monitors, with several displays', () => {
     })
     expect(cardFor('primary').dataset['monitorCard']).toBe('free')
     expect(cardFor('tv@1920x1080').dataset['monitorCard']).toBe('free')
+  })
+
+
+  /**
+   * `monitors_list` reports connected displays and nothing else, so **no card
+   * may ever say "Not connected"** — that state is for a pick whose display is
+   * gone, and a card is only drawn for one that is here. Saying it of a
+   * plugged-in display sent the operator looking for a cable fault that did
+   * not exist.
+   */
+  it('never labels a display it is drawing as disconnected', async () => {
+    await fake.invoke('stage_set_monitor', { monitorId: 'tv@1920x1080' })
+    await openMonitors()
+    await act(async () => {
+      fake.emit('monitors-changed', {
+        monitors: await monitorList(),
+        stageMonitorId: 'tv@1920x1080',
+        stageMirrors: [],
+        stageOn: 'primary',
+        stageOpen: true,
+        statsMonitorId: null,
+        statsOpen: false,
+      })
+    })
+    for (const card of cards()) {
+      expect(card.textContent, `${card.dataset['monitorKey']} is in the list, so it is connected`).not.toContain(
+        'Not connected',
+      )
+    }
   })
 
 })
