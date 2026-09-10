@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Button, CheckboxField, IconButton, MeaningChip, Panel, SelectField, Text } from '@/atoms'
-import { EmptyState, ScopeConfirm } from '@/molecules'
+import { BoardBalance, EmptyState, ScopeConfirm } from '@/molecules'
 import { DOMAIN, GAME, QUESTION } from '@/copy'
 import { useHostCommand } from '@/host/commands'
-import { useCatalogList } from '@/host/queries'
+import { useCatalogList, useRulesPreview } from '@/host/queries'
 import { difficultyBand, type BoardDomain, type EditScope, type Recipe } from '@/host/types'
 
 export interface BoardSectionProps {
@@ -18,6 +18,7 @@ export interface BoardSectionProps {
  * here is for the operator's eye only.
  */
 export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
+  const preview = useRulesPreview(recipe.id, recipe.rev)
   const domains = useCatalogList('domain', 'active')
   const questions = useCatalogList('question', 'active')
   const run = useHostCommand()
@@ -74,6 +75,14 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
       </div>
 
       {recipe.board.length === 0 ? <EmptyState kind="empty" what={DOMAIN.many} compact /> : null}
+
+      {/*
+        What kind of board this is, and what that means for the show (P11.12).
+        Uneven domains never change what a question pays — the award does not
+        read domain membership — but they change the ceiling and the walk, and
+        that belongs here, next to the questions, rather than in Rules.
+      */}
+      {preview.data ? <BoardBalance board={preview.data.board} /> : null}
 
       {recipe.board.map((b) => {
         const d = domainById.get(b.domainId)

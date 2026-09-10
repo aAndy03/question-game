@@ -22,12 +22,29 @@ pub enum Verdict {
 }
 
 /// The verdict plus the counts the §4.4 partial-credit formula needs.
+///
+/// It reaches the wire inside `AwardBreakdown` (P11.12), so it is camelCase
+/// like everything else Studio reads.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Judgement {
     pub verdict: Verdict,
     pub correct_locked: u32,
     pub incorrect_locked: u32,
     pub correct_total: u32,
+}
+
+impl Judgement {
+    /// A single correct answer — the shape `base_points` needs to ask for a
+    /// base without asking about a verdict.
+    pub fn correct() -> Self {
+        Judgement {
+            verdict: Verdict::Correct,
+            correct_locked: 1,
+            incorrect_locked: 0,
+            correct_total: 1,
+        }
+    }
 }
 
 /// Judge a locked set.

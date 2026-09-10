@@ -2,10 +2,17 @@
 //!
 //! ```text
 //! base   = flat_points | f(difficulty)
-//! points = floor(base * (1 + speed_weight * remaining_ms_at_lock / duration_ms))
+//! points = floor(base * (1 + speed_weight * progress))
 //! ```
 //!
-//! Three things this module refuses to do:
+//! **The formula lives in [`crate::explain`], not here.** This module is the
+//! three names the rest of the host calls — `base_points`, `speed_multiplier`,
+//! `award_points` — and each is one line of that breakdown. There is one
+//! arithmetic, so the Statistics ledger explains the number the scoreboard was
+//! actually paid (P11.12); before that split, a second copy of the formula was
+//! the obvious way for the two to drift.
+//!
+//! Three things this module still refuses to do:
 //!
 //! - **Double-apply the speed factor.** The exclusive lock-speed mode and the
 //!   option on flat/difficulty are one factor, computed once (§2.3).
@@ -13,39 +20,33 @@
 //!   is the only caller that writes the result (§2.4).
 //! - **Invent a speed factor at operator pace.** No duration means no weight.
 
-use crate::rules::{Judgement, Verdict};
-use crate::settings::{JudgingSettings, LockSpeedBase, ScoringMode, ScoringSettings};
+use crate::explain::{self, SpeedFactor};
+use crate::rules::Judgement;
+use crate::settings::{JudgingSettings, ScoringSettings};
 
 /// The base before any speed factor.
 pub fn base_points(scoring: &ScoringSettings, difficulty: u8) -> u32 {
-    match scoring.mode {
-        ScoringMode::Flat => scoring.flat_points,
-        ScoringMode::Difficulty => scoring.difficulty_map.points(difficulty),
-        ScoringMode::LockSpeed => match scoring.lock_speed_base {
-            LockSpeedBase::Flat => scoring.flat_points,
-            LockSpeedBase::Difficulty => scoring.difficulty_map.points(difficulty),
-        },
-    }
+    explain::explain(
+        scoring,
+        &JudgingSettings::default(),
+        difficulty,
+        &Judgement::correct(),
+        None,
+        None,
+    )
+    .base
 }
 
-/// `1 + speed_weight * remaining_ms_at_lock / duration_ms`, or exactly `1.0`
-/// when lock-speed is off, when the Play runs at operator pace, or when the
-/// answer was never locked (an empty reveal). Weight `0` also equals the base.
+/// `1 + speed_weight * progress`, or exactly `1.0` when lock-speed is off,
+/// when the Play runs at operator pace, when the answer was never locked (an
+/// empty reveal), or when the lock fell outside `scoring.speed_window`.
+/// Weight `0` also equals the base.
 pub fn speed_multiplier(
     scoring: &ScoringSettings,
     remaining_ms_at_lock: Option<u32>,
     duration_ms: Option<u32>,
 ) -> f64 {
-    if !scoring.uses_lock_speed() {
-        return 1.0;
-    }
-    match (remaining_ms_at_lock, duration_ms) {
-        (Some(remaining), Some(duration)) if duration > 0 => {
-            let ratio = f64::from(remaining.min(duration)) / f64::from(duration);
-            1.0 + scoring.speed_weight.max(0.0) * ratio
-        }
-        _ => 1.0,
-    }
+    explain::speed_factor(scoring, remaining_ms_at_lock, duration_ms).multiplier()
 }
 
 /// Points for one revealed outcome. Wrong or empty is `0`; a partial lock is
@@ -59,27 +60,31 @@ pub fn award_points(
     remaining_ms_at_lock: Option<u32>,
     duration_ms: Option<u32>,
 ) -> u32 {
-    let base = f64::from(base_points(scoring, difficulty));
-    let scaled = (base * speed_multiplier(scoring, remaining_ms_at_lock, duration_ms)).floor();
+    explain::explain(
+        scoring,
+        judging,
+        difficulty,
+        judgement,
+        remaining_ms_at_lock,
+        duration_ms,
+    )
+    .points
+}
 
-    match judgement.verdict {
-        Verdict::Correct => scaled.max(0.0) as u32,
-        // Only a *partial* verdict can take a share. An incorrect lock is zero
-        // even with partial credit on — otherwise a right set in the wrong
-        // order would score full marks under `judging.order_matters`.
-        Verdict::Partial if judging.partial_credit && judgement.correct_total > 0 => {
-            let net = f64::from(judgement.correct_locked) - f64::from(judgement.incorrect_locked);
-            let share = (net / f64::from(judgement.correct_total)).max(0.0);
-            (scaled * share).floor().max(0.0) as u32
-        }
-        _ => 0,
-    }
+/// Whether the speed factor did anything, and why not when it did not.
+pub fn speed_state(
+    scoring: &ScoringSettings,
+    remaining_ms_at_lock: Option<u32>,
+    duration_ms: Option<u32>,
+) -> SpeedFactor {
+    explain::speed_factor(scoring, remaining_ms_at_lock, duration_ms)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::settings::DifficultyMap;
+    use crate::rules::Verdict;
+    use crate::settings::{DifficultyMap, LockSpeedBase, ScoringMode};
 
     fn correct() -> Judgement {
         Judgement {
@@ -116,6 +121,7 @@ mod tests {
             speed_weight: weight,
             lock_speed_enabled: lock_speed,
             lock_speed_base: LockSpeedBase::Flat,
+            ..ScoringSettings::default()
         }
     }
 

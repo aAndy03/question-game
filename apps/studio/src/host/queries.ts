@@ -25,6 +25,7 @@ import type {
   PlayEvent,
   PlayRecord,
   Recipe,
+  RulesPreview,
   SearchHit,
   SearchQuery,
   SeedStatus,
@@ -65,6 +66,13 @@ export const keys = {
    * what is cached is an answer about a log, keyed by how long that log was.
    */
   stats: (query: StatsQuery, liveness: number | null) => ['stats', query, liveness] as const,
+  /**
+   * The Rules preview (P11.12), keyed on the recipe and its `rev`. A settings
+   * write bumps the rev, so the explanation refetches with the thing it
+   * explains and never lags a keystroke behind it.
+   */
+  rulesPreview: (recipeId: string | null, rev: number | null) =>
+    ['rulesPreview', recipeId, rev] as const,
 } as const
 
 const enabled = () => hasHost()
@@ -188,6 +196,26 @@ export function useStats(query: StatsQuery, liveness: number | null = null, isEn
     enabled: enabled() && isEnabled,
     // A previous answer stays on screen while the next one loads, so the
     // Live table does not blink on every resolved turn.
+    placeholderData: (previous) => previous,
+  })
+}
+
+/**
+ * `rules_preview` — what these rules would pay (P11.12).
+ *
+ * Keyed on the recipe *and its rev*, so it refetches on the settings write it
+ * is explaining without a subscription of its own: `recipe-changed` bumps the
+ * rev, `bridge.tsx` invalidates the recipe, and the new rev is a new key. A
+ * `null` id previews the all-games defaults, which have no rev — the settings
+ * document has no event either, so the write path invalidates it by hand.
+ */
+export function useRulesPreview(recipeId: string | null, rev: number | null = null) {
+  return useQuery({
+    queryKey: keys.rulesPreview(recipeId, rev),
+    queryFn: () => command<RulesPreview>('rules_preview', { recipeId }),
+    enabled: enabled(),
+    // The panel sits beside the form it explains; blanking it on every
+    // keystroke would make the numbers harder to read, not easier.
     placeholderData: (previous) => previous,
   })
 }

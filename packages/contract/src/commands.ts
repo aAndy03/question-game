@@ -116,6 +116,12 @@ export const COMMAND_GROUPS = {
     'settings_set_global',
     'settings_set_current_game',
     'settings_set_shortcut',
+    /** What these rules would pay, before a Play runs them (P11.12): the
+     * points matrix over this recipe's own board, the band ladder, which
+     * cascade level supplied the countdown, and which keys are currently
+     * inert. A read — it computes with the same arithmetic `reveal_outcome`
+     * scores with, and writes nothing. */
+    'rules_preview',
     /** Set, change or clear an operator's pin. Digits go over the wire; the
      * host hashes (spec §2.15) — Studio never sees or makes a hash. */
     'operator_set_pin',

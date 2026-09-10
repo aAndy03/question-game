@@ -1,10 +1,18 @@
 import { leaderboard } from '@questiongame/contract'
 import { Button, Text } from '@/atoms'
 import { EmptyState, StatCard, StatsChart, StatsTable } from '@/molecules'
+import { AwardLedger } from './AwardLedger'
 import { STATS } from '@/copy/stats'
 import { usePlayState } from '@/host/playState'
 import { useStats } from '@/host/queries'
 import type { StatsQuery } from '@/host/types'
+
+/**
+ * How many turns of the ledger to fetch. A show is a few dozen turns, and the
+ * operator reads the recent ones; the count is capped so a long Play cannot
+ * make every Live refresh carry a hundred breakdowns.
+ */
+const LEDGER_ROWS = 60
 
 export interface LiveStatsProps {
   /**
@@ -37,7 +45,7 @@ export function LiveStats({ onGoToControl }: LiveStatsProps) {
     filter: { playIds: playId ? [playId] : [], includeRehearsal: true },
     metrics: ['turns', 'correct', 'accuracy', 'points'],
   }
-  const byTeam = useStats({ ...base, groupBy: 'team' }, eventCount, playId !== null)
+  const byTeam = useStats({ ...base, groupBy: 'team', detail: LEDGER_ROWS }, eventCount, playId !== null)
   const byDomain = useStats({ ...base, groupBy: 'domain' }, eventCount, playId !== null)
 
   if (!play || playId === null) {
@@ -86,6 +94,13 @@ export function LiveStats({ onGoToControl }: LiveStatsProps) {
           <StatsTable result={byTeam.data} markedKey={leader?.id ?? null} />
         </div>
       ) : null}
+
+      {/*
+        What was awarded per turn, and why (P11.12). It rides on the by-team
+        query's `detail` rather than asking again: §13.1 is one command and one
+        document, and the ledger is a detail level of the same question.
+      */}
+      <AwardLedger turns={byTeam.data?.turns ?? []} />
 
       {byDomain.data ? (
         <div className="grid gap-4 lg:grid-cols-2">

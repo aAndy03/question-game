@@ -1367,6 +1367,89 @@ the only reason the same fixed canvas lands correctly on all of them.
 
 ---
 
+## P11.12 — Rules you can see, awards you can explain  ☑
+
+The operator can set fourteen keys that move a number and had no way to see
+what any of them did, alone or together. Four of them silently neutralise
+others. One of them — `scoring.difficulty_map` set to **Bands** — rendered
+*nothing at all* in Game ▸ Rules, so the operator picked it and the panel went
+blank; that is most of why nobody could say what Bands did.
+
+Spec: `docs/superpowers/specs/2026-09-10-rules-transparency-design.md`.
+
+**One arithmetic.** `crates/host/src/explain.rs` holds the formula and
+`award_points` is `explain(..).points`, so the Statistics ledger explains the
+number the scoreboard was actually paid. Before the split, a second copy of the
+formula was the obvious way for the two to drift — and writing the property
+tests over the single copy immediately found two real defects: a partial share
+could exceed the whole award when a judgement claimed more correct locks than
+existed, and two bands sharing a ceiling produced an overlapping span the
+ladder would have drawn as a range.
+
+**Two new scoring keys, both defaulting to the old behaviour.** `speed_window`
+says where the speed bonus reaches zero — a share of that question's clock
+(`Fraction(1.0)` is the whole clock, which is the P4 formula byte for byte) or
+absolute milliseconds, which is what makes the same answer *time* worth the
+same on every question whatever its countdown. `speed_steps` quantizes the
+bonus into equal bands, so two answers the operator cannot tell apart cannot
+score differently. Both carry `#[serde(default)]`, so an old `PlaySnapshot`
+deserialises into the rules it was played under and **no recipe pays anything
+different than it did yesterday**.
+
+**Uneven domains are not an award problem**, and the answer is in the Board
+section rather than in Rules. The award never reads domain membership, so
+difficulty 21 pays the same in a three-question domain and a thirty-question
+one; what uneven domains change is the ceiling and the walk. `BoardShape`
+classifies the board and the readout **adapts**: `Aligned` — same count *and*
+the same ladder everywhere — collapses to one rung table, because then one
+table is the whole truth; `Uniform` and `Ragged` show the ladders side by side
+with the divergence marked.
+
+**Exit criteria**
+
+- ☑ `explain(..).points == award_points(..)` over the generated compound space
+  — mode × lock-speed base × option × weight × window × steps × linear|bands ×
+  partial × order × cap × bonus × cascade (`award_compound.rs`).
+- ☑ The award is a pure function of `(difficulty, verdict, lock progress,
+  streak)` and the frozen settings: an incorrect verdict is always 0, operator
+  pace and "never locked" always give ×1.0, the speed factor is applied exactly
+  once, and a partial share is never more than the whole (`award_compound.rs`).
+- ☑ `Fraction(1.0)` with no steps reproduces the pre-P11.12 formula exactly, so
+  the two new keys cannot change an existing Play (`award_compound.rs`).
+- ☑ `speed_steps: Some(n)` pays every lock inside a band the identical
+  multiplier, and a lock past the window is the bare base with
+  `SpeedOff::OutsideWindow` saying so (`award_compound.rs`).
+- ☑ A band table's reachable spans tile 1..=100 with no gap and no overlap, and
+  an unreachable band is marked rather than dropped (`award_compound.rs`,
+  `preview.rs`).
+- ☑ Every ledger row's recomputed total equals the `TurnResolved` the log
+  recorded, across a whole Demo with wrong answers, a handover and an undo
+  (`demo_scenarios.rs` s16).
+- ☑ Choosing Bands in Game ▸ Rules renders an editable band table, and the new
+  speed controls are controls — asserted by role (`RulesSection.test.tsx`).
+- ☑ The ledger rides on the Live view's existing `stats_query` through
+  `detail`, asked exactly once, and the TOTAL column is the recorded number
+  (`statistics.test.tsx`).
+- ☑ Statistics is still a projector: `AwardLedger` is under the same grep, and
+  no file on the surface imports `useHostCommand` (`statistics.test.tsx`).
+- ☑ An aligned board reports `Aligned`, changing one domain's count makes it
+  `Ragged`, and a per-question duration raises the comparability warning
+  (`preview.rs`).
+- ☑ Nothing in Studio recomputes an interlock: `RulesSection`'s client-side
+  `weightInert` / `timerOff` are gone, replaced by `rules_preview.effects` —
+  the same §4.2 table, run over a recipe that need not be in Control.
+- ☑ Checked in a browser under `?fake`: the matrix, the effects table, the
+  ragged board readout and the ledger's working columns.
+- ☑ The effects table keeps `Off` and `Disabled` apart, and every key
+  reports its current value — a switch that is off never reads as *in use*
+  (`preview.rs`, `RulesSection.test.tsx`). Found in the built app the day it
+  shipped: the table asked the host only "is this key disabled", and a
+  usable-but-off switch has no interlock entry, so it fell through to "In
+  use". Two different questions had one answer between them.
+- ☐ Verified against a real show's numbers on the operator's own library.
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.

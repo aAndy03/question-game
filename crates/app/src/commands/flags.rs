@@ -455,3 +455,55 @@ pub fn health_get(window: WebviewWindow, state: State<'_, AppState>) -> AppResul
     let host = state.lock();
     Ok(host.health.last().cloned().unwrap_or_else(HealthReport::ok))
 }
+
+/// `rules_preview` (P11.12) — what these rules would pay, before a Play runs
+/// them.
+///
+/// The composition the app crate exists for: the catalog knows the board, the
+/// flag service knows the interlocks, and `preview::build` knows the
+/// arithmetic — which is the same arithmetic `reveal_outcome` scores with, so
+/// a number here is a promise the host will keep.
+///
+/// `recipe_id` is optional because the same award group appears in Settings
+/// with no recipe behind it: `None` explains the all-games defaults over an
+/// empty board. `frozen` is asked of the Play, not of the caller, so a recipe
+/// in Control shows its keys frozen without Studio deciding that.
+#[tauri::command(async)]
+pub fn rules_preview(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    recipe_id: Option<String>,
+) -> AppResult<questiongame_host::preview::RulesPreview> {
+    guard::allow(window.label(), "rules_preview")?;
+    let host = state.lock();
+
+    let (game, board) = match recipe_id.as_deref() {
+        Some(id) => {
+            let id = questiongame_host::RecipeId::from(id);
+            let recipe = host.catalog.recipe_get(&id)?;
+            let board = host.catalog.preview_board(&id)?;
+            (recipe.settings, board)
+        }
+        None => (
+            host.flags.globals().game_defaults.clone(),
+            questiongame_host::preview::PreviewBoard::default(),
+        ),
+    };
+
+    // Frozen only for the recipe actually in Control: another recipe's rules
+    // are editable while this one plays (§2.5 freezes a Play, not the tab).
+    let frozen = match (recipe_id.as_deref(), host.play.get_state()) {
+        (Some(id), Some(play)) => {
+            play.status().is_open() && play.snapshot().recipe_id.as_str() == id
+        }
+        _ => false,
+    };
+
+    let effects = host.flags.interlocks_for(&game, frozen);
+    Ok(questiongame_host::preview::build(
+        &game,
+        &board,
+        host.flags.globals().timer,
+        effects,
+    ))
+}

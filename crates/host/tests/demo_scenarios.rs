@@ -654,3 +654,58 @@ fn the_demo_library_is_what_the_scenarios_say_it_is() {
     );
     drop(demo.catalog);
 }
+
+/// **Scenario 16 — the Statistics ledger explains what the scoreboard was paid
+/// (P11.12).**
+///
+/// The ledger recomputes each award from the Play's frozen settings and the
+/// options the team actually locked. It must land on the number the log
+/// recorded, for every turn of a real Play — that is what makes "why" an
+/// explanation rather than a second opinion. A whole Demo is played through
+/// wrong answers, token handovers and an undo, and every row is checked.
+#[test]
+fn s16_every_ledger_row_reproduces_what_the_log_recorded() {
+    use questiongame_host::stats;
+
+    let mut demo = Demo::start();
+    demo.answer(GEO, 'a'); // Red, correct
+    demo.answer(GEO, 'b'); // Red, wrong — the token ends
+    let now = demo.tick(100);
+    demo.play.give_token(&TeamId::new(BLUE), now).unwrap();
+    demo.answer(SCI, 'a'); // Blue, correct
+    demo.answer(SCI, 'a'); // Blue, correct again — a streak
+
+    let events = demo.play.get_state().expect("a play").events().to_vec();
+    let ledger = stats::awards(&events);
+    assert_eq!(ledger.len(), 4, "four resolved turns");
+
+    for turn in &ledger {
+        assert_eq!(
+            turn.award.total,
+            turn.fact.points + turn.fact.bonus,
+            "the ledger disagrees with the log for {} ({:?})",
+            turn.fact.question_id,
+            turn.award,
+        );
+        // And the breakdown's own steps add up to the total it claims.
+        assert_eq!(
+            turn.award.total,
+            turn.award.points + turn.award.bonus.map_or(0, |b| b.award),
+        );
+    }
+
+    // The streak is per token and counted the way `play.rs` counts it: Red's
+    // wrong answer resets it, and Blue's two corrects run 1 then 2.
+    assert_eq!(
+        ledger.iter().map(|t| t.fact.streak).collect::<Vec<_>>(),
+        vec![1, 0, 1, 2],
+    );
+    assert!(ledger[1].fact.token_ends, "a wrong answer ends the token");
+
+    // An undone turn is not in the ledger either — the same span the
+    // projection drops (§2.7).
+    let now = demo.tick(100);
+    demo.play.undo_turn(now).expect("undo");
+    let after = stats::awards(demo.play.get_state().expect("a play").events());
+    assert_eq!(after.len(), 3);
+}

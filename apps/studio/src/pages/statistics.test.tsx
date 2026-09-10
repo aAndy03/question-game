@@ -9,6 +9,8 @@ import { demoLibrary, demoRecipe } from '@/host/devFake'
 import { setHostTransport } from '@/host/host'
 import { receivePlayState } from '@/host/playState'
 import { STATS } from '@/copy/stats'
+import { PREVIEW } from '@/copy/preview'
+import { FAKE_LEDGER } from '@/host/fake/preview'
 import { useWindowsStore } from '@/chrome/windows'
 import type { StatsQuery, StatsResult } from '@/host/types'
 
@@ -197,12 +199,21 @@ describe('the Statistics surface', () => {
    * from these files is the whole proof.
    */
   const SOURCES = import.meta.glob(
-    ['../organisms/LiveStats.tsx', '../organisms/AllDataStats.tsx', '../pages/StatisticsPage.tsx', '../molecules/Stats*.tsx', '../copy/stats.ts'],
+    [
+      '../organisms/LiveStats.tsx',
+      '../organisms/AllDataStats.tsx',
+      // P11.12's award ledger is on Live, so it is under the same rule: it
+      // explains awards, it never makes one.
+      '../organisms/AwardLedger.tsx',
+      '../pages/StatisticsPage.tsx',
+      '../molecules/Stats*.tsx',
+      '../copy/stats.ts',
+    ],
     { query: '?raw', import: 'default', eager: true },
   ) as Record<string, string>
 
   it('imports no write, anywhere', () => {
-    expect(Object.keys(SOURCES).length).toBeGreaterThanOrEqual(7)
+    expect(Object.keys(SOURCES).length).toBeGreaterThanOrEqual(8)
     for (const [file, text] of Object.entries(SOURCES)) {
       expect(text, `${file} can write`).not.toContain('useHostCommand')
       expect(text, `${file} reaches Tauri directly`).not.toContain('@tauri-apps/api')
@@ -271,5 +282,63 @@ describe('the Statistics window', () => {
       fireEvent.click(show)
     })
     await waitFor(() => expect(fake.statsOpen).toBe(true))
+  })
+})
+
+/**
+ * P11.12 — the award ledger. What was paid per turn, and why, from the same
+ * `stats_query` the tiles already ask: §13.1 is one command and one document,
+ * and the ledger is a *detail level* of that question rather than a second
+ * stats verb.
+ */
+describe('the award ledger', () => {
+  beforeEach(() => {
+    useNavStore.setState({ route: HOME, back: [], forward: [], guard: null })
+    useNoticeStore.setState({ notices: [] })
+    receivePlayState(null)
+  })
+  afterEach(() => setHostTransport(null))
+
+  it('asks for turn detail once, on the Live query that already runs', async () => {
+    const fake = mount(openPlay(12))
+    render(<App />)
+    await goToStatistics('live')
+    await waitFor(() => expect(statsCalls(fake).length).toBeGreaterThan(0))
+
+    // Exactly one of the two Live queries carries the ledger. Asking twice
+    // would send every breakdown down the wire twice for one view.
+    const withDetail = statsCalls(fake).filter((query) => (query.detail ?? 0) > 0)
+    expect(withDetail).toHaveLength(1)
+    expect(withDetail[0]?.groupBy).toBe('team')
+  })
+
+  it('draws a row per turn, with the recorded total', async () => {
+    mount(openPlay(12))
+    render(<App />)
+    await goToStatistics('live')
+
+    await waitFor(() => expect(document.querySelector('[data-award-ledger]')).not.toBeNull())
+    const rows = [...document.querySelectorAll('[data-turn]')]
+    expect(rows.length).toBe(FAKE_LEDGER.length)
+
+    // The TOTAL column is the number the log recorded — `points + bonus` —
+    // never the recomputation. A rules edit today must not rewrite what a
+    // Play paid yesterday, and the column that would is the one to pin.
+    const first = FAKE_LEDGER[0]
+    if (!first) throw new Error('the fixture has no turns')
+    expect(rows[0]?.textContent).toContain(String(first.points + first.bonus))
+  })
+
+  it('opens one turn at a time and says why in words', async () => {
+    mount(openPlay(12))
+    render(<App />)
+    await goToStatistics('live')
+    await waitFor(() => expect(document.querySelector('[data-turn]')).not.toBeNull())
+
+    const row = document.querySelector<HTMLElement>('[data-turn]')
+    if (!row) throw new Error('no ledger row')
+    fireEvent.click(row)
+    await waitFor(() => expect(row.getAttribute('aria-expanded')).toBe('true'))
+    expect(screen.getByText(PREVIEW.ledger.why)).toBeTruthy()
   })
 })

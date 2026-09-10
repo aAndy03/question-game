@@ -19,7 +19,7 @@ use questiongame_host::monitor::StageReattach;
 use questiongame_host::play::PlayStatus;
 use questiongame_host::settings::{
     ConsecutiveBonus, DifficultyMap, LockSpeedBase, OverrideAfterLock, RevealChannel, RevealMode,
-    ScoringMode, TimerLevel,
+    ScoringMode, SpeedWindow, TimerLevel,
 };
 use questiongame_host::{MatchService, PlaySnapshot};
 
@@ -134,6 +134,8 @@ fn every_game_affecting_key_is_refused_while_a_play_is_open() {
         GameSetting::FlatPoints(50),
         GameSetting::DifficultyMap(DifficultyMap::Linear { factor: 5.0 }),
         GameSetting::SpeedWeight(1.0),
+        GameSetting::SpeedWindow(SpeedWindow::Fraction(0.5)),
+        GameSetting::SpeedSteps(Some(3)),
         GameSetting::LockSpeedEnabled(true),
         GameSetting::LockSpeedBase(LockSpeedBase::Flat),
         GameSetting::MaxConsecutiveCorrect(Some(3)),

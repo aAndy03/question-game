@@ -38,7 +38,8 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
 use crate::event::Event;
-use crate::stats::{self, StatsDimension, StatsQuery, StatsResult, TurnFact};
+use crate::preview::{PreviewBoard, PreviewDomain, PreviewQuestion};
+use crate::stats::{self, StatsDimension, StatsQuery, StatsResult, TurnAward};
 use crate::flags::{GameSettings, GlobalSettings};
 use crate::ids::{AssetId, DomainId, OperatorId, PlayId, QuestionId, RecipeId, TeamId};
 use crate::play::Play;
@@ -743,6 +744,59 @@ impl CatalogService {
         snapshot::build(&recipe, &bodies, play_id, settings)
     }
 
+    /// The board flattened for the Rules preview (P11.12).
+    ///
+    /// `build_snapshot`'s lenient cousin. It applies the same recipe overlays,
+    /// because the preview has to describe the questions **this show** will
+    /// ask — a per-game difficulty override is exactly the kind of thing that
+    /// makes an award surprising. But it *skips* a row it cannot read instead
+    /// of refusing the whole board: a Play must not start on a board with a
+    /// hole in it, while a preview of an unfinished board is the normal case
+    /// and returning nothing would be the unhelpful answer.
+    pub fn preview_board(&self, recipe_id: &RecipeId) -> CatalogResult<PreviewBoard> {
+        let recipe = self.recipe_get(recipe_id)?;
+        let conn = self.conn();
+        let mut domains: Vec<PreviewDomain> = Vec::new();
+        for board in &recipe.board {
+            let Ok(domain) = store::domain_get(&conn, &board.domain_id) else {
+                continue;
+            };
+            let overlay = recipe.overlays.domains.get(&board.domain_id);
+            let questions = board
+                .question_ids
+                .iter()
+                .filter_map(|id| {
+                    let question = store::question_get(&conn, id).ok()?;
+                    let patch = recipe.overlays.questions.get(id);
+                    Some(PreviewQuestion {
+                        difficulty: patch
+                            .and_then(|p| p.difficulty)
+                            .unwrap_or(question.difficulty),
+                        duration_ms: patch.and_then(|p| p.duration_ms),
+                        correct_count: patch
+                            .and_then(|p| p.options.as_ref())
+                            .unwrap_or(&question.options)
+                            .iter()
+                            .filter(|option| option.correct)
+                            .count() as u32,
+                        stem: patch
+                            .and_then(|p| p.stem.clone())
+                            .unwrap_or(question.stem),
+                        id: question.id,
+                    })
+                })
+                .collect();
+            domains.push(PreviewDomain {
+                name: overlay
+                    .and_then(|o| o.name.clone())
+                    .unwrap_or(domain.name),
+                id: domain.id,
+                questions,
+            });
+        }
+        Ok(PreviewBoard { domains })
+    }
+
     // ------------------------------------------------------------- the Play log
 
     /// Persist everything in this Play that is not stored yet, then refresh its
@@ -823,11 +877,11 @@ impl CatalogService {
                 .map(|record| record.id)
                 .collect(),
         };
-        let mut facts: Vec<TurnFact> = Vec::new();
+        let mut awards: Vec<TurnAward> = Vec::new();
         for id in &ids {
-            facts.extend(stats::facts(&store::events_read(&guard, id)?));
+            awards.extend(stats::awards(&store::events_read(&guard, id)?));
         }
-        let mut result = stats::aggregate(&facts, query);
+        let mut result = stats::aggregate_awards(&awards, query);
         relabel(&guard, &mut result);
         Ok(result)
     }
@@ -994,6 +1048,20 @@ fn relabel(conn: &Connection, result: &mut StatsResult) {
         };
         if let Some(name) = current {
             row.label = name;
+        }
+    }
+    // The ledger carries three labels of its own, and §12's "rename team →
+    // Statistics" applies to them for the same reason it applies to the rows:
+    // a Play is self-contained, but the operator is reading today's names.
+    for turn in result.turns.iter_mut() {
+        if let Ok(team) = store::team_get(conn, &turn.fact.team_id) {
+            turn.fact.team_name = team.name;
+        }
+        if let Ok(domain) = store::domain_get(conn, &turn.fact.domain_id) {
+            turn.fact.domain_name = domain.name;
+        }
+        if let Ok(question) = store::question_get(conn, &turn.fact.question_id) {
+            turn.fact.question_stem = question.stem;
         }
     }
 }

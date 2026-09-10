@@ -248,6 +248,7 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::presentation::stage_report,
         // FlagService
         commands::flags::settings_get,
+        commands::flags::rules_preview,
         commands::flags::settings_set_global,
         commands::flags::settings_set_current_game,
         commands::flags::settings_set_shortcut,

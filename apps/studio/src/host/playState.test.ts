@@ -186,6 +186,19 @@ const ALLOWED = [
 /** Tests build ticked Plays on purpose; the rule is about what ships. */
 const isTest = (path: string) => /\.test\.tsx?$/.test(path)
 
+/**
+ * The rule is about the **live** Play: a component that subscribes to
+ * `play-state` for a number that moves ten times a second re-renders ten times
+ * a second, which is what the P11.7 split exists to stop.
+ *
+ * A file that never touches the store cannot do that. P11.12's award ledger
+ * names `remainingMsAtLock` all over — the clock as it stood when a turn was
+ * *resolved*, read out of `stats_query`, refreshed on the event count and as
+ * still as any other historical fact. Exempting by "does not read the store"
+ * keeps the rule pointed at the thing it is protecting instead of at the word.
+ */
+const readsThePlay = (text: string) => /usePlayState|playState|PlayStateFor/.test(text)
+
 describe('nothing reads the countdown off the Play', () => {
   it('confines remainingMs and elapsedMs to usePlayClock', () => {
     const files = Object.keys(SOURCES)
@@ -195,6 +208,7 @@ describe('nothing reads the countdown off the Play', () => {
       const path = file.replace(/^\.\./, '')
       if (isTest(path) || ALLOWED.some((a) => path.endsWith(a) || path.includes(a))) continue
       if (!/remainingMs|elapsedMs/.test(text)) continue
+      if (!readsThePlay(text)) continue
       // Naming the number is fine; getting it from anywhere but the clock is not.
       if (!text.includes('usePlayClock')) offenders.push(path)
     }

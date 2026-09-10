@@ -37,7 +37,7 @@ use crate::service::MatchService;
 use crate::settings::{
     ConsecutiveBonus, DifficultyMap, FrozenSettings, JudgingSettings, LiveSettings, LockSpeedBase,
     OverrideAfterLock, RevealChannel, RevealMode, RevealSettings, ScoringMode, ScoringSettings,
-    TimerCascade, TimerLevel, TurnSettings,
+    SpeedWindow, TimerCascade, TimerLevel, TurnSettings,
 };
 
 // ---------------------------------------------------------------- feature roots
@@ -471,6 +471,10 @@ pub enum GameSetting {
     FlatPoints(u32),
     DifficultyMap(DifficultyMap),
     SpeedWeight(f64),
+    /// Where the speed bonus reaches zero (P11.12).
+    SpeedWindow(SpeedWindow),
+    /// Quantize the speed bonus into `n` equal bands (P11.12).
+    SpeedSteps(Option<u32>),
     LockSpeedEnabled(bool),
     LockSpeedBase(LockSpeedBase),
     MaxConsecutiveCorrect(Option<u32>),
@@ -493,6 +497,8 @@ impl GameSetting {
             GameSetting::FlatPoints(_) => "scoring.flat_points",
             GameSetting::DifficultyMap(_) => "scoring.difficulty_map",
             GameSetting::SpeedWeight(_) => "scoring.speed_weight",
+            GameSetting::SpeedWindow(_) => "scoring.speed_window",
+            GameSetting::SpeedSteps(_) => "scoring.speed_steps",
             GameSetting::LockSpeedEnabled(_) => "scoring.lock_speed.enabled",
             GameSetting::LockSpeedBase(_) => "scoring.lock_speed_base",
             GameSetting::MaxConsecutiveCorrect(_) => "turn.max_consecutive_correct",
@@ -518,6 +524,8 @@ impl GameSetting {
             GameSetting::FlatPoints(v) => game.scoring.flat_points = v,
             GameSetting::DifficultyMap(v) => game.scoring.difficulty_map = v,
             GameSetting::SpeedWeight(v) => game.scoring.speed_weight = v,
+            GameSetting::SpeedWindow(v) => game.scoring.speed_window = v,
+            GameSetting::SpeedSteps(v) => game.scoring.speed_steps = v,
             GameSetting::LockSpeedEnabled(v) => game.scoring.lock_speed_enabled = v,
             GameSetting::LockSpeedBase(v) => game.scoring.lock_speed_base = v,
             GameSetting::MaxConsecutiveCorrect(v) => game.turn.max_consecutive_correct = v,
@@ -1069,65 +1077,24 @@ impl FlagService {
         let Some(game) = self.current_game.as_ref() else {
             return out;
         };
-        let frozen = ctx.play_is_open();
-        let scoring = &game.scoring;
-        let exclusive = matches!(scoring.mode, ScoringMode::LockSpeed);
-        let timer_on = self.timer_cascade().enabled();
-
-        // The mode picks which base is live and whether the option exists at
-        // all. Both directions of the §4.2 interlock, so neither branch can
-        // present a control that does nothing.
-        if exclusive {
-            out.push(d(
-                "scoring.lock_speed.enabled",
-                DisabledReason::Inert("scoring.mode is already lock_speed"),
-            ));
-        } else {
-            out.push(d(
-                "scoring.lock_speed_base",
-                DisabledReason::Inert("scoring.mode is not lock_speed"),
-            ));
-        }
-        if !scoring.uses_flat_base() {
-            out.push(d(
-                "scoring.flat_points",
-                DisabledReason::Inert("no scoring path uses the flat base"),
-            ));
-        }
-        if !scoring.uses_difficulty_base() {
-            out.push(d(
-                "scoring.difficulty_map",
-                DisabledReason::Inert("no scoring path uses the difficulty base"),
-            ));
-        }
-        // §2.4: operator pace disables the lock-speed weight — there is no
-        // remaining time to weigh.
-        if !scoring.uses_lock_speed() {
-            out.push(d(
-                "scoring.speed_weight",
-                DisabledReason::Inert("lock-speed scoring is off"),
-            ));
-        } else if !timer_on {
-            out.push(d(
-                "scoring.speed_weight",
-                DisabledReason::Inert("the play runs at operator pace"),
-            ));
-        }
-        if !timer_on {
-            out.push(d(
-                "timer.duration_ms",
-                DisabledReason::Inert("timer.enabled is off"),
-            ));
-        }
-
-        if frozen {
-            out.extend(
-                GAME_AFFECTING_KEYS
-                    .iter()
-                    .map(|key| d(*key, DisabledReason::Frozen)),
-            );
-        }
+        out.extend(interlocks(game, self.timer_cascade().enabled(), ctx.play_is_open()));
         out
+    }
+
+    /// The same §4.2 table over a recipe that is **not** in Control (P11.12).
+    ///
+    /// `disabled` can only answer for the recipe the operator has loaded, so
+    /// Game ▸ Rules used to re-derive "the weight is inert" client-side — a
+    /// second copy of an interlock, which §4.2 exists to prevent. This is the
+    /// one table, asked about any document; `disabled` calls it too.
+    pub fn interlocks_for(&self, game: &GameSettings, frozen: bool) -> Vec<Disabled> {
+        // A recipe not in Control resolves its own timer against the globals,
+        // which is exactly what `play_load` will do for it later.
+        let cascade = TimerCascade {
+            globals: self.globals.timer,
+            recipe: game.timer,
+        };
+        interlocks(game, cascade.enabled(), frozen)
     }
 
     /// §4.2: `timer.enabled = false` hides StartTimer and the Stage clock.
@@ -1147,6 +1114,87 @@ impl FlagService {
     }
 }
 
+/// The §4.2 interlock table over one game document.
+///
+/// One copy, called by [`FlagService::disabled`] for the recipe in Control and
+/// by [`FlagService::interlocks_for`] for any other. Every entry says which
+/// sibling key made this one inert, because that sentence is what the operator
+/// needs and it is not derivable from the key alone.
+fn interlocks(game: &GameSettings, timer_on: bool, frozen: bool) -> Vec<Disabled> {
+    let mut out: Vec<Disabled> = Vec::new();
+    let d = |key, reason| Disabled { key, reason };
+    let scoring = &game.scoring;
+    let exclusive = matches!(scoring.mode, ScoringMode::LockSpeed);
+
+    // The mode picks which base is live and whether the option exists at
+    // all. Both directions of the §4.2 interlock, so neither branch can
+    // present a control that does nothing.
+    if exclusive {
+        out.push(d(
+            "scoring.lock_speed.enabled",
+            DisabledReason::Inert("scoring.mode is already lock_speed"),
+        ));
+    } else {
+        out.push(d(
+            "scoring.lock_speed_base",
+            DisabledReason::Inert("scoring.mode is not lock_speed"),
+        ));
+    }
+    if !scoring.uses_flat_base() {
+        out.push(d(
+            "scoring.flat_points",
+            DisabledReason::Inert("no scoring path uses the flat base"),
+        ));
+    }
+    if !scoring.uses_difficulty_base() {
+        out.push(d(
+            "scoring.difficulty_map",
+            DisabledReason::Inert("no scoring path uses the difficulty base"),
+        ));
+    }
+    // §2.4: operator pace disables the lock-speed weight — there is no
+    // remaining time to weigh. The window and the banding hang off the same
+    // weight, so they go inert together with it (P11.12).
+    let speed_dead = if !scoring.uses_lock_speed() {
+        Some(DisabledReason::Inert("lock-speed scoring is off"))
+    } else if !timer_on {
+        Some(DisabledReason::Inert("the play runs at operator pace"))
+    } else {
+        None
+    };
+    match speed_dead {
+        Some(reason) => {
+            out.push(d("scoring.speed_weight", reason));
+            out.push(d("scoring.speed_window", reason));
+            out.push(d("scoring.speed_steps", reason));
+        }
+        // A weight of zero is legal and kept (§4.2), but a window and a
+        // banding over a bonus of nothing are controls that cannot move a
+        // number.
+        None if scoring.speed_weight <= 0.0 => {
+            let reason = DisabledReason::Inert("scoring.speed_weight is 0");
+            out.push(d("scoring.speed_window", reason));
+            out.push(d("scoring.speed_steps", reason));
+        }
+        None => {}
+    }
+    if !timer_on {
+        out.push(d(
+            "timer.duration_ms",
+            DisabledReason::Inert("timer.enabled is off"),
+        ));
+    }
+
+    if frozen {
+        out.extend(
+            GAME_AFFECTING_KEYS
+                .iter()
+                .map(|key| d(*key, DisabledReason::Frozen)),
+        );
+    }
+    out
+}
+
 /// The keys §4.2 marks *Game, frozen*. Listed once so the freeze rule and the
 /// disabled list cannot drift apart.
 pub const GAME_AFFECTING_KEYS: &[&str] = &[
@@ -1154,6 +1202,8 @@ pub const GAME_AFFECTING_KEYS: &[&str] = &[
     "scoring.flat_points",
     "scoring.difficulty_map",
     "scoring.speed_weight",
+    "scoring.speed_window",
+    "scoring.speed_steps",
     "scoring.lock_speed.enabled",
     "scoring.lock_speed_base",
     "turn.max_consecutive_correct",

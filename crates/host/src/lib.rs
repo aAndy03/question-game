@@ -26,6 +26,7 @@
 //! service   the §13 command surface — the only writer of a Play
 //! play      the materialized projection; a pure fold over the log
 //! event     the append-only log, undo as an inversion span
+//! explain   why an award is what it is — the one copy of the formula
 //! ring      the round invariant (§5.4)
 //! session   one question, issue → outcome (§5.3)
 //! timer     the countdown; no clock inside, zero is a computed instant
@@ -35,6 +36,7 @@
 //! settings  frozen vs control-behaviour keys
 //! flags     the settings document, the §4.2 interlocks, the `feat.*` roots
 //! presentation  the current screen, the overlay queue, the `anim-complete` door
+//! preview   what the rules would pay, before a Play runs them
 //! monitor   where the Stage window lives; the OS list arrives as data
 //! notice    the §14 `{ code, severity, target_path, actions[] }` shape
 //! stage     `play-state`, checked against the P1 fixtures
@@ -51,6 +53,7 @@ pub mod award;
 pub mod catalog;
 pub mod error;
 pub mod event;
+pub mod explain;
 pub mod flags;
 pub mod health;
 pub mod ids;
@@ -59,6 +62,7 @@ pub mod notice;
 pub mod operator;
 pub mod play;
 pub mod presentation;
+pub mod preview;
 pub mod ring;
 pub mod rules;
 pub mod service;
@@ -72,6 +76,7 @@ pub mod timer;
 pub use catalog::{CatalogError, CatalogKind, CatalogLocation, CatalogService};
 pub use error::{MatchError, MatchResult};
 pub use event::{Event, EventKind};
+pub use explain::{AwardBreakdown, BaseSource, SpeedFactor, SpeedOff};
 pub use flags::{
     AudioSettings, CueKey, FeatureRoot, FlagService, GameSettings, GlobalSettings, RuntimeContext,
 };
@@ -85,6 +90,7 @@ pub use monitor::{
 pub use notice::{Notice, Severity};
 pub use play::{Play, PlayStatus};
 pub use presentation::PresentationService;
+pub use preview::{BoardShape, PreviewBoard, RulesPreview};
 pub use ring::Ring;
 pub use rules::Verdict;
 pub use service::{MatchService, RestartMode};

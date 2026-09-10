@@ -220,6 +220,16 @@ export type DifficultyMap =
   | { readonly kind: 'linear'; readonly factor: number }
   | { readonly kind: 'bands'; readonly bands: readonly DifficultyBand[] }
 
+/**
+ * Where the lock-speed bonus reaches zero (P11.12). `{ kind: 'fraction',
+ * value: 1 }` is the whole clock — the pre-P11.12 formula, and the default.
+ * `{ kind: 'ms' }` decays over absolute milliseconds, so the same answer time
+ * is worth the same on every question whatever its countdown.
+ */
+export type SpeedWindow =
+  | { readonly kind: 'fraction'; readonly value: number }
+  | { readonly kind: 'ms'; readonly value: number }
+
 export interface ScoringSettings {
   readonly mode: ScoringMode
   readonly flat_points: number
@@ -227,6 +237,9 @@ export interface ScoringSettings {
   readonly speed_weight: number
   readonly lock_speed_enabled: boolean
   readonly lock_speed_base: LockSpeedBase
+  readonly speed_window: SpeedWindow
+  /** Equal bands across the window; every lock inside one is worth the same. */
+  readonly speed_steps: number | null
 }
 
 export interface JudgingSettings {
@@ -336,6 +349,8 @@ export type GameSetting =
   | { readonly key: 'flat_points'; readonly value: number }
   | { readonly key: 'difficulty_map'; readonly value: DifficultyMap }
   | { readonly key: 'speed_weight'; readonly value: number }
+  | { readonly key: 'speed_window'; readonly value: SpeedWindow }
+  | { readonly key: 'speed_steps'; readonly value: number | null }
   | { readonly key: 'lock_speed_enabled'; readonly value: boolean }
   | { readonly key: 'lock_speed_base'; readonly value: LockSpeedBase }
   | { readonly key: 'max_consecutive_correct'; readonly value: number | null }
@@ -460,6 +475,12 @@ export interface StatsQuery {
   /** The columns, in order. Empty means the host's defaults. */
   readonly metrics?: readonly StatsMetric[]
   readonly limit?: number | null
+  /**
+   * How many individual turns to return alongside the rows, newest first —
+   * the award ledger (P11.12). Omitted or `0` returns none, so a view that
+   * only draws numbers pays nothing for one it does not.
+   */
+  readonly detail?: number
 }
 
 export interface StatsRow {
@@ -478,6 +499,252 @@ export interface StatsResult {
   readonly totals: StatsRow
   readonly playCount: number
   readonly turnCount: number
+  /** The award ledger, when `query.detail` asked for it. */
+  readonly turns?: readonly TurnAward[]
+}
+
+// ------------------------------------------------------------- the award ledger
+
+export type Verdict = 'correct' | 'incorrect' | 'partial'
+
+export interface Judgement {
+  readonly verdict: Verdict
+  readonly correctLocked: number
+  readonly incorrectLocked: number
+  readonly correctTotal: number
+}
+
+/** One band of `difficulty_map: bands`, with both bounds resolved. */
+export interface BandSpan {
+  readonly index: number
+  readonly from: number
+  readonly upTo: number
+  /** False when an earlier band already covers this ceiling: it can never pay. */
+  readonly reachable: boolean
+  readonly points: number
+}
+
+/** Which base paid, and everything needed to say so in words. */
+export type BaseSource =
+  | { readonly kind: 'flat'; readonly points: number }
+  | { readonly kind: 'linear'; readonly factor: number; readonly difficulty: number }
+  | ({ readonly kind: 'band'; readonly aboveLast: boolean } & BandSpan)
+  | { readonly kind: 'noBands' }
+
+/** Why the speed factor was exactly 1.0 — five distinct ways a weight does nothing. */
+export type SpeedOff = 'mode_off' | 'operator_pace' | 'never_locked' | 'weight_zero' | 'outside_window'
+
+export type SpeedFactor =
+  | { readonly state: 'off'; readonly reason: SpeedOff }
+  | {
+      readonly state: 'on'
+      readonly weight: number
+      readonly durationMs: number
+      readonly windowMs: number
+      readonly elapsedMs: number
+      readonly remainingMs: number
+      readonly steps: number | null
+      /** 0–1: the share of the bonus this lock earned. */
+      readonly progress: number
+      /** `1 + weight × progress`. */
+      readonly multiplier: number
+    }
+
+export interface PartialShare {
+  readonly correctLocked: number
+  readonly incorrectLocked: number
+  readonly correctTotal: number
+  readonly share: number
+}
+
+export interface BonusAward {
+  readonly streak: number
+  readonly count: number
+  readonly award: number
+}
+
+/** One award, step by step, in the order the steps are applied. */
+export interface AwardBreakdown {
+  readonly judgement: Judgement
+  readonly base: number
+  readonly baseFrom: BaseSource
+  readonly speed: SpeedFactor
+  /** `floor(base × multiplier)`, before the verdict has its say. */
+  readonly scaled: number
+  readonly share: PartialShare | null
+  readonly points: number
+  readonly bonus: BonusAward | null
+  readonly total: number
+}
+
+/**
+ * One resolved turn with its award taken apart.
+ *
+ * **`points + bonus` is the truth; `award.total` is the working.** They agree
+ * — the host has property tests and a whole-Play replay saying so — but the
+ * record is what the scoreboard showed, so the ledger's TOTAL column reads the
+ * recorded number and uses the breakdown to explain it.
+ */
+export interface TurnAward {
+  readonly playId: string
+  readonly recipeId: string
+  readonly atMs: number
+  readonly teamId: string
+  readonly teamName: string
+  readonly domainId: string
+  readonly domainName: string
+  readonly questionId: string
+  readonly questionStem: string
+  readonly difficulty: number
+  readonly verdict: Verdict
+  readonly points: number
+  readonly bonus: number
+  readonly remainingMsAtLock: number | null
+  readonly timerDurationMs: number | null
+  readonly autoLocked: boolean
+  /** Consecutive corrects on this token including this one; 0 if not correct. */
+  readonly streak: number
+  readonly tokenEnds: boolean
+  readonly operatorId: string | null
+  readonly rehearsal: boolean
+  readonly award: AwardBreakdown
+}
+
+// ----------------------------------------------------------- the rules preview
+
+export type LockSample =
+  | { readonly kind: 'instant' }
+  | { readonly kind: 'quarters'; readonly left: number }
+  | { readonly kind: 'buzzer' }
+  | { readonly kind: 'neverLocked' }
+  | { readonly kind: 'operatorPace' }
+
+export interface PreviewColumn {
+  readonly lock: LockSample
+  readonly remainingMs: number | null
+}
+
+export interface PreviewRow {
+  readonly difficulty: number
+  readonly questionCount: number
+  readonly domains: readonly string[]
+  readonly base: number
+  readonly baseFrom: BaseSource
+  readonly correct: readonly AwardBreakdown[]
+  readonly partial: readonly AwardBreakdown[] | null
+  readonly incorrect: number
+}
+
+export type TimerSource = 'recipe' | 'globals' | 'operator_pace'
+
+export interface TimerResolution {
+  readonly enabled: boolean
+  readonly durationMs: number | null
+  readonly source: TimerSource
+  /** Board questions carrying a duration of their own. */
+  readonly perQuestion: number
+  readonly speedWindowMs: number | null
+}
+
+export interface DomainLadder {
+  readonly id: string
+  readonly name: string
+  readonly questions: number
+  readonly minDifficulty: number
+  readonly maxDifficulty: number
+  /** Difficulties in walk order — easy to hard, the order questions issue in. */
+  readonly ladder: readonly number[]
+  readonly pointsAvailable: number
+}
+
+export interface Rung {
+  readonly index: number
+  readonly difficulty: number
+  readonly base: number
+}
+
+/**
+ * What kind of board this is. `aligned` — same count *and* the same ladder in
+ * every domain — is the one that collapses to a single rung table, because
+ * then one table is the whole truth about the board.
+ */
+export type BoardShape =
+  | { readonly kind: 'empty' }
+  | {
+      readonly kind: 'aligned'
+      readonly perDomain: number
+      readonly rungs: readonly Rung[]
+      readonly domains: readonly DomainLadder[]
+    }
+  | { readonly kind: 'uniform'; readonly perDomain: number; readonly domains: readonly DomainLadder[] }
+  | {
+      readonly kind: 'ragged'
+      readonly min: number
+      readonly max: number
+      readonly domains: readonly DomainLadder[]
+    }
+
+/** Something about this combination that will surprise the operator mid-show. */
+export type PreviewWarning =
+  | { readonly code: 'mixedDurations'; readonly questions: number }
+  | { readonly code: 'speedWithoutTimer' }
+  | { readonly code: 'bandsNotMonotonic'; readonly index: number }
+  | { readonly code: 'unreachableBand'; readonly index: number; readonly upTo: number }
+  | { readonly code: 'aboveLastBand'; readonly questions: number; readonly upTo: number }
+  | { readonly code: 'bonusUnreachable'; readonly count: number; readonly cap: number }
+  | { readonly code: 'raggedBoard'; readonly min: number; readonly max: number }
+  | { readonly code: 'flatBoard'; readonly difficulty: number }
+
+/**
+ * What a setting is set to, structured. The host sends codes and numbers; the
+ * readable string is `copy/preview.ts`'s, like every other host label.
+ */
+export type RuleValue =
+  | { readonly kind: 'unset' }
+  | { readonly kind: 'flag'; readonly value: boolean }
+  | { readonly kind: 'points'; readonly value: number }
+  | { readonly kind: 'number'; readonly value: number }
+  | { readonly kind: 'ms'; readonly value: number }
+  | { readonly kind: 'choice'; readonly value: string }
+  | { readonly kind: 'linear'; readonly value: number }
+  | { readonly kind: 'bands'; readonly value: number }
+  | { readonly kind: 'fraction'; readonly value: number }
+  | { readonly kind: 'streak'; readonly value: { readonly count: number; readonly award: number } }
+  | { readonly kind: 'inherited'; readonly value: boolean }
+
+/**
+ * What one award key is doing right now.
+ *
+ * **`off` and `disabled` are different, and conflating them was a bug.** A
+ * switch the operator turned off is perfectly usable and simply not
+ * contributing; a disabled key cannot contribute whatever its value, because a
+ * sibling setting neutralised it. Reading only the second made an off switch
+ * render as "in use" — Rules claimed partial credit was on while the form
+ * right above it showed the switch off (2026-09-10).
+ */
+export type RuleState =
+  | { readonly state: 'active' }
+  | { readonly state: 'off' }
+  | ({ readonly state: 'disabled' } & DisabledReason)
+
+/** One award key: what it is doing, and what it is set to. */
+export type RuleEffect = { readonly key: string; readonly value: RuleValue } & RuleState
+
+/** `rules_preview` — what these rules would pay, before a Play runs them. */
+export interface RulesPreview {
+  readonly timer: TimerResolution
+  readonly bands: readonly BandSpan[]
+  readonly columns: readonly PreviewColumn[]
+  readonly rows: readonly PreviewRow[]
+  readonly board: BoardShape
+  /**
+   * The point of truth for the effects table: every award key, in the order
+   * the formula applies them, with its state and its current value.
+   */
+  readonly rules: readonly RuleEffect[]
+  /** The disabled subset, for the form's greying. Derived from `rules`. */
+  readonly effects: readonly Disabled[]
+  readonly warnings: readonly PreviewWarning[]
 }
 
 /** The metric's unit, mirroring `StatsMetric::unit` in the host. */

@@ -895,7 +895,7 @@ Banner: open Plays keep their frozen copy. Global award default does not rewrite
 
 ## 13. Host commands, events, frontend map
 
-Commands: `catalog_*`, `recipe_*`, `recipe_set_overlay`, `play_load|unload|start|pause|resume|restart|abandon|get_state`, `choose_domain`, `reveal_stem`, `reveal_next_option`, `set_selection`, `lock_selection`, `start_timer`, `pause_timer`, `reveal_outcome`, `give_token`, `reorder_ring`, `show_screen`, `stage_set_monitor`, `overlay_ack_complete`, `undo_turn`, `redo_turn`, `settings_get|set_global|set_current_game`, `settings_set_shortcut`, `stats_query`.
+Commands: `catalog_*`, `recipe_*`, `recipe_set_overlay`, `play_load|unload|start|pause|resume|restart|abandon|get_state`, `choose_domain`, `reveal_stem`, `reveal_next_option`, `set_selection`, `lock_selection`, `start_timer`, `pause_timer`, `reveal_outcome`, `give_token`, `reorder_ring`, `show_screen`, `stage_set_monitor`, `overlay_ack_complete`, `undo_turn`, `redo_turn`, `settings_get|set_global|set_current_game`, `settings_set_shortcut`, `rules_preview`, `stats_query`.
 
 Events: `catalog-changed`, `recipe-changed`, `play-state` (full to main, stripped to stage), `health`, `monitors-changed`, `anim-complete`.
 

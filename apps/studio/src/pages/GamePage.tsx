@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button, MeaningChip, Panel, Skeleton, Text, TextField } from '@/atoms'
 import { EmptyState, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
-import { BoardSection, PlaysSection, RosterSection, RulesSection, useArchive } from '@/organisms'
+import { BoardSection, PlaysSection, RosterSection, RulesPreviewPanel, RulesSection, useArchive } from '@/organisms'
 import { RecordPageLayout } from '@/templates'
 import { useNavStore, type GameSection } from '@/chrome/nav'
 import { GAME, LIST, TABS } from '@/copy'
@@ -159,7 +159,16 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
         </>
       ) : null}
       {section === 'board' ? <BoardSection recipe={r} frozenReason={frozenReason} /> : null}
-      {section === 'rules' ? <RulesSection recipe={r} frozenReason={frozenReason} /> : null}
+      {section === 'rules' ? (
+        <>
+          <RulesSection recipe={r} frozenReason={frozenReason} />
+          {/*
+            The preview reads the same recipe and the same rev, so it refetches
+            with the write it is explaining (P11.12).
+          */}
+          <RulesPreviewPanel recipeId={r.id} rev={r.rev} />
+        </>
+      ) : null}
       {section === 'plays' ? <PlaysSection recipe={r} /> : null}
       {archive.dialog}
     </RecordPageLayout>

@@ -32,8 +32,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::event::{Event, EventKind, active_inversions, is_inverted};
-use crate::ids::{DomainId, OperatorId, PlayId, QuestionId, RecipeId, TeamId};
-use crate::rules::Verdict;
+use crate::explain::{self, AwardBreakdown};
+use crate::ids::{DomainId, OperatorId, OptionId, PlayId, QuestionId, RecipeId, TeamId};
+use crate::rules::{Verdict, judge};
 
 // ------------------------------------------------------------------- the fact
 
@@ -63,6 +64,11 @@ pub struct TurnFact {
     pub timer_duration_ms: Option<u32>,
     /// The T=0 table locked it, not the operator.
     pub auto_locked: bool,
+    /// Consecutive correct answers on this token including this one, `0` when
+    /// this answer was not correct. What decides the streak bonus (§4.4).
+    pub streak: u32,
+    /// The token moved on after this turn — a wrong answer, or the cap.
+    pub token_ends: bool,
     /// Who was at the desk when it resolved (§2.26).
     pub operator_id: Option<OperatorId>,
     /// One active team: a rehearsal, excluded from All data unless asked for.
@@ -79,12 +85,38 @@ impl TurnFact {
     }
 }
 
+/// One resolved turn with its award taken apart (P11.12).
+///
+/// The breakdown is recomputed from the Play's **frozen** settings and the
+/// options the team actually locked, through [`crate::explain`] — the same
+/// arithmetic `reveal_outcome` paid it with. Recomputing rather than recording
+/// means the ledger works on logs written before this existed, and a rules
+/// edit today can never rewrite what a Play paid yesterday.
+/// **`fact.points + fact.bonus` is the truth; `award.total` is the working.**
+/// They agree — `tests/demo_scenarios.rs` replays whole Plays and asserts it,
+/// and `tests/award_compound.rs` holds the arithmetic down over the generated
+/// compound space. But a log written by an older build is still a record of
+/// what that Play paid, so the ledger displays the recorded number and uses
+/// the breakdown to explain it. A recomputation can never rewrite a score.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnAward {
+    #[serde(flatten)]
+    pub fact: TurnFact,
+    pub award: AwardBreakdown,
+}
+
 /// Fold one Play's log into its resolved turns, newest last.
 ///
 /// The log is self-contained: `PlayLoaded` carries the snapshot, so the names
 /// and difficulties come out of the same array the Play was played from. A
 /// turn that is currently undone is not here at all.
 pub fn facts(events: &[Event]) -> Vec<TurnFact> {
+    awards(events).into_iter().map(|a| a.fact).collect()
+}
+
+/// The same fold, keeping each turn's award breakdown.
+pub fn awards(events: &[Event]) -> Vec<TurnAward> {
     let Some(Event {
         kind: EventKind::PlayLoaded { snapshot },
         ..
@@ -97,7 +129,8 @@ pub fn facts(events: &[Event]) -> Vec<TurnFact> {
     let rehearsal = snapshot.teams.len() == 1;
     let mut operator: Option<OperatorId> = None;
     let mut open: Option<OpenTurn> = None;
-    let mut out: Vec<TurnFact> = Vec::new();
+    let mut consecutive: u32 = 0;
+    let mut out: Vec<TurnAward> = Vec::new();
 
     for event in events {
         if is_inverted(&spans, event.seq) {
@@ -110,6 +143,9 @@ pub fn facts(events: &[Event]) -> Vec<TurnFact> {
         }
         match &event.kind {
             EventKind::OperatorSwitched { operator_id } => operator = Some(operator_id.clone()),
+            // The streak is per token, so it resets exactly where `play.rs`
+            // resets it — a new token, and the end of the last one.
+            EventKind::TokenGiven { .. } => consecutive = 0,
             EventKind::QuestionIssued {
                 domain,
                 question,
@@ -123,30 +159,67 @@ pub fn facts(events: &[Event]) -> Vec<TurnFact> {
                     timer_duration_ms: *timer_duration_ms,
                     remaining_ms_at_lock: None,
                     auto_locked: false,
+                    locked: None,
                 })
             }
             EventKind::SelectionLocked {
+                options,
                 remaining_ms_at_lock,
                 auto,
-                ..
             } => {
                 if let Some(turn) = open.as_mut() {
                     turn.remaining_ms_at_lock = *remaining_ms_at_lock;
                     turn.auto_locked = *auto;
+                    turn.locked = Some(options.clone());
                 }
             }
             EventKind::TurnResolved {
                 verdict,
                 points_awarded,
                 bonus_awarded,
-                ..
+                token_ends,
             } => {
                 let Some(turn) = open.take() else { continue };
                 let (domain_name, question) = match snapshot.question(&turn.question) {
                     Some((domain, question)) => (domain.name.clone(), Some(question)),
                     None => (String::new(), None),
                 };
-                out.push(TurnFact {
+                let difficulty = question.map(|q| q.difficulty).unwrap_or(0);
+                consecutive = if *verdict == Verdict::Correct {
+                    consecutive + 1
+                } else {
+                    0
+                };
+                let streak = consecutive;
+                if *token_ends {
+                    consecutive = 0;
+                }
+
+                // Re-judge from the frozen settings and the options actually
+                // locked, then explain the award through the same function
+                // that paid it. A question the snapshot no longer names can
+                // still be explained down to "no question, so no options".
+                let settings = &snapshot.settings;
+                let judgement = judge(
+                    turn.locked.as_deref(),
+                    question.map(|q| q.correct_option_ids.as_slice()).unwrap_or(&[]),
+                    &settings.judging,
+                );
+                let award = explain::explain(
+                    &settings.scoring,
+                    &settings.judging,
+                    difficulty,
+                    &judgement,
+                    turn.remaining_ms_at_lock,
+                    turn.timer_duration_ms,
+                )
+                .with_bonus(explain::bonus_for(
+                    settings.turn.bonus_after_consecutive,
+                    *verdict,
+                    streak,
+                ));
+
+                let fact = TurnFact {
                     play_id: snapshot.play_id.clone(),
                     recipe_id: snapshot.recipe_id.clone(),
                     at_ms: event.at_ms,
@@ -158,7 +231,7 @@ pub fn facts(events: &[Event]) -> Vec<TurnFact> {
                     domain_id: turn.domain,
                     domain_name,
                     question_stem: question.map(|q| q.stem.clone()).unwrap_or_default(),
-                    difficulty: question.map(|q| q.difficulty).unwrap_or(0),
+                    difficulty,
                     question_id: turn.question,
                     verdict: *verdict,
                     points: *points_awarded,
@@ -166,9 +239,12 @@ pub fn facts(events: &[Event]) -> Vec<TurnFact> {
                     remaining_ms_at_lock: turn.remaining_ms_at_lock,
                     timer_duration_ms: turn.timer_duration_ms,
                     auto_locked: turn.auto_locked,
+                    streak,
+                    token_ends: *token_ends,
                     operator_id: operator.clone(),
                     rehearsal,
-                });
+                };
+                out.push(TurnAward { fact, award });
             }
             _ => {}
         }
@@ -183,6 +259,9 @@ struct OpenTurn {
     timer_duration_ms: Option<u32>,
     remaining_ms_at_lock: Option<u32>,
     auto_locked: bool,
+    /// What the team locked, kept so the ledger can re-judge the answer and
+    /// say *why* it was worth what it was worth.
+    locked: Option<Vec<OptionId>>,
 }
 
 // ------------------------------------------------------------------ the query
@@ -198,6 +277,12 @@ pub struct StatsQuery {
     pub metrics: Vec<StatsMetric>,
     /// Rows to return after ordering. `None` = all of them.
     pub limit: Option<u32>,
+    /// How many individual turns to return alongside the rows, newest first —
+    /// the award ledger (P11.12). `0`, the default, returns none, so every
+    /// existing caller pays nothing for a view it does not draw. One command,
+    /// one document (§13.1): the ledger is a *detail level* of the same
+    /// question, not a second stats verb.
+    pub detail: u32,
 }
 
 /// Every variable §11.K offers, and time. An empty list does not filter;
@@ -370,18 +455,39 @@ pub struct StatsResult {
     /// Distinct Plays and resolved turns behind the whole answer.
     pub play_count: u32,
     pub turn_count: u32,
+    /// The most recent `query.detail` turns that passed the filter, newest
+    /// first, each with its award taken apart. Empty unless asked for.
+    #[serde(default)]
+    pub turns: Vec<TurnAward>,
 }
 
 /// Aggregate facts into rows. Pure: the same facts and the same query always
 /// give the same answer, which is what makes the Live view refreshable on an
 /// event count rather than a clock.
 pub fn aggregate(facts: &[TurnFact], query: &StatsQuery) -> StatsResult {
+    let refs: Vec<&TurnFact> = facts.iter().collect();
+    fold(&refs, query, &[])
+}
+
+/// The same, keeping the award breakdowns so `query.detail` can return the
+/// ledger. `CatalogService::stats_query` calls this one; `aggregate` stays for
+/// callers that only want numbers.
+pub fn aggregate_awards(awards: &[TurnAward], query: &StatsQuery) -> StatsResult {
+    let refs: Vec<&TurnFact> = awards.iter().map(|a| &a.fact).collect();
+    fold(&refs, query, awards)
+}
+
+fn fold(facts: &[&TurnFact], query: &StatsQuery, awards: &[TurnAward]) -> StatsResult {
     let metrics: Vec<StatsMetric> = if query.metrics.is_empty() {
         StatsMetric::DEFAULTS.to_vec()
     } else {
         query.metrics.clone()
     };
-    let kept: Vec<&TurnFact> = facts.iter().filter(|f| query.filter.keeps(f)).collect();
+    let kept: Vec<&TurnFact> = facts
+        .iter()
+        .copied()
+        .filter(|f| query.filter.keeps(f))
+        .collect();
 
     let mut groups: BTreeMap<String, Group> = BTreeMap::new();
     for fact in &kept {
@@ -413,6 +519,22 @@ pub fn aggregate(facts: &[TurnFact], query: &StatsQuery) -> StatsResult {
         all.push(fact);
     }
     let totals = all.row(String::new(), &metrics);
+    // The ledger is the tail of the log, so it is taken from the end and
+    // reversed: the turn that just resolved is the one the operator is
+    // looking for.
+    let turns: Vec<TurnAward> = if query.detail == 0 {
+        Vec::new()
+    } else {
+        let mut recent: Vec<TurnAward> = awards
+            .iter()
+            .filter(|a| query.filter.keeps(&a.fact))
+            .rev()
+            .take(query.detail as usize)
+            .cloned()
+            .collect();
+        recent.sort_by(|a, b| b.fact.at_ms.cmp(&a.fact.at_ms));
+        recent
+    };
     StatsResult {
         group_by: query.group_by,
         metrics,
@@ -420,6 +542,7 @@ pub fn aggregate(facts: &[TurnFact], query: &StatsQuery) -> StatsResult {
         turn_count: totals.turns,
         play_count: totals.plays,
         totals,
+        turns,
     }
 }
 

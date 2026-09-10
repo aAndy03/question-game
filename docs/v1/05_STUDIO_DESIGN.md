@@ -1479,3 +1479,221 @@ display as Stage (the picker refuses it).
 - **`?fake` carries a canned `stats_query` answer** (`demoStats`), the way
   `&play=<fixture>` carries a Play — the fake host does not fold events, and
   the tab needs something to draw in a browser.
+
+---
+
+## 14. Rules you can see, awards you can explain (P11.12)
+
+Status: **as built, P11.12, 2026-09-10.** Fourteen settings can move a number
+and four of them silently neutralise others. Until now the operator set them
+one at a time in a form and found out what the combination meant during the
+show. Two surfaces close that: a **preview** in Game ▸ Rules that says what
+these rules would pay *before* a Play, and a **ledger** in Statistics ▸ Live
+that says what they did pay and why, *after* one.
+
+The rule that holds across the section: **every number on both surfaces comes
+from the host, computed with the same function that scores a real answer.**
+Studio formats and explains; it never multiplies. A preview that computed its
+own numbers would be a second rules engine, and the first thing it would do is
+disagree with the scoreboard.
+
+### 14.1 One arithmetic
+
+`crates/host/src/explain.rs` holds the formula, and `award::award_points` is
+`explain(..).points`. `base_points` and `speed_multiplier` are fields of the
+same breakdown. There is no second copy to drift.
+
+```text
+base ──┬─ scoring.flat_points            mode=flat, or lock_speed & base=flat
+       └─ scoring.difficulty_map(d)      mode=difficulty, or lock_speed & base=difficulty
+            ├─ linear{factor}  → floor(d × factor)
+            └─ bands[]         → first band with up_to ≥ d, else the last band
+
+×speed ─ 1 + speed_weight × progress, or exactly 1.0 and a reason why:
+         ModeOff · OperatorPace · NeverLocked · WeightZero · OutsideWindow
+
+scaled = floor(base × speed)
+verdict → scaled | share of scaled (partial credit) | 0
++bonus  → the streak award, once per token, added after everything else
+```
+
+`AwardBreakdown` records every one of those steps, including *which band paid*
+(`BaseSource::Band` carries the band's index and its resolved `from..=up_to`)
+and *why* a speed factor did nothing. That is what makes an explanation
+possible in data rather than in a tooltip written by hand.
+
+**The award is a pure function of `(difficulty, verdict, lock progress,
+streak)` and the frozen settings.** It never reads the domain, the team, the
+round or the position on the board — which is the operator's own rule, and
+`tests/award_compound.rs` holds it down over generated documents rather than
+over four-team examples.
+
+Writing those properties over the single copy immediately found two real
+defects: a partial share could exceed the whole award when a judgement claimed
+more correct locks than existed (unreachable through `judge`, but
+`award_points` is public and the ledger re-judges from logs), and two bands
+sharing a ceiling produced an overlapping span the ladder would have drawn as
+a range.
+
+### 14.2 Two keys that make speed predictable
+
+The P4 factor was `remaining / duration` — a share of whatever clock *that*
+question happened to get, so a one-second answer on a 30 s clock and on a 10 s
+clock were worth different amounts. Deterministic, but not predictable.
+
+```rust
+speed_window: Fraction(f64) | Ms(u32)   // default Fraction(1.0)
+speed_steps: Option<u32>                // default None
+```
+
+- `Fraction(0.333)` — "no speed bonus after a third of the clock".
+- `Ms(10_000)` — the bonus decays over ten absolute seconds, so **the same
+  answer time is worth the same on every question** whatever its countdown.
+  This is the answer to a board with per-question duration overrides, and the
+  preview raises `MixedDurations` to say so when one is set and the window is
+  still a fraction.
+- `speed_steps: Some(3)` — fast / medium / slow bands where every answer inside
+  a band pays *identically* the same. The strongest form of "predictable": two
+  answers the operator cannot tell apart cannot score differently.
+
+Both carry `#[serde(default)]`, and `Fraction(1.0)` with no steps reproduces
+the pre-P11.12 formula byte for byte. An old `PlaySnapshot` therefore
+deserialises into the rules it was played under, and no existing recipe pays
+anything different than it did before.
+
+### 14.3 The preview
+
+`rules_preview { recipeId }` is a new §13 verb on `FlagService`, composed in
+the app crate the way `play_load` already is — the catalog knows the board, the
+flag service knows the interlocks, `preview::build` knows the arithmetic.
+`recipeId: null` explains the all-games defaults over an empty board.
+
+```text
+┌ Game ▸ Rules ────────────────────────────────────────────────────────┐
+│ the form (SettingRow per key)                                        │
+├──────────────────────────────────────────────────────────────────────┤
+│ What these rules pay                                                 │
+│   Countdown  30s from the all-games default · window                 │
+│   Points by difficulty and answer speed                              │
+│     difficulty × [instant · ¾ · half · ¼ · buzzer · never locked]    │
+│   Difficulty bands (when the base is banded) — resolved ranges       │
+│   What each setting does — key · what it changes · what disables it  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+- **Rows come from this game's own board** — the difficulties actually on it,
+  with how many questions sit at each and which domains they belong to. An
+  empty board (or the globals form) falls back to 1 / 25 / 50 / 75 / 100 and
+  says so; more than eight distinct difficulties sample evenly with both ends
+  kept.
+- **Each cell is a whole `AwardBreakdown`**, so the number carries its working
+  on hover rather than being a bare figure to trust.
+- **`preview.rules` is the point of truth for the effects table.** One entry
+  per `AWARD_KEYS` key, in order, carrying **both** what the setting is doing
+  and what it is set to. The first version asked the host only "is this key
+  disabled" — the §4.2 interlock — and a switch that is *usable but off* has no
+  interlock entry, so it fell through to "In use": Rules claimed partial credit
+  was on while the form right above it showed the switch off (reported
+  2026-09-10). `RuleState` is therefore three-valued, and the distinction is
+  load-bearing:
+
+  | state | means | the operator can |
+  | --- | --- | --- |
+  | `Active` | live, and contributing | change what it does |
+  | `Off` | usable, set to nothing — a switch off, an optional unset, a weight of 0 | **turn it on right now** |
+  | `Disabled` | a sibling has neutralised it, whatever its value | not use it until the sibling changes |
+
+  An interlock always wins over an off value, because "lock-speed scoring is
+  off" is more useful than "the weight is 0". An `Off` key's value *is* its
+  state, so the chip says it once rather than "Off Off". A setting that gains
+  an interlock cannot be left out, and `preview::rules_for` is the only place
+  the two questions are answered — inferring a value from an absence is what
+  caused the bug.
+- **`preview.effects` is the §4.2 table run over *this* recipe.**
+  `settings_get.disabled` can only answer for the recipe in Control, so
+  `RulesSection` used to re-derive "the weight is inert" and "the timer is off"
+  in TypeScript — a second copy of an interlock, which §4.2 exists to prevent.
+  Those copies are gone.
+- **Warnings are codes, not sentences** (`PreviewWarning`), rendered from
+  `copy/preview.ts` like `RING_ROLE` and `disabledReasonText`.
+
+**The Bands bug.** Before P11.12 this row had its own `SelectField` and a
+factor field, and the Bands branch rendered *nothing*: the operator picked
+Bands and the panel went blank. `DifficultyMapField` — which already existed,
+wired only into the global Settings form — is now used at both call sites, and
+`RulesSection.test.tsx` asserts an editable band table appears, by role.
+
+### 14.4 The board's shape
+
+Uneven domains are **not an award problem**, and the answer belongs in Board
+rather than in Rules. The award never reads domain membership, so difficulty 21
+pays the same in a three-question domain and a thirty-question one. What uneven
+domains change is the *ceiling* (a three-question domain is exhausted in three
+turns) and the *walk* (easy→hard has fewer rungs). That is board design.
+
+```rust
+BoardShape::Aligned { per_domain, rungs, domains }  // same count AND same ladder
+BoardShape::Uniform { per_domain, domains }         // same count, ladders differ
+BoardShape::Ragged  { min, max, domains }           // counts differ
+BoardShape::Empty
+```
+
+**The readout adapts to the shape, which is the point of asking.** `Aligned`
+collapses to one rung table — "every domain's 3rd question is difficulty 70 and
+pays 700" — because then one table is the whole truth about the board. The
+other two show the per-domain ladders side by side with the divergence marked,
+because there is no single ladder to show. Every shape also lists each domain's
+count, its difficulty span, its walk and its `points_available` — the honest
+ceiling, every question answered correctly with no speed bonus.
+
+### 14.5 The award ledger
+
+`stats_query` gains `detail: u32` (how many turn rows, newest first; `0`, the
+default, returns none) and `StatsResult` gains `turns: Vec<TurnAward>`. **One
+command, one document** as §13.1 requires: the ledger is a *detail level* of
+the same question, not a second stats verb. `TurnFact` gained `streak` and
+`token_ends`, both free from the log.
+
+```text
+# · Team · Domain · Question · Diff. · Result · Locked ·
+    Base · × Speed · Share · Bonus · TOTAL          [Show working]
+      -> clicking a row: the same thing as a sentence naming the settings
+```
+
+- **`points + bonus` is the truth; `award.total` is the working.** The TOTAL
+  column reads the number the log recorded — what the scoreboard actually moved
+  by — and the breakdown explains it. They agree (`demo_scenarios.rs` s16
+  replays a whole Demo asserting it), but a log written by an older build is
+  still a record of what that Play paid, and a recomputation must never rewrite
+  a score.
+- **It recomputes from the Play's *frozen* settings**, so a rules edit today
+  cannot change what a Play paid yesterday. Labels are relabelled from the
+  catalog, like the rows (§12's "rename team → Statistics").
+- **It rides on the Live view's existing by-team query.** Asking twice would
+  send every breakdown down the wire twice for one view; a test asserts exactly
+  one query carries `detail`.
+- **Statistics is still a projector.** `AwardLedger` is under the same grep as
+  the rest of the surface: no `useHostCommand`, anywhere.
+
+### 14.6 As built — departures worth knowing
+
+- **`data-` hooks do not survive `Panel`.** It takes named props only, so
+  `<Panel data-rules-preview>` is silently dropped — and a test keying on one
+  would be asserting nothing. Both preview hooks sit on plain wrappers.
+- **`Text` is inline by default.** A label and the sentence under it need
+  `as="div"` or a flex column, or they run together; the effects table was
+  reading "Award modeChooses the base..." until they got one.
+- **`NumberField` renders a text input**, so its role is `textbox`, not
+  `spinbutton` — HeroUI v3. Worth knowing before writing an assertion about
+  one.
+- **The P11.7 clock guard was sharpened, not widened.** `playState.test.ts`
+  confined `remainingMs` / `elapsedMs` to `usePlayClock`; the ledger names
+  `remainingMsAtLock` throughout, but that is the clock as it stood when a turn
+  *resolved*, read out of `stats_query` and as still as any other historical
+  fact. The rule now exempts a file that never touches the play-state store,
+  which points it at the thing it protects instead of at the word.
+- **`?fake`'s preview and ledger are fixtures, not a second fold**
+  (`host/fake/preview.ts`), the same rule the canned `stats_query` answer
+  already follows. They describe the demo recipe the fake seeds — History 20 /
+  45 / 70 and Technology 15 / 60, deliberately ragged — so shell work can lay
+  the panels out; they do not change when the settings do.

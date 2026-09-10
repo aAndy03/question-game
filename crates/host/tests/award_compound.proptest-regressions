@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 6964e1894b1df2451a45c48cff09f37f01aa1d6eb03f4841eee50f502e5ee763 # shrinks to scoring = ScoringSettings { mode: Flat, flat_points: 1, difficulty_map: Linear { factor: 0.0 }, speed_weight: 0.0, lock_speed_enabled: false, lock_speed_base: Flat, speed_window: Fraction(0.05), speed_steps: None }, difficulty = 1, duration = None, remaining = 0, correct_locked = 2, incorrect_locked = 0, correct_total = 1
+cc 118ab621a02fbe8c8fe44744e18cc95fae58d069efe14de1f8a93f587c57f948 # shrinks to raw = [(31, 0), (31, 0)]

@@ -53,3 +53,7 @@ export { StatsTable, formatMetric, seriesOf, type StatsTableProps } from './Stat
 export { StatsCards, type StatsCardsProps } from './StatsCards'
 export { StatsChart, type StatsChartProps } from './StatsChart'
 export { StatsFilterBar, windowBounds, type StatsFilterBarProps, type TimeWindow } from './StatsFilterBar'
+export { AwardMatrix, BandLadder, workingOf, type AwardMatrixProps } from './AwardMatrix'
+export { RuleEffects, type RuleEffectsProps } from './RuleEffects'
+export { BoardBalance, type BoardBalanceProps } from './BoardBalance'
+export { SpeedWindowField, type SpeedWindowFieldProps } from './SpeedWindowField'

@@ -42,6 +42,7 @@ import type {
   StatsQuery,
   StatsResult,
 } from './types'
+import { FAKE_LEDGER, FAKE_PREVIEW } from './fake/preview'
 import { SEED_RECIPE_ID, sameBody, seedLibrary, seedRecipe } from './fake/seed'
 
 type Handler = (payload: unknown) => void
@@ -114,6 +115,8 @@ const GAME_AFFECTING_KEYS = [
   'scoring.flat_points',
   'scoring.difficulty_map',
   'scoring.speed_weight',
+  'scoring.speed_window',
+  'scoring.speed_steps',
   'scoring.lock_speed.enabled',
   'scoring.lock_speed_base',
   'turn.max_consecutive_correct',
@@ -132,6 +135,7 @@ const EMPTY_STATS: StatsResult = {
   totals: { key: '', label: '', values: [0, 0, null, 0], turns: 0, plays: 0 },
   playCount: 0,
   turnCount: 0,
+  turns: [],
 }
 
 /**
@@ -173,6 +177,8 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
     speed_weight: 0,
     lock_speed_enabled: false,
     lock_speed_base: 'difficulty',
+    speed_window: { kind: 'fraction', value: 1 },
+    speed_steps: null,
   },
   judging: { partial_credit: false, order_matters: false },
   turn: { max_consecutive_correct: null, bonus_after_consecutive: null },
@@ -580,6 +586,10 @@ export function createFakeHost(): FakeHost {
       fake.uninstalled = true
       return null
     },
+    // A canned document, not a second fold — see `fake/preview.ts`. It does
+    // not vary with the settings, so shell work can lay the panel out but
+    // cannot check the arithmetic; that is `crates/host`'s job and its tests.
+    rules_preview: () => FAKE_PREVIEW,
     paths_get: () => FAKE_PATHS,
     paths_reveal: () => null,
     health_get: () => fake.health,
@@ -593,10 +603,14 @@ export function createFakeHost(): FakeHost {
     // Read-only by construction: there is no stats verb that writes (§11.K).
     stats_query: (a) => {
       const query = (a.query ?? {}) as StatsQuery
+      const detail = query.detail ?? 0
       return {
         ...fake.stats,
         groupBy: query.groupBy ?? fake.stats.groupBy,
         metrics: query.metrics?.length ? query.metrics : fake.stats.metrics,
+        // The ledger is opt-in on the real host too, so a view that does not
+        // ask must not receive one — that is the thing worth reproducing.
+        turns: detail > 0 ? (fake.stats.turns?.length ? fake.stats.turns : FAKE_LEDGER).slice(0, detail) : [],
       }
     },
     settings_get: () => settingsView(),
@@ -768,6 +782,10 @@ function applyGameSetting(g: GameSettings, s: GameSetting): GameSettings {
       return { ...g, scoring: { ...g.scoring, difficulty_map: s.value } }
     case 'speed_weight':
       return { ...g, scoring: { ...g.scoring, speed_weight: s.value } }
+    case 'speed_window':
+      return { ...g, scoring: { ...g.scoring, speed_window: s.value } }
+    case 'speed_steps':
+      return { ...g, scoring: { ...g.scoring, speed_steps: s.value } }
     case 'lock_speed_enabled':
       return { ...g, scoring: { ...g.scoring, lock_speed_enabled: s.value } }
     case 'lock_speed_base':

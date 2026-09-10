@@ -85,21 +85,128 @@ impl DifficultyMap {
         }
     }
 
+    /// The bands as the lookup actually sees them: sorted by `up_to`, each
+    /// carrying the lowest difficulty it covers as well as the highest.
+    ///
+    /// This is the one place bands are ordered and their lower bounds are
+    /// derived, so the award, the ledger and the Rules preview cannot disagree
+    /// about which band a difficulty falls in. Linear has no spans.
+    pub fn spans(&self) -> Vec<BandSpan> {
+        let DifficultyMap::Bands { bands } = self else {
+            return Vec::new();
+        };
+        let mut sorted: Vec<DifficultyBand> = bands.clone();
+        sorted.sort_by_key(|b| b.up_to);
+        let mut from = 1u8;
+        sorted
+            .into_iter()
+            .enumerate()
+            .map(|(index, band)| {
+                let span = BandSpan {
+                    index: index as u32,
+                    from,
+                    up_to: band.up_to,
+                    // Two bands may share a ceiling, or a later one may sit
+                    // below an earlier one. The lookup takes the first match,
+                    // so such a band can never pay — and a ladder that showed
+                    // it as a range would be showing a range that overlaps its
+                    // neighbour. It is kept and marked, not dropped: an
+                    // operator who typed it needs to be told why it is dead.
+                    reachable: from <= band.up_to,
+                    points: band.points,
+                };
+                from = band.up_to.saturating_add(1);
+                span
+            })
+            .collect()
+    }
+
+    /// The band that pays for this difficulty, and whether it only paid
+    /// because the difficulty ran off the end of the table.
+    pub fn band_for(&self, difficulty: u8) -> Option<(BandSpan, bool)> {
+        let spans = self.spans();
+        if let Some(span) = spans.iter().find(|s| difficulty <= s.up_to) {
+            return Some((*span, false));
+        }
+        spans.last().map(|span| (*span, true))
+    }
+
     pub fn points(&self, difficulty: u8) -> u32 {
         match self {
             DifficultyMap::Linear { factor } => {
                 (f64::from(difficulty) * factor).floor().max(0.0) as u32
             }
-            DifficultyMap::Bands { bands } => {
-                let mut sorted: Vec<&DifficultyBand> = bands.iter().collect();
-                sorted.sort_by_key(|b| b.up_to);
-                sorted
-                    .iter()
-                    .find(|b| difficulty <= b.up_to)
-                    .or_else(|| sorted.last())
-                    .map(|b| b.points)
-                    .unwrap_or(0)
+            DifficultyMap::Bands { .. } => self
+                .band_for(difficulty)
+                .map(|(span, _)| span.points)
+                .unwrap_or(0),
+        }
+    }
+}
+
+/// One band with both of its bounds resolved (P11.12). `from` is derived from
+/// the previous band's `up_to`, which is what makes a band table readable:
+/// the operator authors ceilings and reads ranges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BandSpan {
+    pub index: u32,
+    pub from: u8,
+    pub up_to: u8,
+    /// False when an earlier band already covers everything up to this
+    /// ceiling, so no difficulty can ever reach it.
+    pub reachable: bool,
+    pub points: u32,
+}
+
+/// Where the lock-speed bonus reaches zero (P11.12).
+///
+/// The P4 formula weighed `remaining / duration` — a share of whatever clock
+/// *that* question happened to get, so the same answer time was worth
+/// different amounts on different questions. This says where the bonus ends,
+/// in the unit the operator thinks in.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind", content = "value")]
+pub enum SpeedWindow {
+    /// A share of that question's own clock. `1.0` is the whole clock — the
+    /// P4 formula unchanged, and the default.
+    Fraction(f64),
+    /// Absolute milliseconds, clamped to the clock. The same answer time is
+    /// then worth the same on every question whatever its duration.
+    Ms(u32),
+}
+
+impl Default for SpeedWindow {
+    fn default() -> Self {
+        SpeedWindow::Fraction(1.0)
+    }
+}
+
+impl SpeedWindow {
+    /// The window in milliseconds for a question with this countdown.
+    pub fn resolve(&self, duration_ms: u32) -> u32 {
+        match self {
+            SpeedWindow::Fraction(f) => {
+                let f = if f.is_finite() { f.clamp(0.0, 1.0) } else { 0.0 };
+                (f64::from(duration_ms) * f).round() as u32
             }
+            SpeedWindow::Ms(ms) => (*ms).min(duration_ms),
+        }
+    }
+
+    fn validate(&self) -> MatchResult<()> {
+        match self {
+            // A window of zero can never pay, so it is a setting that cannot
+            // mean anything — the same shape as a cap of zero (§4.4).
+            SpeedWindow::Fraction(f) if !f.is_finite() || *f <= 0.0 || *f > 1.0 => Err(illegal(
+                "scoring.speed_window",
+                "a share of the clock, greater than 0 and at most 1; switch lock-speed off instead",
+            )),
+            SpeedWindow::Ms(0) => Err(illegal(
+                "scoring.speed_window",
+                "a window of 0 ms can never pay; switch lock-speed off instead",
+            )),
+            _ => Ok(()),
         }
     }
 }
@@ -115,6 +222,16 @@ pub struct ScoringSettings {
     /// already lock-speed — applying both would double-count.
     pub lock_speed_enabled: bool,
     pub lock_speed_base: LockSpeedBase,
+    /// Where the speed bonus reaches zero (P11.12). Defaults to the whole
+    /// clock, which is the P4 formula, so a snapshot written before this
+    /// field existed deserialises into the rules it was played under.
+    #[serde(default)]
+    pub speed_window: SpeedWindow,
+    /// Quantize the bonus into `n` equal bands across the window, so every
+    /// answer inside a band is worth identically the same. `None` is the
+    /// continuous slope — the P4 behaviour, and the default.
+    #[serde(default)]
+    pub speed_steps: Option<u32>,
 }
 
 impl Default for ScoringSettings {
@@ -127,6 +244,8 @@ impl Default for ScoringSettings {
             speed_weight: 0.0,
             lock_speed_enabled: false,
             lock_speed_base: LockSpeedBase::Difficulty,
+            speed_window: SpeedWindow::default(),
+            speed_steps: None,
         }
     }
 }
@@ -172,7 +291,40 @@ impl ScoringSettings {
         if !self.speed_weight.is_finite() || self.speed_weight < 0.0 {
             return Err(illegal("scoring.speed_weight", "must be finite and >= 0"));
         }
+        self.speed_window.validate()?;
+        if self.speed_steps == Some(0) {
+            return Err(illegal(
+                "scoring.speed_steps",
+                "zero bands is not a banding; clear it for the continuous slope",
+            ));
+        }
         self.difficulty_map.validate()
+    }
+
+    /// How much of the speed bonus this lock earns, `0.0..=1.0` (P11.12).
+    ///
+    /// `1.0` is an instant lock, `0.0` is a lock at or past the window's edge.
+    /// With `speed_window: Fraction(1.0)` and no steps this is exactly
+    /// `remaining / duration`, which is what P4 weighed.
+    pub fn speed_progress(&self, remaining_ms_at_lock: u32, duration_ms: u32) -> f64 {
+        let window_ms = self.speed_window.resolve(duration_ms);
+        if window_ms == 0 {
+            return 0.0;
+        }
+        let elapsed = duration_ms.saturating_sub(remaining_ms_at_lock.min(duration_ms));
+        if elapsed >= window_ms {
+            return 0.0;
+        }
+        let raw = 1.0 - f64::from(elapsed) / f64::from(window_ms);
+        match self.speed_steps {
+            // Every lock inside a band lands on the band's own value, so two
+            // answers the operator cannot tell apart are worth the same.
+            Some(steps) if steps > 0 => {
+                let n = f64::from(steps);
+                (raw * n).ceil().min(n) / n
+            }
+            _ => raw,
+        }
     }
 }
 
