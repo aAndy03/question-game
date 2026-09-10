@@ -33,9 +33,33 @@ export function MonitorsSettings() {
   const statsOpen = useStatsWindowOpen()
   const statsOnStage = stats !== null && stats === remembered
 
-  const send = (key: string | null) => {
+  // The displays mirroring the pacer (§9, P11.11). Two audience screens and no
+  // HDMI splitter, so the app is one.
+  const mirrors = settings.data?.control.stage_mirror_ids ?? []
+
+  /**
+   * Send Stage to a display.
+   *
+   * The **first** display is the pacer — the window whose acks advance the
+   * overlay queue and the only one that makes a sound. Every one after it is a
+   * mirror, so the operator never has to know the word: they send Stage
+   * somewhere, and the app works out which kind it is.
+   */
+  const send = (key: string) => {
     void run('stage_open')
-    void run('stage_set_monitor', { monitorId: key })
+    if (remembered === null) {
+      void run('stage_set_monitor', { monitorId: key })
+      return
+    }
+    void run.ok('stage_add_mirror', { monitorId: key })
+  }
+
+  const removeStage = (key: string) => void run.ok('stage_remove_mirror', { monitorId: key })
+
+  const stateOf = (key: string): 'stage' | 'mirror' | 'remembered' | 'free' => {
+    if (remembered === key) return 'stage'
+    if (mirrors.includes(key)) return 'mirror'
+    return 'free'
   }
 
   return (
@@ -53,8 +77,9 @@ export function MonitorsSettings() {
             <MonitorCard
               key={m.key}
               monitor={m}
-              state={remembered === m.key ? 'stage' : 'free'}
+              state={stateOf(m.key)}
               onSendStage={() => send(m.key)}
+              onRemoveStage={() => removeStage(m.key)}
               single={single}
             />
           ))}
@@ -67,7 +92,10 @@ export function MonitorsSettings() {
             {`${SETTINGS.monitors.remembered}: ${remembered ?? SETTINGS.monitors.none}${remembered && !rememberedConnected ? ` (${SETTINGS.monitors.notConnected})` : ''}`}
           </Text>
           {remembered ? (
-            <Button size="sm" variant="tertiary" onPress={() => send(null)}>
+            // Parks the **pacer** on primary. Always `stage_set_monitor`, never
+            // the mirror path: this button moves the one window that must
+            // always exist (§9, P11.11).
+            <Button size="sm" variant="tertiary" onPress={() => void run('stage_set_monitor', { monitorId: null })}>
               {SETTINGS.monitors.primary}
             </Button>
           ) : null}

@@ -20,6 +20,8 @@ export const CONTROL = {
   resetLayout: 'Reset layout',
   density: { comfortable: 'Comfortable', compact: 'Compact', dense: 'Dense' },
   stageDisplay: 'Stage display',
+  /** Shown beside the picker when Stage is mirrored (§9, P11.11). */
+  stageDisplayCount: (n: number) => `${n} displays`,
   statsDisplay: 'Statistics display',
   primaryDisplay: 'Primary display',
   openStage: 'Open Stage',

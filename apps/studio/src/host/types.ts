@@ -287,6 +287,8 @@ export interface ControlSettings {
   readonly viewer_hit_targets: boolean
   readonly mosaic_density: MosaicDensity
   readonly stage_monitor_id: string | null
+  /** The displays mirroring the pacer (§9, P11.11). Empty is one display. */
+  readonly stage_mirror_ids: readonly string[]
   /** Where Statistics opens **when asked**. Remembering is not showing (§13.3). */
   readonly stats_monitor_id: string | null
   /** Fullscreen that window, or leave it sizable. */

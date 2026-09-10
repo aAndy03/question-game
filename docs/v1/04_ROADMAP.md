@@ -1305,6 +1305,61 @@ is not where the GPU process's growth comes from.
 
 ---
 
+## P11.11 — Stage on several displays at once  ☑
+
+The operator has three displays and no HDMI splitter, so the app is one. One
+**pacer** — the Stage window that has always existed — and N **mirrors**
+showing the identical picture.
+
+Spec: `docs/superpowers/specs/2026-09-10-multi-display-stage-design.md`.
+Plan: `docs/superpowers/plans/2026-09-10-multi-display-stage.md`.
+
+A mirror differs in exactly two behaviours, and both are load-bearing. It makes
+no sound, because every Stage window playing every cue is a flam and the OS
+mixes them to one device anyway. And it does not acknowledge an animation:
+two displays play the same timeline, and the second ack would retire an overlay
+the operator has not seen finish, or promote a pending one twice. The pacer is
+the one window in charge, and it is the one that has always been in charge —
+never promoted, never demoted, so who paces the show is not a moving target
+mid-show.
+
+`StageDisplay::live_mirrors()` is the whole contract with the app crate: which
+connected displays should carry a mirror right now. `windows::reconcile_mirrors`
+makes the windows match. Declarative rather than a diff of opens and closes,
+because reconciling to a set is idempotent — the monitor watch calls it on every
+display change without remembering what it did last time, and a missed close
+cannot leave a window standing on a display that is gone.
+
+**P11.6 is load-bearing here.** The operator's three displays are three
+different CSS viewports — 1920×1080, 1366×768 and 1280×720 — and `StageFit` is
+the only reason the same fixed canvas lands correctly on all of them.
+
+**Exit criteria**
+
+- ☑ `stage_mirror_ids` sits beside `stage_monitor_id`, so there is no settings
+  migration and every `monitor.rs` test from P6 passes unchanged — the check
+  that single-display behaviour did not move (`flag_service.rs`).
+- ☑ One pane per display, both ways round: a mirror on the pacer's display is
+  refused, and sending the pacer to a mirrored display retires that mirror
+  (`stage_mirrors.rs`).
+- ☑ Unplugging a mirror's display drops that mirror and leaves the others; the
+  pick is remembered, so the cable coming back restores it. Nothing on the path
+  reaches a Play (`stage_mirrors.rs`).
+- ☑ `live_mirrors()` gives the same answer asked twice, which is what lets the
+  windows be reconciled to it.
+- ☑ `stage-2` may call `STAGE_COMMANDS` and nothing else; `is_stage_label` is
+  shared by the guard and the emission loop, so a window one admits and the
+  other skips cannot exist (`guard.rs`, `host_wiring.rs`).
+- ☑ Sending Stage to a second display makes it a mirror, removing it gives the
+  display back, and the pacer's card never offers Remove
+  (`MonitorsSettings.test.tsx`, and checked in a browser).
+- ☑ A mirror is decided by the URL, synchronously (`mirror.test.tsx`).
+- ☐ Verified on the operator's own three displays: identical picture on two,
+  one cue per event, one Timeline entry per overlay, and both restored after a
+  restart.
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.

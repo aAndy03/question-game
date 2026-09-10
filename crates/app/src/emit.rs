@@ -171,6 +171,8 @@ struct MonitorsChanged<'a> {
     stage_monitor_id: Option<&'a str>,
     /// Where the Stage window actually stands. `null` is the primary display.
     stage_on: Option<&'a str>,
+    /// The displays mirroring the pacer right now (§9, P11.11).
+    stage_mirrors: Vec<String>,
     /// The display Statistics would open on, connected or not.
     stats_monitor_id: Option<&'a str>,
     /// Whether the Statistics window is on screen **right now**. It is window
@@ -190,6 +192,12 @@ pub fn monitors_changed(app: &AppHandle, host: &Host, stats_open: bool) {
             monitors: host.display.monitors(),
             stage_monitor_id: host.flags.control().stage_monitor_id.as_deref(),
             stage_on: host.display.current().map(|k| k.as_str()),
+            stage_mirrors: host
+                .display
+                .live_mirrors()
+                .iter()
+                .map(|k| k.as_str().to_owned())
+                .collect(),
             stats_monitor_id: host.flags.control().stats_monitor_id.as_deref(),
             stats_open,
         },

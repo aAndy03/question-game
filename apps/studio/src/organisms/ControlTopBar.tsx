@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, IconButton, Text } from '@/atoms'
+import { Button, IconButton, MeaningChip, Text } from '@/atoms'
 import { ConfirmDialog, DisplayPicker } from '@/molecules'
 import { useControlLayoutStore } from '@/chrome/control'
 import { useStatsWindowOpen } from '@/chrome/windows'
@@ -17,6 +17,7 @@ export function ControlTopBar() {
   const settings = useSettings()
   const run = useHostCommand()
   const play = usePlayState()
+  const mirrorCount = settings.data?.control.stage_mirror_ids.length ?? 0
   const resetLayout = useControlLayoutStore((s) => s.resetLayout)
   const list = monitors.data ?? []
   const statsOpen = useStatsWindowOpen()
@@ -46,6 +47,10 @@ export function ControlTopBar() {
           {CONTROL.stageDisplay}
         </Text>
         <DisplayPicker label={CONTROL.stageDisplay} monitors={list} value={settings.data?.control.stage_monitor_id ?? null} onChange={(monitorId) => void run('stage_set_monitor', { monitorId })} />
+        {/* The picker is the *pacer's* display. Mirrors are added in
+          * Settings ▸ Monitors; this says how many are on air, so the operator
+          * can see it from where they work (§9, P11.11). */}
+        {mirrorCount > 0 ? <MeaningChip meaning="stage">{CONTROL.stageDisplayCount(mirrorCount + 1)}</MeaningChip> : null}
         <Button size="sm" variant="ghost" icon="displays" onPress={() => void run('stage_open')}>
           {CONTROL.openStage}
         </Button>

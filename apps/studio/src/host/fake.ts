@@ -97,6 +97,7 @@ const DEFAULT_CONTROL: ControlSettings = {
   viewer_hit_targets: true,
   mosaic_density: 'comfortable',
   stage_monitor_id: null,
+  stage_mirror_ids: [],
   stats_monitor_id: null,
   stats_fullscreen: true,
   stage_reattach: 'ask',
@@ -204,6 +205,18 @@ export function createFakeHost(): FakeHost {
 
   const emit = (name: EventName, payload: unknown) => {
     for (const h of listeners.get(name) ?? []) h(payload)
+  }
+
+  /** The display picture, after anything that changes it (§9, P11.11). */
+  const emitMonitors = () => {
+    emit('monitors-changed', {
+      monitors: FAKE_MONITORS,
+      stageMonitorId: control.stage_monitor_id,
+      stageMirrors: control.stage_mirror_ids,
+      stageOn: control.stage_monitor_id,
+      statsMonitorId: control.stats_monitor_id,
+      statsOpen: fake.statsOpen,
+    })
   }
 
   const stamp = <T extends { archivedAt: number | null; createdAt: number; updatedAt: number }>(
@@ -567,13 +580,7 @@ export function createFakeHost(): FakeHost {
     // else; the fake reports it the way the host does, through the event.
     stats_window: (a) => {
       fake.statsOpen = a.open === true
-      emit('monitors-changed', {
-        monitors: FAKE_MONITORS,
-        stageMonitorId: control.stage_monitor_id,
-        stageOn: null,
-        statsMonitorId: control.stats_monitor_id,
-        statsOpen: fake.statsOpen,
-      })
+      emitMonitors()
       return null
     },
     // Read-only by construction: there is no stats verb that writes (§11.K).
@@ -654,7 +661,33 @@ export function createFakeHost(): FakeHost {
     },
     monitors_list: () => FAKE_MONITORS,
     stage_set_monitor: (a) => {
-      control = { ...control, stage_monitor_id: (a.monitorId as string | null | undefined) ?? null }
+      const id = (a.monitorId as string | null | undefined) ?? null
+      control = {
+        ...control,
+        stage_monitor_id: id,
+        // One pane per display: the operator asked for the pacer here, so the
+        // mirror that was on this display stands down (§9, P11.11).
+        stage_mirror_ids: control.stage_mirror_ids.filter((k) => k !== id),
+      }
+      emitMonitors()
+      return null
+    },
+    stage_add_mirror: (a) => {
+      const id = a.monitorId as string
+      if (control.stage_monitor_id === id || control.stage_mirror_ids.includes(id)) {
+        refuse('monitor.already_showing_stage', `${id} is already showing Stage`)
+      }
+      if (!FAKE_MONITORS.some((m) => m.key === id)) {
+        refuse('monitor.not_connected', `${id} is not connected`)
+      }
+      control = { ...control, stage_mirror_ids: [...control.stage_mirror_ids, id] }
+      emitMonitors()
+      return null
+    },
+    stage_remove_mirror: (a) => {
+      const id = a.monitorId as string
+      control = { ...control, stage_mirror_ids: control.stage_mirror_ids.filter((k) => k !== id) }
+      emitMonitors()
       return null
     },
     stage_open: () => null,

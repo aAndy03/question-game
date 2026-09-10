@@ -91,6 +91,12 @@ export const COMMAND_GROUPS = {
     'reveal_leaderboard_rank',
     'monitors_list',
     'stage_set_monitor',
+    /**
+     * Show the same picture on another display (§9, P11.11) — the operator
+     * has two audience screens and no HDMI splitter, so the app is one.
+     */
+    'stage_add_mirror',
+    'stage_remove_mirror',
     /** Create the Stage window without loading a recipe. */
     'stage_open',
     /** Stage reporting that it has mounted, with the contract version it was
@@ -298,7 +304,14 @@ export interface MonitorsChanged {
   /** The remembered pick, connected or not. */
   readonly stageMonitorId: string | null
   /** Where the Stage window actually stands. Null is the primary display. */
+  /** Where the **pacer** stands. `null` is the primary display. */
   readonly stageOn: string | null
+  /**
+   * The displays mirroring the pacer right now, in the order they were added
+   * (§9, P11.11). `stageOn` is still the pacer's, so a card knows which of the
+   * three states it is in without a second field.
+   */
+  readonly stageMirrors: readonly string[]
   /** The display Statistics would open on, connected or not. */
   readonly statsMonitorId: string | null
   /**

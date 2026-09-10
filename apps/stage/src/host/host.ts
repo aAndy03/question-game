@@ -202,6 +202,10 @@ export function tauriHost(): StageHost {
     },
     clock: () => lastClock,
     animComplete(key) {
+      // The pacer owns the overlay queue. A mirror plays the same timeline and
+      // would report the same key, retiring the overlay a second time — the
+      // host drops it too, and this saves the round trip.
+      if (isMirrorMode()) return
       void call('overlay_ack_complete', { key })
     },
     report(code, detail = {}) {
@@ -218,6 +222,25 @@ export function tauriHost(): StageHost {
  * *window* acks the host's queue; a second ack from the Viewer would advance
  * it twice.
  */
+/**
+ * Is this Stage window a **mirror** (§9, P11.11)?
+ *
+ * The operator has two audience displays and no HDMI splitter, so the app is
+ * the splitter: `stage` is the pacer and `stage-2`, `stage-3`, … show the
+ * identical picture. A mirror differs in exactly two behaviours — it makes no
+ * sound, and it does not acknowledge an animation — and both are load-bearing.
+ * Three windows playing every cue is a flam, and a second ack would advance
+ * the overlay queue twice.
+ *
+ * Read from the URL rather than the window label so the answer is there on the
+ * **first render**, before the async label fetch resolves. Mounting Howler and
+ * unmounting it a tick later loads the pack only to throw it away, and what
+ * that reports is what P11.8 was about.
+ */
+export function isMirrorMode(): boolean {
+  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('mirror')
+}
+
 export function isViewerMode(): boolean {
   return (
     typeof window !== 'undefined' &&

@@ -37,6 +37,29 @@ export interface Run {
   ok(name: Command, args?: Record<string, unknown>, options?: RunOptions): Promise<boolean>
 }
 
+/**
+ * Commands that change the settings document.
+ *
+ * The document has **no host event of its own** — `settings_get` is a read and
+ * nothing emits when it changes — so a write is the one moment Studio can know
+ * to ask for it again. A command that writes settings and is missing from here
+ * looks like it did nothing: the host is right, the store is stale, and the
+ * control the operator just used springs back.
+ *
+ * The `stage_*` window commands are on the list because they remember where
+ * Stage goes (`stage.monitor_id`, `stage.mirror_ids`) as well as moving a
+ * window.
+ */
+function writesSettings(name: Command): boolean {
+  return (
+    name.startsWith('settings_') ||
+    name.startsWith('operator_') ||
+    name === 'stage_set_monitor' ||
+    name === 'stage_add_mirror' ||
+    name === 'stage_remove_mirror'
+  )
+}
+
 export function useHostCommand(): Run {
   const pushError = useNoticeStore((s) => s.pushError)
   const client = useQueryClient()
@@ -44,11 +67,7 @@ export function useHostCommand(): Run {
     async (name: Command, args?: Record<string, unknown>, options?: RunOptions): Promise<{ ok: boolean; value: unknown }> => {
       try {
         const value = await command(name, args)
-        // The settings document has no host event of its own: a settings or
-        // operator write is the one place Studio asks for it again.
-        if (name.startsWith('settings_') || name.startsWith('operator_') || name === 'stage_set_monitor') {
-          invalidateSettings(client)
-        }
+        if (writesSettings(name)) invalidateSettings(client)
         return { ok: true, value }
       } catch (caught) {
         if (isHostError(caught)) {

@@ -913,6 +913,12 @@ Writes `stage_set_monitor` and `settings_set_global { stage_reattach }`.
   currently unplugged; `warning` chip *Not connected*), `free` (button
   *Send Stage here*). The Stage window is created if it does not exist
   yet (`stage_open` then `stage_set_monitor`).
+- **A display can be a Stage display, or mirror one** (P11.11). The card's
+  action is *Send Stage here* on a free display and *Remove Stage* on one that
+  is mirroring; the **pacer's card offers neither**, because it is *moved* with
+  the display picker rather than removed, so the operator cannot end up with no
+  Stage at all. The first display sent to is the pacer and the rest mirror it —
+  the operator never has to know the word.
 - **The resolution shown is the panel's mode, not its logical size** (P11.6).
   `MonitorInfo` carries both: `size` is logical — window placement, and the CSS
   viewport a fullscreen Stage gets — while `physicalSize` is what the OS's own

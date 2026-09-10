@@ -174,6 +174,9 @@ export const SETTINGS = {
     stage: 'Stage',
     notConnected: 'Not connected',
     sendStage: 'Send Stage here',
+    /** The same picture as the Stage display (§9, P11.11). */
+    mirror: 'Mirroring',
+    removeStage: 'Remove Stage',
     resolution: (w: number, h: number) => `${w}×${h}`,
     /** Shown only when it is not 1 — it is the reason the OS reports a smaller
      * logical size than the panel's mode, and Stage scales to suit. */

@@ -9,9 +9,10 @@ import {
 import { STAGE_FRAME, VIEWER_SOURCE, isViewerMessage, type StageToViewer, type ViewerNodeRect } from '@questiongame/contract'
 import { CUE_PACK_BASE } from '@questiongame/design-stage/audio/manifest'
 import { howlerAudio } from '@/audio/howler'
+import { silentAudio } from '@/audio/silent'
 import { useAudio } from '@/audio/useAudio'
 import { stageEvents } from '@/host/events'
-import { isViewerMode, stageHost, type StageHost } from '@/host/host'
+import { isMirrorMode, isViewerMode, stageHost, type StageHost } from '@/host/host'
 import { StageClockProvider } from '@/host/clock'
 import { StageRoot } from '@/pages'
 import { StageFit, useFitScale } from '@/templates'
@@ -44,8 +45,14 @@ function HostFed({ host }: { host: StageHost }) {
   // on the host so a re-render never rebuilds the loaded sounds; `useAudio`
   // owns load and dispose, and a file that fails to load goes back to the
   // host as `stage_report` — never as a notice on the surface being filmed.
+  // A mirror is silent (§9, P11.11): every Stage window would otherwise play
+  // every cue, and the OS mixes them all to one output device — two copies of
+  // a lock sound a few milliseconds apart is a flam, not stereo.
   const audio = useMemo(
-    () => howlerAudio(host.snapshot().audio.cues, CUE_PACK_BASE, (code, detail) => host.report(code, detail)),
+    () =>
+      isMirrorMode()
+        ? silentAudio()
+        : howlerAudio(host.snapshot().audio.cues, CUE_PACK_BASE, (code, detail) => host.report(code, detail)),
     [host],
   )
   useAudio(host, audio)
