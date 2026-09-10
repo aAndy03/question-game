@@ -2,6 +2,7 @@ import { nodeId, SCREEN_SLOTS, type PlayStateForStage, type StageScreen } from '
 import { SPACE } from '@questiongame/design-stage'
 import { ClockDigits, Rule, Text, insetBorder } from '@/atoms'
 import { resolveCopy } from '@/copy'
+import { useLiveStageClock } from '@/host/clock'
 
 /**
  * The persistent header: mounted once in the Stage frame, never remounted on
@@ -49,8 +50,20 @@ export function StageHeader({ state, screen: presented }: StageHeaderProps) {
         {copy.headerPartner}
       </Text>
       <span style={{ marginLeft: 'auto' }}>
-        <ClockDigits ms={state.clock.elapsedMs} hours="always" variant="stage-code" tone="heading" />
+        <HeaderClock carriedMs={state.clock.elapsedMs} />
       </span>
     </header>
   )
+}
+
+/**
+ * The Play clock, and nothing else.
+ *
+ * A leaf so the show loop re-renders these digits and not the header around
+ * them — nor `StageFrame`, `StageRoot` and the current page above it, which is
+ * what reading `state.clock` here used to cost (P11.10).
+ */
+function HeaderClock({ carriedMs }: { carriedMs: number }) {
+  const live = useLiveStageClock()
+  return <ClockDigits ms={live ? live.elapsedMs : carriedMs} hours="always" variant="stage-code" tone="heading" />
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { FIXTURES, type PlayStateForStage } from '@questiongame/contract'
-import type { StageHost, StateListener } from '@/host/host'
+import { clockOf, type StageHost, type StateListener } from '@/host/host'
 import type { AudioPort } from './port'
 import { useAudio } from './useAudio'
 
@@ -12,6 +12,7 @@ import { useAudio } from './useAudio'
  */
 function stubHost(initial: PlayStateForStage) {
   const listeners = new Set<StateListener>()
+  const clockListeners = new Set<() => void>()
   let state = initial
   const host: StageHost = {
     subscribe(listener) {
@@ -21,6 +22,13 @@ function stubHost(initial: PlayStateForStage) {
       }
     },
     snapshot: () => state,
+    subscribeClock(listener: () => void) {
+      clockListeners.add(listener)
+      return () => {
+        clockListeners.delete(listener)
+      }
+    },
+    clock: () => clockOf(state),
     animComplete: () => {},
     report: () => {},
   }

@@ -31,9 +31,24 @@ import type { DecorBodySpec, DecorBoundary, PlacedBody, Range, ScreenDecorSpec }
 
 const { Bodies, Body, Composite, Engine, Common, Vector, Vertices } = Matter
 
-export const STEP_MS = 1000 / 60
-/** Frames a settle runs before the world goes live. */
-const SETTLE_STEPS = 150
+/**
+ * The simulation rate, and the one number to change to trade fidelity for CPU
+ * (P11.10).
+ *
+ * Everything below is derived from it — `STEP_MS`, the px/s and deg/s
+ * conversions, the attraction acceleration and the settle — so halving it
+ * halves `Engine.update` calls while the bodies keep the *same* speed in
+ * px/second. What does change is how finely collisions resolve, so the seeded
+ * scatter differs; that is a decorative difference nobody has a reference for.
+ *
+ * Kept at 60 because this is the surface being filmed. The Viewer does not
+ * simulate at all (`DecorField`), which is where the second world went.
+ */
+export const STEP_HZ = 60
+export const STEP_MS = 1000 / STEP_HZ
+/** Seconds a settle runs before the world goes live. */
+const SETTLE_SECONDS = 2.5
+const SETTLE_STEPS = Math.round(SETTLE_SECONDS * STEP_HZ)
 /** A stalled frame catches up at most this many steps. */
 const MAX_CATCHUP = 5
 const WALL = 400
@@ -58,9 +73,9 @@ export function resolveBoundary(spec: Pick<ScreenDecorSpec, 'boundary'>): DecorB
 }
 
 /** px/s → px/step. */
-const perStep = (pxPerSecond: number) => pxPerSecond / 60
+const perStep = (pxPerSecond: number) => pxPerSecond / STEP_HZ
 /** deg/s → rad/step. */
-const radPerStep = (degPerSecond: number) => (degPerSecond * Math.PI) / 180 / 60
+const radPerStep = (degPerSecond: number) => (degPerSecond * Math.PI) / 180 / STEP_HZ
 
 interface Sized {
   readonly width: number
@@ -251,7 +266,9 @@ export function createDecorWorld(spec: ScreenDecorSpec, seed: number, settings: 
  * point is that shapes keep wandering into each other, not orbital mechanics,
  * and a constant is what stays "very mild" at every distance.
  */
-const ATTRACT_ACCEL = 0.0004 // px/step² at attraction = 1
+// px/step² at attraction = 1. Written against the rate so the pull is the
+// same px/s² whatever `STEP_HZ` is: 1.44 / 60² is the original 0.0004.
+const ATTRACT_ACCEL = 1.44 / (STEP_HZ * STEP_HZ)
 
 /**
  * matter integrates `force / mass × dt²` per step, so a force meant as an

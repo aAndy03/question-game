@@ -12,6 +12,7 @@ import { howlerAudio } from '@/audio/howler'
 import { useAudio } from '@/audio/useAudio'
 import { stageEvents } from '@/host/events'
 import { isViewerMode, stageHost, type StageHost } from '@/host/host'
+import { StageClockProvider } from '@/host/clock'
 import { StageRoot } from '@/pages'
 import { StageFit, useFitScale } from '@/templates'
 
@@ -53,7 +54,9 @@ function HostFed({ host }: { host: StageHost }) {
   // and before `StageFit` the audience saw the top-left 44% of the canvas.
   return (
     <StageFit>
-      <StageRoot state={state} />
+      <StageClockProvider host={host}>
+        <StageRoot state={state} />
+      </StageClockProvider>
     </StageFit>
   )
 }
@@ -119,7 +122,9 @@ export function ViewerFed({ host }: { host: StageHost }) {
       }}
     >
       <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: STAGE_FRAME.width, height: STAGE_FRAME.height }}>
-        <StageRoot state={state} />
+        <StageClockProvider host={host}>
+          <StageRoot state={state} />
+        </StageClockProvider>
       </div>
     </div>
   )

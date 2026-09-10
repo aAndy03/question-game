@@ -5,6 +5,7 @@ import { runTransition, sequencer, type RunningTransition } from '@/presentation
 import { DecorField, OverlayLayer, StageHeader } from '@/organisms'
 import { StageFrame } from '@/templates'
 import { LayoutProvider, applyLayout } from '@/layout'
+import { EnsureStageClock } from '@/host/clock'
 import { IdlePage } from './Idle'
 import { TeamOrderPage } from './TeamOrder'
 import { ChooseDomainPage } from './ChooseDomain'
@@ -156,6 +157,7 @@ export function StageRoot({ state }: StageRootProps) {
   const headerState = presented === screen ? state : (leaving?.state ?? state)
 
   return (
+    <EnsureStageClock state={state}>
     <LayoutProvider layout={state.layout}>
     <div ref={frameForLayout} style={{ display: 'contents' }}>
     <div ref={frame} style={{ display: 'contents' }}>
@@ -177,6 +179,7 @@ export function StageRoot({ state }: StageRootProps) {
     </div>
     </div>
     </LayoutProvider>
+    </EnsureStageClock>
   )
 }
 

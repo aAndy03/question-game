@@ -6,6 +6,7 @@ import { resolveCopy } from '@/copy'
 import { CategoryLine, QuestionStem, ResultWidget, TimerPanel } from '@/molecules'
 import { AnswerGrid } from '@/organisms'
 import { useRevealPlayer } from '@/presentation'
+import { useLiveStageClock } from '@/host/clock'
 import type { StagePageProps } from './StageRoot'
 
 /**
@@ -30,7 +31,6 @@ import type { StagePageProps } from './StageRoot'
  * Nothing here decides; it reads play-state and draws.
  */
 export function QuestionPage({ state }: StagePageProps) {
-  const copy = resolveCopy()
   const root = useRef<HTMLElement | null>(null)
   // Newly revealed keys (stem, options, outcome) arrive with a beat and report reveal:<key>.
   useRevealPlayer(state, root)
@@ -40,8 +40,6 @@ export function QuestionPage({ state }: StagePageProps) {
 
   const outcomeShown = Boolean(session?.outcome && session.reveals.outcome)
   const timer = session?.timer ?? null
-  const timerMs = timer ? (timer.remainingMsAtLock ?? timer.remainingMs) : 0
-  const urgent = timer !== null && !outcomeShown && (timer.expiredOpen || timerMs <= copy.timerUrgentSeconds * 1000)
 
   return (
     <section ref={root} data-page="question" style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', gap: SPACE[5] }}>
@@ -53,13 +51,10 @@ export function QuestionPage({ state }: StagePageProps) {
 
         {/* The side panel slot: timer and result share it; both stay mounted. */}
         <div data-decor-solid style={{ position: 'relative', flex: '0 0 auto', width: LAYOUT.sidePanelWidth, minHeight: LAYOUT.sidePanelHeight }}>
-          <TimerPanel
-            nodeId={nodeId('question', 'timer')}
-            label={copy.timerLabel}
-            value={copy.timerValue}
-            ms={timerMs}
-            hours="never"
-            urgent={urgent}
+          <LiveTimerPanel
+            lockedMs={timer?.remainingMsAtLock ?? null}
+            carriedMs={timer?.remainingMs ?? 0}
+            expiredOpen={timer?.expiredOpen ?? false}
             visible={timer !== null && !outcomeShown}
           />
           <div style={{ position: 'absolute', inset: 0 }}>
@@ -80,5 +75,42 @@ export function QuestionPage({ state }: StagePageProps) {
         <AnswerGrid state={state} columns={2} />
       </div>
     </section>
+  )
+}
+
+/**
+ * The countdown, and nothing else.
+ *
+ * A leaf so the show loop re-renders four digits rather than the Question
+ * page, `StageFrame`, `StageRoot` and `LayoutProvider` above it (P11.10).
+ *
+ * `remainingMsAtLock` freezes the display at lock and is Play state, so it
+ * arrives as a prop; the live number comes from the clock. `urgent` is
+ * computed here because it is a function of the number that moves.
+ */
+function LiveTimerPanel({
+  lockedMs,
+  carriedMs,
+  expiredOpen,
+  visible,
+}: {
+  lockedMs: number | null
+  carriedMs: number
+  expiredOpen: boolean
+  visible: boolean
+}) {
+  const copy = resolveCopy()
+  const live = useLiveStageClock()
+  const ms = lockedMs ?? live?.remainingMs ?? carriedMs
+  return (
+    <TimerPanel
+      nodeId={nodeId('question', 'timer')}
+      label={copy.timerLabel}
+      value={copy.timerValue}
+      ms={ms}
+      hours="never"
+      urgent={visible && (expiredOpen || ms <= copy.timerUrgentSeconds * 1000)}
+      visible={visible}
+    />
   )
 }

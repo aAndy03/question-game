@@ -1,3 +1,4 @@
+import { Profiler } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { act, render } from '@testing-library/react'
 import { EMPTY_PLAY_STATE, FIXTURES, animKey, type PlayStateForStage } from '@questiongame/contract'
@@ -5,7 +6,7 @@ import { App } from '@/App'
 import { StageRoot } from '@/pages'
 import { motionConfig } from '@/presentation'
 import { stageEvents } from '@/host/events'
-import { setStageHost, type StageHost, type StateListener } from './host'
+import { clockOf, setStageHost, type StageHost, type StateListener } from './host'
 
 /**
  * The P6 exit criterion — *Stage renders identically fixture-fed or host-fed* —
@@ -16,8 +17,13 @@ import { setStageHost, type StageHost, type StateListener } from './host'
 /** A host in the test's hand: the same interface, no IPC. */
 function stubHost() {
   const listeners = new Set<StateListener>()
+  const clockListeners = new Set<() => void>()
   let state: PlayStateForStage = FIXTURES.idle
+  // Held by identity, the way a real host holds it: `useSyncExternalStore`
+  // compares snapshots with `Object.is`.
+  let clock = clockOf(state)
   const acked: string[] = []
+  let notified = 0
   const host: StageHost = {
     subscribe(listener) {
       listeners.add(listener)
@@ -26,6 +32,13 @@ function stubHost() {
       }
     },
     snapshot: () => state,
+    subscribeClock(listener: () => void) {
+      clockListeners.add(listener)
+      return () => {
+        clockListeners.delete(listener)
+      }
+    },
+    clock: () => clock,
     animComplete: (key) => {
       acked.push(key)
     },
@@ -34,9 +47,19 @@ function stubHost() {
   return {
     host,
     acked,
+    /** How many times the *Play* was handed to the tree. */
+    stateNotifications: () => notified,
+    /** A `play-tick`: the clock moves, the Play does not. */
+    tick(remainingMs: number | null, elapsedMs: number) {
+      clock = { remainingMs, elapsedMs, running: true }
+      for (const listener of clockListeners) listener()
+    },
     emit(next: PlayStateForStage) {
       state = next
+      clock = clockOf(next)
+      notified += listeners.size
       for (const listener of listeners) listener(next)
+      for (const listener of clockListeners) listener()
     },
   }
 }
@@ -120,4 +143,46 @@ describe('the host feed', () => {
     const { container } = render(<App />)
     expect(container.querySelector('[data-dev-fixtures]')).toBeTruthy()
   })
+
+  /**
+   * P11.10. The show loop runs ten times a second and two components on Stage
+   * draw a clock. Before the split, merging a tick made a new
+   * `PlayStateForStage`, and `LayoutProvider`, `StageFrame`, `StageRoot` and
+   * the current page all rebuilt for numbers they do not show.
+   */
+  it('does not rebuild the tree when only the clock moved', () => {
+    motionConfig.immediate = true
+    const stub = stubHost()
+    stub.emit(FIXTURES['question-issued'])
+    setStageHost(stub.host)
+
+    let commits = 0
+    const { container } = render(
+      <Profiler id="stage" onRender={() => { commits += 1 }}>
+        <App />
+      </Profiler>,
+    )
+    const settled = commits
+    const clockText = () => container.querySelector('[data-stage-header]')?.textContent ?? ''
+    const before = clockText()
+
+    // Three seconds of show loop.
+    for (let n = 1; n <= 30; n += 1) act(() => stub.tick(30_000 - n * 100, n * 100))
+
+    // **The tree was never handed a new Play.** That is the mechanism: before
+    // the split a tick merged into `PlayStateForStage` and every state
+    // subscriber — which is the whole tree — was notified.
+    const treeRebuilds = stub.stateNotifications()
+
+    // Thirty ticks, thirty commits: Stage is not rounded, because it may
+    // interpolate and its clock is the one on camera. What changed is *what*
+    // commits — the two clock leaves, not `LayoutProvider`, `StageFrame`,
+    // `StageRoot` and the page above them.
+    expect(commits - settled).toBeLessThanOrEqual(30)
+    expect(treeRebuilds, 'a tick is not a new Play').toBe(0)
+    expect(clockText(), 'and the clock is actually moving').not.toBe(before)
+    // The page is still the one it was, drawn from a state nobody replaced.
+    expect(container.querySelector('[data-page="question"]')).toBeTruthy()
+  })
+
 })

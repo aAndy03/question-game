@@ -487,7 +487,14 @@ computed in Stage's viewer mode from `innerWidth`) — since P11.6 through the
 same `useFitScale` the **Stage window** uses, so the preview and the surface
 cannot disagree about how the canvas meets a viewport. The Viewer skips
 `StageFit`'s letterbox: Control has already sized this iframe to the canvas
-aspect, so there is nothing to bar. After every render Stage
+aspect, so there is nothing to bar.
+
+**The Viewer does not simulate decor (P11.10).** It was stepping a second full
+matter-js world at 60 Hz — the same bodies, the same collisions — for as long
+as Control was open, in an iframe nobody films. It now draws the shapes where
+the settle put them, which is what the operator is checking; motion belongs to
+the Stage window. The Viewer's countdown still moves: Control posts it a `tick`
+message, because since P11.9 it posts the whole state only when it changed. After every render Stage
 posts the **rects of every `data-node-id` element** in frame coordinates
 (`viewer-nodes`); Studio draws `HitTarget`s over them, scaled to the box.
 Which node maps to which command is one table:

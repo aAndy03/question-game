@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useScreenBox } from '@/layout'
+import { isViewerMode } from '@/host/host'
 import { nodeId, type ScreenBox, type PlayStateForStage, type StageDecorSettings, type StageScreen } from '@questiongame/contract'
 import { DecorShape, type DecorShapeBody } from '@/atoms'
 import {
@@ -125,9 +126,23 @@ export function DecorField({ state, screen: presented }: DecorFieldProps) {
   useEffect(() => {
     if (!world) return
     if (typeof requestAnimationFrame !== 'function') return
+    // **The Viewer does not simulate** (P11.10). It is a preview of what is on
+    // screen, and it was running a *second* full world at 60 Hz for as long as
+    // Control was open — the same bodies, the same collisions, in an iframe
+    // nobody is filming. The shapes are drawn where the settle put them, which
+    // is what the operator is actually checking. Motion is the Stage window's.
+    if (isViewerMode()) return
     let frame = 0
     let last = performance.now()
     const loop = (now: number) => {
+      // A hidden window still gets frames in some compositors, and an occluded
+      // Stage is a world stepping for nobody. Resetting `last` on the way back
+      // means it resumes rather than catching up on a burst.
+      if (typeof document !== 'undefined' && document.hidden) {
+        last = now
+        frame = requestAnimationFrame(loop)
+        return
+      }
       world.step(now - last)
       last = now
       const placed = world.read()

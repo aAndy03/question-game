@@ -30,29 +30,43 @@ import {
 } from '@questiongame/contract'
 
 export type StateListener = (state: PlayStateForStage) => void
+export type ClockListener = () => void
 
 /**
- * Merge a `play-tick` into the Play a host already holds.
+ * The two numbers the 100 ms show loop moves, kept apart from the Play
+ * (P11.10).
  *
- * Returns the **same object** when nothing moved, so a subscriber that bails
- * on identity does not re-render. A tick for another Play is dropped rather
- * than applied: `play_unload` followed by a load can leave one in flight, and
- * pinning the previous show's countdown onto the next one would be a wrong
- * number on camera.
+ * Stage's whole tree used to re-render ten times a second — `LayoutProvider`,
+ * `StageFrame`, `StageRoot`, the current page — because merging a tick made a
+ * new `PlayStateForStage` and the tree reads it whole. Only two components
+ * draw a clock: the header's `[ hh:mm:ss ]` and the Question screen's timer
+ * panel. Everything else was rebuilding for numbers it does not show.
+ *
+ * Unlike Studio's, this one is **not rounded**. Stage may interpolate between
+ * ticks, and its clock is the one on camera.
  */
-export function applyTick(state: PlayStateForStage, tick: PlayTick): PlayStateForStage {
-  if (state.playId !== tick.playId) return state
-  const timer = state.session?.timer ?? null
-  const sameClock = state.clock.elapsedMs === tick.elapsedMs && state.clock.running === tick.running
-  const sameTimer = (timer?.remainingMs ?? null) === tick.remainingMs
-  if (sameClock && sameTimer) return state
+export interface StageClock {
+  /** `session.timer.remainingMs`, or null at operator pace / no session. */
+  readonly remainingMs: number | null
+  readonly elapsedMs: number
+  readonly running: boolean
+}
+
+export const EMPTY_CLOCK: StageClock = { remainingMs: null, elapsedMs: 0, running: false }
+
+/** The clock a Play is carrying, for a host with no tick channel of its own. */
+export function clockOf(state: PlayStateForStage): StageClock {
   return {
-    ...state,
-    clock: { elapsedMs: tick.elapsedMs, running: tick.running },
-    ...(state.session && timer && tick.remainingMs !== null
-      ? { session: { ...state.session, timer: { ...timer, remainingMs: tick.remainingMs } } }
-      : {}),
+    remainingMs: state.session?.timer?.remainingMs ?? null,
+    elapsedMs: state.clock.elapsedMs,
+    running: state.clock.running,
   }
+}
+
+/** The clock a tick carries, dropped when it is not this Play's. */
+export function clockFromTick(state: PlayStateForStage, tick: PlayTick): StageClock | null {
+  if (state.playId !== tick.playId) return null
+  return { remainingMs: tick.remainingMs, elapsedMs: tick.elapsedMs, running: tick.running }
 }
 
 /**
@@ -62,10 +76,18 @@ export function applyTick(state: PlayStateForStage, tick: PlayTick): PlayStateFo
  * a score on a surface someone is filming.
  */
 export interface StageHost {
-  /** Notify on change. Does **not** replay: that is `snapshot`'s job. */
+  /**
+   * Notify when the **Play** changed. Does **not** replay: that is
+   * `snapshot`'s job, and it does **not** fire for a tick — the countdown has
+   * its own channel so the tree is not rebuilt for it.
+   */
   subscribe(listener: StateListener): () => void
   /** The current `play-state`; `EMPTY_PLAY_STATE` until the first one lands. */
   snapshot(): PlayStateForStage
+  /** Notify when the countdown moved. Ten times a second while a timer runs. */
+  subscribeClock(listener: ClockListener): () => void
+  /** The current clock. A stable object while the numbers stand still. */
+  clock(): StageClock
   /** Report a finished timeline (spec §11.G). */
   animComplete(key: AnimKey): void
   /**
@@ -92,7 +114,9 @@ export function hasTauriHost(): boolean {
  */
 export function tauriHost(): StageHost {
   const listeners = new Set<StateListener>()
+  const clockListeners = new Set<ClockListener>()
   let last: PlayStateForStage = EMPTY_PLAY_STATE
+  let lastClock: StageClock = EMPTY_CLOCK
   let versionWarned = false
 
   const call = async (command: string, args?: Record<string, unknown>) => {
@@ -121,16 +145,27 @@ export function tauriHost(): StageHost {
         )
       }
       last = payload
+      // A full emission carries the clock, so it is also the newest tick.
+      lastClock = clockOf(payload)
       for (const listener of listeners) listener(payload)
+      for (const listener of clockListeners) listener()
     }, { target: { kind: 'AnyLabel', label } })
 
-    // The countdown, on its own channel (P11.9). `play-state` is event-driven
-    // now; this is what arrives ten times a second, and it is two numbers.
+    // The countdown, on its own channel (P11.9) and its own subscribers
+    // (P11.10). Nothing in the Stage tree is rebuilt for it but the two
+    // components that draw a clock.
     const unlistenTick = await listen<PlayTick>('play-tick', ({ payload }) => {
-      const next = applyTick(last, payload)
-      if (next === last) return
-      last = next
-      for (const listener of listeners) listener(last)
+      const next = clockFromTick(last, payload)
+      if (next === null) return
+      if (
+        next.remainingMs === lastClock.remainingMs &&
+        next.elapsedMs === lastClock.elapsedMs &&
+        next.running === lastClock.running
+      ) {
+        return
+      }
+      lastClock = next
+      for (const listener of clockListeners) listener()
     }, { target: { kind: 'AnyLabel', label } })
 
     // **A reload must unlisten first.** Tauri keeps the JS listener registered
@@ -159,6 +194,13 @@ export function tauriHost(): StageHost {
       }
     },
     snapshot: () => last,
+    subscribeClock(listener) {
+      clockListeners.add(listener)
+      return () => {
+        clockListeners.delete(listener)
+      }
+    },
+    clock: () => lastClock,
     animComplete(key) {
       void call('overlay_ack_complete', { key })
     },
@@ -186,7 +228,9 @@ export function isViewerMode(): boolean {
 
 function viewerHost(): StageHost {
   const listeners = new Set<StateListener>()
+  const clockListeners = new Set<ClockListener>()
   let last: PlayStateForStage = EMPTY_PLAY_STATE
+  let lastClock: StageClock = EMPTY_CLOCK
 
   window.addEventListener('message', (event: MessageEvent<unknown>) => {
     if (event.source !== window.parent || !isViewerMessage(event.data)) return
@@ -194,15 +238,17 @@ function viewerHost(): StageHost {
     if (message.type === 'tick') {
       // The Viewer's countdown, for the same reason the Stage window has one:
       // Control posts the whole state only when it changed (P11.9).
-      const next = applyTick(last, message.tick)
-      if (next === last) return
-      last = next
-      for (const listener of listeners) listener(last)
+      const next = clockFromTick(last, message.tick)
+      if (next === null) return
+      lastClock = next
+      for (const listener of clockListeners) listener()
       return
     }
     if (message.type !== 'play-state') return
     last = message.state
+    lastClock = clockOf(last)
     for (const listener of listeners) listener(last)
+    for (const listener of clockListeners) listener()
   })
   window.parent.postMessage({ source: VIEWER_SOURCE, type: 'ready' }, '*')
 
@@ -214,6 +260,13 @@ function viewerHost(): StageHost {
       }
     },
     snapshot: () => last,
+    subscribeClock(listener) {
+      clockListeners.add(listener)
+      return () => {
+        clockListeners.delete(listener)
+      }
+    },
+    clock: () => lastClock,
     animComplete() {
       // The Viewer never writes (spec §5.7).
     },

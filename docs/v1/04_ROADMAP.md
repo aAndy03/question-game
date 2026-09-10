@@ -1254,6 +1254,46 @@ playback fault stops reading as a missing file.
 
 ---
 
+## P11.10 — Stage stops rebuilding for the clock  ☑
+
+The two things the P11.9 measurement left at the top of the list, both on the
+Stage side.
+
+**Stage's tree re-rendered ten times a second.** The same split Studio got in
+P11.7 and P11.9, one layer down: `StageHost` gained a clock channel, and the
+two components that draw a clock — the header and the Question timer panel —
+subscribe to it on their own. Everything above them was rebuilding for numbers
+it does not show. Stage is deliberately not rounded the way Studio is: it may
+interpolate between ticks and its clock is the one on camera, so thirty ticks
+are still thirty commits — of two leaves, with the tree handed zero new Plays.
+
+**The Viewer ran a second physics world.** For as long as Control was open,
+the iframe stepped its own matter-js world at 60 Hz — the same bodies, the same
+collisions — for a preview nobody films. It now draws the shapes where the
+settle put them and does not simulate. The Stage window also pauses while
+`document.hidden`, and `STEP_HZ` is now the single constant everything else
+derives from, so trading fidelity for CPU is one number rather than four.
+
+`will-change: transform` on the decor shapes was investigated and left alone:
+measured at two shapes and ~0.74 MB of layer texture on the Question screen, it
+is not where the GPU process's growth comes from.
+
+**Exit criteria**
+
+- ☑ Thirty ticks hand the Stage tree **zero** new Plays, and the clock still
+  moves (`host/host.test.tsx`).
+- ☑ A `clock()` that returns a fresh object cannot loop the provider — the
+  identity is held there, not trusted from the host.
+- ☑ `StageRoot` and both clock leaves still draw the right clock rendered
+  standalone, from the state they are handed (`organisms.test.tsx`,
+  `pages.test.tsx`).
+- ☑ The Viewer draws decor at its settled positions and does not move it —
+  verified in a browser, shapes unchanged over 900 ms, hit targets intact.
+- ☐ Re-measured on the built app: the Stage renderer, which was ~11% of a core
+  with ~9% GPU beside it.
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.

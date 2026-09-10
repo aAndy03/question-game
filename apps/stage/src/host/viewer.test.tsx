@@ -4,7 +4,7 @@ import { FIXTURES, type PlayStateForStage } from '@questiongame/contract'
 import { App, ViewerFed } from '@/App'
 import { StageRoot } from '@/pages'
 import { motionConfig } from '@/presentation'
-import { setStageHost, type StageHost, type StateListener } from './host'
+import { clockOf, setStageHost, type StageHost, type StateListener } from './host'
 
 // The Howler adapter is the only thing in Stage that can make a sound, so
 // "the Viewer is silent" is "the Viewer never constructs a Howl".
@@ -30,6 +30,7 @@ vi.mock('howler', () => ({
  */
 function stubHost(initial: PlayStateForStage) {
   const listeners = new Set<StateListener>()
+  const clockListeners = new Set<() => void>()
   let state = initial
   const host: StageHost = {
     subscribe(listener) {
@@ -39,6 +40,13 @@ function stubHost(initial: PlayStateForStage) {
       }
     },
     snapshot: () => state,
+    subscribeClock(listener: () => void) {
+      clockListeners.add(listener)
+      return () => {
+        clockListeners.delete(listener)
+      }
+    },
+    clock: () => clockOf(state),
     animComplete: () => {},
     report: () => {},
   }
