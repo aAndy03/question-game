@@ -1,6 +1,17 @@
 # P11.11 — Stage on several displays at once
 
-**Status:** design, approved 2026-09-10. Implementation not started.
+**Status:** design, approved 2026-09-10. Implemented by
+`docs/superpowers/plans/2026-09-10-multi-display-stage.md`.
+
+**Amended while planning (§4.1):** rather than replacing
+`control.stage_monitor_id: Option<String>` with a `Vec`, the implementation
+**adds `control.stage_mirror_ids: Vec<String>` beside it**. `stage_monitor_id`
+keeps its exact meaning — where the pacer goes — so there is no settings
+migration, `stage_set_monitor` is untouched, and every existing `monitor.rs`
+test keeps passing unchanged rather than becoming a one-element case. Same
+behaviour, far smaller blast radius. One consequence: `stage_remove_mirror` on
+the pacer's display needs no refusal, because the pacer is not in the mirror
+list — it is a harmless no-op.
 
 **Where this ends up:** this file is working material for one phase. When P11.11
 ships, the durable record goes where this repo keeps it — a `## P11.11` section
