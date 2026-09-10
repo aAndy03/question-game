@@ -62,7 +62,8 @@ pub struct Host {
     pub health: HealthState,
     /// What was last sent to `stage`. The 100ms tick emits only on a change, so
     /// an idle Play costs nothing on the wire.
-    last_emitted: Option<PlayStateForStage>,
+    /// A digest of the last emission, not the emission — see `emission_changed`.
+    last_emitted: Option<u64>,
 }
 
 impl Host {
@@ -199,12 +200,75 @@ impl Host {
     }
 
     /// True when the emission changed since the last one — the tick's gate.
-    pub fn emission_changed(&mut self, next: &PlayStateForStage) -> bool {
-        if self.last_emitted.as_ref() == Some(next) {
-            return false;
+    ///
+    /// Keyed on a **digest**, not a stored copy. Comparing two
+    /// `PlayStateForStage`s is cheap, but keeping one to compare against meant
+    /// a deep clone of every `String` and `Vec` in the projection — and while a
+    /// timer runs the countdown changes on every tick, so it cloned ten times a
+    /// second for the whole show. Serialising into a hasher touches the same
+    /// data with no allocation at all, and answers the byte count the perf log
+    /// wants in the same pass (P11.6).
+    ///
+    /// A 64-bit digest can collide. The consequence is bounded: **every command
+    /// emits with `force`**, so the only thing a collision can swallow is one
+    /// 100 ms frame of a countdown, which the next tick corrects. Nothing is
+    /// scored here — `MatchService::tick` appends at the computed zero instant
+    /// whatever this returns.
+    pub fn emission_changed(&mut self, next: &PlayStateForStage) -> Emission {
+        let mut sink = Digest::default();
+        // Infallible: the sink cannot fail and the projection is plain data.
+        let _ = serde_json::to_writer(&mut sink, next);
+        let digest = sink.finish();
+        let changed = self.last_emitted != Some(digest);
+        if changed {
+            self.last_emitted = Some(digest);
         }
-        self.last_emitted = Some(next.clone());
-        true
+        Emission {
+            changed,
+            bytes: sink.bytes,
+        }
+    }
+}
+
+/// What one call to `emit::play_state` decided.
+#[derive(Debug, Clone, Copy)]
+pub struct Emission {
+    /// False when the projection is byte-identical to the last one: the tick's
+    /// gate, and why an idle Play costs nothing on the wire.
+    pub changed: bool,
+    /// The serialized size of the stage payload, counted during the digest, so
+    /// the perf log's `emit_bytes` costs nothing extra.
+    pub bytes: u64,
+}
+
+/// A `std::io::Write` that hashes and counts instead of storing.
+///
+/// `serde_json::to_vec` allocates the whole document to measure or compare it;
+/// this touches the same bytes and keeps sixteen of them. Used for the emission
+/// digest, and by `emit` for the `main` payload's size.
+#[derive(Default)]
+pub struct Digest {
+    hasher: std::collections::hash_map::DefaultHasher,
+    pub bytes: u64,
+}
+
+impl Digest {
+    pub fn finish(&self) -> u64 {
+        use std::hash::Hasher;
+        self.hasher.finish()
+    }
+}
+
+impl std::io::Write for Digest {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        use std::hash::Hasher;
+        self.hasher.write(buf);
+        self.bytes += buf.len() as u64;
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Button, MeaningChip, Separator, Text, TransportButton } from '@/atoms'
-import { ConfirmDialog, EmptyState, RevealControls, RingRow, TimerCluster, type RingRowVariant } from '@/molecules'
+import { ConfirmDialog, EmptyState, RevealControls, RingRow, TimerCluster, type RingRowVariant, type TimerClusterProps } from '@/molecules'
 import { CONTROL, HOTKEYS, PHASE, RING, RING_ROLE, SESSION, TRANSPORT } from '@/copy'
 import { useHostCommand } from '@/host/commands'
-import { isPlayOpen, usePlayState } from '@/host/playState'
+import { isPlayOpen, usePlayClock, usePlayState } from '@/host/playState'
 import { ringEntries, ringRole } from '@/host/ring'
 import { canChooseDomain, controlPhase, isSessionLive, nextLeaderboardRank } from '@/host/session'
 
@@ -128,9 +128,8 @@ export function ActionPanel({ density }: ActionPanelProps) {
               </div>
             </div>
             {phase === 'question' ? (
-            <TimerCluster
+            <LiveTimerCluster
               durationMs={timer?.durationMs ?? null}
-              remainingMs={timer?.remainingMs ?? 0}
               running={timer?.running ?? false}
               frozen={locked || resolved}
               expiredOpen={timer?.expiredOpen ?? false}
@@ -380,4 +379,17 @@ function PhaseNote({ title, hint }: { title: string; hint: string | null }) {
       ) : null}
     </div>
   )
+}
+
+/**
+ * The clock cluster, subscribed to the countdown on its own.
+ *
+ * Everything but `remainingMs` is stable Play state and arrives as a prop; the
+ * one number that moves at 10 Hz is read here, so a tick re-renders this and
+ * not the whole Action Panel — the ring rows, the reveal controls and the
+ * dozen `Tooltip`s under them stay put.
+ */
+function LiveTimerCluster(props: Omit<TimerClusterProps, 'remainingMs'>) {
+  const { remainingMs } = usePlayClock()
+  return <TimerCluster {...props} remainingMs={remainingMs ?? 0} />
 }

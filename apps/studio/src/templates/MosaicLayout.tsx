@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react'
-import { Mosaic, MosaicWindow, type MosaicNode } from 'react-mosaic-component'
+import { memo, useCallback, useEffect, useRef, type ReactNode } from 'react'
+import { Mosaic, MosaicWindow, type MosaicNode, type MosaicPath, type TileRenderer } from 'react-mosaic-component'
 
 export interface MosaicLayoutProps<T extends string> {
   /** The tree, persisted by the caller. */
@@ -21,7 +21,7 @@ export interface MosaicLayoutProps<T extends string> {
  * on a tile to stack as tabs, drag a divider to resize. The template holds
  * no knowledge of what a tile is.
  */
-export function MosaicLayout<T extends string>({ value, onChange, titles, renderTile, renderControls, top }: MosaicLayoutProps<T>) {
+function MosaicLayoutInner<T extends string>({ value, onChange, titles, renderTile, renderControls, top }: MosaicLayoutProps<T>) {
   const root = useRef<HTMLDivElement | null>(null)
 
   // A divider drag is a document-level mousemove; an iframe under the pointer
@@ -49,27 +49,37 @@ export function MosaicLayout<T extends string>({ value, onChange, titles, render
     }
   }, [])
 
+  // `Mosaic` rebuilds its subtree whenever `renderTile` changes identity, so
+  // this may not be an inline arrow — see `pages/ControlPage.tsx`, which hoists
+  // the tile bodies for the same reason.
+  const renderWindow: TileRenderer<T> = useCallback(
+    (id: T, path: MosaicPath) => (
+      <MosaicWindow<T>
+        path={path}
+        title={titles[id]}
+        toolbarControls={renderControls ? renderControls(id) : <span />}
+        onDragStart={() => root.current?.querySelector('.questiongame-mosaic')?.setAttribute('data-dragging', '')}
+        onDragEnd={() => root.current?.querySelector('.questiongame-mosaic')?.removeAttribute('data-dragging')}
+      >
+        {renderTile(id)}
+      </MosaicWindow>
+    ),
+    [titles, renderTile, renderControls],
+  )
+
   return (
     <div ref={root} className="flex h-full min-h-0 flex-col">
       {top ? <div className="shrink-0 border-b border-[var(--border)] px-4 py-2">{top}</div> : null}
       <div className="min-h-0 flex-1 p-1">
-        <Mosaic<T>
-          className="questiongame-mosaic"
-          value={value}
-          onChange={onChange}
-          renderTile={(id, path) => (
-            <MosaicWindow<T>
-              path={path}
-              title={titles[id]}
-              toolbarControls={renderControls ? renderControls(id) : <span />}
-              onDragStart={() => root.current?.querySelector('.questiongame-mosaic')?.setAttribute('data-dragging', '')}
-              onDragEnd={() => root.current?.querySelector('.questiongame-mosaic')?.removeAttribute('data-dragging')}
-            >
-              {renderTile(id)}
-            </MosaicWindow>
-          )}
-        />
+        <Mosaic<T> className="questiongame-mosaic" value={value} onChange={onChange} renderTile={renderWindow} />
       </div>
     </div>
   )
 }
+
+/**
+ * Memoised: re-rendering this rebuilds `react-mosaic`, its dnd provider and
+ * every tile, which the perf log measured at 16 ms a render. `memo` erases the
+ * generic, so the cast puts it back — the props are unchanged either way.
+ */
+export const MosaicLayout = memo(MosaicLayoutInner) as typeof MosaicLayoutInner

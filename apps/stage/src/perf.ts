@@ -44,12 +44,28 @@ export interface StageSecond {
 }
 
 export class SecondAccumulator {
-  private sweptCount = 0
+  private sweptTotal = 0
   private components = new Map<string, { n: number; ms: number }>()
   private longTasks: LongTask[] = []
 
-  swept(entries: readonly PerformanceEntry[]): void {
-    this.sweptCount += entries.length
+  /**
+   * How many entries a sweep cleared. Exact on every sweep — this is the leak
+   * signal, and P11.4 was found by watching it climb.
+   */
+  sweptCount(held: number): void {
+    this.sweptTotal += held
+  }
+
+  /**
+   * The entries a sweep is about to clear. React's dev build names each
+   * component measure `"\u200b<Name>"` with the render's duration.
+   *
+   * Sampled — see `USER_TIMING_INSPECT_EVERY`. What this builds is a ranking,
+   * and folding every entry of every sweep cost more than the thing it was
+   * measuring: twenty thousand string tests and `Map` writes, every two
+   * seconds, showing up in its own log as 60 ms tasks (P11.6).
+   */
+  sweptEntries(entries: readonly PerformanceEntry[]): void {
     for (const e of entries) {
       if (e.entryType !== 'measure' || !e.name.startsWith('\u200b')) continue
       const name = e.name.slice(1)
@@ -71,12 +87,12 @@ export class SecondAccumulator {
       .map(([name, s]) => [name, { n: s.n, ms: Math.round(s.ms * 10) / 10 }] as const)
     const longTasks = [...this.longTasks].sort((a, b) => b.ms - a.ms).slice(0, TOP_N)
     const out = {
-      userTimingSwept: this.sweptCount,
+      userTimingSwept: this.sweptTotal,
       longTasks: this.longTasks.length,
       longTaskMaxMs: Math.round((this.longTasks[0] ? Math.max(...this.longTasks.map((t) => t.ms)) : 0) * 10) / 10,
       top: { components, longTasks },
     }
-    this.sweptCount = 0
+    this.sweptTotal = 0
     this.components = new Map()
     this.longTasks = []
     return out

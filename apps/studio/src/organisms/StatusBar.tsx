@@ -2,7 +2,7 @@ import { Icon, StatusDot, Text, Tooltip } from '@/atoms'
 import { latestForStatusBar, useNoticeStore } from '@/chrome/notices'
 import { healthTone, useHealthStore } from '@/chrome/health'
 import { CHROME, fmt, noticeTitle } from '@/copy'
-import { usePlayState } from '@/host/playState'
+import { usePlayClock, usePlayState } from '@/host/playState'
 import { useMonitors } from '@/host/queries'
 
 /**
@@ -18,8 +18,10 @@ export function StatusBar() {
   const health = useHealthStore((s) => s.report)
   const tone = healthTone(health)
   const healthText = health === null ? CHROME.healthUnknown : health.status === 'ok' ? CHROME.healthOk : health.status === 'warn' ? CHROME.healthWarn : CHROME.healthError
-  const timer = play?.session?.timer ?? null
-  const showTimer = play?.status === 'playing' && timer !== null
+  // Whether there is a countdown at all is stable state; the number itself is
+  // read one component down, so a tick does not re-render the health dot, the
+  // display count and the notice line with it.
+  const showTimer = play?.status === 'playing' && (play.session?.timer ?? null) !== null
 
   return (
     <footer
@@ -64,14 +66,27 @@ export function StatusBar() {
           <Text variant="studio-caption" tone="muted">{`(${notices.length})`}</Text>
         ) : null}
       </button>
-      {showTimer ? (
-        <span className="inline-flex items-center gap-1.5">
-          <Icon name="clock" size="sm" className="opacity-60" />
-          <Text variant="studio-mono" tone="default" tabular transition="count">
-            {fmt.clock(timer.remainingMs)}
-          </Text>
-        </span>
-      ) : null}
+      {showTimer ? <StatusClock /> : null}
     </footer>
+  )
+}
+
+/**
+ * The countdown, and nothing else.
+ *
+ * The one thing in the status bar that moves ten times a second, so it is the
+ * only thing subscribed to `usePlayClock()` — the rest of the bar reads the
+ * stable Play and re-renders when an operator would expect it to.
+ */
+function StatusClock() {
+  const { remainingMs } = usePlayClock()
+  if (remainingMs === null) return null
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <Icon name="clock" size="sm" className="opacity-60" />
+      <Text variant="studio-mono" tone="default" tabular transition="count">
+        {fmt.clock(remainingMs)}
+      </Text>
+    </span>
   )
 }

@@ -9,9 +9,12 @@ export interface PanelBox {
   readonly height: number
 }
 
+/** `control.mosaic_density`: how tight a panel may get before it steps down. */
+export type MosaicDensityFloor = 'comfortable' | 'compact' | 'spacious'
+
 export interface MosaicPanelProps {
   /** The density floor from the host (`control.mosaic_density`). */
-  floor: 'comfortable' | 'compact' | 'spacious'
+  floor: MosaicDensityFloor
   /** Render prop: the panel decides its own layout from the density it was given. */
   children: (density: PanelDensity, box: PanelBox) => ReactNode
   /** Something to pin top-right of the body (a count, a status). */

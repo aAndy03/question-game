@@ -206,15 +206,25 @@ fn an_unchanged_emission_is_not_re_sent() {
     let mut host = booted();
     let state = host.stage_state(4_000);
 
-    assert!(host.emission_changed(&state), "the first one always goes");
-    assert!(!host.emission_changed(&state), "the second one does not");
+    let first = host.emission_changed(&state);
+    assert!(first.changed, "the first one always goes");
+    assert!(first.bytes > 0, "the digest counts the payload as it hashes it");
+    assert!(
+        !host.emission_changed(&state).changed,
+        "the second one does not"
+    );
 
     host.write(5_000, |h| {
         Ok(h.play.choose_domain(&DomainId::from("dom-1"), 5_000)?)
     })
     .unwrap();
     let next = host.stage_state(5_000);
-    assert!(host.emission_changed(&next), "a real change goes");
+    assert!(host.emission_changed(&next).changed, "a real change goes");
+    // And back again: the gate is a digest, not a one-way latch.
+    assert!(
+        !host.emission_changed(&next).changed,
+        "the same state twice is one emission"
+    );
 }
 
 /// A Play command's cause reaches `PresentationService` through `Host::write`,

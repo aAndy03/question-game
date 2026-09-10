@@ -41,7 +41,8 @@ pub fn play_state(app: &AppHandle, host: &mut Host, now_ms: u64, force: bool) ->
     // is told the Play is gone. A webview that is simply not sent anything
     // goes on drawing the Play that ended.
     let stage = host.stage_state(now_ms);
-    if !host.emission_changed(&stage) && !force {
+    let emission = host.emission_changed(&stage);
+    if !emission.changed && !force {
         return false;
     }
 
@@ -50,12 +51,14 @@ pub fn play_state(app: &AppHandle, host: &mut Host, now_ms: u64, force: bool) ->
     // store means "no Play" by `null`, and Control's panels read it that way.
     let full = host.main_state(now_ms);
     let _ = app.emit_to(MAIN, "play-state", &full);
-    // The performance log counts emissions and their size. The size costs a
-    // second serialization, so it is measured only when the log is on; the
-    // count is free.
+    // The performance log counts emissions and their size. The stage payload's
+    // size came free with the digest; the `main` shape is measured through the
+    // same counting sink rather than `to_vec`, which allocated the whole
+    // document ten times a second purely to call `.len()` on it (P11.6).
     let bytes = if crate::perf::enabled_cached() {
-        serde_json::to_vec(&stage).map_or(0, |v| v.len()) as u64
-            + serde_json::to_vec(&full).map_or(0, |v| v.len()) as u64 * 2
+        let mut sink = crate::state::Digest::default();
+        let _ = serde_json::to_writer(&mut sink, &full);
+        emission.bytes + sink.bytes * 2
     } else {
         0
     };

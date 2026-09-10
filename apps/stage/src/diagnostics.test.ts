@@ -40,7 +40,7 @@ describe('startUserTimingSweep', () => {
   it('keeps the buffer bounded on an interval and stops when asked', () => {
     const perf = fakeBuffer()
     const swept: number[] = []
-    const stop = startUserTimingSweep(perf, 1000, (entries) => swept.push(entries.length))
+    const stop = startUserTimingSweep(perf, 1000, { count: (held) => swept.push(held) })
     perf.measure('render')
     vi.advanceTimersByTime(1000)
     expect(perf.getEntriesByType('measure')).toHaveLength(0)
@@ -50,4 +50,25 @@ describe('startUserTimingSweep', () => {
     vi.advanceTimersByTime(3000)
     expect(perf.getEntriesByType('measure')).toHaveLength(1)
   })
+
+  it('counts every sweep but folds only one in `inspectEvery`', () => {
+    const perf = fakeBuffer()
+    const counted: number[] = []
+    const folded: number[] = []
+    const stop = startUserTimingSweep(perf, 1000, {
+      count: (held) => counted.push(held),
+      inspect: (entries) => folded.push(entries.length),
+      inspectEvery: 3,
+    })
+    for (let sweep = 0; sweep < 3; sweep += 1) {
+      perf.measure('render')
+      vi.advanceTimersByTime(1000)
+    }
+    stop()
+    // Three sweeps, three counts — the leak signal is never sampled.
+    expect(counted).toEqual([1, 1, 1])
+    // One fold, and it saw the measures array plus the (empty) marks array.
+    expect(folded).toEqual([1, 0])
+  })
+
 })

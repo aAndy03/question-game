@@ -9,7 +9,8 @@ describe('SecondAccumulator', () => {
     const acc = new SecondAccumulator()
     acc.commit()
     acc.commit()
-    acc.swept([
+    acc.sweptCount(9)
+    acc.sweptEntries([
       measure('\u200bViewer', 4),
       measure('\u200bViewer', 6),
       measure('\u200bRingRow', 1),

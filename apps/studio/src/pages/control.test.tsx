@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Profiler } from 'react'
 import { VIEWER_SOURCE, type PlayStateForMain } from '@questiongame/contract'
 import { App } from '@/App'
 import { HOME, useNavStore } from '@/chrome/nav'
@@ -209,4 +210,52 @@ describe('Control', () => {
     }
     expect(screen.getAllByLabelText('Wait for the overlay to finish').length).toBeGreaterThan(0)
   })
+
+  /**
+   * P11.7. The host emits ten times a second while a timer runs, and the only
+   * thing that moves is the countdown. Before the stable snapshot every one of
+   * those emissions re-rendered this page, which handed `react-mosaic` a new
+   * `renderTile` and rebuilt the dnd provider, six panels and every `Tooltip`
+   * under them — 28 commits a second, and the Studio renderer at 77% of a core
+   * for as long as Control was open.
+   */
+  it('does not commit the mosaic on a bare tick (P11.7)', async () => {
+    const play = demoPlay('question-issued')
+    let commits = 0
+    fake.playState = play
+    render(
+      <Profiler id="control" onRender={() => { commits += 1 }}>
+        <App />
+      </Profiler>,
+    )
+    await act(async () => {
+      receivePlayState(play)
+      await useNavStore.getState().go({ tab: 'control' })
+    })
+    await screen.findByLabelText('Lock')
+
+    const settled = commits
+    const timer = play.session?.timer
+    if (!timer) throw new Error('fixture has no timer')
+    // Three seconds of show loop.
+    for (let tick = 1; tick <= 30; tick += 1) {
+      act(() => {
+        receivePlayState({
+          ...play,
+          clock: { ...play.clock, elapsedMs: play.clock.elapsedMs + tick * 100 },
+          session: { ...play.session!, timer: { ...timer, remainingMs: timer.remainingMs - tick * 100 } },
+        })
+      })
+    }
+    // Measures exactly 30: React batches the two countdown leaves —
+    // `StatusClock` and `LiveTimerCluster` — into one commit per tick, and a
+    // countdown has to repaint. The bound rather than the exact number so a
+    // React upgrade that batches differently is not a failure; a regression
+    // goes the other way, and goes far — this page re-entering the render path
+    // takes the whole mosaic with it.
+    expect(commits - settled).toBeLessThanOrEqual(30)
+    // And the panels are still on screen, drawing the same Play.
+    expect(screen.getAllByLabelText('Lock').length).toBeGreaterThan(0)
+  })
+
 })

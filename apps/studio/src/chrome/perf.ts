@@ -62,7 +62,7 @@ export interface WebviewSecond {
  */
 export class SecondAccumulator {
   private commits = 0
-  private sweptCount = 0
+  private sweptTotal = 0
   private components = new Map<string, { n: number; ms: number }>()
   private longTasks: LongTask[] = []
 
@@ -71,11 +71,23 @@ export class SecondAccumulator {
   }
 
   /**
-   * The entries the sweep is about to clear. React's dev build names each
-   * component measure `"\u200b<Name>"` with the render's duration.
+   * How many entries a sweep cleared. Exact on every sweep — this is the leak
+   * signal, and P11.4 was found by watching it climb.
    */
-  swept(entries: readonly PerformanceEntry[]): void {
-    this.sweptCount += entries.length
+  sweptCount(held: number): void {
+    this.sweptTotal += held
+  }
+
+  /**
+   * The entries a sweep is about to clear. React's dev build names each
+   * component measure `"\u200b<Name>"` with the render's duration.
+   *
+   * Sampled — see `USER_TIMING_INSPECT_EVERY`. What this builds is a ranking,
+   * and folding every entry of every sweep cost more than the thing it was
+   * measuring: twenty thousand string tests and `Map` writes, every two
+   * seconds, showing up in its own log as 60 ms tasks (P11.6).
+   */
+  sweptEntries(entries: readonly PerformanceEntry[]): void {
     for (const e of entries) {
       if (e.entryType !== 'measure' || !e.name.startsWith('\u200b')) continue
       const name = e.name.slice(1)
@@ -98,13 +110,13 @@ export class SecondAccumulator {
     const longTasks = [...this.longTasks].sort((a, b) => b.ms - a.ms).slice(0, TOP_N)
     const out = {
       commits: this.commits,
-      userTimingSwept: this.sweptCount,
+      userTimingSwept: this.sweptTotal,
       longTasks: this.longTasks.length,
       longTaskMaxMs: Math.round((this.longTasks[0] ? Math.max(...this.longTasks.map((t) => t.ms)) : 0) * 10) / 10,
       top: { components, longTasks },
     }
     this.commits = 0
-    this.sweptCount = 0
+    this.sweptTotal = 0
     this.components = new Map()
     this.longTasks = []
     return out

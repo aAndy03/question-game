@@ -25,28 +25,60 @@ export const USER_TIMING_SWEEP_MS = 2_000
 export type UserTimingBuffer = Pick<Performance, 'getEntriesByType' | 'clearMeasures' | 'clearMarks'>
 
 /** Empty the user-timing buffer. Returns how many entries it held. */
-export function sweepUserTiming(perf: UserTimingBuffer, inspect?: (entries: readonly PerformanceEntry[]) => void): number {
+/**
+ * How often the entries are actually *read*.
+ *
+ * Clearing the buffer is cheap; folding it is not. React's dev build can leave
+ * twenty thousand measures in a single second on Control, and the fold does a
+ * string test, a slice and a `Map` write for each one — 60 ms tasks in the perf
+ * log, every two seconds, for a diagnostic. The count stays exact on every
+ * sweep because that is the leak signal; the component table is a *ranking*,
+ * and a ranking samples fine (P11.6).
+ */
+export const USER_TIMING_INSPECT_EVERY = 4
+
+export function sweepUserTiming(
+  perf: UserTimingBuffer,
+  inspect?: (entries: readonly PerformanceEntry[]) => void,
+): number {
   const measures = perf.getEntriesByType('measure')
   const marks = perf.getEntriesByType('mark')
   const held = measures.length + marks.length
   if (held > 0) {
-    inspect?.([...measures, ...marks])
+    // Two calls, not `[...measures, ...marks]`: that spread was a second copy
+    // of every entry on the busiest seconds, to save one call.
+    if (inspect) {
+      inspect(measures)
+      inspect(marks)
+    }
     perf.clearMeasures()
     perf.clearMarks()
   }
   return held
 }
 
+/** What a sweep reports: always a count, and the entries when it looked. */
+export interface SweepSink {
+  count: (held: number) => void
+  inspect?: ((entries: readonly PerformanceEntry[]) => void) | undefined
+  /** Fold one sweep in this many; 1 folds every sweep. */
+  inspectEvery?: number | undefined
+}
+
 export function startUserTimingSweep(
   perf: UserTimingBuffer,
   everyMs: number = USER_TIMING_SWEEP_MS,
-  onSwept: (entries: readonly PerformanceEntry[]) => void = () => {},
+  sink: SweepSink = { count: () => {} },
 ): () => void {
+  const every = Math.max(1, sink.inspectEvery ?? USER_TIMING_INSPECT_EVERY)
+  let sweeps = 0
   const id = setInterval(() => {
     try {
-      sweepUserTiming(perf, onSwept)
+      const look = sink.inspect && sweeps % every === 0
+      sweeps += 1
+      sink.count(sweepUserTiming(perf, look ? sink.inspect : undefined))
     } catch {
-      // A browser without the buffer is not an error.
+      // The buffer is a courtesy; a browser without it is not an error.
     }
   }, everyMs)
   return () => clearInterval(id)
@@ -70,6 +102,9 @@ let installed = false
 export function installStageDiagnostics(): void {
   if (installed || typeof window === 'undefined') return
   installed = true
-  startUserTimingSweep(performance, USER_TIMING_SWEEP_MS, (entries) => second.swept(entries))
+  startUserTimingSweep(performance, USER_TIMING_SWEEP_MS, {
+  count: (held) => second.sweptCount(held),
+  inspect: (entries) => second.sweptEntries(entries),
+})
   startPerfReporting()
 }

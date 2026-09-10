@@ -8,6 +8,7 @@ import { useHostCommand } from '@/host/commands'
 import { command } from '@/host/host'
 import { usePlayState } from '@/host/playState'
 import type { PlayEvent } from '@/host/types'
+import type { PlayStateForMain } from '@questiongame/contract'
 
 export interface TimelinePanelProps {
   density: 'comfortable' | 'compact' | 'dense'
@@ -88,7 +89,7 @@ export function TimelinePanel({ density }: TimelinePanelProps) {
 }
 
 /** A one-line detail from the event's own fields; names come from the snapshot. */
-function detailOf(e: PlayEvent, play: NonNullable<ReturnType<typeof usePlayState>>): string {
+function detailOf(e: PlayEvent, play: PlayStateForMain): string {
   const k = e.kind
   const teamName = (id: unknown) => (typeof id === 'string' ? (play.teams.find((t) => t.id === id)?.name ?? id) : '')
   switch (k.type) {

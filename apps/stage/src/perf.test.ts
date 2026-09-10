@@ -7,7 +7,8 @@ const measure = (name: string, duration: number): PerformanceEntry =>
 describe('SecondAccumulator', () => {
   it('tallies React component measures, keeps the top five, and resets on take', () => {
     const acc = new SecondAccumulator()
-    acc.swept([measure('\u200bDecorField', 3), measure('\u200bDecorField', 3), measure('\u200bQuestionStem', 1), measure('plain', 40)])
+    acc.sweptCount(4)
+    acc.sweptEntries([measure('\u200bDecorField', 3), measure('\u200bDecorField', 3), measure('\u200bQuestionStem', 1), measure('plain', 40)])
     acc.longTask(80, 'tick @ /stage/x.js')
     const s = acc.take()
     expect(s.userTimingSwept).toBe(4)

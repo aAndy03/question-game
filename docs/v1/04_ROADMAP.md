@@ -1095,6 +1095,71 @@ React's own render attribution costs nothing extra.
 
 ---
 
+## P11.6 — Stage fits the display  ☑
+
+The canvas stays a fixed 1920×1080 design surface and is **fitted** to
+whatever window it gets. See "Scaling and aspect ratio (P11.6)" under P2 for
+the rule and the reasoning. `MonitorInfo` now carries the panel's physical mode
+next to the logical size, and `MonitorKey` is derived from the physical one, so
+a display's identity survives a change of DPI scaling.
+
+**Exit criteria**
+
+- ☑ A 1280×720 viewport (a 1080p panel at Windows' default 150%) draws the
+  whole canvas: measured `visibleFraction` 0.444 before, 1.0 after.
+- ☑ 16:9 at 1280×720, 1920×1080 and 2560×1440 leaves no bars at all; 1920×1200
+  letterboxes 60px a side and 2560×1080 pillarboxes 320px a side, in
+  `--stage-letterbox`.
+- ☑ The Viewer is unchanged — same fit, same node rects, hit targets still land
+  (`StageFit.test.tsx`, `viewer.test.tsx`, and the Control panel in a browser).
+- ☑ Settings ▸ Monitors and the Control picker show the panel's mode, with the
+  scale factor beside it when it is not 1.
+- ☑ A `stage.monitor_id` written under the old logical key still resolves, and
+  changing a display's scaling does not lose the pick (`monitor.rs` tests).
+
+---
+
+## P11.7 — The Play is read twice, at two rates  ☑
+
+P11.5's log was built so the next question of its kind could be answered by
+reading a file. The first question it answered was its own operator's: *the
+app's memory fluctuates, is that a leak?* It was not — heap, DOM and working
+set all returned to baseline — but the log showed why it looked like one.
+
+With Control open and a Play running the Studio renderer sat at **77% of a
+core**, committing **28 times a second**, ~245 components a commit, with
+`MosaicLayout` at 16 ms a render and ~7,000 `performance.measure()` calls a
+second behind it. All of it traced to one line: `ControlPage` called
+`usePlayState()` for a value it used only as `play !== null`, the store handed
+every consumer a new object on every 100 ms emission, and the inline
+`renderTile` then rebuilt `react-mosaic`, its dnd provider, six panels and
+every `Tooltip` under them. The only thing that had actually moved was the
+countdown.
+
+**Deliverables:** the two-rate store (`usePlayState` stable + selector,
+`usePlayClock` live); the countdown split into leaves; `renderTile` hoisted and
+`MosaicLayout` memoised; the emission digest replacing a per-tick deep clone
+and a per-tick `to_vec` measurement; the user-timing fold sampled.
+
+**Exit criteria**
+
+- ☑ Thirty simulated ticks on Control commit at most thirty times — one per
+  tick, for the countdown, not the page (`pages/control.test.tsx`).
+- ☑ A whole-object `usePlayState()` reader does not render on a bare tick, and
+  a selector reader does not render when its answer is unchanged
+  (`host/playState.test.ts`).
+- ☑ Nothing outside an atom, a molecule or a test names `remainingMs` or
+  `elapsedMs` without importing `usePlayClock` (grep test).
+- ☑ `emission_changed` answers from a digest, still gates the tick, and reports
+  the payload size it counted (`host_wiring.rs`).
+- ☑ Every sweep is counted; one in `USER_TIMING_INSPECT_EVERY` is folded
+  (`diagnostics.test.ts`, both webviews).
+- ☐ Re-measured on the built app: a fresh perf log with Control open and a Play
+  running, against `perf-2026-09-10T09-53-12Z-9668.jsonl` (77% renderer,
+  28 commits/s, 1.35 GB peak).
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.

@@ -145,7 +145,8 @@ nothing else.
 apps/studio/src/
   host/        the seam. host.ts (command/on, injectable transport for tests)
                queries.ts (TanStack Query keys + hooks over catalog_*/recipe_*/settings)
-               playState.ts (play-state external store; never a Query)
+               playState.ts (play-state external store; never a Query. Two reads:
+                 usePlayState = stable across a bare tick, usePlayClock = the countdown)
                bridge.tsx (one subscriber: events → invalidations / stores)
   chrome/      Zustand stores: nav, chrome (sidebar, theme, view prefs), notices
   copy/        every operator-facing string, by area
@@ -154,6 +155,25 @@ apps/studio/src/
 ```
 
 ### 3.1 Truth and caches
+
+**The Play is read twice, at two rates (P11.7).** The host emits ten times a
+second while a timer runs, and two scalars are all that move on a bare tick:
+`session.timer.remainingMs` and `clock.elapsedMs`. `playState.ts` therefore
+keeps two references — `usePlayState()` reads a **stable** snapshot whose
+identity changes only when something else changed, and `usePlayClock()` reads
+the **live** one. Mount `usePlayClock()` in the smallest component that draws a
+number; a panel subscribing to it re-renders at 10 Hz, which is what the split
+exists to stop. `usePlayState(select, isEqual?)` narrows further — pass
+`shallow` when the selector builds an object.
+
+The rule this replaces: reading the whole Play in a page cost 28 React commits
+a second on Control and 77% of a core, because `ControlPage` re-rendering
+handed `react-mosaic` a new `renderTile` and rebuilt everything under it. Two
+consequences for anything added here — **hoist any function or array handed to
+a memoizing library out of the render** (`useCallback`, or a module constant,
+as `LibraryList` does with `NO_ROWS`), and **never read the countdown off
+`usePlayState()`**: those two fields are as old as the last real change, and a
+grep test enforces it.
 
 - **TanStack Query** holds catalog and recipe reads. Key factory in
   `host/queries.ts`; a test asserts no key mentions `play`. Invalidation is

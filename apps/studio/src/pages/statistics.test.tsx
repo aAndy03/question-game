@@ -159,13 +159,19 @@ describe('Statistics', () => {
 
     // Every command this surface reached for is a read.
     //
-    // `client_log` is on the list because it is not a write in the sense this
-    // criterion means: it changes no state a Play or the library could read,
-    // it is a webview reporting on itself into the log, and the host allows it
-    // from the Statistics window for exactly that reason
-    // (`guard::STATS_COMMANDS`). A projector may say what it saw.
+    // `client_log` and `perf_report` are on the list because they are not
+    // writes in the sense this criterion means: they change no state a Play or
+    // the library could read, they are a webview reporting on *itself* into the
+    // log, and the host allows both from the Statistics window for exactly that
+    // reason (`guard::STATS_COMMANDS`). A projector may say what it saw.
+    //
+    // `perf_report` is posted on a one-second timer (P11.5), so whether it
+    // lands inside this test depends on how long the suite took to get here —
+    // it is why this case failed only in a full run. Naming it is the fix; a
+    // timing-dependent allowlist is not an allowlist.
     const READS = [
       'client_log',
+      'perf_report',
       'stats_query',
       'catalog_list',
       'catalog_get',

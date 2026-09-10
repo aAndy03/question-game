@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, type ReactNode } from 'react'
 import { Button } from '@/atoms'
-import { EmptyState, MosaicPanel } from '@/molecules'
+import { EmptyState, MosaicPanel, type MosaicDensityFloor } from '@/molecules'
 import { ActionPanel, ControlTopBar, GamePanel, StripsPanel, TimelinePanel, Viewer, useControlHotkeys } from '@/organisms'
 import { MosaicLayout } from '@/templates'
 import { useControlLayout, useControlLayoutStore, type PanelId } from '@/chrome/control'
@@ -15,21 +15,25 @@ import { useSettings } from '@/host/queries'
  * else. Nothing on this page is remembered except the layout.
  */
 export function ControlPage() {
-  const play = usePlayState()
+  // Only *whether* a Play is loaded — this page renders no field of one.
+  // Reading the whole object here is what rebuilt the mosaic ten times a
+  // second before P11.6 (`host/playState.ts` has the measurement).
+  const hasPlay = usePlayState((s) => s !== null)
   const settings = useSettings()
   const layout = useControlLayout()
   const setLayout = useControlLayoutStore((s) => s.setLayout)
   const setOperator = useControlLayoutStore((s) => s.setOperator)
   const go = useNavStore((s) => s.go)
-  useControlHotkeys(play !== null)
+  useControlHotkeys(hasPlay)
 
   useEffect(() => {
     setOperator(settings.data?.globals.active_operator_id ?? null)
   }, [settings.data?.globals.active_operator_id, setOperator])
 
   const floor = settings.data?.control.mosaic_density ?? 'comfortable'
+  const renderTile = useRenderTile(floor)
 
-  if (!play) {
+  if (!hasPlay) {
     return (
       <div className="flex h-full flex-col">
         <div className="shrink-0 border-b border-[var(--border)] px-4 py-2">
@@ -57,28 +61,43 @@ export function ControlPage() {
       onChange={setLayout}
       titles={CONTROL.panels}
       top={<ControlTopBar />}
-      renderTile={(id) => {
-        switch (id) {
-          case 'viewer':
-            return (
-              <MosaicPanel floor={floor} padded={false}>
-                {(density) => <Viewer density={density} />}
-              </MosaicPanel>
-            )
-          case 'game':
-            return (
-              <MosaicPanel floor={floor} fills>
-                {(density, box) => <GamePanel density={density} box={box} />}
-              </MosaicPanel>
-            )
-          case 'action':
-            return <MosaicPanel floor={floor}>{(density) => <ActionPanel density={density} />}</MosaicPanel>
-          case 'strips':
-            return <MosaicPanel floor={floor}>{(density) => <StripsPanel density={density} />}</MosaicPanel>
-          case 'timeline':
-            return <MosaicPanel floor={floor}>{(density) => <TimelinePanel density={density} />}</MosaicPanel>
-        }
-      }}
+      renderTile={renderTile}
     />
+  )
+}
+
+/**
+ * The tile bodies, hoisted out of the render.
+ *
+ * An inline arrow is a new `renderTile` prop on every render of this page, and
+ * `react-mosaic` rebuilds its whole tree when it changes — the dnd provider,
+ * six `MosaicWindow`s, and every `Tooltip` under them. The density floor is the
+ * only thing it closes over, so that is the only key it needs.
+ */
+function useRenderTile(floor: MosaicDensityFloor) {
+  return useCallback(
+    (id: PanelId): ReactNode => {
+      switch (id) {
+        case 'viewer':
+          return (
+            <MosaicPanel floor={floor} padded={false}>
+              {(density) => <Viewer density={density} />}
+            </MosaicPanel>
+          )
+        case 'game':
+          return (
+            <MosaicPanel floor={floor} fills>
+              {(density, box) => <GamePanel density={density} box={box} />}
+            </MosaicPanel>
+          )
+        case 'action':
+          return <MosaicPanel floor={floor}>{(density) => <ActionPanel density={density} />}</MosaicPanel>
+        case 'strips':
+          return <MosaicPanel floor={floor}>{(density) => <StripsPanel density={density} />}</MosaicPanel>
+        case 'timeline':
+          return <MosaicPanel floor={floor}>{(density) => <TimelinePanel density={density} />}</MosaicPanel>
+      }
+    },
+    [floor],
   )
 }
