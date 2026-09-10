@@ -5,6 +5,7 @@ import { HOME, useNavStore } from '@/chrome/nav'
 import { createFakeHost, type FakeHost } from '@/host/fake'
 import { demoLibrary, demoRecipe } from '@/host/devFake'
 import { setHostTransport } from '@/host/host'
+import { useWindowsStore } from '@/chrome/windows'
 
 /**
  * P11.11. Two audience displays and no HDMI splitter, so the app is the
@@ -21,6 +22,10 @@ describe('Settings ▸ Monitors, with several displays', () => {
     fake.seed(demoLibrary(), [demoRecipe()])
     setHostTransport(fake)
     useNavStore.setState({ route: HOME, back: [], forward: [], guard: null })
+    // Where the windows are is module state fed by an event, so it outlives a
+    // test the way it outlives a route change. Left alone, one test's mirror
+    // is the next test's starting position.
+    useWindowsStore.setState({ statsOpen: null, stageOn: null, stageMirrors: [] })
   })
   afterEach(() => {
     setHostTransport(null)
@@ -35,6 +40,9 @@ describe('Settings ▸ Monitors, with several displays', () => {
   }
   const button = (card: HTMLElement, label: string) =>
     [...card.querySelectorAll('button')].find((b) => b.textContent?.trim() === label) ?? null
+
+  /** The host's own list, so an emitted event does not blank the cards. */
+  const monitorList = () => fake.invoke<unknown[]>('monitors_list', undefined)
 
   async function openMonitors() {
     render(<App />)
@@ -93,4 +101,59 @@ describe('Settings ▸ Monitors, with several displays', () => {
       expect(fake.calls.filter((c) => c.name === 'settings_get').length).toBeGreaterThan(1),
     )
   })
+
+  /**
+   * The bug this file was written for.
+   *
+   * Stage opens fullscreen on **primary** at Control Load. The host reported
+   * that as `stageOn: null` — the same value it uses for "there is no Stage" —
+   * and Studio read the remembered *pick* instead of the *place*. So the card
+   * for a remembered display claimed Stage was on it, the primary display's
+   * card said nothing, and the show was on neither of the two.
+   */
+  it('shows Stage on the display it is actually on, not the one remembered', async () => {
+    // An earlier session remembered the TV.
+    await fake.invoke('stage_set_monitor', { monitorId: 'tv@1920x1080' })
+    await openMonitors()
+
+    // But Stage is fullscreen on primary — which is exactly what Control Load
+    // does, and what the remembered pick has not yet overridden.
+    await act(async () => {
+      fake.emit('monitors-changed', {
+        monitors: await monitorList(),
+        stageMonitorId: 'tv@1920x1080',
+        stageMirrors: [],
+        stageOn: 'primary',
+        stageOpen: true,
+        statsMonitorId: null,
+        statsOpen: false,
+      })
+    })
+
+    await waitFor(() => expect(cardFor('primary').dataset['monitorCard']).toBe('stage'))
+    expect(
+      cardFor('tv@1920x1080').dataset['monitorCard'],
+      'the remembered display is a pick, not a place',
+    ).toBe('remembered')
+    expect(document.body.textContent).toContain('Stage stands on: Built-in display')
+  })
+
+  /** No window at all is not the same as a window on primary. */
+  it('shows no Stage anywhere before one is opened', async () => {
+    await openMonitors()
+    await act(async () => {
+      fake.emit('monitors-changed', {
+        monitors: await monitorList(),
+        stageMonitorId: null,
+        stageMirrors: [],
+        stageOn: null,
+        stageOpen: false,
+        statsMonitorId: null,
+        statsOpen: false,
+      })
+    })
+    expect(cardFor('primary').dataset['monitorCard']).toBe('free')
+    expect(cardFor('tv@1920x1080').dataset['monitorCard']).toBe('free')
+  })
+
 })

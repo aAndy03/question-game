@@ -1354,6 +1354,13 @@ the only reason the same fixed canvas lands correctly on all of them.
   display back, and the pacer's card never offers Remove
   (`MonitorsSettings.test.tsx`, and checked in a browser).
 - ☑ A mirror is decided by the URL, synchronously (`mirror.test.tsx`).
+- ☑ Stage shows on the display it is **actually** on, not the one remembered,
+  and "no window yet" is not the same as "on primary"
+  (`MonitorsSettings.test.tsx`). Two defects latent since P6 and found on a
+  three-display desk: `ensure_stage` built the window on primary without
+  consulting the pick — while the monitor watch had already claimed that pick,
+  so no later tick would ever correct it — and Studio read the *pick* where the
+  *place* was meant.
 - ☐ Verified on the operator's own three displays: identical picture on two,
   one cue per event, one Timeline entry per overlay, and both restored after a
   restart.

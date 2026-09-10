@@ -71,7 +71,8 @@ pub fn stats_window(
     // Asked before the lock: the window map is what the window work just
     // changed, and nothing that touches a window belongs under the guard.
     let stats_open = windows::stats_is_open(&app);
+    let stage_open = windows::stage_is_open(&app);
     let host = state.lock();
-    emit::monitors_changed(&app, &host, stats_open);
+    emit::monitors_changed(&app, &host, stats_open, stage_open);
     Ok(())
 }

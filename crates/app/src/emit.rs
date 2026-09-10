@@ -169,8 +169,12 @@ struct MonitorsChanged<'a> {
     monitors: &'a [questiongame_host::MonitorInfo],
     /// The remembered pick, connected or not.
     stage_monitor_id: Option<&'a str>,
-    /// Where the Stage window actually stands. `null` is the primary display.
-    stage_on: Option<&'a str>,
+    /// Where the Stage window actually stands, **resolved**: the primary
+    /// display's own key rather than `null`, so Studio can tell "Stage is on
+    /// primary" from "there is no Stage" (P11.11). `null` means no window.
+    stage_on: Option<String>,
+    /// Whether the Stage window exists at all.
+    stage_open: bool,
     /// The displays mirroring the pacer right now (§9, P11.11).
     stage_mirrors: Vec<String>,
     /// The display Statistics would open on, connected or not.
@@ -184,14 +188,26 @@ struct MonitorsChanged<'a> {
 /// `stats_open` is passed in rather than read here: every caller already knows
 /// it, and asking the window map for it while the host lock is held is the one
 /// habit `windows::refresh` exists to avoid.
-pub fn monitors_changed(app: &AppHandle, host: &Host, stats_open: bool) {
+pub fn monitors_changed(app: &AppHandle, host: &Host, stats_open: bool, stage_open: bool) {
     let _ = app.emit_to(
         MAIN,
         "monitors-changed",
         MonitorsChanged {
             monitors: host.display.monitors(),
             stage_monitor_id: host.flags.control().stage_monitor_id.as_deref(),
-            stage_on: host.display.current().map(|k| k.as_str()),
+            stage_on: stage_open.then(|| {
+                host.display
+                    .current()
+                    .cloned()
+                    // `None` is the primary display, not "nowhere": Stage is
+                    // fullscreen on primary from first Control Load (§9), and
+                    // conflating the two is what made a card go blank while
+                    // the show was on it.
+                    .or_else(|| host.display.primary().map(|m| m.key.clone()))
+                    .map(|k| k.as_str().to_owned())
+                    .unwrap_or_default()
+            }),
+            stage_open,
             stage_mirrors: host
                 .display
                 .live_mirrors()

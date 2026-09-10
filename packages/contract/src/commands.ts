@@ -304,8 +304,18 @@ export interface MonitorsChanged {
   /** The remembered pick, connected or not. */
   readonly stageMonitorId: string | null
   /** Where the Stage window actually stands. Null is the primary display. */
-  /** Where the **pacer** stands. `null` is the primary display. */
+  /**
+   * Where the **pacer** actually stands — the *place*, not the pick.
+   *
+   * **Resolved**: the primary display's own key rather than `null` when Stage
+   * is on primary, so a consumer can tell "Stage is on primary" from "there is
+   * no Stage". `null` means the window does not exist. Conflating the two is
+   * what made Settings ▸ Monitors show no Stage anywhere while it was
+   * fullscreen on the primary display (P11.11).
+   */
   readonly stageOn: string | null
+  /** Whether the Stage window exists at all. */
+  readonly stageOpen: boolean
   /**
    * The displays mirroring the pacer right now, in the order they were added
    * (§9, P11.11). `stageOn` is still the pacer's, so a card knows which of the

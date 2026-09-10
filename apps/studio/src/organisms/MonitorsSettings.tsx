@@ -5,7 +5,7 @@ import { SETTINGS } from '@/copy/settings'
 import { STATS } from '@/copy/stats'
 import { useHostCommand } from '@/host/commands'
 import { useMonitors, useSettings } from '@/host/queries'
-import { useStatsWindowOpen } from '@/chrome/windows'
+import { useStagePlacement, useStatsWindowOpen } from '@/chrome/windows'
 import { SettingsForm } from './SettingsForm'
 
 /**
@@ -33,9 +33,18 @@ export function MonitorsSettings() {
   const statsOpen = useStatsWindowOpen()
   const statsOnStage = stats !== null && stats === remembered
 
-  // The displays mirroring the pacer (§9, P11.11). Two audience screens and no
-  // HDMI splitter, so the app is one.
-  const mirrors = settings.data?.control.stage_mirror_ids ?? []
+  // **Where Stage actually is**, not where it was asked to go (§9, P11.11).
+  //
+  // `remembered` is the pick and `stageOn` is the place, and they differ more
+  // often than they look like they should: a remembered display that is
+  // unplugged, or a window that has not been created yet. Reading the pick
+  // here is what made this tab insist Stage was on a display it had never
+  // been on, while it sat fullscreen on primary.
+  const placement = useStagePlacement()
+  const mirrors = placement.mirrors
+  const standsOnName = placement.on
+    ? (list.find((m) => m.key === placement.on)?.name ?? placement.on)
+    : (list.find((m) => m.primary)?.name ?? SETTINGS.monitors.primary)
 
   /**
    * Send Stage to a display.
@@ -47,7 +56,11 @@ export function MonitorsSettings() {
    */
   const send = (key: string) => {
     void run('stage_open')
-    if (remembered === null) {
+    // The first display Stage is sent to is the pacer; every one after it is a
+    // mirror. "First" means *no Stage is standing anywhere yet* — the place,
+    // not the pick, or a remembered display that is unplugged would make the
+    // next Send a mirror with nothing to mirror.
+    if (placement.on === null && mirrors.length === 0) {
       void run('stage_set_monitor', { monitorId: key })
       return
     }
@@ -57,8 +70,11 @@ export function MonitorsSettings() {
   const removeStage = (key: string) => void run.ok('stage_remove_mirror', { monitorId: key })
 
   const stateOf = (key: string): 'stage' | 'mirror' | 'remembered' | 'free' => {
-    if (remembered === key) return 'stage'
+    if (placement.on === key) return 'stage'
     if (mirrors.includes(key)) return 'mirror'
+    // The pick, unplugged or not yet taken: worth showing, and not the same
+    // thing as Stage standing there.
+    if (remembered === key) return 'remembered'
     return 'free'
   }
 
@@ -86,7 +102,7 @@ export function MonitorsSettings() {
         </div>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1 py-3">
           <Text variant="studio-caption" tone="muted">
-            {`${SETTINGS.monitors.standsOn}: ${rememberedConnected ? (list.find((m) => m.key === remembered)?.name ?? remembered) : (list.find((m) => m.primary)?.name ?? SETTINGS.monitors.primary)}`}
+            {`${SETTINGS.monitors.standsOn}: ${standsOnName}`}
           </Text>
           <Text variant="studio-caption" tone={remembered && !rememberedConnected ? 'warning' : 'muted'}>
             {`${SETTINGS.monitors.remembered}: ${remembered ?? SETTINGS.monitors.none}${remembered && !rememberedConnected ? ` (${SETTINGS.monitors.notConnected})` : ''}`}

@@ -47,6 +47,7 @@ export function HostBridge() {
   const replaceSource = useNoticeStore((s) => s.replaceSource)
   const setReport = useHealthStore((s) => s.setReport)
   const setStatsOpen = useWindowsStore((s) => s.setStatsOpen)
+  const setStagePlacement = useWindowsStore((s) => s.setStagePlacement)
 
   useEffect(() => {
     if (!hasHost()) return
@@ -79,6 +80,10 @@ export function HostBridge() {
     add(
       on<MonitorsChanged>('monitors-changed', (m) => {
         client.setQueryData(keys.monitors, m.monitors)
+        // Where the windows actually are — the *place*, not the *pick*
+        // (§9, P11.11). Dropped until now, which is how Settings ▸ Monitors
+        // came to show a Stage on a display it had never been on.
+        setStagePlacement(m.stageOn, m.stageMirrors)
         // Window state, not settings state: whether Statistics is on screen
         // comes from the host's window list, and only from here (§13.3).
         setStatsOpen(m.statsOpen)
@@ -98,7 +103,7 @@ export function HostBridge() {
       live = false
       offs.forEach((off) => off())
     }
-  }, [client, pushNotice, replaceSource, setReport, setStatsOpen])
+  }, [client, pushNotice, replaceSource, setReport, setStatsOpen, setStagePlacement])
 
   return null
 }

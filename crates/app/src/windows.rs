@@ -100,7 +100,22 @@ fn debuggable<'a>(
 /// Stage, ready. Created on first Control Load and then left alone: it sits
 /// fullscreen on the primary display and waits until the operator sends it
 /// somewhere (§9 — the host never picks a display).
-pub fn ensure_stage(app: &AppHandle) -> AppResult<WebviewWindow> {
+/// `on` is where the host believes Stage stands — `StageDisplay::current()`,
+/// `None` for primary. **Required, not optional**, because forgetting it was a
+/// bug that lasted from P6 to P11.11 and could not correct itself:
+///
+/// ```text
+/// the monitor watch runs before Control Load, sees the remembered display
+///   connected, sets `on = that display` and returns a move
+/// `apply` finds no Stage window and does nothing
+/// Control Load builds the window fullscreen on primary, asking nothing
+/// every later watch tick sees `on` already claimed, so no move is returned
+/// ```
+///
+/// Stage then sits on primary for the whole show while the host, and Settings
+/// ▸ Monitors with it, insist it is somewhere else. Placing the window at
+/// birth makes the claim true the moment there is something to claim.
+pub fn ensure_stage(app: &AppHandle, on: Option<&MonitorKey>) -> AppResult<WebviewWindow> {
     crate::state::assert_unlocked("windows::ensure_stage");
     if let Some(existing) = app.get_webview_window(STAGE) {
         return Ok(existing);
@@ -114,6 +129,11 @@ pub fn ensure_stage(app: &AppHandle) -> AppResult<WebviewWindow> {
             .focused(false),
     )
     .build()?;
+    // Built fullscreen on primary and then moved, rather than positioned at
+    // build time: a fullscreen window keeps its monitor, so going anywhere else
+    // is leave-fullscreen, move, re-enter — which is exactly what `move_to`
+    // does.
+    move_to(app, &window, on)?;
     Ok(window)
 }
 
@@ -233,6 +253,11 @@ pub fn close_stats(app: &AppHandle) -> AppResult<()> {
 /// Is it on screen right now? The one piece of Statistics-window state, and it
 /// lives where it actually is — in the window list, not in the settings
 /// document. Studio reads it through `monitors_list` / `monitors-changed`.
+pub fn stage_is_open(app: &AppHandle) -> bool {
+    app.get_webview_window(STAGE).is_some()
+}
+
+/// Is it on screen right now? The one piece of Statistics-window state.
 pub fn stats_is_open(app: &AppHandle) -> bool {
     app.get_webview_window(STATS).is_some()
 }
@@ -321,6 +346,7 @@ fn place(
 pub fn refresh(app: &AppHandle, state: &crate::state::AppState) -> AppResult<()> {
     let list = crate::monitors::list(app);
     let stats_open = stats_is_open(app);
+    let stage_open = stage_is_open(app);
 
     let (mv, mirrors, stats_monitor_id, stats_fullscreen) = {
         let mut host = state.lock();
@@ -359,7 +385,7 @@ pub fn refresh(app: &AppHandle, state: &crate::state::AppState) -> AppResult<()>
 
     {
         let host = state.lock();
-        crate::emit::monitors_changed(app, &host, stats_open);
+        crate::emit::monitors_changed(app, &host, stats_open, stage_open);
     }
     Ok(())
 }

@@ -267,7 +267,7 @@ pub fn stage_set_monitor(
     // *creates* a webview, which pumps the message loop and lets the new
     // window invoke before this returns — with the lock held that is a wait
     // on ourselves.
-    let mv = {
+    let (mv, stage_on) = {
         let mut host = state.lock();
         let key = monitor_id.clone().map(MonitorKey::new);
         let mv = host.display.set_monitor(key)?;
@@ -279,14 +279,17 @@ pub fn stage_set_monitor(
         )?;
         let globals = host.flags.globals().clone();
         host.catalog.settings_store(&globals)?;
-        mv
+        (mv, host.display.current().cloned())
     };
 
-    windows::ensure_stage(&app)?;
+    // Built where it belongs; `apply` then has nothing to do unless the window
+    // already existed somewhere else.
+    windows::ensure_stage(&app, stage_on.as_ref())?;
     windows::apply(&app, &mv)?;
     let stats_open = windows::stats_is_open(&app);
+    let stage_open = windows::stage_is_open(&app);
     let host = state.lock();
-    emit::monitors_changed(&app, &host, stats_open);
+    emit::monitors_changed(&app, &host, stats_open, stage_open);
     Ok(())
 }
 
@@ -299,7 +302,9 @@ pub fn stage_open(
     state: State<'_, AppState>,
 ) -> AppResult<()> {
     guard::allow(window.label(), "stage_open")?;
-    windows::ensure_stage(&app)?;
+    // A short lock for the destination, released before the window is built.
+    let stage_on = state.lock().display.current().cloned();
+    windows::ensure_stage(&app, stage_on.as_ref())?;
     let now = now_ms();
     let mut host = state.lock();
     emit::play_state(&app, &mut host, now, true);
@@ -363,6 +368,7 @@ pub fn stage_remove_mirror(
 /// unplugged is waited for rather than forgotten.
 fn remember_mirrors(app: &AppHandle, state: &State<'_, AppState>) -> AppResult<()> {
     let stats_open = windows::stats_is_open(app);
+    let stage_open = windows::stage_is_open(app);
     let mut host = state.lock();
     let ids: Vec<String> = host
         .display
@@ -373,6 +379,6 @@ fn remember_mirrors(app: &AppHandle, state: &State<'_, AppState>) -> AppResult<(
     let ctx = host.runtime();
     host.flags
         .settings_set_global(questiongame_host::flags::GlobalSetting::StageMirrorIds(ids), ctx)?;
-    emit::monitors_changed(app, &host, stats_open);
+    emit::monitors_changed(app, &host, stats_open, stage_open);
     Ok(())
 }

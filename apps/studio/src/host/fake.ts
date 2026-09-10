@@ -80,6 +80,8 @@ export interface FakeHost extends HostTransport {
   uninstalled: boolean
   /** The Statistics window: the fake has no desktop, so it has a boolean. */
   statsOpen: boolean
+  /** And the Stage window, the same way. `stage_open` sets it. */
+  stageOpen: boolean
 }
 
 const now = () => Date.now()
@@ -213,7 +215,12 @@ export function createFakeHost(): FakeHost {
       monitors: FAKE_MONITORS,
       stageMonitorId: control.stage_monitor_id,
       stageMirrors: control.stage_mirror_ids,
-      stageOn: control.stage_monitor_id,
+      // Resolved the way the host resolves it: `null` only when there is no
+      // Stage window, the primary display's key when it is on primary.
+      stageOn: fake.stageOpen
+        ? (control.stage_monitor_id ?? (FAKE_MONITORS.find((m) => m.primary)?.key ?? null))
+        : null,
+      stageOpen: fake.stageOpen,
       statsMonitorId: control.stats_monitor_id,
       statsOpen: fake.statsOpen,
     })
@@ -690,7 +697,11 @@ export function createFakeHost(): FakeHost {
       emitMonitors()
       return null
     },
-    stage_open: () => null,
+    stage_open: () => {
+      fake.stageOpen = true
+      emitMonitors()
+      return null
+    },
     play_list: (a) => {
       const recipeId = (a.recipeId as string | null | undefined) ?? null
       return recipeId === null ? fake.plays : fake.plays.filter((p) => p.recipeId === recipeId)
@@ -717,6 +728,7 @@ export function createFakeHost(): FakeHost {
     stats: EMPTY_STATS,
     uninstalled: false,
     statsOpen: false,
+    stageOpen: false,
     emit,
     listenerCount(name) {
       if (name) return listeners.get(name)?.size ?? 0
