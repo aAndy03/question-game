@@ -377,6 +377,14 @@ pub struct ControlSettings {
     /// belongs. `None` means Stage stays on primary — the host never picks a
     /// display for the operator (§9, decided 2026-09-05).
     pub stage_monitor_id: Option<String>,
+    /// The displays that **mirror** the pacer, by OS monitor key (§9, P11.11).
+    ///
+    /// Beside `stage_monitor_id`, not instead of it: that field keeps meaning
+    /// "where the pacer goes", so a settings document written by an older
+    /// build reads back with no mirrors and behaves exactly as it did. Empty
+    /// is the default and the whole of today's behaviour.
+    #[serde(default)]
+    pub stage_mirror_ids: Vec<String>,
     /// Where the Statistics window opens **when the operator asks for it**
     /// (§11.K, P11). Remembering a display is not the same as showing one:
     /// nothing in the host opens this window, and a display coming back does
@@ -537,6 +545,8 @@ pub enum GlobalSetting {
     ViewerHitTargets(bool),
     MosaicDensity(MosaicDensity),
     StageMonitorId(Option<String>),
+    /// `stage.mirror_ids` — the displays showing the same picture (P11.11).
+    StageMirrorIds(Vec<String>),
     StatsMonitorId(Option<String>),
     /// `stats.fullscreen`. Control-behaviour; takes effect the next time the
     /// window is opened, and on an open window straight away.
@@ -569,6 +579,7 @@ impl GlobalSetting {
             GlobalSetting::ViewerHitTargets(_) => "viewer.hit_targets",
             GlobalSetting::MosaicDensity(_) => "control.mosaic_density",
             GlobalSetting::StageMonitorId(_) => "stage.monitor_id",
+            GlobalSetting::StageMirrorIds(_) => "stage.mirror_ids",
             GlobalSetting::StatsMonitorId(_) => "stats.monitor_id",
             GlobalSetting::StatsFullscreen(_) => "stats.fullscreen",
             GlobalSetting::StageReattach(_) => "stage.reattach",
@@ -825,6 +836,10 @@ impl FlagService {
             GlobalSetting::StageMonitorId(v) => {
                 globals.control.stage_monitor_id.clone_from(&v);
                 control.stage_monitor_id = v;
+            }
+            GlobalSetting::StageMirrorIds(v) => {
+                globals.control.stage_mirror_ids.clone_from(&v);
+                control.stage_mirror_ids = v;
             }
             GlobalSetting::StatsMonitorId(v) => {
                 globals.control.stats_monitor_id.clone_from(&v);

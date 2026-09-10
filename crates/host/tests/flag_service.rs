@@ -460,6 +460,7 @@ fn a_control_behaviour_write_takes_effect_immediately_and_is_remembered() {
         viewer_hit_targets: false,
         mosaic_density: MosaicDensity::Compact,
         stage_monitor_id: Some("monitor-2".to_owned()),
+        stage_mirror_ids: Vec::new(),
         stats_monitor_id: Some("monitor-3".to_owned()),
         stats_fullscreen: false,
         stage_reattach: StageReattach::Auto,
@@ -636,4 +637,56 @@ fn audio_is_live_mid_play_and_scoring_is_not() {
 
     let over = flags.settings_set_global(GlobalSetting::AudioVolume(101), playing());
     assert!(matches!(over, Err(MatchError::IllegalSettings { key: "audio.volume", .. })));
+}
+
+/// P11.11. Mirrors are remembered beside the pacer's display, not instead of
+/// it: `stage_monitor_id` keeps meaning "where the pacer goes", so a settings
+/// document written by an older build reads back with no mirrors and behaves
+/// exactly as it did.
+#[test]
+fn mirror_displays_are_remembered_and_default_to_none() {
+    let mut flags = FlagService::default();
+    assert!(
+        flags.control().stage_mirror_ids.is_empty(),
+        "a fresh install mirrors nowhere"
+    );
+
+    flags
+        .settings_set_global(
+            GlobalSetting::StageMirrorIds(vec!["tv-right@1920x1080".to_owned()]),
+            playing(),
+        )
+        .expect("a mirror list is a control-behaviour write: live during a Play");
+    assert_eq!(
+        flags.control().stage_mirror_ids,
+        vec!["tv-right@1920x1080".to_owned()]
+    );
+    assert_eq!(
+        GlobalSetting::StageMirrorIds(Vec::new()).key(),
+        "stage.mirror_ids"
+    );
+}
+
+/// The pacer's display is untouched by a mirror write, and the other way
+/// round: two fields, two meanings.
+#[test]
+fn the_pacers_display_and_its_mirrors_are_independent() {
+    let mut flags = FlagService::default();
+    flags
+        .settings_set_global(
+            GlobalSetting::StageMonitorId(Some("tv-left@1366x768".to_owned())),
+            playing(),
+        )
+        .unwrap();
+    flags
+        .settings_set_global(
+            GlobalSetting::StageMirrorIds(vec!["tv-right@1920x1080".to_owned()]),
+            playing(),
+        )
+        .unwrap();
+    assert_eq!(
+        flags.control().stage_monitor_id.as_deref(),
+        Some("tv-left@1366x768")
+    );
+    assert_eq!(flags.control().stage_mirror_ids.len(), 1);
 }

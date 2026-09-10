@@ -245,6 +245,13 @@ pub struct StageDisplay {
     /// Where the window is. `None` is primary — including "primary because the
     /// remembered display is unplugged".
     on: Option<MonitorKey>,
+    /// The displays the operator asked to **mirror** the pacer, in the order
+    /// they were asked for (§9, P11.11).
+    ///
+    /// Remembered whether or not they are connected: a cable coming back
+    /// should restore the mirror exactly as it restores the pacer. What is
+    /// *live* right now is [`Self::live_mirrors`].
+    wanted_mirrors: Vec<MonitorKey>,
 }
 
 impl StageDisplay {
@@ -269,6 +276,59 @@ impl StageDisplay {
     /// it, Studio is an Alt-Tab away.
     pub fn is_single_display(&self) -> bool {
         self.monitors.len() <= 1
+    }
+
+    /// The mirrors the operator has asked for, connected or not.
+    pub fn wanted_mirrors(&self) -> &[MonitorKey] {
+        &self.wanted_mirrors
+    }
+
+    /// Replace the wanted list — what a settings load does.
+    pub fn set_wanted_mirrors(&mut self, wanted: Vec<MonitorKey>) {
+        self.wanted_mirrors = wanted;
+    }
+
+    /// **Which connected displays should carry a mirror right now.**
+    ///
+    /// The whole contract with the app crate: the host answers this, and the
+    /// app crate makes the windows match. Declarative rather than a diff of
+    /// opens and closes — reconciling to a set is idempotent, so the monitor
+    /// watch can call it on every display change without remembering what it
+    /// did last time, and a missed close cannot leave a window standing on a
+    /// display that is gone.
+    ///
+    /// A display that is not connected is skipped, not forgotten.
+    pub fn live_mirrors(&self) -> Vec<MonitorKey> {
+        self.wanted_mirrors
+            .iter()
+            .filter(|key| self.on.as_ref() != Some(*key))
+            .filter(|key| self.monitors.iter().any(|m| m.matches(key)))
+            .cloned()
+            .collect()
+    }
+
+    /// Ask for another mirror. Refuses for the reasons [`Self::set_monitor`]
+    /// does, plus the one that is particular to a second pane.
+    pub fn add_mirror(&mut self, key: MonitorKey) -> Result<Vec<MonitorKey>, MonitorError> {
+        match self.monitors.iter().filter(|m| m.matches(&key)).count() {
+            0 => return Err(MonitorError::NotConnected(key)),
+            1 => {}
+            _ => return Err(MonitorError::Ambiguous(key)),
+        }
+        if self.on.as_ref() == Some(&key) || self.wanted_mirrors.contains(&key) {
+            // One pane per display: two Stage windows on one screen is two
+            // windows fighting over it, and the audience sees whichever won.
+            return Err(MonitorError::AlreadyShowingStage(key));
+        }
+        self.wanted_mirrors.push(key);
+        Ok(self.wanted_mirrors.clone())
+    }
+
+    /// Stop mirroring on a display. Removing one that is not mirroring is not
+    /// an error — the operator's intent is already true.
+    pub fn remove_mirror(&mut self, key: &MonitorKey) -> Vec<MonitorKey> {
+        self.wanted_mirrors.retain(|k| k != key);
+        self.wanted_mirrors.clone()
     }
 
     /// Resolve a remembered pick against the list as it is now.
@@ -296,6 +356,11 @@ impl StageDisplay {
                 1 => {}
                 _ => return Err(MonitorError::Ambiguous(key.clone())),
             },
+        }
+        // One pane per display. The operator asked for the pacer here, so the
+        // mirror that was on this display stands down rather than fighting it.
+        if let Some(key) = &key {
+            self.wanted_mirrors.retain(|k| k != key);
         }
         self.on = key.clone();
         Ok(StageMove::to(key))
@@ -382,6 +447,10 @@ pub enum MonitorError {
     /// or by picking from a list that shows positions.
     #[error("monitor {0} matches more than one connected display")]
     Ambiguous(MonitorKey),
+    /// A second Stage window was asked for on a display that already has one
+    /// (§9, P11.11). One pane per display, or the two fight over the screen.
+    #[error("monitor {0} is already showing Stage")]
+    AlreadyShowingStage(MonitorKey),
 }
 
 #[cfg(test)]
