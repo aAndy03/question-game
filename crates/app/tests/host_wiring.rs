@@ -594,3 +594,28 @@ fn the_clock_gate_is_quiet_when_neither_number_moves() {
     assert!(!host.clock_moved(clock), "the same instant twice is one emission");
     assert!(host.clock_moved((Some(29_900), 1_100, true)));
 }
+
+/// P11.11: only the pacer acknowledges an animation.
+///
+/// The overlay queue advances on an ack and never on a clock (§2.6). With two
+/// audience displays there are two acks for one animation, so exactly one
+/// window is in charge — otherwise the second retires an overlay the operator
+/// has not seen finish, or promotes a pending one twice.
+///
+/// The guard lets a mirror through, because a mirror *is* a Stage window and
+/// may report on itself. The refusal is the command's, and it is silent: the
+/// mirror is behaving correctly.
+#[test]
+fn a_mirror_is_a_stage_window_but_not_the_pacer() {
+    use questiongame_app::guard;
+
+    assert!(guard::is_stage_label(guard::STAGE));
+    assert!(guard::is_stage_label("stage-2"));
+    assert!(!guard::is_stage_label(guard::MAIN));
+
+    assert!(guard::allow("stage-2", "overlay_ack_complete").is_ok());
+    assert!(
+        guard::allow("stage-2", "lock_selection").is_err(),
+        "a mirror is a projection, not a controller (§5.7)"
+    );
+}

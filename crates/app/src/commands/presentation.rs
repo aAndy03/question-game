@@ -69,6 +69,20 @@ pub fn overlay_ack_complete(
     key: String,
 ) -> AppResult<()> {
     guard::allow(window.label(), "overlay_ack_complete")?;
+    // **Only the pacer's ack advances the queue** (§9, P11.11).
+    //
+    // Every Stage window plays the same timeline and reports it, so with two
+    // audience displays one animation produces two acks — and the second would
+    // retire an overlay the operator has not seen finish, or promote a pending
+    // one twice. One window is in charge, and it is the one that has always
+    // been in charge.
+    //
+    // Dropped rather than refused: the mirror is behaving correctly, and a
+    // notice for it would be noise during a show. Belt to the webview's
+    // braces, which does not send one either.
+    if window.label() != guard::STAGE {
+        return Ok(());
+    }
     let now = now_ms();
     let mut host = state.lock();
 
@@ -289,5 +303,76 @@ pub fn stage_open(
     let now = now_ms();
     let mut host = state.lock();
     emit::play_state(&app, &mut host, now, true);
+    Ok(())
+}
+
+/// Mirror the pacer on another display (§9, P11.11).
+///
+/// The operator has two audience screens and no HDMI splitter, so the app is
+/// the splitter: the same picture, on as many displays as they ask for. The
+/// pacer keeps its own display and its own job — it is the window whose acks
+/// advance the overlay queue and the only one that makes a sound.
+#[tauri::command(async)]
+pub fn stage_add_mirror(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    monitor_id: String,
+) -> AppResult<()> {
+    guard::allow(window.label(), "stage_add_mirror")?;
+    // Refresh first: the picker may be seconds stale, and mirroring onto a
+    // display that just left should say so rather than remember a wish. Before
+    // the lock, because refreshing touches windows.
+    windows::refresh(&app, &state)?;
+
+    // The decision under the lock, the windows after it. Building a webview
+    // pumps the message loop and lets the new window invoke before this
+    // returns — with the lock held that is a wait on ourselves.
+    let mirrors = {
+        let mut host = state.lock();
+        host.display.add_mirror(MonitorKey::new(monitor_id))?;
+        host.display.live_mirrors()
+    };
+    windows::reconcile_mirrors(&app, &mirrors)?;
+    remember_mirrors(&app, &state)
+}
+
+/// Stop mirroring on a display. Removing one that is not mirroring is not an
+/// error: the operator's intent is already true.
+#[tauri::command(async)]
+pub fn stage_remove_mirror(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    monitor_id: String,
+) -> AppResult<()> {
+    guard::allow(window.label(), "stage_remove_mirror")?;
+    let mirrors = {
+        let mut host = state.lock();
+        host.display.remove_mirror(&MonitorKey::new(monitor_id));
+        host.display.live_mirrors()
+    };
+    windows::reconcile_mirrors(&app, &mirrors)?;
+    remember_mirrors(&app, &state)
+}
+
+/// Persist the wanted list and tell Studio.
+///
+/// Remembered rather than derived from the open windows, so a mirror survives
+/// a restart the way the pacer's display does — and so a display that is
+/// unplugged is waited for rather than forgotten.
+fn remember_mirrors(app: &AppHandle, state: &State<'_, AppState>) -> AppResult<()> {
+    let stats_open = windows::stats_is_open(app);
+    let mut host = state.lock();
+    let ids: Vec<String> = host
+        .display
+        .wanted_mirrors()
+        .iter()
+        .map(|k| k.as_str().to_owned())
+        .collect();
+    let ctx = host.runtime();
+    host.flags
+        .settings_set_global(questiongame_host::flags::GlobalSetting::StageMirrorIds(ids), ctx)?;
+    emit::monitors_changed(app, &host, stats_open);
     Ok(())
 }

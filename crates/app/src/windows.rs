@@ -38,6 +38,14 @@ const STUDIO_PATH: &str = "studio/index.html";
 const STAGE_PATH: &str = "stage/index.html";
 /// Studio again, told by its query string to render Statistics alone.
 const STATS_PATH: &str = "studio/index.html?stats";
+/// A **mirror** of the Stage window: the same bundle, told it is a mirror.
+///
+/// `?mirror` rather than reading the label at runtime, the way `?viewer`
+/// already works: a webview then knows what it is **synchronously**, on its
+/// first render, with no async label fetch to sequence against mounting the
+/// audio. Mounting Howler and unmounting it a tick later is exactly the shape
+/// P11.8 was about.
+const MIRROR_PATH: &str = "stage/index.html?mirror";
 
 /// Studio. A normal window: one display is a valid configuration, and then
 /// Studio is an Alt-Tab away from a fullscreen Stage (§9).
@@ -107,6 +115,58 @@ pub fn ensure_stage(app: &AppHandle) -> AppResult<WebviewWindow> {
     )
     .build()?;
     Ok(window)
+}
+
+/// The label of the n-th mirror. Positional, starting at 2, so the pacer keeps
+/// the bare `stage` label that `emit`, `guard`, the capabilities file and every
+/// doc name.
+pub fn mirror_label(index: usize) -> String {
+    format!("stage-{}", index + 2)
+}
+
+/// Make the mirror windows match `wanted` — [`StageDisplay::live_mirrors`],
+/// the connected displays that should carry one right now (§9, P11.11).
+///
+/// **Idempotent by construction:** it opens what is missing, moves what is in
+/// the wrong place, and closes anything past the end of the list. Calling it
+/// twice changes nothing the second time, which is what lets the monitor watch
+/// call it on every display change without tracking what it did last time.
+///
+/// **The caller must not hold the host lock.** Building and moving a webview
+/// pumps the Windows message loop, and that dispatches whatever IPC the new
+/// window has already queued — with the lock held, that is a wait on ourselves
+/// (2026-09-08). `assert_unlocked` makes the mistake a panic naming this
+/// function rather than a hang.
+pub fn reconcile_mirrors(app: &AppHandle, wanted: &[MonitorKey]) -> AppResult<()> {
+    crate::state::assert_unlocked("windows::reconcile_mirrors");
+
+    for (index, key) in wanted.iter().enumerate() {
+        let label = mirror_label(index);
+        let window = match app.get_webview_window(&label) {
+            Some(existing) => existing,
+            None => debuggable(
+                WebviewWindowBuilder::new(app, &label, WebviewUrl::App(MIRROR_PATH.into()))
+                    .title("questiongame Stage")
+                    .decorations(false)
+                    .fullscreen(true)
+                    // Nobody clicks a mirror either, and a focus steal
+                    // mid-question is a lost lock.
+                    .focused(false),
+            )
+            .build()?,
+        };
+        move_to(app, &window, Some(key))?;
+    }
+
+    // Anything past the end is a mirror the operator removed, or one whose
+    // display went away. Closing from the end down keeps the labels dense, so
+    // `wanted[i]` is always `stage-(i+2)`.
+    let mut index = wanted.len();
+    while let Some(extra) = app.get_webview_window(&mirror_label(index)) {
+        extra.close()?;
+        index += 1;
+    }
+    Ok(())
 }
 
 /// Open the Statistics window, on the remembered display (§11.K, P11).
@@ -262,21 +322,32 @@ pub fn refresh(app: &AppHandle, state: &crate::state::AppState) -> AppResult<()>
     let list = crate::monitors::list(app);
     let stats_open = stats_is_open(app);
 
-    let (mv, stats_monitor_id, stats_fullscreen) = {
+    let (mv, mirrors, stats_monitor_id, stats_fullscreen) = {
         let mut host = state.lock();
         let control = host.flags.control();
         let wanted = control.stage_monitor_id.clone().map(MonitorKey::new);
+        let wanted_mirrors: Vec<MonitorKey> = control
+            .stage_mirror_ids
+            .iter()
+            .cloned()
+            .map(MonitorKey::new)
+            .collect();
         let reattach = control.stage_reattach;
         let stats_monitor_id = control.stats_monitor_id.clone();
         let stats_fullscreen = control.stats_fullscreen;
         let play_is_open = host.runtime().play_is_open();
+        host.display.set_wanted_mirrors(wanted_mirrors);
         let mv =
             host.display
                 .monitors_changed(list.clone(), wanted.as_ref(), reattach, play_is_open);
-        (mv, stats_monitor_id, stats_fullscreen)
+        let mirrors = host.display.live_mirrors();
+        (mv, mirrors, stats_monitor_id, stats_fullscreen)
     };
 
     apply(app, &mv)?;
+    // After `apply`, so a mirror is never opened on the display the pacer is
+    // about to be moved onto.
+    reconcile_mirrors(app, &mirrors)?;
     if let Some(notice) = &mv.notice {
         crate::emit::notice(app, notice);
     }

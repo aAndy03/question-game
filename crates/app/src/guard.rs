@@ -18,6 +18,21 @@ pub const STAGE: &str = "stage";
 /// The label of the optional Statistics window (§11.K, P11).
 pub const STATS: &str = "stats";
 
+/// Is this one of the Stage windows?
+///
+/// `stage` is the **pacer** and `stage-2`, `stage-3`, … are its **mirrors**:
+/// the same picture on another display, because the operator has two audience
+/// screens and no HDMI splitter (§9, P11.11).
+///
+/// `allow` does not need this — anything that is not `main` or `stats` is held
+/// to the Stage list already, which fails safe. `emit` does: it decides which
+/// windows receive a Play, and a window the guard admitted but the emission
+/// skipped would be a black screen on an audience display. One predicate, so
+/// the two cannot disagree.
+pub fn is_stage_label(label: &str) -> bool {
+    label == STAGE || label.strip_prefix("stage-").is_some_and(|n| !n.is_empty())
+}
+
 /// Mirrors `STAGE_COMMANDS` in `packages/contract`.
 ///
 /// Two, and both are Stage reporting on itself: `stage_ready` says "I am
@@ -170,4 +185,24 @@ mod tests {
         assert!(allow("popup", "give_token").is_err());
         assert!(allow("", "play_start").is_err());
     }
+
+    /// P11.11: a mirror is a Stage window and is held to a Stage window's
+    /// list. It may say what it did to itself and nothing else.
+    #[test]
+    fn a_mirror_label_is_a_stage_label() {
+        assert!(is_stage_label(STAGE));
+        assert!(is_stage_label("stage-2"));
+        assert!(is_stage_label("stage-17"));
+        assert!(!is_stage_label(MAIN));
+        assert!(!is_stage_label(STATS));
+        assert!(!is_stage_label("stage-"), "an empty index is not a window");
+
+        assert!(allow("stage-2", "stage_ready").is_ok());
+        assert!(allow("stage-2", "client_log").is_ok());
+        assert!(
+            allow("stage-2", "lock_selection").is_err(),
+            "a mirror is a projection, not a controller (§5.7)"
+        );
+    }
+
 }

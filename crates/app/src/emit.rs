@@ -24,10 +24,25 @@
 use questiongame_host::Notice;
 use questiongame_host::catalog::{CatalogChange, RecipeChange};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
-use crate::guard::{MAIN, STAGE, STATS};
+use crate::guard::{is_stage_label, MAIN, STATS};
 use crate::state::Host;
+
+/// Every Stage window that exists right now — the pacer and its mirrors
+/// (§9, P11.11).
+///
+/// Read from the window map rather than from the settings list: a mirror whose
+/// display was just unplugged is gone from here the moment its window closes,
+/// and this is what decides who sees the Play. Sharing `is_stage_label` with
+/// the guard is deliberate — a window the guard admits but this skips is a
+/// black screen on an audience display.
+fn stage_labels(app: &AppHandle) -> Vec<String> {
+    app.webview_windows()
+        .into_keys()
+        .filter(|label| is_stage_label(label))
+        .collect()
+}
 
 /// Send the current Play to both webviews. Called after every write and by the
 /// 100ms tick.
@@ -46,7 +61,9 @@ pub fn play_state(app: &AppHandle, host: &mut Host, now_ms: u64, force: bool) ->
         return false;
     }
 
-    let _ = app.emit_to(STAGE, "play-state", &stage);
+    for label in stage_labels(app) {
+        let _ = app.emit_to(label, "play-state", &stage);
+    }
     // `main` and `stats` get `null` rather than the empty shape: Studio's
     // store means "no Play" by `null`, and Control's panels read it that way.
     let full = host.main_state(now_ms);
@@ -104,7 +121,9 @@ pub fn play_tick(app: &AppHandle, host: &mut Host, now_ms: u64) -> bool {
     }
     // The same shape to all three: it carries no operator half to strip, which
     // is the other reason this is cheaper than a full emission.
-    let _ = app.emit_to(STAGE, "play-tick", &tick);
+    for label in stage_labels(app) {
+        let _ = app.emit_to(label, "play-tick", &tick);
+    }
     let _ = app.emit_to(MAIN, "play-tick", &tick);
     let _ = app.emit_to(STATS, "play-tick", &tick);
     // Measured the same way `play_state` measures: a counting sink rather than

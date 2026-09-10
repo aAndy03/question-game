@@ -242,6 +242,8 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::presentation::stage_ready,
         commands::presentation::monitors_list,
         commands::presentation::stage_set_monitor,
+        commands::presentation::stage_add_mirror,
+        commands::presentation::stage_remove_mirror,
         commands::presentation::stage_open,
         commands::presentation::stage_report,
         // FlagService
