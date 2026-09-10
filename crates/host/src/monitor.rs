@@ -29,9 +29,20 @@
 //! (`01_codebase-design-spec-v1.md`: do not introduce a port with only one
 //! adapter).
 //!
-//! Sizes and positions are **logical** pixels. Tauri's `Monitor` reports
-//! physical ones, so the app crate converts with `toLogical(scale_factor)`
-//! before it gets here (§7).
+//! Positions and `size` are **logical** pixels — that is what a window is
+//! placed in, so it is what the placement math needs. `physical_size` is the
+//! panel's real mode, and it is the number the *operator* is shown, because
+//! logical pixels are not a resolution anybody recognises:
+//!
+//! ```text
+//! a 1080p TV at Windows' default 150%   physical 1920×1080   logical 1280×720
+//! ```
+//!
+//! Windows Display settings calls that display "1920 × 1080" with a separate
+//! "Scale 150%"; a picker that says 1280×720 is telling the operator their
+//! 1080p TV is a 720p one. macOS behaves the same way once a Retina display is
+//! set to a scaled mode. Both numbers are carried and neither is derived at a
+//! call site (§2.16).
 
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +55,14 @@ use crate::notice::{Notice, Severity};
 /// the name with the resolution, which survives a replug and a reboot on both
 /// platforms, and collides only between two identical panels on one machine —
 /// the case [`StagePlacement::Ambiguous`] refuses to guess at.
+///
+/// The resolution is the **physical** one. It used to be the logical one, and
+/// that made the key a function of the operator's DPI setting: moving a TV from
+/// 150% to 100% turned `\\.\DISPLAY2@1280x720` into `\\.\DISPLAY2@1920x1080`
+/// and Stage silently forgot which display it belonged on. A panel's mode is
+/// display state; its scaling is a preference, and a preference has no business
+/// in an identity. [`MonitorInfo::matches`] still answers to the old spelling
+/// so an already-remembered pick survives the change.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct MonitorKey(String);
@@ -69,7 +88,7 @@ impl std::fmt::Display for MonitorKey {
     }
 }
 
-/// One connected display, in logical pixels.
+/// One connected display.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MonitorInfo {
@@ -78,8 +97,14 @@ pub struct MonitorInfo {
     /// it is not the key on its own.
     pub name: Option<String>,
     pub primary: bool,
+    /// Logical pixels — a window is positioned in these.
     pub position: (i32, i32),
+    /// Logical pixels: the panel's mode divided by [`Self::scale_factor`], and
+    /// therefore the size of the **CSS viewport** a fullscreen webview gets.
     pub size: (u32, u32),
+    /// The panel's real mode, and what the operator is shown. See the module
+    /// docs for why the two differ and why both are carried.
+    pub physical_size: (u32, u32),
     pub scale_factor: f64,
 }
 
@@ -88,8 +113,41 @@ impl MonitorInfo {
     pub fn label(&self) -> String {
         match &self.name {
             Some(name) => name.clone(),
-            None => format!("{}×{}", self.size.0, self.size.1),
+            None => self.resolution(),
         }
+    }
+
+    /// The resolution as the OS's own display settings state it.
+    pub fn resolution(&self) -> String {
+        format!("{}×{}", self.physical_size.0, self.physical_size.1)
+    }
+
+    /// The display's aspect ratio, from the physical mode. Stage fits its
+    /// 1920×1080 canvas into whatever this is (`templates/StageFit.tsx`), so a
+    /// 16:9 panel — at any resolution and any DPI scaling — is full-bleed and
+    /// anything else is letterboxed.
+    pub fn aspect_ratio(&self) -> f64 {
+        let (w, h) = self.physical_size;
+        if h == 0 {
+            return 16.0 / 9.0;
+        }
+        f64::from(w) / f64::from(h)
+    }
+
+    /// Does this display answer to `key`?
+    ///
+    /// Its own key, or the one it would have had when keys were derived from
+    /// logical pixels. A `stage.monitor_id` written by an older build names a
+    /// display by its scaled size, and losing the pick is a Stage window that
+    /// stops going where the operator sent it — so the old spelling is honoured
+    /// rather than migrated. It costs one comparison and it cannot go stale.
+    pub fn matches(&self, key: &MonitorKey) -> bool {
+        self.key == *key || self.legacy_key() == *key
+    }
+
+    /// The pre-P11.6 key: name plus **logical** size.
+    fn legacy_key(&self) -> MonitorKey {
+        MonitorKey::derive(self.name.as_deref(), self.size.0, self.size.1)
     }
 }
 
@@ -218,7 +276,7 @@ impl StageDisplay {
         let Some(key) = wanted else {
             return StagePlacement::Primary;
         };
-        match self.monitors.iter().filter(|m| &m.key == key).count() {
+        match self.monitors.iter().filter(|m| m.matches(key)).count() {
             0 => StagePlacement::WaitingFor(key.clone()),
             1 => StagePlacement::On(key.clone()),
             _ => StagePlacement::Ambiguous(key.clone()),
@@ -233,7 +291,7 @@ impl StageDisplay {
     pub fn set_monitor(&mut self, key: Option<MonitorKey>) -> Result<StageMove, MonitorError> {
         match &key {
             None => {}
-            Some(key) => match self.monitors.iter().filter(|m| &m.key == key).count() {
+            Some(key) => match self.monitors.iter().filter(|m| m.matches(key)).count() {
                 0 => return Err(MonitorError::NotConnected(key.clone())),
                 1 => {}
                 _ => return Err(MonitorError::Ambiguous(key.clone())),
@@ -266,7 +324,7 @@ impl StageDisplay {
 
         // 1. Stage is standing on a display that is no longer there.
         if let Some(on) = self.on.clone()
-            && !self.monitors.iter().any(|m| m.key == on)
+            && !self.monitors.iter().any(|m| m.matches(&on))
         {
             self.on = None;
             return StageMove::to(None).and(
@@ -337,6 +395,7 @@ mod tests {
             primary,
             position: (0, 0),
             size,
+            physical_size: size,
             scale_factor: 1.0,
         }
     }
@@ -351,6 +410,66 @@ mod tests {
 
     fn tv() -> MonitorInfo {
         monitor("tv", false, (3840, 2160))
+    }
+
+    /// A 1080p panel at Windows' default 150% for an external display: the
+    /// case that started all of this.
+    fn scaled_tv() -> MonitorInfo {
+        MonitorInfo {
+            key: MonitorKey::derive(Some("tv"), 1920, 1080),
+            name: Some("tv".to_owned()),
+            primary: false,
+            position: (1920, 0),
+            size: (1280, 720),
+            physical_size: (1920, 1080),
+            scale_factor: 1.5,
+        }
+    }
+
+    #[test]
+    fn a_scaled_display_is_reported_at_the_resolution_its_owner_knows() {
+        let tv = scaled_tv();
+        // Not 1280×720. The panel is 1080p; 150% is a preference, not a mode.
+        assert_eq!(tv.resolution(), "1920×1080");
+        assert_eq!(tv.key.as_str(), "tv@1920x1080");
+        // 16:9 either way — which is why the aspect was never the problem, and
+        // the fixed canvas fits it exactly once Stage scales instead of clips.
+        assert!((tv.aspect_ratio() - 16.0 / 9.0).abs() < 1e-9);
+        // The logical size is still carried: it is the CSS viewport Stage gets.
+        assert_eq!(tv.size, (1280, 720));
+    }
+
+    #[test]
+    fn a_pick_remembered_under_the_old_logical_key_still_resolves() {
+        let mut display = StageDisplay::new();
+        // What an older build wrote into `stage.monitor_id` for this display.
+        let remembered = MonitorKey::new("tv@1280x720");
+        let mv = display.monitors_changed(
+            vec![laptop(), scaled_tv()],
+            Some(&remembered),
+            StageReattach::default(),
+            false,
+        );
+        assert_eq!(
+            display.placement(Some(&remembered)),
+            StagePlacement::On(remembered.clone())
+        );
+        assert_eq!(mv.to, Some(Some(remembered)));
+    }
+
+    #[test]
+    fn changing_a_displays_scaling_does_not_lose_the_pick() {
+        let mut display = StageDisplay::new();
+        let key = scaled_tv().key.clone();
+        display.monitors_changed(vec![laptop(), scaled_tv()], Some(&key), StageReattach::Auto, false);
+        assert_eq!(display.current(), Some(&key));
+
+        // The operator sets that display back to 100%: logical becomes 1920×1080.
+        let unscaled = monitor("tv", false, (1920, 1080));
+        let mv = display.monitors_changed(vec![laptop(), unscaled], Some(&key), StageReattach::Auto, false);
+        // Stage stays where it is: same panel, same key, nothing to move.
+        assert_eq!(mv.to, None);
+        assert_eq!(display.current(), Some(&key));
     }
 
     #[test]

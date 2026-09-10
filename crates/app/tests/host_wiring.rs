@@ -335,6 +335,7 @@ fn monitor(name: &str, primary: bool, size: (u32, u32)) -> MonitorInfo {
         primary,
         position: (0, 0),
         size,
+        physical_size: size,
         scale_factor: 1.0,
     }
 }

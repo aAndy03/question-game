@@ -24,7 +24,11 @@ const MAX_H = 120
  * Nothing here touches a Play (§9).
  */
 export function MonitorCard({ monitor, state, onSendStage, isDisabled, disabledReason, single }: MonitorCardProps) {
-  const [w, h] = monitor.size
+  // The *physical* mode, not the logical size: a 1080p TV at 150% is a 1080p
+  // TV, and a card that said 1280×720 was telling the operator otherwise.
+  // `scaleFactor` is shown beside it, because that is where the difference
+  // between the two numbers actually lives (§12.2.1).
+  const [w, h] = monitor.physicalSize
   const aspect = w > 0 && h > 0 ? w / h : 16 / 9
   const width = Math.round(Math.min(MAX_W, MAX_H * aspect))
   const height = Math.round(width / aspect)
@@ -52,6 +56,11 @@ export function MonitorCard({ monitor, state, onSendStage, isDisabled, disabledR
         <Text variant="studio-mono" tone="muted" tabular>
           {SETTINGS.monitors.resolution(w, h)}
         </Text>
+        {monitor.scaleFactor !== 1 ? (
+          <Text variant="studio-mono" tone="muted" tabular>
+            {SETTINGS.monitors.scaling(monitor.scaleFactor)}
+          </Text>
+        ) : null}
         {monitor.primary ? <MeaningChip meaning="primary">{SETTINGS.monitors.primary}</MeaningChip> : null}
         {state === 'stage' ? <MeaningChip meaning="stage">{SETTINGS.monitors.stage}</MeaningChip> : null}
         {state === 'remembered' ? <MeaningChip meaning="disconnected">{SETTINGS.monitors.notConnected}</MeaningChip> : null}

@@ -25,14 +25,20 @@
   color-scheme: light;
 }
 
-/* Stage is a fixed 1920x1080 surface. The design system allows no page scroll,
- * no drop shadow, and no pointer affordance. */
+/* Stage is a fixed 1920x1080 canvas, *fitted* to whatever window it gets by
+ * `templates/StageFit.tsx` — never reflowed, never distorted. The design system
+ * allows no page scroll, no drop shadow, and no pointer affordance.
+ *
+ * The ground is the letterbox colour rather than the canvas colour: on a 16:9
+ * display none of it shows, and on anything else it is the bar. It is also what
+ * the display shows for the instant before React's first paint, and a black
+ * flash on a projector is a great deal better than a white one. */
 html,
 body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: var(--surface);
+  background: var(--stage-letterbox);
   color: var(--text-primary);
   font-family: var(--font-display);
   font-weight: var(--weight-regular);

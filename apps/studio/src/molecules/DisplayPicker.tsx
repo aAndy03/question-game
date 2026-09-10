@@ -19,10 +19,12 @@ export function DisplayPicker({ label, monitors, value, standingOn, isDisabled, 
   const PRIMARY = '__primary'
   const options = [
     { value: PRIMARY, label: CONTROL.primaryDisplay },
+    // The physical mode, as in Settings ▸ Monitors: the logical size is the CSS
+    // viewport Stage gets, not a resolution the operator would recognise.
     ...monitors.map((m) => ({
       value: m.key,
       label: `${m.name ?? m.key}${m.primary ? ' (primary)' : ''}`,
-      description: `${m.size[0]}×${m.size[1]}${standingOn === m.key ? ' · Stage is here' : ''}`,
+      description: `${m.physicalSize[0]}×${m.physicalSize[1]}${standingOn === m.key ? ' · Stage is here' : ''}`,
     })),
   ]
   return (

@@ -10,9 +10,16 @@
  * on the right (398-600px)".
  */
 :root {
-  /* Canvas. Fixed by the design system, not a responsive breakpoint. */
+  /* Canvas. Fixed by the design system, not a responsive breakpoint — it is
+   * *fitted* to the window by `templates/StageFit.tsx`, never reflowed. */
   --stage-width: 1920px;
   --stage-height: 1080px;
+
+  /* The ground the fitted canvas sits on. A 16:9 display leaves none of it
+   * showing at any resolution or DPI scaling; a 16:10 or 21:9 one gets a
+   * letterbox in this colour, and black is what reads as "outside the picture"
+   * on a filmed surface. One token, one place to change it. */
+  --stage-letterbox: var(--ink);
 
   /* Outer padding on all four sides. */
   --stage-padding: 64px;

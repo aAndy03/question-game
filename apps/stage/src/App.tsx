@@ -13,6 +13,7 @@ import { useAudio } from '@/audio/useAudio'
 import { stageEvents } from '@/host/events'
 import { isViewerMode, stageHost, type StageHost } from '@/host/host'
 import { StageRoot } from '@/pages'
+import { StageFit, useFitScale } from '@/templates'
 
 /**
  * Stage's root. Two ways in, one tree:
@@ -47,7 +48,14 @@ function HostFed({ host }: { host: StageHost }) {
     [host],
   )
   useAudio(host, audio)
-  return <StageRoot state={state} />
+  // The canvas is 1920×1080; the window is whatever the display gives it. A
+  // 1080p TV at Windows' default 150% scaling is a 1280×720 **CSS** viewport,
+  // and before `StageFit` the audience saw the top-left 44% of the canvas.
+  return (
+    <StageFit>
+      <StageRoot state={state} />
+    </StageFit>
+  )
 }
 
 export function App() {
@@ -66,14 +74,11 @@ export function App() {
  */
 export function ViewerFed({ host }: { host: StageHost }) {
   const state = useSyncExternalStore(host.subscribe, host.snapshot, host.snapshot)
-  const [scale, setScale] = useState(() => fitScale())
+  // The same fit as the Stage window, minus the letterbox: Studio's `Viewer`
+  // has already sized this iframe to the canvas aspect, so `min` lands exactly
+  // on both edges and there is nothing to bar.
+  const scale = useFitScale()
   const frame = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    const onResize = () => setScale(fitScale())
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
 
   useEffect(() => {
     const post = () => {
@@ -118,11 +123,6 @@ export function ViewerFed({ host }: { host: StageHost }) {
       </div>
     </div>
   )
-}
-
-function fitScale(): number {
-  if (typeof window === 'undefined') return 1
-  return Math.min(window.innerWidth / STAGE_FRAME.width, window.innerHeight / STAGE_FRAME.height) || 1
 }
 
 // ------------------------------------------------------- the no-host fallback
@@ -194,16 +194,28 @@ function FixtureFed() {
 
   return (
     <>
-      <StageRoot state={state} />
+      <StageFit>
+        <StageRoot state={state} />
+      </StageFit>
       {import.meta.env.DEV ? (
         <nav
           data-dev-fixtures
           style={{
+            // Over the fitted canvas rather than below it: the canvas now fills
+            // the window at every size, so a strip in normal flow would be
+            // pushed off the bottom of a `overflow: hidden` body and be
+            // unreachable — which is what it was at any window under 1080px.
+            position: 'fixed',
+            insetInline: 0,
+            bottom: 0,
+            zIndex: 1,
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',
             gap: 'var(--space-2)',
             padding: 'var(--space-3)',
+            background: 'var(--paper)',
+            borderTop: '1px solid var(--ink)',
             fontFamily: 'var(--font-mono)',
             fontSize: 'var(--text-caption)',
             cursor: 'auto',

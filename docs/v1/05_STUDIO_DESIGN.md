@@ -461,7 +461,11 @@ allows it) and Stage gets a third host adapter:
 | **`viewerHost`** (new) | the iframe in Control | `postMessage` from Studio, the same `PlayStateForStage` the host emits (the operator half stripped) | **dropped** — the Stage window acks; the Viewer never writes |
 
 The iframe scales the 1920×1080 frame to its box (`transform: scale`,
-computed in Stage's viewer mode from `innerWidth`). After every render Stage
+computed in Stage's viewer mode from `innerWidth`) — since P11.6 through the
+same `useFitScale` the **Stage window** uses, so the preview and the surface
+cannot disagree about how the canvas meets a viewport. The Viewer skips
+`StageFit`'s letterbox: Control has already sized this iframe to the canvas
+aspect, so there is nothing to bar. After every render Stage
 posts the **rects of every `data-node-id` element** in frame coordinates
 (`viewer-nodes`); Studio draws `HitTarget`s over them, scaled to the box.
 Which node maps to which command is one table:
@@ -875,11 +879,20 @@ Writes `stage_set_monitor` and `settings_set_global { stage_reattach }`.
 ```
 
 - `MonitorCard` (molecule): a proportional rectangle drawn from
-  `size`, name, resolution, `primary` chip, and one of three states —
+  `physicalSize`, name, resolution, `primary` chip, and one of three states —
   `stage` (Stage stands here; `accent` border), `remembered` (the pick,
   currently unplugged; `warning` chip *Not connected*), `free` (button
   *Send Stage here*). The Stage window is created if it does not exist
   yet (`stage_open` then `stage_set_monitor`).
+- **The resolution shown is the panel's mode, not its logical size** (P11.6).
+  `MonitorInfo` carries both: `size` is logical — window placement, and the CSS
+  viewport a fullscreen Stage gets — while `physicalSize` is what the OS's own
+  display settings call the resolution. On a 1080p TV at Windows' default 150%
+  those are 1280×720 and 1920×1080, and a card reading *1280×720* was telling
+  the operator their 1080p TV was a 720p one. When `scaleFactor` is not 1 it is
+  shown beside the resolution (*150% scaling*), because that is where the
+  difference between the two numbers actually lives. The card's proportions come
+  from `physicalSize` too, so its aspect matches the panel.
 - One display is a valid setup and says so: a single card, *Stage
   fullscreen on this display; Studio is an Alt-Tab away* (§2.28).
 - The Statistics display row is disabled with `feature_off` (`stats`) until

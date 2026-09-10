@@ -175,6 +175,9 @@ export const SETTINGS = {
     notConnected: 'Not connected',
     sendStage: 'Send Stage here',
     resolution: (w: number, h: number) => `${w}×${h}`,
+    /** Shown only when it is not 1 — it is the reason the OS reports a smaller
+     * logical size than the panel's mode, and Stage scales to suit. */
+    scaling: (factor: number) => `${Math.round(factor * 100)}% scaling`,
     unnamed: 'Display',
     single: 'One display: Stage fullscreen on this display; Studio is an Alt-Tab away.',
     standsOn: 'Stage stands on',

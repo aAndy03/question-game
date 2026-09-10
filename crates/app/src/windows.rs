@@ -196,7 +196,7 @@ fn follow_stats(
         return Ok(());
     };
     let key = MonitorKey::new(id.clone());
-    if list.iter().any(|m| m.key == key) {
+    if list.iter().any(|m| m.matches(&key)) {
         place(&window, monitors::physical_origin(app, &key), fullscreen)?;
         return Ok(());
     }

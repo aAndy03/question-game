@@ -48,13 +48,25 @@ afterEach(() => {
 
 const strip = (html: string) => html.replaceAll(/data-decor-seed="\d+"/g, '')
 
+/**
+ * The canvas itself, not the window around it. `App` wraps `StageRoot` in
+ * `StageFit`, whose scale is a function of *this window's* size and is
+ * deliberately not part of the tree the camera sees — the P6 criterion is that
+ * the 1920×1080 canvas is identical however it was fed, and it still is.
+ */
+const canvas = (container: HTMLElement) => {
+  const frame = container.querySelector('[data-stage-frame]')
+  if (!frame) throw new Error('no stage frame')
+  return strip(frame.outerHTML)
+}
+
 describe('the host feed', () => {
   it('renders the same tree host-fed as fixture-fed', () => {
     motionConfig.immediate = true
     const fixture = FIXTURES['question-outcome-correct']
 
     const direct = render(<StageRoot state={fixture} />)
-    const expected = strip(direct.container.innerHTML)
+    const expected = canvas(direct.container)
     direct.unmount()
 
     const stub = stubHost()
@@ -62,7 +74,7 @@ describe('the host feed', () => {
     setStageHost(stub.host)
     const fed = render(<App />)
 
-    expect(strip(fed.container.innerHTML)).toBe(expected)
+    expect(canvas(fed.container)).toBe(expected)
   })
 
   it('draws Idle before the host has sent anything', () => {

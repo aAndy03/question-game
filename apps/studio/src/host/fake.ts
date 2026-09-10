@@ -131,9 +131,31 @@ const EMPTY_STATS: StatsResult = {
   turnCount: 0,
 }
 
-/** The one display a browser-only fake has. */
+/**
+ * Two displays: a 1:1 built-in, and the case that matters — a 1080p TV at
+ * Windows' default 150% for an external, where the logical size (1280×720, the
+ * CSS viewport Stage gets) and the physical one (1920×1080, what the operator
+ * calls it) part company.
+ */
 const FAKE_MONITORS: MonitorInfo[] = [
-  { key: 'primary', name: 'Built-in display', primary: true, position: [0, 0], size: [1920, 1080], scaleFactor: 1 },
+  {
+    key: 'primary',
+    name: 'Built-in display',
+    primary: true,
+    position: [0, 0],
+    size: [1920, 1080],
+    physicalSize: [1920, 1080],
+    scaleFactor: 1,
+  },
+  {
+    key: 'tv@1920x1080',
+    name: 'Living-room TV',
+    primary: false,
+    position: [1920, 0],
+    size: [1280, 720],
+    physicalSize: [1920, 1080],
+    scaleFactor: 1.5,
+  },
 ]
 
 const PIN = /^[0-9]{4,8}$/

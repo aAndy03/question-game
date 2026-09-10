@@ -18,7 +18,7 @@ This is the rule most likely to be broken by accident, so it comes first.
 | Look | HeroUI defaults, oklch, `--radius: 0.75rem` | Ink on white, radius 0, inset borders, no shadows |
 | Type | HeroUI sans stack | Space Grotesk + Space Mono |
 | Motion | `motion/react` | GSAP only |
-| Canvas | Resizable desktop chrome | Fixed 1920×1080, 64px padding |
+| Canvas | Resizable desktop chrome | Fixed 1920×1080, 64px padding — *fitted* to the window, never reflowed |
 | Components | HeroUI v3 first, Base UI on gaps | **Base UI first**, HeroUI *display* components where the theme scope covers them |
 
 Both are TypeScript + React 19 and both use the same libraries. **What differs is the token scope, not the stack.** HeroUI v3 themes through CSS variables, so the Stage root redefines them onto the questiongame palette (`--success` → mint, `--danger` → coral, `--radius` → 0, `--font-sans` → Space Grotesk). Never import `globals.css` into Stage; never import the questiongame tokens into Studio. Full rule: `optimized_first_spec.md` §2.30.
@@ -226,7 +226,13 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 
 **Design constraints — rules, not suggestions** (source: the design system readme)
 
-- Fixed 1920×1080, 64px outer padding, 40px header/body gap.
+- Fixed 1920×1080, 64px outer padding, 40px header/body gap. **Fixed, and therefore fitted** — see below.
+
+**Scaling and aspect ratio (P11.6, 2026-09-10).** The canvas is a design decision and stays 1920×1080; the *window* is whatever display Stage is sent to, and `apps/stage/src/templates/StageFit.tsx` is the one place the two meet. It scales the canvas by `min(w/1920, h/1080)` — one scalar for both axes, so the canvas never distorts — and centres it on a `--stage-letterbox` ground. A **16:9** viewport of any resolution and any DPI scaling therefore fills edge to edge with no bars, which is the case the product is built for; 16:10 letterboxes, 21:9 pillarboxes, and a 4K display gets an upscaled full-bleed canvas rather than a 1920×1080 island in one corner.
+
+Until P11.6 only the *Viewer* fitted the canvas; the Stage window laid it out at 1:1 CSS pixels under `body { overflow: hidden }` and simply clipped what did not fit. That is invisible on a 1:1 1080p monitor and wrong everywhere else — most of all on a TV, because Windows ships an external 1080p display at **150% scaling**, CSS pixels are logical pixels, and a fullscreen webview there has a **1280×720** viewport: the audience saw the top-left 44% of every screen. The aspect ratio was never the problem (1280×720 is 16:9); the missing fit was. `StageFit` scales an *ancestor* of the frame, so GSAP still owns `transform` inside it and the layout applier still owns `translate` — and nothing may add `will-change: transform` there, which would pin the raster at layout resolution and soften the whole surface on camera.
+
+The same DPI scaling is why the display list carries **two** sizes (`MonitorInfo.size` logical, `physicalSize` the panel's mode). The operator is shown the physical one — a 1080p TV is a 1080p TV, and Windows' own display settings say so with the scaling as a separate percentage — and `MonitorKey` is derived from it too, so changing a display's scaling no longer changes its identity, which used to lose Stage's remembered pick.
 - **Borders, never shadows.** Structure from solid `inset` box-shadows (1/2/3px). No drop-shadow, blur, glass, gradient, or photography anywhere.
 - Radius `0` default; `4px` only on letter/avatar boxes; `8px` only on answer cards and result widgets — the only rounded surfaces.
 - Header (per the screen references, 2026-09-04): `<brand> | <partner>` left, the Play clock `[ hh:mm:ss ]` right, one 1px rule below. The screen title (`playing sequence //`, `select category // team alpha`) sits in the body, not the header. The 2px frame marks the current sequence row.
@@ -242,7 +248,7 @@ Plus a **fixture switcher** dev route ☑ (`?fixture=<name>`, link strip outside
 
 **Exit criteria**
 
-- ☑ Every fixture renders at 1920×1080 with no horizontal scroll and no layout shift between fixture swaps (browser sweep over all 25 fixtures, 2026-09-04; `exit.test.tsx` asserts the frame tokens per fixture).
+- ☑ Every fixture renders at 1920×1080 (fitted to the window since P11.6) with no horizontal scroll and no layout shift between fixture swaps (browser sweep over all 25 fixtures, 2026-09-04; `exit.test.tsx` asserts the frame tokens per fixture).
 - ☑ Every P1 node id is present in the DOM with its contract id (`exit.test.tsx`: every static slot of every screen, every entity/ranked node of every fixture).
 - ☑ No focus ring, cursor affordance, or interactive HeroUI widget is reachable on Stage (`exit.test.tsx`: no focusable element in any fixture; `stage.css` sets `cursor: none`).
 - ☑ Screens read fixtures only — no local state that could disagree with `play-state` (the only `useState`-free tree; the decor world is derived from the Play and never written back).

@@ -238,8 +238,22 @@ export interface MonitorInfo {
   readonly key: string
   readonly name: string | null
   readonly primary: boolean
+  /** Logical pixels. */
   readonly position: readonly [number, number]
+  /**
+   * **Logical** pixels: the panel's mode divided by `scaleFactor`, and so the
+   * size of the CSS viewport a fullscreen webview on this display gets. On a
+   * 1080p TV at Windows' default 150% that is 1280×720 — which is why Stage
+   * fits its fixed canvas rather than laying it out at 1:1
+   * (`apps/stage/src/templates/StageFit.tsx`).
+   */
   readonly size: readonly [number, number]
+  /**
+   * The panel's real mode — 1920×1080 for that same TV, and the number its
+   * owner and the OS display settings both call its resolution. **This is what
+   * the operator is shown**; `size` is for geometry, not for reading.
+   */
+  readonly physicalSize: readonly [number, number]
   readonly scaleFactor: number
 }
 
