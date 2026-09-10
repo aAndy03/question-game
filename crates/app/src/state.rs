@@ -64,6 +64,8 @@ pub struct Host {
     /// an idle Play costs nothing on the wire.
     /// A digest of the last emission, not the emission — see `emission_changed`.
     last_emitted: Option<u64>,
+    /// The clock of the last thing sent, full emission or `play-tick` alike.
+    last_clock: Option<(Option<u32>, u64, bool)>,
 }
 
 impl Host {
@@ -97,6 +99,7 @@ impl Host {
             display: StageDisplay::new(),
             health,
             last_emitted: None,
+            last_clock: None,
         })
     }
 
@@ -199,6 +202,22 @@ impl Host {
         })
     }
 
+    /// True when the countdown moved since the last thing sent.
+    ///
+    /// A paused Play emits nothing: `remaining_at` and `elapsed_at` both stand
+    /// still, so the tuple is equal and the wire stays quiet. Kept in step by
+    /// [`Self::emission_changed`] too, because a full emission carries the
+    /// clock and makes a `play-tick` behind it redundant.
+    /// Split from [`Self::remember_clock`] so the caller can ask while it still
+    /// holds a borrow of the Play the answer came from.
+    pub fn clock_moved(&self, next: (Option<u32>, u64, bool)) -> bool {
+        self.last_clock != Some(next)
+    }
+
+    pub fn remember_clock(&mut self, next: (Option<u32>, u64, bool)) {
+        self.last_clock = Some(next);
+    }
+
     /// True when the emission changed since the last one — the tick's gate.
     ///
     /// Keyed on a **digest**, not a stored copy. Comparing two
@@ -294,6 +313,14 @@ impl HealthState {
         self.inputs.missing_cues.push((cue, file));
     }
 
+    /// Stage has the file and could not sound it. A different fault from a
+    /// missing one, and its remedy is showing the Stage window rather than
+    /// looking in the cue folder (P11.9).
+    pub fn cue_failed(&mut self, cue: CueKey, file: String) {
+        self.inputs.failed_cues.retain(|(k, _)| *k != cue);
+        self.inputs.failed_cues.push((cue, file));
+    }
+
     /// Stage loaded a cue it had previously reported. **The finding goes
     /// away.**
     ///
@@ -305,6 +332,7 @@ impl HealthState {
     /// input needs a way back.
     pub fn cue_ok(&mut self, cue: CueKey) {
         self.inputs.missing_cues.retain(|(k, _)| *k != cue);
+        self.inputs.failed_cues.retain(|(k, _)| *k != cue);
     }
 
     /// The current report, and whether it differs from the last one handed

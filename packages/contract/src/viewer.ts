@@ -8,6 +8,7 @@
  */
 
 import type { NodeId } from './nodes'
+import type { PlayTick } from './commands'
 import type { PlayStateForStage } from './play-state'
 
 export const VIEWER_SOURCE = 'questiongame.viewer' as const
@@ -24,6 +25,14 @@ export interface ViewerNodeRect {
 /** Studio → the Stage iframe. */
 export type ViewerToStage =
   | { readonly source: typeof VIEWER_SOURCE; readonly type: 'play-state'; readonly state: PlayStateForStage }
+  /**
+   * The countdown alone (P11.9). Control posts the whole state only when it
+   * changed; without this the Viewer's clock would sit still, because a
+   * `postMessage` of the full Play ten times a second is a structured clone of
+   * ~8 KB for two numbers — the same waste the host stopped putting on the
+   * wire.
+   */
+  | { readonly source: typeof VIEWER_SOURCE; readonly type: 'tick'; readonly tick: PlayTick }
   /** Ask for the current node rects (after the box resized). */
   | { readonly source: typeof VIEWER_SOURCE; readonly type: 'measure' }
 

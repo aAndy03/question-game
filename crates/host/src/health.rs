@@ -38,6 +38,12 @@ pub struct HealthInputs {
     pub stage_contract_version: Option<u32>,
     /// Cue files Stage reported it could not load: `(key, file)`.
     pub missing_cues: Vec<(CueKey, String)>,
+    /// Cue files that are **present** and would not sound: `(key, file)`.
+    ///
+    /// A different fault with a different remedy. Reporting it as a missing
+    /// file told the operator to go looking for something that was there all
+    /// along (P11.9).
+    pub failed_cues: Vec<(CueKey, String)>,
 }
 
 /// The worst severity among the items. `Ok` is an empty report.
@@ -116,6 +122,15 @@ pub fn check(inputs: &HealthInputs) -> HealthReport {
         );
     }
 
+    for (cue, file) in &inputs.failed_cues {
+        items.push(
+            Notice::new("health.audio_cue_failed", Severity::Warn, &["open_stage"])
+                .at("audio.cues")
+                .with("cue", cue.as_str())
+                .with("file", file.clone()),
+        );
+    }
+
     for (cue, file) in &inputs.missing_cues {
         items.push(
             Notice::new(
@@ -171,9 +186,10 @@ mod tests {
             stage_ready: false,
             stage_contract_version: Some(1),
             missing_cues: vec![(CueKey::Lock, "lock.wav".to_owned())],
+            failed_cues: vec![(CueKey::Correct, "correct.wav".to_owned())],
         };
         let report = check(&loud);
-        assert_eq!(report.items.len(), 6, "one item per finding");
+        assert_eq!(report.items.len(), 7, "one item per finding");
         for item in &report.items {
             assert!(
                 !item.actions.is_empty(),
@@ -219,5 +235,20 @@ mod tests {
         assert_eq!(item.code, "health.audio_missing_cue");
         assert_eq!(item.target_path.as_deref(), Some("audio.cues"));
         assert_eq!(item.detail["cue"], "wrong");
+    }
+
+    #[test]
+    fn a_cue_that_will_not_sound_is_not_a_cue_that_is_missing() {
+        let report = check(&HealthInputs {
+            failed_cues: vec![(CueKey::Lock, "lock.wav".to_owned())],
+            ..quiet()
+        });
+        assert_eq!(report.items.len(), 1);
+        let item = &report.items[0];
+        assert_eq!(item.code, "health.audio_cue_failed");
+        assert_eq!(item.target_path.as_deref(), Some("audio.cues"));
+        // Showing Stage is the remedy: the window nobody clicks is the one
+        // whose audio context is never unlocked.
+        assert_eq!(item.actions, vec!["open_stage".to_owned()]);
     }
 }

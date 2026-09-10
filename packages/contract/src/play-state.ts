@@ -19,8 +19,13 @@ import type { StageLayoutNodes } from './layout'
  * Bumped when a field is removed or its meaning changes; additive fields do
  * not bump it. Stage compares this against its own build so a host/webview
  * mismatch surfaces as a notice instead of a blank screen.
+ *
+ * 6 (P11.9): no field changed, but `play-state`'s *meaning* did — it is no
+ * longer emitted ten times a second. A webview that listens only to it and
+ * not to `play-tick` draws a frozen countdown, which is exactly the silent
+ * wrongness this number exists to turn into `health.contract_mismatch`.
  */
-export const CONTRACT_VERSION = 5
+export const CONTRACT_VERSION = 6
 
 /** Spec §5.1. */
 export type PlayStatus =

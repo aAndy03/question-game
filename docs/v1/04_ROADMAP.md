@@ -1204,6 +1204,56 @@ change here.
 
 ---
 
+## P11.9 — The show loop sends two numbers  ☑
+
+P11.7 stopped Studio *re-rendering* on a tick but left the tick itself intact:
+the host still projected the whole Play three times, digested 8.4 KB and sent
+it to three webviews, ten times a second, to say that a countdown had gone down
+by 100 ms. Deferred at the time because it is a contract change and because the
+wire cost was hidden under a render storm an order of magnitude larger. With
+that gone, it is the largest thing left.
+
+`play-state` is event-driven now. The show loop sends `play-tick` —
+`{ playId, remainingMs, elapsedMs, running }` — and the host asks
+`MatchService::tick_due` first: a tick mutates a Play only through the T=0
+table, and everything else that can move one arrives as a command, so when T=0
+is not due nothing but the clock can differ. That is 999 ticks in 1000, and on
+each of them the two projections inside `Host::write`'s overlay diff, the third
+in `emit::play_state`, the digest and three 8.4 KB emissions all go away.
+
+Studio also publishes the clock at the resolution it *prints* it. `fmt.clock`
+is `Math.ceil(ms / 1000)`, so nine ticks in ten drew digits that had not
+changed — with `transition="count"` behind them, which put `motion.span`,
+`AnimatePresence` and `NumberRenderer` at the top of the Studio profile once
+P11.7 had cleared everything above. Stage is deliberately not rounded: it may
+interpolate, and its clock is the one on camera.
+
+**Deliverables:** `PlayTick` and the `play-tick` event (contract v6);
+`tick_due` / `zero_due`; `stage::tick`; `emit::play_tick` and the clock gate;
+`applyTick` on both Stage adapters and a `tick` message in the Viewer protocol;
+`receivePlayTick` and a rounded `usePlayClock`; `health.audio_cue_failed` so a
+playback fault stops reading as a missing file.
+
+**Exit criteria**
+
+- ☑ A tick is due only when the timer reaches zero, and a tick that is not due
+  appends nothing (`host_wiring.rs`).
+- ☑ The clock gate stays quiet when neither number moves, so a paused Play is
+  still silent on the wire.
+- ☑ A whole-object `usePlayState()` reader does not render on a tick; a tick
+  for another Play is dropped (`host/playState.test.ts`).
+- ☑ `usePlayClock` renders once a second, not ten times, and rounds the way
+  `fmt.clock` rounds so the digits are unchanged.
+- ☑ Three seconds of show loop commit **three** times on Control — measured,
+  down from thirty after P11.7 and ~80 before it (`pages/control.test.tsx`).
+- ☑ A cue that is present and will not sound reads as its own finding, with
+  *Show Stage* as the remedy (`health.rs`).
+- ☐ Re-measured on the built app, against
+  `perf-2026-09-10T10-54-23Z-18096.jsonl` (30% renderer, 11.7 commits/s,
+  ~29 MB of `emit_bytes`).
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.

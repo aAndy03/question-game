@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
-import type { PlayStateForMain } from '@questiongame/contract'
+import type { PlayStateForMain, PlayTick } from '@questiongame/contract'
 import { demoPlay } from './devFake'
-import { deepEqual, peekPlayState, receivePlayState, shallow, usePlayClock, usePlayState } from './playState'
+import { peekPlayState, receivePlayState, receivePlayTick, shallow, usePlayClock, usePlayState } from './playState'
 
 afterEach(() => {
   receivePlayState(null)
@@ -11,67 +11,63 @@ afterEach(() => {
 
 const base = () => demoPlay('question-issued')
 
-/** The same Play one tick later: only the two clocks moved. */
-function ticked(play: PlayStateForMain, by = 100): PlayStateForMain {
-  const session = play.session
-  if (!session?.timer) throw new Error('fixture has no timer')
+/** What the show loop sends: the clock, and the Play it belongs to. */
+function tickOf(play: PlayStateForMain, afterMs: number): PlayTick {
+  const timer = play.session?.timer
+  if (!timer) throw new Error('fixture has no timer')
   return {
-    ...play,
-    clock: { ...play.clock, elapsedMs: play.clock.elapsedMs + by },
-    session: { ...session, timer: { ...session.timer, remainingMs: session.timer.remainingMs - by } },
+    playId: play.playId,
+    remainingMs: timer.remainingMs - afterMs,
+    elapsedMs: play.clock.elapsedMs + afterMs,
+    running: true,
   }
 }
 
-describe('the stable snapshot', () => {
-  it('keeps its identity when only the countdown moved', () => {
-    const first = base()
-    receivePlayState(first)
-    expect(peekPlayState()).toBe(first)
-
-    receivePlayState(ticked(first))
-    expect(peekPlayState(), 'a bare tick is not a change').toBe(first)
-
-    receivePlayState(ticked(first, 200))
-    expect(peekPlayState()).toBe(first)
-  })
-
-  it('replaces itself the moment anything else moves', () => {
-    const first = base()
-    receivePlayState(first)
-    const scored = { ...ticked(first), questionsIssued: first.questionsIssued + 1 }
-    receivePlayState(scored)
-    expect(peekPlayState()).toBe(scored)
-  })
-
-  it('follows a Play in and out of existence', () => {
-    receivePlayState(null)
-    expect(peekPlayState()).toBeNull()
+describe('the store', () => {
+  it('keeps the Play still while the clock moves', () => {
     const play = base()
     receivePlayState(play)
     expect(peekPlayState()).toBe(play)
+
+    receivePlayTick(tickOf(play, 100))
+    receivePlayTick(tickOf(play, 200))
+    expect(peekPlayState(), 'a tick is not a change to the Play').toBe(play)
+  })
+
+  it('drops a tick for a Play that is not the loaded one', () => {
+    const play = base()
+    receivePlayState(play)
+    const { result } = renderHook(() => usePlayClock())
+    const before = result.current
+
+    act(() => receivePlayTick({ ...tickOf(play, 5_000), playId: 'play-from-the-last-show' }))
+    expect(result.current, 'the next show does not open on the last one’s clock').toBe(before)
+  })
+
+  it('drops a tick when no Play is loaded', () => {
     receivePlayState(null)
-    expect(peekPlayState()).toBeNull()
+    const { result } = renderHook(() => usePlayClock())
+    act(() => receivePlayTick(tickOf(base(), 100)))
+    expect(result.current).toEqual({ remainingMs: null, elapsedMs: 0 })
   })
 })
 
 describe('usePlayState', () => {
-  it('does not re-render a whole-object reader on a bare tick', () => {
+  it('does not re-render a whole-object reader on a tick', () => {
     let renders = 0
-    const first = base()
-    receivePlayState(first)
+    const play = base()
+    receivePlayState(play)
     const { result } = renderHook(() => {
       renders += 1
       return usePlayState()
     })
     expect(renders).toBe(1)
-    expect(result.current).toBe(first)
+    expect(result.current).toBe(play)
 
-    act(() => receivePlayState(ticked(first)))
-    act(() => receivePlayState(ticked(first, 200)))
-    act(() => receivePlayState(ticked(first, 300)))
-    expect(renders, 'three ticks, no render').toBe(1)
+    for (const ms of [100, 200, 300, 400, 500]) act(() => receivePlayTick(tickOf(play, ms)))
+    expect(renders, 'five ticks, no render').toBe(1)
 
-    const next = { ...first, questionsIssued: first.questionsIssued + 1 }
+    const next = { ...play, questionsIssued: play.questionsIssued + 1 }
     act(() => receivePlayState(next))
     expect(renders).toBe(2)
     expect(result.current).toBe(next)
@@ -87,7 +83,6 @@ describe('usePlayState', () => {
     expect(result.current).toBe(true)
     expect(renders).toBe(1)
 
-    // A real change that the selector does not care about.
     act(() => receivePlayState({ ...base(), questionsIssued: 9 }))
     expect(renders, 'the answer is still `true`').toBe(1)
 
@@ -98,8 +93,8 @@ describe('usePlayState', () => {
 
   it('takes an equality function for a selector that builds an object', () => {
     let renders = 0
-    const first = base()
-    receivePlayState(first)
+    const play = base()
+    receivePlayState(play)
     const { result } = renderHook(() => {
       renders += 1
       return usePlayState((s) => ({ screen: s?.currentScreen, busy: s?.overlay.busy }), shallow)
@@ -107,21 +102,21 @@ describe('usePlayState', () => {
     const held = result.current
     expect(renders).toBe(1)
 
-    act(() => receivePlayState({ ...first, questionsIssued: 9 }))
+    act(() => receivePlayState({ ...play, questionsIssued: 9 }))
     expect(renders, 'a new literal that is shallow-equal is not a change').toBe(1)
     expect(result.current).toBe(held)
 
-    act(() => receivePlayState({ ...first, currentScreen: 'scoreboard' }))
+    act(() => receivePlayState({ ...play, currentScreen: 'scoreboard' }))
     expect(renders).toBe(2)
     expect(result.current.screen).toBe('scoreboard')
   })
 })
 
 describe('usePlayClock', () => {
-  it('is the one subscription that follows the tick', () => {
+  it('renders once a second, not ten times — Studio draws m:ss', () => {
     let renders = 0
-    const first = base()
-    receivePlayState(first)
+    const play = base()
+    receivePlayState(play)
     const { result } = renderHook(() => {
       renders += 1
       return usePlayClock()
@@ -129,13 +124,27 @@ describe('usePlayClock', () => {
     const started = result.current.remainingMs
     expect(renders).toBe(1)
 
-    act(() => receivePlayState(ticked(first)))
-    expect(renders).toBe(2)
-    expect(result.current.remainingMs).toBe((started ?? 0) - 100)
+    // Nine ticks inside the same second draw the same digits.
+    for (const ms of [100, 200, 300, 400, 500, 600, 700, 800, 900]) {
+      act(() => receivePlayTick(tickOf(play, ms)))
+    }
+    expect(renders, 'the string did not change, so neither did the render').toBe(1)
+    expect(result.current.remainingMs).toBe(started)
 
-    // A paused Play emits too; both numbers standing still is not a render.
-    act(() => receivePlayState(ticked(first)))
+    // The tenth crosses the boundary.
+    act(() => receivePlayTick(tickOf(play, 1_000)))
     expect(renders).toBe(2)
+    expect(result.current.remainingMs).toBe((started ?? 0) - 1_000)
+  })
+
+  it('rounds the way fmt.clock rounds, so the digits are unchanged', () => {
+    const play = base()
+    receivePlayState(play)
+    const { result } = renderHook(() => usePlayClock())
+    for (const raw of [12_001, 12_000, 11_999, 1, 0]) {
+      act(() => receivePlayTick({ ...tickOf(play, 0), remainingMs: raw }))
+      expect(Math.ceil((result.current.remainingMs ?? 0) / 1000), `${raw}ms`).toBe(Math.ceil(raw / 1000))
+    }
   })
 
   it('answers with no Play and at operator pace', () => {
@@ -149,26 +158,13 @@ describe('usePlayClock', () => {
   })
 })
 
-describe('deepEqual', () => {
-  it('compares the plain JSON the host emits', () => {
-    expect(deepEqual({ a: [1, { b: 'x' }] }, { a: [1, { b: 'x' }] })).toBe(true)
-    expect(deepEqual({ a: [1, { b: 'x' }] }, { a: [1, { b: 'y' }] })).toBe(false)
-    expect(deepEqual({ a: 1 }, { a: 1, b: 2 })).toBe(false)
-    expect(deepEqual([1, 2], [1, 2, 3])).toBe(false)
-    expect(deepEqual(null, null)).toBe(true)
-    expect(deepEqual(null, {})).toBe(false)
-    // Arrays and objects are not each other, however alike their keys look.
-    expect(deepEqual([], {})).toBe(false)
-  })
-})
-
 /**
- * The stable snapshot's two clock fields are as old as the last real change, so
- * reading them off `usePlayState()` draws a countdown that stops and jumps.
- * There is no way to say that in the type — `PlayStateForMain` is the host's
- * shape and the panels hand it whole to `controlPhase`, `ringEntries` and
- * friends — so the rule is held by a grep, the way §12.5's no-synth rule and
- * §13's read-only rule are.
+ * The state's two clock fields are as old as the last `play-state`, so reading
+ * them off `usePlayState()` draws a countdown that stops and jumps. There is no
+ * way to say that in the type — `PlayStateForMain` is the host's shape and the
+ * panels hand it whole to `controlPhase`, `ringEntries` and friends — so the
+ * rule is held by a grep, the way §12.5's no-synth rule and §13's read-only
+ * rule are.
  *
  * Vite's glob rather than `node:fs`: the Studio tsconfig has no Node types.
  */
@@ -190,7 +186,7 @@ const ALLOWED = [
 /** Tests build ticked Plays on purpose; the rule is about what ships. */
 const isTest = (path: string) => /\.test\.tsx?$/.test(path)
 
-describe('nothing reads the countdown off the stable snapshot', () => {
+describe('nothing reads the countdown off the Play', () => {
   it('confines remainingMs and elapsedMs to usePlayClock', () => {
     const files = Object.keys(SOURCES)
     expect(files.length).toBeGreaterThan(50)

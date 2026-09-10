@@ -25,10 +25,35 @@ import {
   VIEWER_SOURCE,
   type AnimKey,
   type PlayStateForStage,
+  type PlayTick,
   type ViewerToStage,
 } from '@questiongame/contract'
 
 export type StateListener = (state: PlayStateForStage) => void
+
+/**
+ * Merge a `play-tick` into the Play a host already holds.
+ *
+ * Returns the **same object** when nothing moved, so a subscriber that bails
+ * on identity does not re-render. A tick for another Play is dropped rather
+ * than applied: `play_unload` followed by a load can leave one in flight, and
+ * pinning the previous show's countdown onto the next one would be a wrong
+ * number on camera.
+ */
+export function applyTick(state: PlayStateForStage, tick: PlayTick): PlayStateForStage {
+  if (state.playId !== tick.playId) return state
+  const timer = state.session?.timer ?? null
+  const sameClock = state.clock.elapsedMs === tick.elapsedMs && state.clock.running === tick.running
+  const sameTimer = (timer?.remainingMs ?? null) === tick.remainingMs
+  if (sameClock && sameTimer) return state
+  return {
+    ...state,
+    clock: { elapsedMs: tick.elapsedMs, running: tick.running },
+    ...(state.session && timer && tick.remainingMs !== null
+      ? { session: { ...state.session, timer: { ...timer, remainingMs: tick.remainingMs } } }
+      : {}),
+  }
+}
 
 /**
  * An external store, in React's sense: `subscribe` notifies on change and
@@ -99,6 +124,15 @@ export function tauriHost(): StageHost {
       for (const listener of listeners) listener(payload)
     }, { target: { kind: 'AnyLabel', label } })
 
+    // The countdown, on its own channel (P11.9). `play-state` is event-driven
+    // now; this is what arrives ten times a second, and it is two numbers.
+    const unlistenTick = await listen<PlayTick>('play-tick', ({ payload }) => {
+      const next = applyTick(last, payload)
+      if (next === last) return
+      last = next
+      for (const listener of listeners) listener(last)
+    }, { target: { kind: 'AnyLabel', label } })
+
     // **A reload must unlisten first.** Tauri keeps the JS listener registered
     // on the Rust side until `unlisten` — a navigation does not clear it —
     // while the callback id lives in `window`, which a reload wipes. The host
@@ -106,7 +140,10 @@ export function tauriHost(): StageHost {
     // and the 100ms show loop makes that ten `[TAURI] Couldn't find callback
     // id …` a second for the life of the app. `pagehide` is the last event a
     // reload and a close both fire.
-    window.addEventListener('pagehide', () => void unlisten(), { once: true })
+    window.addEventListener('pagehide', () => {
+      void unlisten()
+      void unlistenTick()
+    }, { once: true })
 
     // Announce the version and ask for the current state. Without this, a Stage
     // window that mounts after the host's last emission waits for the next
@@ -154,6 +191,15 @@ function viewerHost(): StageHost {
   window.addEventListener('message', (event: MessageEvent<unknown>) => {
     if (event.source !== window.parent || !isViewerMessage(event.data)) return
     const message = event.data as ViewerToStage
+    if (message.type === 'tick') {
+      // The Viewer's countdown, for the same reason the Stage window has one:
+      // Control posts the whole state only when it changed (P11.9).
+      const next = applyTick(last, message.tick)
+      if (next === last) return
+      last = next
+      for (const listener of listeners) listener(last)
+      return
+    }
     if (message.type !== 'play-state') return
     last = message.state
     for (const listener of listeners) listener(last)

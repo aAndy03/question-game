@@ -156,12 +156,14 @@ apps/studio/src/
 
 ### 3.1 Truth and caches
 
-**The Play is read twice, at two rates (P11.7).** The host emits ten times a
-second while a timer runs, and two scalars are all that move on a bare tick:
-`session.timer.remainingMs` and `clock.elapsedMs`. `playState.ts` therefore
-keeps two references — `usePlayState()` reads a **stable** snapshot whose
-identity changes only when something else changed, and `usePlayClock()` reads
-the **live** one. Mount `usePlayClock()` in the smallest component that draws a
+**The Play is read twice, at two rates (P11.7, P11.9).** `play-state` is
+event-driven; the 100 ms show loop sends `play-tick`, two numbers.
+`playState.ts` therefore keeps two things — `usePlayState()` reads the last
+`play-state`, and `usePlayClock()` reads the last tick. P11.6 had to *guess*
+which was which, because everything arrived as one emission; splitting the wire
+turned the guess into a lookup. `usePlayClock` publishes at the resolution
+Studio prints (`fmt.clock` rounds to the second), so nine ticks in ten render
+nothing at all. Mount `usePlayClock()` in the smallest component that draws a
 number; a panel subscribing to it re-renders at 10 Hz, which is what the split
 exists to stop. `usePlayState(select, isEqual?)` narrows further — pass
 `shallow` when the selector builds an object.

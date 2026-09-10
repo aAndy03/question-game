@@ -384,6 +384,12 @@ export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Read
     title: 'The {cue} cue file ({file}) is missing from the cue pack.',
     actions: { open_cue_folder: 'Open cue folder' },
   },
+  // Its own message since P11.9: the file is there, and saying it is missing
+  // sent the operator looking for something that was never gone.
+  'health.audio_cue_failed': {
+    title: 'The {cue} cue ({file}) is there but would not play. Showing Stage usually settles it.',
+    actions: { open_stage: 'Show Stage' },
+  },
   match: { title: 'The host refused the command.', actions: {} },
   catalog: { title: 'The library refused the write.', actions: {} },
   monitor: { title: 'Display problem.', actions: {} },

@@ -151,13 +151,12 @@ pub fn stage_report(
                 let file = detail.get("file").cloned().unwrap_or_default();
                 state.lock().health.missing_cue(cue, file);
             }
-            // A playback fault. Still reported as a cue finding: the operator's
-            // remedy is the same and there is only one cue notice. That it
-            // reads as "missing" when the file is present is a wording bug,
-            // left alone here rather than widened into a new notice code.
+            // A playback fault: the file is there and the browser refused to
+            // sound it. Its own finding since P11.9 — it reads correctly, and
+            // its remedy is showing Stage, not opening the cue folder.
             "audio_failed" => {
                 let file = detail.get("file").cloned().unwrap_or_default();
-                state.lock().health.missing_cue(cue, file);
+                state.lock().health.cue_failed(cue, file);
             }
             // It loaded after all. Every input needs a way back.
             "audio_ok" => state.lock().health.cue_ok(cue),

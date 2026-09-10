@@ -89,6 +89,15 @@ fn spawn_show_loop(app: AppHandle) {
             if host.play.get_state().is_none() {
                 continue;
             }
+            // **Ask before doing anything.** A tick mutates a Play only
+            // through the T=0 table, and everything else that can move one
+            // arrives as a command — so when T=0 is not due, nothing but the
+            // countdown can differ from the last emission, and the whole
+            // projecting-digesting-serialising round trip is waste (P11.9).
+            if !host.play.tick_due(now) {
+                emit::play_tick(&app, &mut host, now);
+                continue;
+            }
             if let Err(error) = host.write(now, |h| Ok(h.play.tick(now)?)) {
                 // A tick cannot be refused by a rule; if it failed, the write
                 // behind it did, and the operator has to hear about it.

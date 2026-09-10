@@ -66,6 +66,50 @@ pub fn play_state(app: &AppHandle, host: &mut Host, now_ms: u64, force: bool) ->
     // Statistics draws the Live view from the same shape Studio's own window
     // reads. It cannot write it (`guard::STATS_COMMANDS`).
     let _ = app.emit_to(STATS, "play-state", &full);
+    // A full emission carries the clock, so the `play-tick` behind it would be
+    // saying the same thing twice.
+    host.remember_clock(clock_of(&stage));
+    true
+}
+
+/// The clock as a tuple, for the tick's gate.
+fn clock_of(state: &questiongame_host::stage::PlayStateForStage) -> (Option<u32>, u64, bool) {
+    (
+        state.game.session.as_ref().and_then(|s| s.timer.as_ref()).map(|t| t.remaining_ms),
+        state.game.clock.elapsed_ms,
+        state.game.clock.running,
+    )
+}
+
+/// The 100 ms show loop's ordinary emission: the countdown, and nothing else.
+///
+/// **When the host knows nothing else can have changed** — `tick_due` is false,
+/// so the T=0 table will not fire and no command has run — this replaces
+/// `play_state` entirely. That is 999 ticks in 1000, and on each of them it
+/// saves three full projections of the Play (two inside `Host::write`'s
+/// overlay diff, one here), the digest over ~8.4 KB, and three emissions of
+/// that same 8.4 KB. Over a fifteen-minute show the wire went from ~34 MB of
+/// JSON to under one (P11.9).
+///
+/// Returns whether anything went out: a paused Play moves neither number, so
+/// it stays as quiet as it always did.
+pub fn play_tick(app: &AppHandle, host: &mut Host, now_ms: u64) -> bool {
+    let Some(play) = host.play.get_state() else {
+        return false;
+    };
+    let tick = questiongame_host::stage::tick(play, now_ms);
+    let clock = (tick.remaining_ms, tick.elapsed_ms, tick.running);
+    if !host.clock_moved(clock) {
+        return false;
+    }
+    // The same shape to all three: it carries no operator half to strip, which
+    // is the other reason this is cheaper than a full emission.
+    let _ = app.emit_to(STAGE, "play-tick", &tick);
+    let _ = app.emit_to(MAIN, "play-tick", &tick);
+    let _ = app.emit_to(STATS, "play-tick", &tick);
+    // After the last use of `tick`, which borrows the Play out of `host`.
+    host.remember_clock(clock);
+    tracing::trace!(target: crate::perf::TARGET, kind = "tick_emit");
     true
 }
 

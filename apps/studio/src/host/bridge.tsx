@@ -5,6 +5,7 @@
  * Studio does with it:
  *
  *   play-state       → `receivePlayState` (the external store)
+ *   play-tick        → `receivePlayTick` — the countdown, ten times a second
  *   catalog-changed  → invalidate that kind's queries
  *   recipe-changed   → invalidate that recipe's queries
  *   monitors-changed → replace the monitors query data, and the windows store
@@ -30,13 +31,14 @@ import type {
   MonitorsChanged,
   Notice,
   PlayStateForMain,
+  PlayTick,
   RecipeChange,
 } from '@questiongame/contract'
 import { useHealthStore } from '@/chrome/health'
 import { useNoticeStore } from '@/chrome/notices'
 import { useWindowsStore } from '@/chrome/windows'
 import { command, hasHost, on } from './host'
-import { receivePlayState } from './playState'
+import { receivePlayState, receivePlayTick } from './playState'
 import { invalidateForCatalogChange, invalidateForRecipeChange, keys } from './queries'
 
 export function HostBridge() {
@@ -69,6 +71,9 @@ export function HostBridge() {
     // `null` is a value here: it is what the host emits when the recipe
     // leaves Control (`play_unload`), and Control reads it as "no Play".
     add(on<PlayStateForMain | null>('play-state', receivePlayState))
+    // The show loop's own channel (P11.9): two numbers, ten times a second,
+    // merged into the clock the countdown leaves subscribe to.
+    add(on<PlayTick>('play-tick', receivePlayTick))
     add(on<CatalogChange>('catalog-changed', (c) => invalidateForCatalogChange(client, c.kind, c.id)))
     add(on<RecipeChange>('recipe-changed', (c) => invalidateForRecipeChange(client, c.id)))
     add(

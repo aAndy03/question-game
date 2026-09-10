@@ -16,7 +16,7 @@ import { EmptyState } from '@/molecules'
 import { CONTROL, RING_ROLE, SESSION } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { hasTauri } from '@/host/host'
-import { usePlayState } from '@/host/playState'
+import { usePlayClock, usePlayState } from '@/host/playState'
 import { ringEntries, ringRole } from '@/host/ring'
 import { canChooseDomain, liveSession } from '@/host/session'
 import { useSettings } from '@/host/queries'
@@ -29,6 +29,11 @@ import { useSettings } from '@/host/queries'
  */
 export function Viewer({ density }: { density: 'comfortable' | 'compact' | 'dense' }) {
   const play = usePlayState()
+  // The Viewer draws Stage, so it needs Stage's clock — but only the clock, and
+  // only at the rate Studio publishes it.
+  const clock = usePlayClock()
+  const playId = usePlayState((s) => s?.playId ?? null)
+  const running = usePlayState((s) => s?.clock.running ?? false)
   const settings = useSettings()
   const run = useHostCommand()
   const frame = useRef<HTMLIFrameElement | null>(null)
@@ -85,6 +90,21 @@ export function Viewer({ density }: { density: 'comfortable' | 'compact' | 'dens
     const message: ViewerToStage = { source: VIEWER_SOURCE, type: 'play-state', state }
     target.postMessage(message, '*')
   }, [play, ready])
+
+  // Studio → Stage: the countdown (P11.9). `play` is event-driven now, so the
+  // effect above fires only when the Play changed; without this the Viewer's
+  // clock would sit still. A tick is four fields, against a structured clone
+  // of the whole stripped Play ten times a second.
+  useEffect(() => {
+    const target = frame.current?.contentWindow
+    if (!target || !ready || !playId) return
+    const message: ViewerToStage = {
+      source: VIEWER_SOURCE,
+      type: 'tick',
+      tick: { playId, remainingMs: clock.remainingMs, elapsedMs: clock.elapsedMs, running },
+    }
+    target.postMessage(message, '*')
+  }, [clock, playId, running, ready])
 
   useEffect(() => {
     const target = frame.current?.contentWindow

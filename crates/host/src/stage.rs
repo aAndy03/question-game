@@ -29,7 +29,7 @@ use crate::snapshot::AnswerMode;
 
 /// Must equal `CONTRACT_VERSION` in `packages/contract/src/play-state.ts`.
 /// A mismatch is a notice, not a blank screen — see the P1 exit criteria.
-pub const CONTRACT_VERSION: u32 = 5;
+pub const CONTRACT_VERSION: u32 = 6;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -176,8 +176,38 @@ pub fn empty_game() -> StageGameState {
     }
 }
 
-/// Project a Play as of `now_ms`. Read-only, and cheap enough to run per
-/// emission — the 100ms tick is a read, never a write.
+/// The two numbers a 100 ms tick can move, read without projecting anything.
+///
+/// `project` clones every team's name, short code, colour, logo and detail,
+/// every domain's name and code, the ring order and the revealed ranks — a few
+/// dozen allocations, and the show loop was doing it three times a tick to
+/// discover that a countdown had gone down by 100 ms. This is four reads and
+/// a borrowed id (P11.9).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayTick<'a> {
+    pub play_id: &'a str,
+    /// `session.timer.remainingMs`, or null at operator pace / no session.
+    pub remaining_ms: Option<u32>,
+    pub elapsed_ms: u64,
+    pub running: bool,
+}
+
+/// The clock of a Play as of `now_ms`, for `play-tick`.
+pub fn tick(play: &Play, now_ms: u64) -> PlayTick<'_> {
+    PlayTick {
+        play_id: play.id().as_str(),
+        remaining_ms: play
+            .session()
+            .and_then(|s| s.timer.as_ref())
+            .map(|t| t.remaining_at(now_ms)),
+        elapsed_ms: play.clock().elapsed_at(now_ms),
+        running: play.clock().running(),
+    }
+}
+
+/// Project a Play as of `now_ms`. Read-only, but **not cheap**: prefer
+/// [`tick`] when only the clock can have moved (see `MatchService::tick_due`).
 pub fn project(play: &Play, now_ms: u64) -> StageGameState {
     let snapshot = play.snapshot();
     let ranks = play.ranks();

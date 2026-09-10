@@ -187,6 +187,8 @@ export const EVENTS = [
   'catalog-changed',
   'recipe-changed',
   'play-state',
+  /** The countdown, and only the countdown. See {@link PlayTick}. */
+  'play-tick',
   'health',
   'monitors-changed',
   /** Spec §14 `{ code, severity, targetPath, actions[] }`. */
@@ -197,8 +199,37 @@ export const EVENTS = [
 export type EventName = (typeof EVENTS)[number]
 
 /** Events the Stage webview subscribes to. */
-export const STAGE_EVENTS = ['play-state'] as const
+export const STAGE_EVENTS = ['play-state', 'play-tick'] as const
 export type StageEvent = (typeof STAGE_EVENTS)[number]
+
+/**
+ * The 100 ms show loop, once the wire was split (P11.9).
+ *
+ * `play-state` used to carry the whole projection ten times a second while a
+ * timer ran — ~8.4 KB × three webviews × 10 Hz, ~34 MB of JSON over a
+ * fifteen-minute show — when the only fields that differed from the previous
+ * emission were the two below. The host now decides which it is: a tick that
+ * cannot change anything but the clock sends **this**, and `play-state` goes
+ * back to being event-driven, emitted when something an operator did changed
+ * the Play.
+ *
+ * The host's own rule is what makes that safe: `MatchService::tick` mutates
+ * nothing except through the T=0 table, and everything else that can move a
+ * Play arrives as a command. So a tick where T=0 is not due cannot have
+ * changed anything else — the host asks `tick_due` and takes this path.
+ *
+ * A consumer merges it into the Play it already holds. `playId` is how a tick
+ * that outlived its Play is dropped rather than applied to the next one.
+ */
+export interface PlayTick {
+  readonly playId: string
+  /** `session.timer.remainingMs`, or null at operator pace / with no session. */
+  readonly remainingMs: number | null
+  /** `clock.elapsedMs` — how long this Play has been running. */
+  readonly elapsedMs: number
+  /** `clock.running` — false while paused, so Stage does not interpolate. */
+  readonly running: boolean
+}
 
 /** `catalog-changed`. */
 export interface CatalogChange {

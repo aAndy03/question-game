@@ -547,3 +547,50 @@ fn cue_findings_are_keyed_by_cue() {
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].detail["cue"], "correct");
 }
+
+/// P11.9: the show loop asks before it works.
+///
+/// `MatchService::tick` mutates a Play only through the T=0 table, and
+/// everything else that can move one arrives as a command — so on a tick where
+/// T=0 is not due, nothing but the countdown can differ from the last
+/// emission. `tick_due` is what lets the host send two numbers instead of
+/// projecting, digesting and serialising the whole Play three times over.
+#[test]
+fn a_tick_is_only_due_when_the_timer_reaches_zero() {
+    let mut host = booted();
+    host.write(1_000, |h| {
+        Ok(h.play.choose_domain(&DomainId::from("dom-1"), 1_000)?)
+    })
+    .unwrap();
+    host.write(1_100, |h| Ok(h.play.start_timer(1_100)?)).unwrap();
+
+    // Mid-question: the countdown is moving and nothing else is.
+    assert!(!host.play.tick_due(2_000), "a running timer is not due");
+    assert!(!host.play.tick_due(10_000));
+
+    // The clock is the only thing that differs across those instants.
+    let a = questiongame_host::stage::tick(host.play.get_state().unwrap(), 2_000);
+    let b = questiongame_host::stage::tick(host.play.get_state().unwrap(), 10_000);
+    assert_ne!(a.remaining_ms, b.remaining_ms, "the countdown moved");
+    assert_eq!(a.play_id, b.play_id);
+
+    // And a tick that is not due really does nothing.
+    let before = host.play.get_state().unwrap().events().len();
+    host.play.tick(10_000).unwrap();
+    assert_eq!(
+        host.play.get_state().unwrap().events().len(),
+        before,
+        "a tick that is not due appends nothing"
+    );
+}
+
+/// The gate is the clock, so a Play that is not counting stays off the wire.
+#[test]
+fn the_clock_gate_is_quiet_when_neither_number_moves() {
+    let mut host = booted();
+    let clock = (Some(30_000_u32), 1_000_u64, true);
+    assert!(host.clock_moved(clock), "the first one always goes");
+    host.remember_clock(clock);
+    assert!(!host.clock_moved(clock), "the same instant twice is one emission");
+    assert!(host.clock_moved((Some(29_900), 1_100, true)));
+}

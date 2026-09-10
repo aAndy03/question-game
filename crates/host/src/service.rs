@@ -404,23 +404,49 @@ impl MatchService {
     /// The 100ms host tick. It carries no authority of its own: it applies the
     /// §2.4 T=0 table **at the computed zero instant**, so a late tick scores
     /// exactly what a punctual one would.
+    /// The instant this Play's timer reached zero, if a tick would act on it
+    /// **now**. `None` means a tick would do nothing at all.
+    ///
+    /// The one guard chain, read by two callers: [`Self::tick`] applies the
+    /// T=0 table, and [`Self::tick_due`] lets the show loop find out first.
+    fn zero_due(&self, now_ms: u64) -> Option<u64> {
+        let play = self.play.as_ref()?;
+        if play.status() != PlayStatus::Playing {
+            return None;
+        }
+        let session = play.session()?;
+        if session.is_resolved() || session.is_locked() {
+            return None;
+        }
+        session
+            .timer
+            .as_ref()?
+            .zero_at()
+            .filter(|zero| *zero <= now_ms)
+    }
+
+    /// Would a tick change anything?
+    ///
+    /// **The show loop's whole optimisation rests on this** (P11.9). A tick
+    /// mutates a Play only through the T=0 table, and everything else that can
+    /// move a Play arrives as a command — so when this is false, nothing but
+    /// the countdown can differ from the last emission, and the host sends a
+    /// `play-tick` instead of projecting, digesting and serialising the whole
+    /// Play three times over. It is false on 999 ticks in 1000.
+    ///
+    /// Cheap on purpose: four borrows and a comparison, no projection.
+    pub fn tick_due(&self, now_ms: u64) -> bool {
+        self.zero_due(now_ms).is_some()
+    }
+
     pub fn tick(&mut self, now_ms: u64) -> MatchResult<()> {
+        let Some(zero_at) = self.zero_due(now_ms) else {
+            return Ok(());
+        };
         let Some(play) = self.play.as_ref() else {
             return Ok(());
         };
-        if play.status() != PlayStatus::Playing {
-            return Ok(());
-        }
         let Some(session) = play.session() else {
-            return Ok(());
-        };
-        if session.is_resolved() || session.is_locked() {
-            return Ok(());
-        }
-        let Some(timer) = session.timer.as_ref() else {
-            return Ok(());
-        };
-        let Some(zero_at) = timer.zero_at().filter(|zero| *zero <= now_ms) else {
             return Ok(());
         };
 
