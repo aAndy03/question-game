@@ -22,11 +22,13 @@
 //! branch belongs in the host — that is the whole test for whether a change
 //! goes above or below this line.
 
+pub mod boot;
 pub mod commands;
 pub mod decor;
 pub mod emit;
 pub mod error;
 pub mod guard;
+pub mod identity;
 pub mod monitors;
 pub mod perf;
 pub mod state;
@@ -59,42 +61,55 @@ pub fn run() {
         })
         .setup(|app| {
             let handle = app.handle().clone();
+            // Before anything resolves a path — even the log's: the app must
+            // know which set of folders is its own (P12.1, `identity`).
+            if let Err(reason) = identity::check(tauri::is_dev(), &app.config().identifier) {
+                boot::fail(&reason, None);
+            }
             // Logging first, and inside `setup`, because the log file lives in
-            // the app-data directory and only Tauri can resolve it. Everything
-            // worth reading — the library open, every command, every refusal —
-            // happens after this line.
-            // The perf layer is installed with the subscriber, so its counters
-            // exist before the first command; the writer starts last, once
-            // the data directory is known to be ours.
+            // the app-data directory and only Tauri can resolve it. The perf
+            // layer is installed with the subscriber, so its counters exist
+            // before the first command; the writer starts last (`start`).
             let perf_state = perf::PerfState::default();
             let perf_layer = perf::PerfLayer::new(perf_state.counters.clone());
             app.manage(perf_state);
-            tracing_logging(
-                crate::state::user_data_dir(&handle).ok().as_deref(),
-                perf_layer,
-            );
+            let data_dir = crate::state::user_data_dir(&handle).ok();
+            tracing_logging(data_dir.as_deref(), perf_layer);
+            // A release build has no console: from here on a panic is written
+            // to the log, and a boot that fails says so in a box (P12.1).
+            boot::install_panic_hook();
             // `setup` runs on the event loop, so this is where that thread is
             // identified — everything after it may be asserted against.
             crate::state::mark_main_thread();
-            // One library, one process — before anything opens the database.
-            if let Ok(dir) = crate::state::user_data_dir(&handle) {
-                crate::state::take_single_instance_lock(&dir)?;
+            if let Err(error) = start(&handle, data_dir.clone()) {
+                let log = data_dir.as_ref().map(|dir| dir.join(LOG_FILE));
+                boot::fail(&error.to_string(), log.as_deref());
             }
-            let host = Host::open(catalog_location(&handle)?)?;
-            app.manage(AppState::new(host));
-
-            windows::open_studio(&handle)?;
-            // The first health report is the watch's own first tick: computing
-            // it here would take the host lock on the event-loop thread, which
-            // is the one thing that must never happen (`AppState::lock`).
-            tick::spawn(handle.clone());
-            // The performance log, one line a second (`perf`). Dev builds by
-            // default; it takes no lock and cannot delay a command.
-            perf::spawn(handle.clone(), crate::state::user_data_dir(&handle).ok());
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("the app runs");
+}
+
+/// Everything after logging that can refuse to start: the one-process lock,
+/// the library, Studio's window, the two loops. An error here is shown, not
+/// swallowed (`boot::fail`).
+///
+/// The **Stage window is not created here**: §9 says first Control Load.
+fn start(handle: &tauri::AppHandle, data_dir: Option<std::path::PathBuf>) -> error::AppResult<()> {
+    // One library, one process — before anything opens the database.
+    if let Some(dir) = &data_dir {
+        crate::state::take_single_instance_lock(dir)?;
+    }
+    let host = Host::open(catalog_location(handle)?)?;
+    handle.manage(AppState::new(host));
+    windows::open_studio(handle)?;
+    // The first health report is the watch's own first tick: computing it
+    // here would take the host lock on the event-loop thread.
+    tick::spawn(handle.clone());
+    // The performance log, one line a second (`perf`). It takes no lock.
+    perf::spawn(handle.clone(), data_dir);
+    Ok(())
 }
 
 /// The name of the log file, beside the library in the app-data directory.

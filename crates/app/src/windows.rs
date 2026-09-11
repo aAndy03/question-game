@@ -49,6 +49,12 @@ const MIRROR_PATH: &str = "stage/index.html?mirror";
 
 /// Studio. A normal window: one display is a valid configuration, and then
 /// Studio is an Alt-Tab away from a fullscreen Stage (§9).
+/// Studio's window title. The dev build says so, because the two can run side
+/// by side and the taskbar is where the operator tells them apart (P12.1).
+pub fn studio_title(is_dev: bool) -> &'static str {
+    if is_dev { "questiongame Studio (dev)" } else { "questiongame Studio" }
+}
+
 pub fn open_studio(app: &AppHandle) -> AppResult<WebviewWindow> {
     crate::state::assert_unlocked("windows::open_studio");
     if let Some(existing) = app.get_webview_window(MAIN) {
@@ -56,7 +62,7 @@ pub fn open_studio(app: &AppHandle) -> AppResult<WebviewWindow> {
     }
     Ok(debuggable(
         WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App(STUDIO_PATH.into()))
-            .title("questiongame Studio")
+            .title(studio_title(tauri::is_dev()))
             .inner_size(1440.0, 920.0)
             .min_inner_size(1100.0, 720.0),
     )
@@ -65,7 +71,7 @@ pub fn open_studio(app: &AppHandle) -> AppResult<WebviewWindow> {
 
 /// The switches wry hands WebView2 when nobody else does — the "mini menu"
 /// and SmartScreen off. Passing our own replaces them, so they are repeated.
-#[cfg(windows)]
+#[cfg(all(windows, debug_assertions))]
 const WRY_DEFAULT_BROWSER_ARGS: &str =
     "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
 
@@ -465,5 +471,14 @@ mod tests {
         assert_ne!(STATS_PATH, STAGE_PATH);
         assert!(!crate::guard::stats_may_call("show_screen"));
         assert!(!crate::guard::stats_may_call("overlay_ack_complete"));
+    }
+}
+
+#[cfg(test)]
+mod title_tests {
+    #[test]
+    fn the_dev_window_says_it_is_dev() {
+        assert_eq!(super::studio_title(true), "questiongame Studio (dev)");
+        assert_eq!(super::studio_title(false), "questiongame Studio");
     }
 }

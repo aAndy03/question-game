@@ -1,7 +1,7 @@
 {
   "name": "questiongame",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "workspaces": [
@@ -23,12 +23,13 @@
     "lint:host": "cargo clippy --manifest-path crates/host/Cargo.toml --all-targets -- -D warnings",
     "lint:app": "cargo clippy -p questiongame-app --all-targets -- -D warnings",
     "tauri": "tauri",
-    "dev:app": "tauri dev",
+    "dev:app": "tauri dev --config crates/app/tauri.dev.conf.json",
     "fixtures": "vite-node scripts/emit-fixtures.ts",
     "decor:hulls": "vite-node scripts/decor-hulls.ts",
     "studio:icons": "vite-node scripts/studio-icons.ts",
     "audio:placeholders": "vite-node scripts/audio-placeholders.ts",
     "js-stack": "node scripts/js-stack.mjs",
+    "release": "tauri build",
     "leak-probe": "node scripts/leak-probe.mjs"
   },
   "devDependencies": {

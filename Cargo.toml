@@ -9,7 +9,7 @@ resolver = "3"
 members = ["crates/host", "crates/app"]
 
 [workspace.package]
-version = "0.0.0"
+version = "1.0.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
 publish = false
@@ -51,3 +51,14 @@ fs4 = { version = "0.13", default-features = false, features = ["sync"] }
 # memory of the host process and every WebView2 child, from one crate on both
 # platforms. Replaced the hand-rolled Win32 sampler of P11.4.
 sysinfo = { version = "0.38", default-features = false, features = ["system"] }
+# P12.1. A release build has no console, so a boot failure needs a window of
+# its own to be seen at all. The crate tauri-plugin-dialog is built on; used
+# directly because the message is shown before Tauri's event loop exists.
+rfd = "0.16"
+
+# P12.2. The release build is what the operator runs on show day.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+# panic stays "unwind" (the default): one panicking command must fail that
+# command, not end the show. `boot::install_panic_hook` logs it.

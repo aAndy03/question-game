@@ -1,0 +1,67 @@
+//! What `tauri build` ships (P12.2): one per-user Windows installer, a macOS
+//! bundle prepared for later, and one version number in three files.
+
+use std::path::Path;
+
+fn json(rel: &str) -> serde_json::Value {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    serde_json::from_str(&text).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
+/// `[workspace.package] version = "…"` from the root manifest, without a TOML
+/// crate: the table header, then its `version` line.
+fn workspace_version() -> String {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Cargo.toml");
+    let text = std::fs::read_to_string(path).expect("root Cargo.toml");
+    let mut in_package = false;
+    for line in text.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_package = line == "[workspace.package]";
+            continue;
+        }
+        if in_package && let Some(rest) = line.strip_prefix("version") {
+            return rest.trim_start().trim_start_matches('=').trim().trim_matches('"').to_string();
+        }
+    }
+    panic!("no [workspace.package] version");
+}
+
+#[test]
+fn one_version_in_three_files() {
+    let version = workspace_version();
+    assert_eq!(version, "1.0.0");
+    assert_eq!(env!("CARGO_PKG_VERSION"), version);
+    assert_eq!(json("tauri.conf.json")["version"], version.as_str());
+    assert_eq!(json("../../package.json")["version"], version.as_str());
+}
+
+#[test]
+fn windows_ships_one_per_user_installer() {
+    let config = json("tauri.conf.json");
+    let bundle = &config["bundle"];
+    assert_eq!(bundle["targets"], serde_json::json!(["nsis"]));
+    assert_eq!(bundle["windows"]["nsis"]["installMode"], "currentUser");
+    assert_eq!(bundle["licenseFile"], "../../LICENSE");
+    assert!(bundle["publisher"].as_str().is_some_and(|s| !s.is_empty()));
+    assert!(bundle["copyright"].as_str().is_some_and(|s| s.contains("GPL-3.0-or-later")));
+}
+
+#[test]
+fn macos_is_prepared_and_does_not_change_who_the_app_is() {
+    let mac = json("tauri.macos.conf.json");
+    assert_eq!(mac["bundle"]["targets"], serde_json::json!(["app", "dmg"]));
+    assert_eq!(mac["bundle"]["macOS"]["minimumSystemVersion"], "13.0");
+    assert_eq!(mac["bundle"]["macOS"]["signingIdentity"], "-");
+    assert!(mac.get("identifier").is_none());
+}
+
+#[test]
+fn every_listed_icon_exists() {
+    let config = json("tauri.conf.json");
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for icon in config["bundle"]["icon"].as_array().expect("an icon list") {
+        let rel = icon.as_str().expect("a path");
+        assert!(dir.join(rel).is_file(), "{rel} is listed but missing");
+    }
+}

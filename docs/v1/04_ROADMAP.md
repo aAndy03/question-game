@@ -1632,11 +1632,13 @@ release-build commands.
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.
 
+The full design is `docs/superpowers/specs/2026-09-11-packaging-release-design.md` and the task list `docs/superpowers/plans/2026-09-11-packaging-release.md`. **P12.0 (2026-09-11) shipped the minimum that makes an installable 1.0.0**: two identities (`org.questiongame.desktop` installed, `org.questiongame.app` dev, refused when crossed), a boot-failure message box and a logged panic hook, version `1.0.0` in the three files, the NSIS per-user installer, the app icon. Everything else in the plan — host-side perf log in release, log rotation, dev-only webview diagnostics, Settings ▸ Data paths, single-instance focus, the close guard, in-app uninstall, third-party notices, About, the release check — is deferred to P12.1+.
+
 **Exit criteria**
 
-- ☐ Clean install → first run → Demo recipe → full Play to `Completed` on both OSes.
+- ☐ Clean install → first run → Demo recipe → full Play to `Completed` on both OSes. (Windows installer built and installed 2026-09-11; the full Play is the operator's check.)
 - ☐ A run with the network disabled behaves identically.
-- ☐ Uninstall removes exactly what the operator selected.
+- ☐ Uninstall removes exactly what the operator selected. (The NSIS uninstaller's *Delete application data* box removes `org.questiongame.desktop` only; the in-app data removal is deferred.)
 - ☐ No memory growth across three consecutive Plays.
 
 ---

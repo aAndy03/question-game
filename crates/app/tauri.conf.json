@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "questiongame",
-  "version": "0.0.0",
-  "identifier": "org.questiongame.app",
+  "version": "1.0.0",
+  "identifier": "org.questiongame.desktop",
   "build": {
     "frontendDist": "../../dist",
     "devUrl": "http://localhost:5181",
@@ -17,8 +17,18 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "publisher": "questiongame contributors",
+    "copyright": "© 2026 questiongame contributors — GPL-3.0-or-later",
+    "category": "Education",
+    "shortDescription": "An offline quiz show: an operator studio and a fullscreen audience stage.",
+    "longDescription": "questiongame runs a quiz show from one computer. Studio is where the operator prepares teams, domains, questions and games and runs each Play; Stage is the fullscreen audience surface, on one display or several. Everything works offline.",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/256x256.png", "icons/icon.ico", "icons/icon.png"],
-    "licenseFile": "../../LICENSE"
+    "licenseFile": "../../LICENSE",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }
