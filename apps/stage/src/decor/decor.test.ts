@@ -165,8 +165,8 @@ describe('decor assets', () => {
 
   it('inline the copied SVGs with currentColor fills and their natural size', () => {
     const plus = decorAsset('plus')
-    expect(plus.width).toBe(433)
-    expect(plus.height).toBe(364)
+    expect(plus.width).toBe(409)
+    expect(plus.height).toBe(414)
     expect(plus.markup).toContain('fill="currentColor"')
     expect(plus.markup).not.toMatch(/fill="#/)
     expect(plus.markup).toContain('width="100%"')
