@@ -21,7 +21,7 @@
  * — Space Grotesk and Space Mono both carry them.
  */
 
-import type { OutcomeVerdict, StageLanguage, StageScreen } from '@questiongame/contract'
+import type { OutcomeVerdict, StageLanguage, StageScreen, StageTextOverrides } from '@questiongame/contract'
 
 /** One authored band of the 1–100 difficulty scale, shown as a word. */
 export interface DifficultyBand {
@@ -268,12 +268,20 @@ export const COPY_TABLES: Readonly<Record<StageLanguage, StageCopy>> = {
 
 /**
  * The copy a page renders: the language's table, then the operator's
- * overrides on top. When the operator-editable copy table lands (Screens
- * tab, later phase) its per-language overrides are merged here and nowhere
- * else.
+ * overrides on top (`layout.text[language]`, P11.16). This is the only place
+ * the two meet. The override keys are flat (`teamOrderTitle`) because the
+ * Inspector edits one string at a time; the four title keys land inside
+ * `screenTitle`, the rest are the table's own field names.
  */
-export function resolveCopy(language: StageLanguage = 'en', overrides: Partial<StageCopy> = {}): StageCopy {
-  return { ...COPY_TABLES[language], ...overrides }
+export function resolveCopy(language: StageLanguage = 'en', overrides: StageTextOverrides = {}): StageCopy {
+  const base = COPY_TABLES[language]
+  const { teamOrderTitle, chooseDomainTitle, scoreboardTitle, finalLeaderboardTitle, ...flat } = overrides
+  const titles = { teamOrder: teamOrderTitle, chooseDomain: chooseDomainTitle, scoreboard: scoreboardTitle, finalLeaderboard: finalLeaderboardTitle }
+  const screenTitle = { ...base.screenTitle }
+  for (const [screen, title] of Object.entries(titles)) if (title !== undefined) screenTitle[screen as StageScreen] = title
+  const out: { -readonly [K in keyof StageCopy]: StageCopy[K] } = { ...base, screenTitle }
+  for (const [key, value] of Object.entries(flat)) if (value !== undefined) (out as Record<string, unknown>)[key] = value
+  return out
 }
 
 /** Answer letters, in option order. Not translated. Beyond the alphabet falls back to the index. */

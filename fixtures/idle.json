@@ -1,5 +1,5 @@
 {
-  "contractVersion": 7,
+  "contractVersion": 8,
   "playId": "play-fixture-1",
   "status": "loaded",
   "teams": [
@@ -129,7 +129,8 @@
   },
   "layout": {
     "nodes": {},
-    "screens": {}
+    "screens": {},
+    "text": {}
   },
   "questionsIssued": 0,
   "currentScreen": "idle",

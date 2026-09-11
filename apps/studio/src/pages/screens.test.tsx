@@ -65,7 +65,7 @@ describe('Screens', () => {
     const call = fake.calls.find((c) => c.name === 'recipe_set_layout')!
     expect(call.args?.['id']).toBe('recipe-demo')
     const layout = call.args?.['layout'] as Record<string, unknown>
-    expect(Object.keys(layout).sort()).toEqual(['decor', 'nodes', 'screens', 'version'])
+    expect(Object.keys(layout).sort()).toEqual(['decor', 'nodes', 'screens', 'text', 'version'])
     expect((layout['nodes'] as Record<string, unknown>)['idle.wordmark']).toEqual({ dx: 2, dy: 0 })
     // Round-trips through the validator unchanged: nothing foreign in it.
     expect(parseLayout(layout)).toEqual(layout)
@@ -101,5 +101,51 @@ describe('Screens', () => {
     expect(useNavStore.getState().route.tab).not.toBe('screens')
     const notice = useNoticeStore.getState().notices[0]
     expect(notice?.actions).toEqual(['go_to_control', 'stop_playing'])
+  })
+
+  it('edits the eyebrow for the recipe language and saves it under layout.text (P11.16)', async () => {
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'screens' })
+    })
+    await screen.findByLabelText('Screens')
+    const iframe = (await waitFor(() => {
+      const el = document.querySelector('iframe')
+      if (!el) throw new Error('no canvas')
+      return el
+    })) as HTMLIFrameElement
+    expect(iframe.getAttribute('src')).toContain('hold')
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', { data: { source: VIEWER_SOURCE, type: 'ready' }, source: iframe.contentWindow }))
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { source: VIEWER_SOURCE, type: 'nodes', nodes: [{ id: 'idle.eyebrow', x: 100, y: 100, width: 400, height: 40 }] },
+          source: iframe.contentWindow,
+        }),
+      )
+    })
+    const handle = await screen.findByLabelText('idle.eyebrow')
+    fireEvent.pointerDown(handle, { clientX: 0, clientY: 0, pointerId: 1 })
+    fireEvent.pointerUp(handle, { clientX: 0, clientY: 0, pointerId: 1 })
+
+    const field = await screen.findByLabelText('Eyebrow (every header)')
+    fireEvent.change(field, { target: { value: 'HOPE CHALLENGE X AMiCUS' } })
+
+    await waitFor(() => expect(fake.calls.filter((c) => c.name === 'recipe_set_layout')).toHaveLength(1), { timeout: 2000 })
+    const layout = fake.calls.find((c) => c.name === 'recipe_set_layout')!.args?.['layout'] as Record<string, unknown>
+    expect(layout['text']).toEqual({ en: { idleEyebrow: 'HOPE CHALLENGE X AMiCUS' } })
+    expect(layout['nodes']).toEqual({})
+    expect(parseLayout(layout)).toEqual(layout)
+  })
+
+  it('lists the five overlays after the seven screens', async () => {
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'screens' })
+    })
+    const tabs = await screen.findByLabelText('Screens')
+    const names = Array.from(tabs.querySelectorAll('[role="tab"]')).map((t) => t.textContent)
+    expect(names).toHaveLength(12)
+    expect(names.slice(7)).toEqual(['Overlay · Token handoff', 'Overlay · Round advance', 'Overlay · Multiple answers', 'Overlay · Outcome', 'Overlay · Current team'])
   })
 })

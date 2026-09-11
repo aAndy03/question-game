@@ -27,8 +27,12 @@ import type { StageLayoutNodes } from './layout'
  *
  * 7 (Stage i18n): `language` joined the presentation half. A Stage that does
  * not read it draws English over a Romanian show.
+ *
+ * 8 (P11.16): `layout.text` — the operator's per-language overrides of the
+ * authored copy. A Stage that does not merge it shows the table's words over
+ * the show's own.
  */
-export const CONTRACT_VERSION = 7
+export const CONTRACT_VERSION = 8
 
 /**
  * The language of Stage's *authored* text — HUD labels, screen titles,
@@ -381,7 +385,7 @@ export const EMPTY_PLAY_STATE: PlayStateForStage = {
   clock: { elapsedMs: 0, running: false },
   leaderboardRevealedRanks: [],
   decor: DEFAULT_DECOR_SETTINGS,
-  layout: { nodes: {}, screens: {} },
+  layout: { nodes: {}, screens: {}, text: {} },
   questionsIssued: 0,
   currentScreen: 'idle',
   overlay: { busy: false, active: null, pending: null, enabled: true, runId: 0 },

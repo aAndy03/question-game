@@ -1824,10 +1824,74 @@ editable from the Screens tab per language.
 
 ### 16.4 Not in this slice, decided
 
-- Editable authored text (eyebrow, tagline, status, session, titles, the
-  `CURRENT POINTS` label, `SELECT CATEGORY`, `DOMAIN`, `QUESTION`) from the
-  Screens-tab Inspector, per language, saved in the layout document beside
-  `decor`. `resolveCopy(language, overrides)` is the seam it will use.
-- The five overlays as Screens-tab entries; today only the seven screens are
-  listed there.
-- Studio's own UI language. This slice is Stage only.
+- Studio's own UI language. This section is Stage only.
+- The words an overlay shows (`NOW PLAYING`, `ROUND`, the verdicts) and the
+  Question screen's `TIMER // REMAINING`, `RESULT`, `QUESTION n` are
+  translated only. They are the game's vocabulary, not the show's name.
+
+### 16.5 The show's own words (P11.16)
+
+Eleven authored strings name *this* show rather than the game, and the
+operator can change them, per language, from the Screens Inspector:
+
+| Node on the canvas | Edits | Default (en / ro) |
+| --- | --- | --- |
+| `idle.eyebrow`, every `*.header` | `idleEyebrow` | `YOUR TEXT GOES HERE` / `TEXTUL TĂU AICI` |
+| `idle.tagline` | `idleTagline` | `Write your tagline` / `Scrie-ți sloganul` |
+| `idle.status` | `idleStatus` | `AWAITING_GAME_START...` / `ÎN_AȘTEPTAREA_JOCULUI...` |
+| `idle.session` | `sessionValue` | `2026 - 2027` |
+| `teamOrder.title` | `teamOrderTitle` | `PLAYING SEQUENCE` / `ORDINEA DE JOC` |
+| `teamOrder.row.*` | `teamDetailLabel`, `teamPointsLabel` | `REGION`, `CURRENT POINTS` / `REGIUNE`, `PUNCTE ACTUALE` |
+| `chooseDomain.title` | `chooseDomainTitle` | `SELECT CATEGORY` / `ALEGE CATEGORIA` |
+| `question.category`, `currentTeam.domain` | `domainLabel` | `DOMAIN` / `DOMENIU` |
+| `scoreboard.title` | `scoreboardTitle` | `CURRENT STANDINGS` / `CLASAMENT ACTUAL` |
+| `finalLeaderboard.title` | `finalLeaderboardTitle` | `TOURNAMENT CHAMPION` / `CAMPIONUL TURNEULUI` |
+
+The list, the node map and the validator are `packages/contract/src/text.ts`.
+The header row is the reason the eyebrow is edited from six nodes: the
+header *is* the eyebrow, written once. Team names, domain names, the team on
+the title, the difficulty figure and every number are derived and never
+offered for editing.
+
+**Where it lives.** `layout.text[language][key]`, in the recipe layout
+document beside `nodes` and `screens`. Same debounce, same `rev`, same
+`recipe_set_layout`, and the same push into `PresentationService::set_layout`
+that makes a decor dial live on Stage mid-Play. On the wire it rides
+`play-state.layout.text` (contract v8); Stage merges the block for
+`play-state.language` in `resolveCopy` and reads nothing of the other.
+
+**The Inspector.** Selecting a node that carries editable words shows a
+*Text* section above the style fields:
+
+```
+Text
+English words for this game. Empty means the built-in word;
+the Game tab picks the language.
+Eyebrow (every header)   [ HOPE CHALLENGE X AMiCUS        ] ↶
+```
+
+One `TextField` per key, an undo `IconButton` back to built-in, no
+placeholder: the canvas draws the built-in word already, and a placeholder
+would be a copy of Stage's tables inside Studio, which the design-system
+boundary forbids. The count beside "Inspector" adds text overrides to node
+overrides; *Reset every override* clears both, *Reset this screen* leaves
+text alone (the eyebrow belongs to every screen).
+
+**Overlays on the canvas.** The toolbar lists the seven screens and then
+`Overlay · Token handoff` … `Overlay · Current team`. Picking one puts that
+request on air over the last screen picked (`outcome` and `multiple
+answers` take Question, where they mean something) and the canvas iframe —
+`/stage/?viewer&hold` — draws it at rest: hold mode renders the sheet and
+never starts the timeline, so nothing plays out and nothing is reported.
+Control's Viewer does not set `hold`. An overlay has no node ids, so there
+are no handles and the Inspector says so. Twelve tabs outgrow the toolbar's
+line; the list scrolls in its own box rather than pushing the page sideways.
+
+**Tests.** `packages/contract/src/layout.test.ts` (the block parses, trims,
+drops unknown languages and keys; the node map), `apps/stage/src/copy/copy.test.tsx`
+(`resolveCopy` lands titles in `screenTitle`; Stage draws the Romanian
+override under `ro` and the table's word under `en`),
+`apps/studio/src/pages/screens.test.tsx` (typing an eyebrow saves one
+`recipe_set_layout` with `text.en.idleEyebrow` and nothing in `nodes`; the
+canvas iframe carries `hold`; the tab list is seven screens then five
+overlays).

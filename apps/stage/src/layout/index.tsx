@@ -24,8 +24,8 @@ const LayoutContext = createContext<StageLayoutNodes>(EMPTY_LAYOUT_NODES)
 
 export function LayoutProvider({ layout, children }: { layout: StageLayoutNodes | undefined; children: ReactNode }) {
   // Validate on receipt: the host passes the document through untouched.
-  const safe = layout ? parseLayout({ nodes: layout.nodes, screens: layout.screens }) : null
-  return <LayoutContext.Provider value={safe ? { nodes: safe.nodes, screens: safe.screens } : EMPTY_LAYOUT_NODES}>{children}</LayoutContext.Provider>
+  const safe = layout ? parseLayout({ nodes: layout.nodes, screens: layout.screens, text: layout.text }) : null
+  return <LayoutContext.Provider value={safe ? { nodes: safe.nodes, screens: safe.screens, text: safe.text } : EMPTY_LAYOUT_NODES}>{children}</LayoutContext.Provider>
 }
 
 /** The decor field's box for a screen, when the recipe overrides it. */

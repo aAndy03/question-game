@@ -159,7 +159,7 @@ export function StageRoot({ state }: StageRootProps) {
 
   return (
     <EnsureStageClock state={state}>
-    <CopyProvider language={state.language}>
+    <CopyProvider language={state.language} overrides={state.layout.text?.[state.language]}>
     <LayoutProvider layout={state.layout}>
     <div ref={frameForLayout} style={{ display: 'contents' }}>
     <div ref={frame} style={{ display: 'contents' }}>

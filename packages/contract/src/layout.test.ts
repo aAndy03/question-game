@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyToAllScreens, EMPTY_LAYOUT, layoutNodes, parseLayout } from './layout'
+import { textKeysForNode } from './text'
 import { DEFAULT_DECOR_SETTINGS } from './play-state'
 
 describe('layout document', () => {
@@ -26,7 +27,7 @@ describe('layout document', () => {
       'question.option.opt-a': { width: 300 },
     })
     expect(parsed.screens).toEqual({ idle: { anchor: { x: 0.5, y: 0.5 } } })
-    expect(Object.keys(parsed).sort()).toEqual(['decor', 'nodes', 'screens', 'version'])
+    expect(Object.keys(parsed).sort()).toEqual(['decor', 'nodes', 'screens', 'text', 'version'])
   })
 
   it('reads the decor dials with defaults for the rest', () => {
@@ -42,7 +43,31 @@ describe('layout document', () => {
     expect(Object.keys(cleared.layout.nodes)).toHaveLength(0)
   })
 
-  it('the play-state half carries nodes and screens only', () => {
-    expect(Object.keys(layoutNodes(EMPTY_LAYOUT)).sort()).toEqual(['nodes', 'screens'])
+  it('the play-state half carries nodes, screens and text, never decor', () => {
+    expect(Object.keys(layoutNodes(EMPTY_LAYOUT)).sort()).toEqual(['nodes', 'screens', 'text'])
+  })
+
+  it('keeps per-language text overrides for known keys only, trimmed and bounded', () => {
+    const parsed = parseLayout({
+      text: {
+        en: { idleEyebrow: '  HOPE CHALLENGE X AMiCUS ', teamPointsLabel: 'PTS NOW', bogus: 'x', idleStatus: '', domainLabel: 'a'.repeat(200) },
+        ro: { chooseDomainTitle: 'ALEGE DOMENIUL' },
+        fr: { idleEyebrow: 'non' },
+      },
+    })
+    expect(parsed.text).toEqual({
+      en: { idleEyebrow: 'HOPE CHALLENGE X AMiCUS', teamPointsLabel: 'PTS NOW' },
+      ro: { chooseDomainTitle: 'ALEGE DOMENIUL' },
+    })
+    expect(layoutNodes(parsed).text).toEqual(parsed.text)
+  })
+
+  it('maps every header to the eyebrow and a team row to its two labels', () => {
+    expect(textKeysForNode('scoreboard.header')).toEqual(['idleEyebrow'])
+    expect(textKeysForNode('idle.eyebrow')).toEqual(['idleEyebrow'])
+    expect(textKeysForNode('teamOrder.row.team-1')).toEqual(['teamDetailLabel', 'teamPointsLabel'])
+    expect(textKeysForNode('question.stem')).toEqual([])
+    expect(textKeysForNode('idle.wordmark')).toEqual([])
+    expect(textKeysForNode('nope')).toEqual([])
   })
 })

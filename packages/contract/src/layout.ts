@@ -15,6 +15,7 @@
 import { DEFAULT_DECOR_SETTINGS, type StageDecorSettings } from './play-state'
 import { parseNodeId, SCREEN_SLOTS, type NodeId } from './nodes'
 import { STAGE_SCREENS, type StageScreen } from './screens'
+import { parseText, type StageText } from './text'
 
 export const LAYOUT_VERSION = 1
 
@@ -45,6 +46,8 @@ export interface ScreenBox {
 export interface StageLayoutNodes {
   readonly nodes: Readonly<Record<NodeId, NodeStyle>>
   readonly screens: Readonly<Partial<Record<StageScreen, ScreenBox>>>
+  /** Operator-edited authored text, per language (P11.16, `text.ts`). */
+  readonly text: StageText
 }
 
 export interface StageLayout extends StageLayoutNodes {
@@ -52,7 +55,7 @@ export interface StageLayout extends StageLayoutNodes {
   readonly decor: StageDecorSettings
 }
 
-export const EMPTY_LAYOUT_NODES: StageLayoutNodes = { nodes: {}, screens: {} }
+export const EMPTY_LAYOUT_NODES: StageLayoutNodes = { nodes: {}, screens: {}, text: {} }
 
 export const EMPTY_LAYOUT: StageLayout = {
   version: LAYOUT_VERSION,
@@ -149,12 +152,12 @@ export function parseLayout(raw: unknown): StageLayout {
       if (parsed) screens[screen] = parsed
     }
   }
-  return { version: LAYOUT_VERSION, decor: parseDecor(r['decor']), nodes, screens }
+  return { version: LAYOUT_VERSION, decor: parseDecor(r['decor']), nodes, screens, text: parseText(r['text']) }
 }
 
-/** `nodes` + `screens` only — what rides `play-state`. */
+/** `nodes` + `screens` + `text` — what rides `play-state`. */
 export function layoutNodes(layout: StageLayout): StageLayoutNodes {
-  return { nodes: layout.nodes, screens: layout.screens }
+  return { nodes: layout.nodes, screens: layout.screens, text: layout.text }
 }
 
 /**

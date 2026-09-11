@@ -241,6 +241,15 @@ export function isMirrorMode(): boolean {
   return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('mirror')
 }
 
+/**
+ * `?viewer&hold`: the Screens canvas. An overlay is drawn at rest — no
+ * enter, no hold timer, no exit — so the operator can look at it. Control's
+ * Viewer does not set it and sees the animation the audience sees.
+ */
+export function isHoldMode(): boolean {
+  return isViewerMode() && new URLSearchParams(window.location.search).has('hold')
+}
+
 export function isViewerMode(): boolean {
   return (
     typeof window !== 'undefined' &&

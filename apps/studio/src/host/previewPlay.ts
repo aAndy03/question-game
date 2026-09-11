@@ -6,7 +6,7 @@
  * operator restyles a node.
  */
 
-import { EMPTY_PLAY_STATE, type PlayStateForStage, type StageScreen, type StageTeam } from '@questiongame/contract'
+import { EMPTY_PLAY_STATE, type OverlayKind, type OverlayRequest, type PlayStateForStage, type StageScreen, type StageTeam } from '@questiongame/contract'
 import type { StageLayoutNodes } from '@questiongame/contract'
 import type { Domain, Question, Recipe, Team } from './types'
 
@@ -15,6 +15,28 @@ export interface PreviewSources {
   readonly teams: readonly Team[]
   readonly domains: readonly Domain[]
   readonly questions: readonly Question[]
+}
+
+/**
+ * The same stand-in Play with one overlay on air over `screen`. The canvas
+ * iframe runs in hold mode, so the overlay is drawn at rest rather than
+ * played. `outcome` is half-screen and only means anything over a question,
+ * so it takes the Question screen whatever was picked.
+ */
+export function previewOverlay(src: PreviewSources, kind: OverlayKind, screen: StageScreen, layout: StageLayoutNodes): PlayStateForStage {
+  const base = previewPlay(src, kind === 'outcome' || kind === 'multiple-answers' ? 'question' : screen, layout)
+  const first = base.teams[0]?.id ?? null
+  const second = base.teams[1]?.id ?? first
+  const options = base.session?.options.map((o) => o.id) ?? []
+  const request: OverlayRequest | null =
+    kind === 'token-handoff' && second ? { kind, fromTeamId: first, toTeamId: second }
+    : kind === 'round-advance' ? { kind, roundIndex: base.ring.roundIndex }
+    : kind === 'multiple-answers' ? { kind, optionIds: options.slice(0, 2) }
+    : kind === 'outcome' ? { kind, verdict: 'correct' }
+    : kind === 'current-team' ? { kind, teamId: first }
+    : null
+  if (!request) return base
+  return { ...base, overlay: { busy: true, active: request, pending: null, enabled: true, runId: 1 } }
 }
 
 export function previewPlay(src: PreviewSources, screen: StageScreen, layout: StageLayoutNodes): PlayStateForStage {

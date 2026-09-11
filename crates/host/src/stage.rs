@@ -29,7 +29,7 @@ use crate::snapshot::AnswerMode;
 
 /// Must equal `CONTRACT_VERSION` in `packages/contract/src/play-state.ts`.
 /// A mismatch is a notice, not a blank screen — see the P1 exit criteria.
-pub const CONTRACT_VERSION: u32 = 7;
+pub const CONTRACT_VERSION: u32 = 8;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -465,6 +465,9 @@ pub struct DecorAnchorSettings {
 pub struct StageLayoutNodes {
     pub nodes: serde_json::Value,
     pub screens: serde_json::Value,
+    /// The operator's per-language text overrides (P11.16). Opaque here
+    /// like the rest; `packages/contract` validates it and Stage merges it.
+    pub text: serde_json::Value,
 }
 
 impl Default for StageLayoutNodes {
@@ -472,6 +475,7 @@ impl Default for StageLayoutNodes {
         StageLayoutNodes {
             nodes: serde_json::Value::Object(serde_json::Map::new()),
             screens: serde_json::Value::Object(serde_json::Map::new()),
+            text: serde_json::Value::Object(serde_json::Map::new()),
         }
     }
 }
@@ -487,6 +491,7 @@ impl StageLayoutNodes {
         StageLayoutNodes {
             nodes: object("nodes"),
             screens: object("screens"),
+            text: object("text"),
         }
     }
 }

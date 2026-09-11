@@ -5,6 +5,7 @@ import { Arrow, LabelBox, Text } from '@/atoms'
 import { useCopy } from '@/copy'
 import { optionLetter } from '@/copy/format'
 import { stageEvents } from '@/host/events'
+import { isHoldMode } from '@/host/host'
 import { runOverlay, sequencer, type RunningOverlay } from '@/presentation'
 import { CurrentTeamBlock } from './CurrentTeamBlock'
 
@@ -188,6 +189,8 @@ export function OverlayLayer({ state }: OverlayLayerProps) {
   // Play whatever is showing once the sheet exists and no transition runs.
   useEffect(() => {
     if (!showing || !sheet.current) return
+    // The Screens canvas: the sheet stands as rendered, nothing is reported.
+    if (isHoldMode()) return
     const el = sheet.current
     const request = showing
     let release = () => {}

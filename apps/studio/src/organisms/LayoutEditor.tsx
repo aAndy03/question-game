@@ -7,14 +7,16 @@ import {
   type NodeStyle,
   type ScreenBox,
   type StageDecorSettings,
+  textKeysForNode,
   type StageLayout,
   type StageScreen,
+  type TextKey,
 } from '@questiongame/contract'
 import { Button, Panel, StatusDot, Text } from '@/atoms'
-import { DecorDials, NodeInspector, ScreenTabs } from '@/molecules'
+import { DecorDials, NodeInspector, ScreenTabs, TextInspector, canvasOverlay, canvasScreen, type CanvasView } from '@/molecules'
 import { SCREENS_TAB } from '@/copy'
 import { useHostCommand } from '@/host/commands'
-import { previewPlay } from '@/host/previewPlay'
+import { previewOverlay, previewPlay } from '@/host/previewPlay'
 import { useCatalogList, useRecipe } from '@/host/queries'
 import { ScreensCanvas } from './ScreensCanvas'
 
@@ -36,7 +38,10 @@ export function LayoutEditor({ recipeId, render }: LayoutEditorProps) {
   const questions = useCatalogList('question', 'all')
   const run = useHostCommand()
 
+  const [view, setView] = useState<CanvasView>('idle')
+  // The screen the canvas draws — under an overlay, the last screen picked.
   const [screen, setScreen] = useState<StageScreen>('idle')
+  const overlay = canvasOverlay(view)
   const [selected, setSelected] = useState<string | null>(null)
   const [draft, setDraft] = useState<StageLayout | null>(null)
   const [saving, setSaving] = useState(false)
@@ -85,6 +90,19 @@ export function LayoutEditor({ recipeId, render }: LayoutEditorProps) {
     setNode(id, { ...s, dx: (s.dx ?? 0) + dx, dy: (s.dy ?? 0) + dy })
   }
   const setDecor = (decor: StageDecorSettings) => update({ ...layout, decor })
+  // The recipe's Stage language is the text block being edited (P11.16).
+  const language = recipe.data?.settings.language ?? 'en'
+  const textValues = layout.text[language] ?? {}
+  const setText = (key: TextKey, value: string | null) => {
+    const block = { ...textValues }
+    if (value === null) delete block[key]
+    else block[key] = value
+    const text = { ...layout.text }
+    if (Object.keys(block).length === 0) delete text[language]
+    else text[language] = block
+    update({ ...layout, text })
+  }
+  const textCount = Object.values(layout.text).reduce((n, block) => n + Object.keys(block ?? {}).length, 0)
   const setBox = (box: ScreenBox | undefined) => {
     const screens = { ...layout.screens }
     if (box === undefined) delete screens[screen]
@@ -95,9 +113,11 @@ export function LayoutEditor({ recipeId, render }: LayoutEditorProps) {
   const preview = useMemo(
     () =>
       recipe.data
-        ? previewPlay({ recipe: recipe.data, teams: teams.data ?? [], domains: domains.data ?? [], questions: questions.data ?? [] }, screen, layoutNodes(layout))
+        ? overlay
+          ? previewOverlay({ recipe: recipe.data, teams: teams.data ?? [], domains: domains.data ?? [], questions: questions.data ?? [] }, overlay, screen, layoutNodes(layout))
+          : previewPlay({ recipe: recipe.data, teams: teams.data ?? [], domains: domains.data ?? [], questions: questions.data ?? [] }, screen, layoutNodes(layout))
         : null,
-    [recipe.data, teams.data, domains.data, questions.data, screen, layout],
+    [recipe.data, teams.data, domains.data, questions.data, screen, overlay, layout],
   )
   const overridden = useMemo(() => new Set(Object.keys(layout.nodes)), [layout.nodes])
   const counts = useMemo(() => {
@@ -111,7 +131,16 @@ export function LayoutEditor({ recipeId, render }: LayoutEditorProps) {
 
   const toolbar = (
     <>
-      <ScreenTabs value={screen} onChange={(s) => { setScreen(s); setSelected(null) }} counts={counts} />
+      <ScreenTabs
+        value={view}
+        onChange={(v) => {
+          setView(v)
+          const s = canvasScreen(v)
+          if (s) setScreen(s)
+          setSelected(null)
+        }}
+        counts={counts}
+      />
       <div className="flex-1" />
       <span className="flex items-center gap-2">
         <StatusDot tone={saving ? 'warning' : 'success'} pulse={saving} />
@@ -123,7 +152,7 @@ export function LayoutEditor({ recipeId, render }: LayoutEditorProps) {
   )
 
   const canvas = preview ? (
-    <ScreensCanvas preview={preview} selectedId={selected} overriddenIds={overridden} onSelect={setSelected} onNudge={nudge} />
+    <ScreensCanvas preview={preview} selectedId={selected} overriddenIds={overridden} handles={overlay === null} onSelect={setSelected} onNudge={nudge} />
   ) : null
 
   const inspector = (
@@ -132,9 +161,16 @@ export function LayoutEditor({ recipeId, render }: LayoutEditorProps) {
         <div className="flex items-center justify-between">
           <Text variant="studio-heading">{SCREENS_TAB.inspector}</Text>
           <Text variant="studio-caption" tone="muted">
-            {SCREENS_TAB.overridden(Object.keys(layout.nodes).length)}
+            {SCREENS_TAB.overridden(Object.keys(layout.nodes).length + textCount)}
           </Text>
         </div>
+        {overlay ? (
+          <Text variant="studio-body" tone="muted">
+            {SCREENS_TAB.overlayInspector}
+          </Text>
+        ) : null}
+        {selected && !overlay ? <TextInspector keys={textKeysForNode(selected)} language={language} values={textValues} onChange={setText} /> : null}
+        {overlay ? null : (
         <NodeInspector
           nodeId={selected}
           style={selected ? layout.nodes[selected] : undefined}
@@ -145,6 +181,7 @@ export function LayoutEditor({ recipeId, render }: LayoutEditorProps) {
           }}
           onReset={() => selected && setNode(selected, null)}
         />
+        )}
       </Panel>
       <Panel variant="secondary" className="flex flex-col gap-3">
         <div className="flex flex-col gap-0.5">
@@ -169,7 +206,7 @@ export function LayoutEditor({ recipeId, render }: LayoutEditorProps) {
         >
           {SCREENS_TAB.resetScreen}
         </Button>
-        <Button size="sm" variant="ghost" icon="undo" onPress={() => update({ ...layout, nodes: {}, screens: {} })}>
+        <Button size="sm" variant="ghost" icon="undo" onPress={() => update({ ...layout, nodes: {}, screens: {}, text: {} })}>
           {SCREENS_TAB.resetAll}
         </Button>
       </div>

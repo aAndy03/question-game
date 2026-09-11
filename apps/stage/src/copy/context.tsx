@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
-import type { StageLanguage } from '@questiongame/contract'
+import type { StageLanguage, StageTextOverrides } from '@questiongame/contract'
 import { resolveCopy, type StageCopy } from './tables'
 
 /**
@@ -11,8 +11,8 @@ import { resolveCopy, type StageCopy } from './tables'
  */
 const CopyContext = createContext<StageCopy>(resolveCopy())
 
-export function CopyProvider({ language, children }: { language: StageLanguage; children: ReactNode }) {
-  const copy = useMemo(() => resolveCopy(language), [language])
+export function CopyProvider({ language, overrides, children }: { language: StageLanguage; overrides?: StageTextOverrides | undefined; children: ReactNode }) {
+  const copy = useMemo(() => resolveCopy(language, overrides), [language, overrides])
   return <CopyContext.Provider value={copy}>{children}</CopyContext.Provider>
 }
 

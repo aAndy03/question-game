@@ -41,7 +41,11 @@ describe('stage copy tables', () => {
   it('resolves English by default and overrides on top of the chosen table', () => {
     expect(resolveCopy()).toEqual(STAGE_COPY)
     expect(resolveCopy('ro').leaderTag).toBe('LIDER')
-    expect(resolveCopy('ro', { leaderTag: 'X' }).leaderTag).toBe('X')
+    expect(resolveCopy('ro', { domainLabel: 'X' }).domainLabel).toBe('X')
+    const titled = resolveCopy('en', { chooseDomainTitle: 'PICK ONE', idleEyebrow: 'MY SHOW' })
+    expect(titled.screenTitle.chooseDomain).toBe('PICK ONE')
+    expect(titled.screenTitle.scoreboard).toBe('CURRENT STANDINGS')
+    expect(titled.idleEyebrow).toBe('MY SHOW')
   })
 })
 
@@ -68,5 +72,16 @@ describe('Stage draws the language play-state carries', () => {
     expect(container.textContent).toContain('LIDER')
     expect(container.textContent).toContain(' PCT')
     expect(container.textContent).not.toContain('LEADER')
+  })
+
+  it('draws the operator text for the language on the wire, and the table text for the other', () => {
+    const text = { ro: { idleEyebrow: 'SPECTACOLUL MEU', chooseDomainTitle: 'ALEGE DOMENIUL' } }
+    const base = FIXTURES['choose-domain']
+    const ro = render(<StageRoot state={{ ...base, language: 'ro', layout: { ...base.layout, text } }} />)
+    expect(byNode(ro.container, nodeId('chooseDomain', 'title'))!.textContent).toBe('ALEGE DOMENIUL // TEAM GAMMA')
+    expect(byNode(ro.container, nodeId('chooseDomain', 'header'))!.textContent).toContain('SPECTACOLUL MEU')
+    ro.unmount()
+    const en = render(<StageRoot state={{ ...base, language: 'en', layout: { ...base.layout, text } }} />)
+    expect(byNode(en.container, nodeId('chooseDomain', 'title'))!.textContent).toBe('SELECT CATEGORY // TEAM GAMMA')
   })
 })

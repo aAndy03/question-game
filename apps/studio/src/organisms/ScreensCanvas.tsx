@@ -18,6 +18,8 @@ export interface ScreensCanvasProps {
   preview: PlayStateForStage
   selectedId: string | null
   overriddenIds: ReadonlySet<string>
+  /** False while an overlay stands over the screen: nothing under it is addressable. */
+  handles?: boolean | undefined
   onSelect: (id: string | null) => void
   onNudge: (id: string, dx: number, dy: number) => void
 }
@@ -27,7 +29,7 @@ export interface ScreensCanvasProps {
  * preview over the Viewer protocol, with `NodeHandle`s over the node rects
  * Stage reports. Handles are Studio DOM and never enter the saved layout.
  */
-export function ScreensCanvas({ preview, selectedId, overriddenIds, onSelect, onNudge }: ScreensCanvasProps) {
+export function ScreensCanvas({ preview, selectedId, overriddenIds, handles: withHandles = true, onSelect, onNudge }: ScreensCanvasProps) {
   const frame = useRef<HTMLIFrameElement | null>(null)
   const box = useRef<HTMLDivElement | null>(null)
   const latest = useRef(preview)
@@ -78,10 +80,12 @@ export function ScreensCanvas({ preview, selectedId, overriddenIds, onSelect, on
 
   const scale = size.width / STAGE_FRAME.width
   // Decor bodies move and are tuned by the dials, not by node styles; they get no handle.
-  const handles = nodes.filter((n) => {
-    const parsed = parseNodeId(n.id)
-    return parsed !== null && parsed.screen === preview.currentScreen && parsed.slot !== 'decor'
-  })
+  const handles = withHandles
+    ? nodes.filter((n) => {
+        const parsed = parseNodeId(n.id)
+        return parsed !== null && parsed.screen === preview.currentScreen && parsed.slot !== 'decor'
+      })
+    : []
 
   return (
     <div
@@ -94,7 +98,8 @@ export function ScreensCanvas({ preview, selectedId, overriddenIds, onSelect, on
       }}
     >
       <div className="relative" style={{ width: size.width || undefined, height: size.height || undefined }}>
-        <iframe ref={frame} title="Canvas" src="/stage/?viewer" className="block border-0" style={{ width: size.width, height: size.height, background: 'white' }} tabIndex={-1} aria-hidden />
+        {/* `hold`: an overlay on the canvas stands still instead of playing out (P11.16). */}
+        <iframe ref={frame} title="Canvas" src="/stage/?viewer&hold" className="block border-0" style={{ width: size.width, height: size.height, background: 'white' }} tabIndex={-1} aria-hidden />
         {!ready ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Text variant="studio-caption" tone="muted">
