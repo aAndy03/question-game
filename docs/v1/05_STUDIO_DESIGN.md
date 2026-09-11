@@ -932,7 +932,7 @@ Writes `stage_set_monitor` and `settings_set_global { stage_reattach }`.
   from `physicalSize` too, so its aspect matches the panel.
 - **The card names the panel, and says who else is watching it** (P11.18).
   `MonitorInfo.friendlyName` is the panel's EDID name (*DELL G2724D*, *NINJA
-  V*) and is shown in preference to the OS's `\.\DISPLAY2`; it is never part
+  V*) and is shown in preference to the OS's `\\.\DISPLAY2`; it is never part
   of the key. `alsoOn` lists the panels Windows is **duplicating** this display
   onto — a Duplicate group is one display to the OS, so a recorder attached that
   way is in no list and the card is where it is reported: *Also shown on NINJA V
