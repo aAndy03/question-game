@@ -315,6 +315,9 @@ export const RULES = {
   revealChannel: { question: 'Question', answers: 'Answers', outcome: 'Outcome', leaderboard: 'Leaderboard' },
   operator: 'Operator',
   auto: 'Auto',
+  language: 'Stage language',
+  languageHint: 'The labels and titles Stage shows. Team names, domains and questions stay as written.',
+  languageName: { en: 'English', ro: 'Română' },
 } as const
 
 export const STUB = {

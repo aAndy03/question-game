@@ -493,6 +493,31 @@ impl FrozenSettings {
     }
 }
 
+/// The language of Stage's **authored** text — HUD labels, screen titles,
+/// verdict wording. Never of anything derived from the Play: team names,
+/// domains, stems and options are shown as the author wrote them.
+///
+/// A Game default that is not game-affecting: a language switch mid-Play
+/// moves no score, so it is not in [`FrozenSettings`] and never refused.
+/// The tables themselves live on Stage (`apps/stage/src/copy`); the host only
+/// says which one to read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Language {
+    #[default]
+    En,
+    Ro,
+}
+
+impl Language {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Language::En => "en",
+            Language::Ro => "ro",
+        }
+    }
+}
+
 /// One of the four reveal channels (§4.2). Mirrors `RevealChannel` in
 /// `packages/contract/src/reveal.ts`: `answers` covers every option, so there
 /// is no per-option mode.

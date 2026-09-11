@@ -1,5 +1,5 @@
 {
-  "contractVersion": 6,
+  "contractVersion": 7,
   "playId": "play-fixture-1",
   "status": "playing",
   "teams": [
@@ -202,5 +202,6 @@
       "timer_pause": "timer_pause.wav",
       "timer_expired": "timer_expired.wav"
     }
-  }
+  },
+  "language": "en"
 }

@@ -1,10 +1,11 @@
 import { DifficultyMapField, SettingRow, SpeedWindowField, disabledReasonText } from '@/molecules'
-import { NumberField, Panel, SelectField, SwitchField, Text } from '@/atoms'
+import { NumberField, Panel, SegmentedField, SelectField, SwitchField, Text } from '@/atoms'
 import { GAME, RULES } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { useRulesPreview } from '@/host/queries'
 import { useSettings } from '@/host/queries'
 import type { Disabled, GameSettings, Recipe, RevealChannel, RevealMode } from '@/host/types'
+import { STAGE_LANGUAGES, type StageLanguage } from '@questiongame/contract'
 
 export interface RulesSectionProps {
   recipe: Recipe
@@ -44,6 +45,7 @@ export function RulesSection({ recipe, frozenReason }: RulesSectionProps) {
   const turn = (patch: Partial<GameSettings['turn']>) => write({ ...s, turn: { ...s.turn, ...patch } })
   const timer = (patch: Partial<GameSettings['timer']>) => write({ ...s, timer: { ...s.timer, ...patch } })
   const reveal = (channel: RevealChannel, mode: RevealMode) => write({ ...s, reveal: { ...s.reveal, [channel]: mode } })
+  const language = (value: StageLanguage) => write({ ...s, language: value })
 
   const exclusiveLockSpeed = s.scoring.mode === 'lock_speed'
   const globalsTimer = settings.data?.globals.timer
@@ -228,6 +230,17 @@ export function RulesSection({ recipe, frozenReason }: RulesSectionProps) {
             />
           ))}
         </div>
+      </SettingRow>
+
+      {/* Presentation, not rules: live like reveal, so never frozen. */}
+      <SettingRow label={RULES.language} description={RULES.languageHint}>
+        <SegmentedField
+          label={RULES.language}
+          hideLabel
+          value={s.language ?? 'en'}
+          onChange={language}
+          options={STAGE_LANGUAGES.map((value) => ({ value, label: RULES.languageName[value] }))}
+        />
       </SettingRow>
     </Panel>
   )

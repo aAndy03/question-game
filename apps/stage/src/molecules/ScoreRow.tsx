@@ -1,6 +1,6 @@
 import { LAYOUT, SPACE } from '@questiongame/design-stage'
 import { Rule, Tag, Text, insetFrame } from '@/atoms'
-import { STAGE_COPY } from '@/copy'
+import { useCopy } from '@/copy'
 import { scoreWithUnit } from '@/copy/format'
 
 /**
@@ -28,6 +28,7 @@ export interface ScoreRowProps {
 }
 
 export function ScoreRow({ nodeId, rank, name, score, leader = false, dimmed = false, revealed = true }: ScoreRowProps) {
+  const copy = useCopy()
   const tone = leader ? 'inverse' : dimmed ? 'muted' : 'heading'
   return (
     <div
@@ -49,7 +50,7 @@ export function ScoreRow({ nodeId, rank, name, score, leader = false, dimmed = f
       }}
     >
       <Text variant="stage-row-number" tone={tone} style={{ minWidth: '2ch' }}>
-        {String(rank).padStart(STAGE_COPY.sequenceDigits, '0')}
+        {String(rank).padStart(copy.sequenceDigits, '0')}
       </Text>
       <Rule orientation="vertical" weight="thin" tone={leader || dimmed ? 'subtle' : 'default'} />
       <Text
@@ -61,7 +62,7 @@ export function ScoreRow({ nodeId, rank, name, score, leader = false, dimmed = f
         {name}
       </Text>
       <span style={{ visibility: leader ? undefined : 'hidden' }}>
-        <Tag tone="leader">{STAGE_COPY.leaderTag}</Tag>
+        <Tag tone="leader">{copy.leaderTag}</Tag>
       </span>
       <Text
         variant="stage-answer"
@@ -69,7 +70,7 @@ export function ScoreRow({ nodeId, rank, name, score, leader = false, dimmed = f
         tone={tone}
         style={{ marginLeft: 'auto', fontVariantNumeric: 'tabular-nums', color: leader ? 'var(--state-leader)' : undefined }}
       >
-        {scoreWithUnit(score)}
+        {scoreWithUnit(copy, score)}
       </Text>
     </div>
   )

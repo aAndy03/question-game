@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { currentTeam, nodeId } from '@questiongame/contract'
 import { LAYOUT, SPACE } from '@questiongame/design-stage'
 import { Rule } from '@/atoms'
-import { resolveCopy } from '@/copy'
+import { useCopy } from '@/copy'
 import { CategoryLine, QuestionStem, ResultWidget, TimerPanel } from '@/molecules'
 import { AnswerGrid } from '@/organisms'
 import { useRevealPlayer } from '@/presentation'
@@ -99,7 +99,7 @@ function LiveTimerPanel({
   expiredOpen: boolean
   visible: boolean
 }) {
-  const copy = resolveCopy()
+  const copy = useCopy()
   const live = useLiveStageClock()
   const ms = lockedMs ?? live?.remainingMs ?? carriedMs
   return (

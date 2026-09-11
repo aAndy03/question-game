@@ -88,5 +88,8 @@ export function previewPlay(src: PreviewSources, screen: StageScreen, layout: St
     layout,
     questionsIssued: 5,
     currentScreen: screen,
+    // The canvas draws the recipe's own language; a row written before the
+    // key existed reads as English, the way the host reads it.
+    language: src.recipe.settings.language ?? 'en',
   }
 }

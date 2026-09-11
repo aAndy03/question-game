@@ -1,6 +1,6 @@
 import { currentTeam, nodeId } from '@questiongame/contract'
 import { LAYOUT, SPACE } from '@questiongame/design-stage'
-import { resolveCopy } from '@/copy'
+import { useCopy } from '@/copy'
 import { ScreenTitle } from '@/molecules'
 import { DomainGrid } from '@/organisms'
 import type { StagePageProps } from './StageRoot'
@@ -10,7 +10,7 @@ import type { StagePageProps } from './StageRoot'
  * the grid fills the content column; the scatter is in the decor layer.
  */
 export function ChooseDomainPage({ state }: StagePageProps) {
-  const copy = resolveCopy()
+  const copy = useCopy()
   return (
     <section
       data-page="chooseDomain"

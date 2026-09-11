@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 import { OVERLAY_COVERAGE, teamById, type OverlayRequest, type PlayStateForStage } from '@questiongame/contract'
 import { SPACE } from '@questiongame/design-stage'
 import { Arrow, LabelBox, Text } from '@/atoms'
-import { resolveCopy } from '@/copy'
+import { useCopy } from '@/copy'
 import { optionLetter } from '@/copy/format'
 import { stageEvents } from '@/host/events'
 import { runOverlay, sequencer, type RunningOverlay } from '@/presentation'
@@ -74,7 +74,7 @@ function Sheet({ kind, children, ref }: { kind: OverlayRequest['kind']; children
 const ARROW_SIZE = 120
 
 function Handoff({ state, from, to }: { state: PlayStateForStage; from: string | null; to: string }) {
-  const copy = resolveCopy()
+  const copy = useCopy()
   const fromTeam = from ? teamById(state, from) : undefined
   const toTeam = teamById(state, to)
   return (
@@ -106,7 +106,7 @@ function Handoff({ state, from, to }: { state: PlayStateForStage; from: string |
 }
 
 function MultipleAnswers({ count }: { count: number }) {
-  const copy = resolveCopy()
+  const copy = useCopy()
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: SPACE[6] }}>
       <span data-overlay-word>
@@ -126,7 +126,7 @@ function MultipleAnswers({ count }: { count: number }) {
 }
 
 function Content({ state, request }: { state: PlayStateForStage; request: OverlayRequest }) {
-  const copy = resolveCopy()
+  const copy = useCopy()
   switch (request.kind) {
     case 'token-handoff':
       return <Handoff state={state} from={request.fromTeamId} to={request.toTeamId} />

@@ -5,6 +5,7 @@ import { runTransition, sequencer, type RunningTransition } from '@/presentation
 import { DecorField, OverlayLayer, StageHeader } from '@/organisms'
 import { StageFrame } from '@/templates'
 import { LayoutProvider, applyLayout } from '@/layout'
+import { CopyProvider } from '@/copy'
 import { EnsureStageClock } from '@/host/clock'
 import { IdlePage } from './Idle'
 import { TeamOrderPage } from './TeamOrder'
@@ -158,6 +159,7 @@ export function StageRoot({ state }: StageRootProps) {
 
   return (
     <EnsureStageClock state={state}>
+    <CopyProvider language={state.language}>
     <LayoutProvider layout={state.layout}>
     <div ref={frameForLayout} style={{ display: 'contents' }}>
     <div ref={frame} style={{ display: 'contents' }}>
@@ -179,6 +181,7 @@ export function StageRoot({ state }: StageRootProps) {
     </div>
     </div>
     </LayoutProvider>
+    </CopyProvider>
     </EnsureStageClock>
   )
 }

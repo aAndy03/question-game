@@ -1,7 +1,7 @@
 import type { OutcomeVerdict } from '@questiongame/contract'
 import { LAYOUT, RADIUS, SPACE } from '@questiongame/design-stage'
 import { PointsFigure, Text, insetFrame } from '@/atoms'
-import { STAGE_COPY } from '@/copy'
+import { useCopy } from '@/copy'
 import { hud } from '@/copy/format'
 
 /**
@@ -28,6 +28,7 @@ export interface ResultWidgetProps {
 }
 
 export function ResultWidget({ nodeId, verdict, points, bonus = null, revealed = true }: ResultWidgetProps) {
+  const copy = useCopy()
   return (
     <div
       data-node-id={nodeId}
@@ -50,12 +51,12 @@ export function ResultWidget({ nodeId, verdict, points, bonus = null, revealed =
       }}
     >
       <Text variant="stage-hud" tone="heading">
-        {hud(STAGE_COPY.resultLabel, STAGE_COPY.verdict[verdict])}
+        {hud(copy, copy.resultLabel, copy.verdict[verdict])}
       </Text>
       <PointsFigure points={points} />
       {bonus !== null && bonus !== 0 ? (
         <Text variant="stage-hud" tone="heading">
-          {hud(STAGE_COPY.bonusLabel, `+${bonus} ${STAGE_COPY.pointsUnit}`)}
+          {hud(copy, copy.bonusLabel, `+${bonus} ${copy.pointsUnit}`)}
         </Text>
       ) : null}
     </div>

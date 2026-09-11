@@ -19,6 +19,7 @@ import type {
   OutcomeVerdict,
   RevealChannel,
   RevealMode,
+  StageLanguage,
   StageReattach,
 } from '@questiongame/contract'
 
@@ -277,6 +278,8 @@ export interface GameSettings {
   readonly turn: TurnSettings
   readonly timer: TimerLevel
   readonly reveal: RevealSettings
+  /** Stage's authored-copy language (`stage.language`). Live, never frozen. */
+  readonly language: StageLanguage
 }
 
 export type OverrideAfterLock = 'allow' | 'refuse_until_reveal'
@@ -360,6 +363,7 @@ export type GameSetting =
   | { readonly key: 'timer_enabled'; readonly value: boolean | null }
   | { readonly key: 'timer_duration_ms'; readonly value: number | null }
   | { readonly key: 'reveal'; readonly value: readonly [RevealChannel, RevealMode] }
+  | { readonly key: 'language'; readonly value: StageLanguage }
 
 /** `settings_set_global`'s payload. */
 export type GlobalSetting =

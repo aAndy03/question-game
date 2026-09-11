@@ -1,6 +1,6 @@
 import { SPACE } from '@questiongame/design-stage'
 import { Tag, Text, insetFrame } from '@/atoms'
-import { STAGE_COPY } from '@/copy'
+import { useCopy } from '@/copy'
 
 /**
  * One domain on the board, as the reference draws it:
@@ -25,6 +25,7 @@ export interface DomainCardProps {
 }
 
 export function DomainCard({ nodeId, name, code, difficulty, selected = false, exhausted = false }: DomainCardProps) {
+  const copy = useCopy()
   const dimmed = exhausted && !selected
   const tone = selected ? 'inverse' : dimmed ? 'muted' : 'heading'
   return (
@@ -49,11 +50,11 @@ export function DomainCard({ nodeId, name, code, difficulty, selected = false, e
           {code}
         </Text>
         <span style={{ visibility: selected ? undefined : 'hidden' }}>
-          <Tag tone="accent">{STAGE_COPY.selectedTag}</Tag>
+          <Tag tone="accent">{copy.selectedTag}</Tag>
         </span>
       </div>
       <Text variant="stage-card-figure" transition="count" tone={tone}>
-        {difficulty ?? STAGE_COPY.exhaustedTag}
+        {difficulty ?? copy.exhaustedTag}
       </Text>
       <Text variant="stage-card-name" transition="swap" tone={tone} style={{ marginTop: 'auto', overflowWrap: 'anywhere' }}>
         {name}

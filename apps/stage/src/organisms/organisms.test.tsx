@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@testing-library/react'
 import { FIXTURES, leaderboard, nodeId } from '@questiongame/contract'
+import { STAGE_COPY } from '@/copy'
 import { AnswerGrid, DomainGrid, LeaderboardList, ScoreboardTable, SequenceTable, StageHeader, optionState } from './index'
 
 const byNode = (root: HTMLElement, id: string) => root.querySelector(`[data-node-id="${id}"]`) as HTMLElement | null
@@ -77,10 +78,10 @@ describe('organisms derive every node from play-state', () => {
     expect(ids.size).toBe(order.length)
   })
 
-  it('StageHeader carries the screen header node, the brand pair and the Play clock', () => {
+  it('StageHeader carries the screen header node, the idle eyebrow and the Play clock', () => {
     const q = render(<StageHeader state={FIXTURES['question-issued']} />)
     expect(byNode(q.container, 'question.header')).toBeTruthy()
-    expect(q.container.textContent).toContain('HOPE CHALLENGE')
+    expect(q.container.textContent).toContain(STAGE_COPY.idleEyebrow)
     expect(q.container.textContent).toContain('[ 00:12:20 ]')
 
     const idle = render(<StageHeader state={FIXTURES.idle} />)

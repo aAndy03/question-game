@@ -1,5 +1,6 @@
 import { LAYOUT, SPACE } from '@questiongame/design-stage'
 import { Rule, Text, insetFrame } from '@/atoms'
+import { useCopy } from '@/copy'
 import { placeLabel, scoreWithUnit } from '@/copy/format'
 
 /**
@@ -26,6 +27,7 @@ export interface PlaceCardProps {
 }
 
 export function PlaceCard({ nodeId, rank, name, score, winner = false, dimmed = false, revealed = true }: PlaceCardProps) {
+  const copy = useCopy()
   const tone = winner ? 'inverse' : dimmed ? 'muted' : 'heading'
   return (
     <div
@@ -47,14 +49,14 @@ export function PlaceCard({ nodeId, rank, name, score, winner = false, dimmed = 
       }}
     >
       <Text variant="stage-place-label" tone={tone} style={winner ? { color: 'var(--state-leader)' } : undefined}>
-        {placeLabel(rank)}
+        {placeLabel(copy, rank)}
       </Text>
       <Text variant="stage-row-name" transition="swap" tone={tone} style={{ overflowWrap: 'anywhere' }}>
         {name}
       </Text>
       <Rule weight="thin" tone={winner ? 'subtle' : 'default'} />
       <Text variant="stage-card-figure" transition="count" tone={tone} style={{ fontVariantNumeric: 'tabular-nums', marginTop: 'auto' }}>
-        {scoreWithUnit(score)}
+        {scoreWithUnit(copy, score)}
       </Text>
     </div>
   )

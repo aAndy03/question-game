@@ -38,7 +38,7 @@ use crate::flags::AudioSettings;
 use crate::error::{MatchError, MatchResult};
 use crate::play::PlayStatus;
 use crate::service::MatchService;
-use crate::settings::{RevealChannel, RevealMode, RevealSettings};
+use crate::settings::{Language, RevealChannel, RevealMode, RevealSettings};
 use crate::snapshot::AnswerMode;
 use crate::stage::{
     OverlayRequest, PlayStateForStage, StageDecorSettings, StageGameState, StageOverlay,
@@ -412,6 +412,7 @@ impl PresentationService {
         modes: RevealSettings,
         overlay_enabled: bool,
         audio: AudioSettings,
+        language: Language,
     ) -> PlayStateForStage {
         PlayStateForStage {
             game,
@@ -427,6 +428,7 @@ impl PresentationService {
             },
             reveal_modes: modes,
             audio,
+            language,
         }
     }
 }

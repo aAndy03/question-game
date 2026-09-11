@@ -24,12 +24,12 @@ use crate::ids::{DomainId, OptionId, QuestionId, TeamId};
 use crate::play::{Play, PlayStatus};
 use crate::rules::Verdict;
 use crate::session::Session;
-use crate::settings::RevealSettings;
+use crate::settings::{Language, RevealSettings};
 use crate::snapshot::AnswerMode;
 
 /// Must equal `CONTRACT_VERSION` in `packages/contract/src/play-state.ts`.
 /// A mismatch is a notice, not a blank screen — see the P1 exit criteria.
-pub const CONTRACT_VERSION: u32 = 6;
+pub const CONTRACT_VERSION: u32 = 7;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -550,4 +550,8 @@ pub struct PlayStateForStage {
     /// Live cue volume, mute and cue map, from `FlagService::audio` (§12.5).
     /// Control-behaviour, so Stage hears a mute on the next emission.
     pub audio: AudioSettings,
+    /// Which authored-copy table Stage reads (`en` | `ro`), from
+    /// `FlagService::language`. Presentation only: nothing derived from the
+    /// Play is translated.
+    pub language: Language,
 }

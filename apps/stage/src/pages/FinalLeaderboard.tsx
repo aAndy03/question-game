@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { leaderboard, nodeId } from '@questiongame/contract'
 import { LAYOUT, SPACE } from '@questiongame/design-stage'
 import { Rule, Text } from '@/atoms'
-import { resolveCopy } from '@/copy'
+import { useCopy } from '@/copy'
 import { hud } from '@/copy/format'
 import { LeaderboardList } from '@/organisms'
 import { useRevealPlayer } from '@/presentation'
@@ -21,7 +21,7 @@ import type { StagePageProps } from './StageRoot'
  * like the cards (spec §2.6).
  */
 export function FinalLeaderboardPage({ state }: StagePageProps) {
-  const copy = resolveCopy()
+  const copy = useCopy()
   const champions = leaderboard(state).filter((t) => t.rank === 1)
   const championShown = state.leaderboardRevealedRanks.includes(1) && champions.length > 0
   const root = useRef<HTMLElement | null>(null)
@@ -45,7 +45,7 @@ export function FinalLeaderboardPage({ state }: StagePageProps) {
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: SPACE[2] }}>
         <Text variant="stage-hud" tone="heading" nodeId={nodeId('finalLeaderboard', 'title')}>
-          {hud(copy.screenTitle.finalLeaderboard)}
+          {hud(copy, copy.screenTitle.finalLeaderboard)}
         </Text>
         <Text
           as="h1"

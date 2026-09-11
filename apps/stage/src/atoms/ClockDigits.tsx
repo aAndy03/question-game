@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { TextVariant } from '@questiongame/text'
+import { useCopy } from '@/copy'
 import { bracketed, clock, type ClockHours } from '@/copy/format'
 import { Text, type TextTone } from './Text'
 
@@ -25,10 +26,11 @@ export function ClockDigits({
   tone = 'primary',
   style,
 }: ClockDigitsProps) {
+  const copy = useCopy()
   const digits = clock(ms, hours)
   return (
     <Text variant={variant} transition="count" tone={tone} style={{ fontVariantNumeric: 'tabular-nums', ...style }}>
-      {brackets ? bracketed(digits) : digits}
+      {brackets ? bracketed(copy, digits) : digits}
     </Text>
   )
 }

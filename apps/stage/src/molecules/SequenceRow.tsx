@@ -1,6 +1,6 @@
 import { SPACE } from '@questiongame/design-stage'
 import { Rule, Text, insetFrame } from '@/atoms'
-import { STAGE_COPY } from '@/copy'
+import { useCopy } from '@/copy'
 import { sequencePosition } from '@/copy/format'
 
 /**
@@ -42,6 +42,7 @@ function MetaStack({ label, value, tone }: { label: string; value: string; tone:
 }
 
 export function SequenceRow({ nodeId, index, name, detail, score, current = false, served = false, dimmed = false }: SequenceRowProps) {
+  const copy = useCopy()
   const tone = dimmed ? 'muted' : 'primary'
   return (
     <div
@@ -60,7 +61,7 @@ export function SequenceRow({ nodeId, index, name, detail, score, current = fals
       }}
     >
       <Text variant="stage-row-number" tone={dimmed ? 'muted' : 'heading'} style={{ minWidth: '2ch' }}>
-        {sequencePosition(index)}
+        {sequencePosition(copy, index)}
       </Text>
       <Rule orientation="vertical" weight="thin" tone={dimmed ? 'subtle' : 'default'} />
       <Text
@@ -71,8 +72,8 @@ export function SequenceRow({ nodeId, index, name, detail, score, current = fals
       >
         {name}
       </Text>
-      {detail !== null ? <MetaStack label={STAGE_COPY.teamDetailLabel} value={detail} tone={tone} /> : null}
-      <MetaStack label={STAGE_COPY.teamPointsLabel} value={String(score)} tone={tone} />
+      {detail !== null ? <MetaStack label={copy.teamDetailLabel} value={detail} tone={tone} /> : null}
+      <MetaStack label={copy.teamPointsLabel} value={String(score)} tone={tone} />
     </div>
   )
 }

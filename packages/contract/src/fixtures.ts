@@ -21,7 +21,7 @@ import type {
   StageSession,
   StageTeam,
 } from './play-state'
-import { CONTRACT_VERSION, DEFAULT_AUDIO, DEFAULT_DECOR_SETTINGS } from './play-state'
+import { CONTRACT_VERSION, DEFAULT_AUDIO, DEFAULT_DECOR_SETTINGS, DEFAULT_STAGE_LANGUAGE } from './play-state'
 
 const PLAY_ID = 'play-fixture-1'
 
@@ -90,6 +90,7 @@ function base(overrides: Partial<PlayStateForStage> = {}): PlayStateForStage {
       leaderboard: 'operator',
     },
     audio: DEFAULT_AUDIO,
+    language: DEFAULT_STAGE_LANGUAGE,
     ...overrides,
   }
 }

@@ -24,8 +24,21 @@ import type { StageLayoutNodes } from './layout'
  * longer emitted ten times a second. A webview that listens only to it and
  * not to `play-tick` draws a frozen countdown, which is exactly the silent
  * wrongness this number exists to turn into `health.contract_mismatch`.
+ *
+ * 7 (Stage i18n): `language` joined the presentation half. A Stage that does
+ * not read it draws English over a Romanian show.
  */
-export const CONTRACT_VERSION = 6
+export const CONTRACT_VERSION = 7
+
+/**
+ * The language of Stage's *authored* text — HUD labels, screen titles,
+ * verdict wording — chosen per recipe (`stage.language`, Game tab). Nothing
+ * derived from the Play is translated: team names, domains, stems and options
+ * appear as the author wrote them. The tables live in `apps/stage/src/copy`.
+ */
+export type StageLanguage = 'en' | 'ro'
+export const STAGE_LANGUAGES: readonly StageLanguage[] = ['en', 'ro']
+export const DEFAULT_STAGE_LANGUAGE: StageLanguage = 'en'
 
 /** Spec §5.1. */
 export type PlayStatus =
@@ -343,6 +356,9 @@ export interface PlayStateForStage {
 
   /** Live cue volume, mute and cue map (P10, spec §2.25). Control-behaviour. */
   readonly audio: StageAudio
+
+  /** Which authored-copy table Stage reads. Live, from the recipe in Control. */
+  readonly language: StageLanguage
 }
 
 /**
@@ -376,6 +392,7 @@ export const EMPTY_PLAY_STATE: PlayStateForStage = {
     leaderboard: 'operator',
   },
   audio: DEFAULT_AUDIO,
+  language: DEFAULT_STAGE_LANGUAGE,
 }
 
 /**

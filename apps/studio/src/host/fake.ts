@@ -184,6 +184,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   turn: { max_consecutive_correct: null, bonus_after_consecutive: null },
   timer: { enabled: null, duration_ms: null },
   reveal: { question: 'operator', answers: 'operator', outcome: 'operator', leaderboard: 'operator' },
+  language: 'en',
 }
 
 function refuse(code: string, message: string): never {
@@ -849,6 +850,8 @@ function applyGameSetting(g: GameSettings, s: GameSetting): GameSettings {
       return { ...g, timer: { ...g.timer, duration_ms: s.value } }
     case 'reveal':
       return { ...g, reveal: { ...g.reveal, [s.value[0]]: s.value[1] } }
+    case 'language':
+      return { ...g, language: s.value }
   }
 }
 

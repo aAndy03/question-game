@@ -1,6 +1,6 @@
 import { nodeId } from '@questiongame/contract'
 import { LAYOUT, SPACE } from '@questiongame/design-stage'
-import { resolveCopy } from '@/copy'
+import { useCopy } from '@/copy'
 import { ScreenTitle } from '@/molecules'
 import { SequenceTable } from '@/organisms'
 import type { StagePageProps } from './StageRoot'
@@ -11,7 +11,7 @@ import type { StagePageProps } from './StageRoot'
  * layer on the right.
  */
 export function TeamOrderPage({ state }: StagePageProps) {
-  const copy = resolveCopy()
+  const copy = useCopy()
   return (
     <section
       data-page="teamOrder"

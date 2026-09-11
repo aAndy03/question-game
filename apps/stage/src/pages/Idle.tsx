@@ -1,7 +1,7 @@
 import { nodeId, type PlayStateForStage } from '@questiongame/contract'
 import { SPACE } from '@questiongame/design-stage'
 import { Tag, Text, Wordmark } from '@/atoms'
-import { resolveCopy } from '@/copy'
+import { useCopy } from '@/copy'
 import { hud } from '@/copy/format'
 
 /**
@@ -20,7 +20,7 @@ export interface IdlePageProps {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- the page signature is uniform across the registry
 export function IdlePage(_props: IdlePageProps) {
-  const copy = resolveCopy()
+  const copy = useCopy()
   return (
     <section
       data-page="idle"
@@ -51,7 +51,7 @@ export function IdlePage(_props: IdlePageProps) {
           <Tag tone="ink">{copy.idleStatus}</Tag>
         </span>
         <Text variant="stage-code" tone="muted" nodeId={nodeId('idle', 'session')}>
-          {hud(copy.sessionLabel, copy.sessionValue)}
+          {hud(copy, copy.sessionLabel, copy.sessionValue)}
         </Text>
       </div>
     </section>

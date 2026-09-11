@@ -1758,3 +1758,76 @@ rejects.
   trigger and the button — and an open React Aria popover marks the rest of the
   tree `aria-hidden`, so a query for the button after opening it finds nothing.
   Capture both before opening.
+
+## 16. Stage speaks two languages (P11.15)
+
+The show is run in Romanian as often as in English, and every label on Stage
+was English by construction: `HOPE CHALLENGE | AMiCUS` in the header, `SELECT
+CATEGORY`, `LEADER`, `PLACE_01`, `TIMER // REMAINING`. This section makes the
+**authored** half of Stage's text translatable and leaves the **derived** half
+alone: team names, domain names, stems, options and every number are shown as
+the author wrote them, in whichever language the show is in (spec §2.29).
+
+### 16.1 The key
+
+`stage.language` — `en` (default) | `ro` — is a recipe key on the Game tab
+(`GameSettings.language`), one `SegmentedField` row at the bottom of Rules:
+
+```
+Stage language                                   [ English | Română ]
+The labels and titles Stage shows. Team names,
+domains and questions stay as written.
+```
+
+It is modelled on `reveal`: a Game-tab default that is **not** game-affecting.
+A language switch moves no score, so it is never frozen and never disabled —
+the row has no `disabledReason` and the `frozenReason` that greys the rest of
+the form does not apply. Writing it goes through `recipe_set_settings` like
+every other Rules key; when the recipe written is the one in Control the app
+crate pushes the key through `FlagService` and re-emits, so Stage redraws on
+the next `play-state`.
+
+### 16.2 What Stage does with it
+
+`play-state.language` (contract v7) picks one of two tables in
+`apps/stage/src/copy/tables.ts`; `StageRoot` mounts one `CopyProvider` and
+every component reads `useCopy()`. The Screens canvas draws the recipe's own
+language (`previewPlay` copies it from `recipe.settings`), so the operator sees
+the change on the canvas as well as on the wall.
+
+Translated in Romanian: every HUD label, screen title, tag, verdict, overlay
+word, meta label and the points unit (`PCT`); the thousands separator groups
+with `.`. Shared on purpose: the `//` delimiter, the clock brackets, digit
+padding, the champion joiner — those are the design system's, not the
+language's.
+
+Two defaults changed with it, because they were the author's sample copy
+rather than the product's: the idle eyebrow reads `YOUR TEXT GOES HERE` /
+`TEXTUL TĂU AICI` and the tagline `Write your tagline` / `Scrie-ți sloganul`,
+and **the header now carries the eyebrow** instead of a brand | partner pair.
+The eyebrow is the show's name, written once; the next slice makes it
+editable from the Screens tab per language.
+
+### 16.3 Tests
+
+- `crates/host/tests/flag_service.rs`: the key moves during a Play, is not
+  game-affecting, and an older document without it reads as English.
+- `crates/host/tests/stage_contract.rs`: `language` is in the presentation half
+  of every fixture.
+- `apps/stage/src/copy/copy.test.tsx`: the two tables have the same keys; every
+  authored word differs unless it is on the shared-formatting list; a
+  `choose-domain` fixture with `language: 'ro'` draws `ALEGE CATEGORIA // TEAM
+  GAMMA` with the team name untouched, and the scoreboard shows `LIDER` and
+  `PCT`, never `LEADER`.
+- `apps/studio/src/organisms/RulesSection.test.tsx`: pressing *Română* writes
+  `recipe_set_settings` with `language: 'ro'`.
+
+### 16.4 Not in this slice, decided
+
+- Editable authored text (eyebrow, tagline, status, session, titles, the
+  `CURRENT POINTS` label, `SELECT CATEGORY`, `DOMAIN`, `QUESTION`) from the
+  Screens-tab Inspector, per language, saved in the layout document beside
+  `decor`. `resolveCopy(language, overrides)` is the seam it will use.
+- The five overlays as Screens-tab entries; today only the seven screens are
+  listed there.
+- Studio's own UI language. This slice is Stage only.

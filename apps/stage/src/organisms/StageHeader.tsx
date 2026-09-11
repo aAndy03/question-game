@@ -1,18 +1,19 @@
 import { nodeId, SCREEN_SLOTS, type PlayStateForStage, type StageScreen } from '@questiongame/contract'
 import { SPACE } from '@questiongame/design-stage'
-import { ClockDigits, Rule, Text, insetBorder } from '@/atoms'
-import { resolveCopy } from '@/copy'
+import { ClockDigits, Text, insetBorder } from '@/atoms'
+import { useCopy } from '@/copy'
 import { useLiveStageClock } from '@/host/clock'
 
 /**
  * The persistent header: mounted once in the Stage frame, never remounted on
  * a screen change (contract §3). As the reference draws it:
  *
- *   HOPE CHALLENGE | AMiCUS                              [ 00:12:20 ]
+ *   YOUR TEXT GOES HERE                                  [ 00:12:20 ]
  *   ----------------------------------------------------------------
  *
- * Brand and partner are authored copy; the clock is the Play clock from
- * play-state (how long the game has been running). One 1px rule below.
+ * The line on the left is the idle eyebrow: the show's name, authored once
+ * and carried by every header. The clock is the Play clock from play-state
+ * (how long the game has been running). One 1px rule below.
  * On a screen without a header slot (idle) it stays mounted and hidden.
  */
 
@@ -23,7 +24,7 @@ export interface StageHeaderProps {
 }
 
 export function StageHeader({ state, screen: presented }: StageHeaderProps) {
-  const copy = resolveCopy()
+  const copy = useCopy()
   const screen = presented ?? state.currentScreen
   const hasHeader = 'header' in SCREEN_SLOTS[screen]
   const id = hasHeader ? nodeId(screen as 'teamOrder', 'header') : undefined
@@ -43,11 +44,7 @@ export function StageHeader({ state, screen: presented }: StageHeaderProps) {
       }}
     >
       <Text variant="stage-brand" tone="heading">
-        {copy.headerBrand}
-      </Text>
-      <Rule orientation="vertical" weight="thin" />
-      <Text variant="stage-partner" tone="primary">
-        {copy.headerPartner}
+        {copy.idleEyebrow}
       </Text>
       <span style={{ marginLeft: 'auto' }}>
         <HeaderClock carriedMs={state.clock.elapsedMs} />

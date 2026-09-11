@@ -1,5 +1,5 @@
 import { SPACE } from '@questiongame/design-stage'
-import { STAGE_COPY } from '@/copy'
+import { useCopy } from '@/copy'
 import { signedPoints } from '@/copy/format'
 import { Text, type TextTone } from './Text'
 
@@ -14,13 +14,14 @@ export interface PointsFigureProps {
 }
 
 export function PointsFigure({ points, size = 'hero', tone = 'heading' }: PointsFigureProps) {
+  const copy = useCopy()
   return (
     <span data-points={points} style={{ display: 'inline-flex', alignItems: 'baseline', gap: SPACE[2] }}>
       <Text variant={size === 'hero' ? 'stage-figure' : 'stage-heading'} transition="count" tone={tone}>
         {signedPoints(points)}
       </Text>
       <Text variant={size === 'hero' ? 'stage-figure' : 'stage-code'} tone={tone}>
-        {STAGE_COPY.pointsUnit}
+        {copy.pointsUnit}
       </Text>
     </span>
   )

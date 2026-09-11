@@ -1,6 +1,6 @@
 import { nodeId } from '@questiongame/contract'
 import { LAYOUT, SPACE } from '@questiongame/design-stage'
-import { resolveCopy } from '@/copy'
+import { useCopy } from '@/copy'
 import { ScreenTitle } from '@/molecules'
 import { ScoreboardTable } from '@/organisms'
 import type { StagePageProps } from './StageRoot'
@@ -10,7 +10,7 @@ import type { StagePageProps } from './StageRoot'
  * content column; the scoreboard shapes live in the decor layer on the right.
  */
 export function ScoreboardPage({ state }: StagePageProps) {
-  const copy = resolveCopy()
+  const copy = useCopy()
   return (
     <section
       data-page="scoreboard"

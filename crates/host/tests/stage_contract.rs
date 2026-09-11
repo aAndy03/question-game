@@ -17,14 +17,15 @@ use std::path::PathBuf;
 
 use questiongame_host::flags::AudioSettings;
 use questiongame_host::presentation::PresentationService;
-use questiongame_host::settings::{FrozenSettings, RevealSettings};
+use questiongame_host::settings::{FrozenSettings, Language, RevealSettings};
 use questiongame_host::stage::{CONTRACT_VERSION, StageScreen, project};
 use questiongame_host::{MatchService, OverlayRequest, PlayStatus};
 use serde_json::Value;
 use support::*;
 
 /// Owned by `PresentationService`, merged into the emission.
-const PRESENTATION_KEYS: [&str; 6] = ["audio", "currentScreen", "decor", "layout", "overlay", "revealModes"];
+const PRESENTATION_KEYS: [&str; 7] =
+    ["audio", "currentScreen", "decor", "language", "layout", "overlay", "revealModes"];
 
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures")
@@ -112,7 +113,7 @@ fn emitted(with_session: bool) -> Value {
         .show_screen(StageScreen::Question, Some(PlayStatus::Playing))
         .unwrap();
     let game = project(service.get_state().unwrap(), 10_000);
-    let state = presentation.play_state(game, RevealSettings::default(), true, AudioSettings::default());
+    let state = presentation.play_state(game, RevealSettings::default(), true, AudioSettings::default(), Language::En);
     serde_json::to_value(state).expect("the emission serializes")
 }
 
@@ -158,7 +159,7 @@ fn the_presentation_half_matches_the_fixtures_shape_for_shape() {
 
     for name in fixture_names() {
         let theirs = fixture(&name);
-        for key in ["currentScreen", "decor", "revealModes"] {
+        for key in ["currentScreen", "decor", "language", "revealModes"] {
             assert_same_shape(&ours[key], &theirs[key], &format!("{name}.{key}"));
         }
         assert_same_shape(

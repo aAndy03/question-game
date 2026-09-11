@@ -1,5 +1,6 @@
 import { nodeId, type PlayStateForStage } from '@questiongame/contract'
 import { SPACE } from '@questiongame/design-stage'
+import { useCopy } from '@/copy'
 import { difficultyFigure } from '@/copy/format'
 import { DomainCard } from '@/molecules'
 
@@ -15,6 +16,7 @@ export interface DomainGridProps {
 }
 
 export function DomainGrid({ state, columns = 3 }: DomainGridProps) {
+  const copy = useCopy()
   const selectedId = state.session?.domainId ?? null
   return (
     <div
@@ -30,7 +32,7 @@ export function DomainGrid({ state, columns = 3 }: DomainGridProps) {
           key={d.id}
           nodeId={nodeId('chooseDomain', 'card', d.id)}
           name={d.name}
-          difficulty={d.nextDifficulty === null ? null : difficultyFigure(d.nextDifficulty)}
+          difficulty={d.nextDifficulty === null ? null : difficultyFigure(copy, d.nextDifficulty)}
           code={d.code}
           selected={d.id === selectedId}
           exhausted={d.exhausted}

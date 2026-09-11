@@ -1,4 +1,5 @@
 import { Text } from '@/atoms'
+import { useCopy } from '@/copy'
 import { hud } from '@/copy/format'
 
 /**
@@ -14,9 +15,10 @@ export interface ScreenTitleProps {
 }
 
 export function ScreenTitle({ nodeId, title, subject = null }: ScreenTitleProps) {
+  const copy = useCopy()
   return (
     <Text as="h1" variant="stage-title" transition="swap" tone="heading" nodeId={nodeId}>
-      {hud(title, subject)}
+      {hud(copy, title, subject)}
     </Text>
   )
 }

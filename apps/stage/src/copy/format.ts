@@ -1,15 +1,16 @@
 /**
  * Formatters that turn derived values into Stage strings. Pure functions,
- * testable with no DOM. They read `STAGE_COPY` so an authored change flows
- * through without touching a component.
+ * testable with no DOM. Each takes the resolved copy table it should read
+ * from — explicitly, so nothing here can fall back to English behind the
+ * operator's back — and a component gets that table from `useCopy()`.
  */
 
-import { DIFFICULTY_BANDS, OPTION_LETTERS, STAGE_COPY } from './index'
+import { OPTION_LETTERS, type StageCopy } from './tables'
 
 /** `DOMAIN // TECHNOLOGY`. With an empty value: `DOMAIN //`. */
-export function hud(label: string, value?: string | null): string {
+export function hud(copy: StageCopy, label: string, value?: string | null): string {
   const v = value?.trim()
-  return v ? `${label} ${STAGE_COPY.delimiter} ${v}` : `${label} ${STAGE_COPY.delimiter}`
+  return v ? `${label} ${copy.delimiter} ${v}` : `${label} ${copy.delimiter}`
 }
 
 /** `+500`, `+0`, `-50`. The unit is rendered separately so it can be styled. */
@@ -38,30 +39,31 @@ export function clock(ms: number, hours: ClockHours = 'auto'): string {
 }
 
 /** `2,400` — digits grouped by the authored separator. */
-export function grouped(n: number): string {
+export function grouped(copy: StageCopy, n: number): string {
   const sign = n < 0 ? '-' : ''
   const digits = String(Math.abs(Math.trunc(n)))
-  return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, STAGE_COPY.thousandsSeparator)
+  return sign + digits.replace(/\B(?=(\d{3})+(?!\d))/g, copy.thousandsSeparator)
 }
 
 /** `2,400 PTS`. */
-export function scoreWithUnit(n: number): string {
-  return `${grouped(n)} ${STAGE_COPY.pointsUnit}`
+export function scoreWithUnit(copy: StageCopy, n: number): string {
+  return `${grouped(copy, n)} ${copy.pointsUnit}`
 }
 
 /** `PLACE_01` from a competition rank (ties share a rank, so also a label). */
-export function placeLabel(rank: number): string {
-  return `${STAGE_COPY.placePrefix}${String(rank).padStart(STAGE_COPY.placeDigits, '0')}`
+export function placeLabel(copy: StageCopy, rank: number): string {
+  return `${copy.placePrefix}${String(rank).padStart(copy.placeDigits, '0')}`
 }
 
 /** `[ 00:12:20 ]`. */
-export function bracketed(text: string): string {
-  return `${STAGE_COPY.clockOpen}${text}${STAGE_COPY.clockClose}`
+export function bracketed(copy: StageCopy, text: string): string {
+  return `${copy.clockOpen}${text}${copy.clockClose}`
 }
 
 /** 1–100 → the authored band label. */
-export function difficulty(value: number): string {
-  const band = DIFFICULTY_BANDS.find((b) => value <= b.max) ?? DIFFICULTY_BANDS[DIFFICULTY_BANDS.length - 1]
+export function difficulty(copy: StageCopy, value: number): string {
+  const bands = copy.difficultyBands
+  const band = bands.find((b) => value <= b.max) ?? bands[bands.length - 1]
   return band?.label ?? `${value}`
 }
 
@@ -71,11 +73,11 @@ export function optionLetter(index: number): string {
 }
 
 /** 0-based sequence position → `01`, `02`, … (prefix and padding from copy). */
-export function sequencePosition(index: number): string {
-  return `${STAGE_COPY.sequencePrefix}${String(index + 1).padStart(STAGE_COPY.sequenceDigits, '0')}`
+export function sequencePosition(copy: StageCopy, index: number): string {
+  return `${copy.sequencePrefix}${String(index + 1).padStart(copy.sequenceDigits, '0')}`
 }
 
 /** What a domain card prints for the next question's difficulty. */
-export function difficultyFigure(value: number): string {
-  return STAGE_COPY.difficultyDisplay === 'band' ? difficulty(value) : `${value}`
+export function difficultyFigure(copy: StageCopy, value: number): string {
+  return copy.difficultyDisplay === 'band' ? difficulty(copy, value) : `${value}`
 }

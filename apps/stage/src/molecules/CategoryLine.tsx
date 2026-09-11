@@ -1,6 +1,6 @@
 import { SPACE } from '@questiongame/design-stage'
 import { Rule, Text } from '@/atoms'
-import { STAGE_COPY } from '@/copy'
+import { useCopy } from '@/copy'
 import { hud } from '@/copy/format'
 
 /**
@@ -16,10 +16,11 @@ export interface CategoryLineProps {
 }
 
 export function CategoryLine({ nodeId, domainName, teamName }: CategoryLineProps) {
+  const copy = useCopy()
   return (
     <div data-node-id={nodeId} style={{ display: 'flex', alignItems: 'center', gap: SPACE[2] }}>
       <Text variant="stage-hud" transition="swap" tone="heading">
-        {hud(STAGE_COPY.domainLabel, domainName)}
+        {hud(copy, copy.domainLabel, domainName)}
       </Text>
       {teamName ? (
         <>

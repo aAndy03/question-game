@@ -184,6 +184,7 @@ impl Host {
             self.flags.reveal_modes(),
             self.overlays_enabled(),
             self.flags.audio(),
+            self.flags.language(),
         )
     }
 

@@ -35,7 +35,7 @@ use crate::monitor::StageReattach;
 use crate::play::PlayStatus;
 use crate::service::MatchService;
 use crate::settings::{
-    ConsecutiveBonus, DifficultyMap, FrozenSettings, JudgingSettings, LiveSettings, LockSpeedBase,
+    ConsecutiveBonus, DifficultyMap, FrozenSettings, JudgingSettings, Language, LiveSettings, LockSpeedBase,
     OverrideAfterLock, RevealChannel, RevealMode, RevealSettings, ScoringMode, ScoringSettings,
     SpeedWindow, TimerCascade, TimerLevel, TurnSettings,
 };
@@ -360,6 +360,12 @@ pub struct GameSettings {
     /// The recipe level of the §2.18 cascade. Unset inherits the globals.
     pub timer: TimerLevel,
     pub reveal: RevealSettings,
+    /// Which of Stage's authored copy tables the audience reads. Like
+    /// `reveal`, a Game default that stays live (§2.5 freezes nothing it
+    /// cannot score with). `#[serde(default)]`: a recipe row written before
+    /// the key existed is English.
+    #[serde(default)]
+    pub language: Language,
 }
 
 /// Control-behaviour keys: live for the whole Play (§2.5), so none of them is
@@ -486,6 +492,8 @@ pub enum GameSetting {
     /// `None` inherits `globals.timer.duration_ms`.
     TimerDurationMs(Option<u32>),
     Reveal(RevealChannel, RevealMode),
+    /// Stage's authored-copy language. Live, like `Reveal`.
+    Language(Language),
 }
 
 impl GameSetting {
@@ -508,14 +516,15 @@ impl GameSetting {
             GameSetting::TimerEnabled(_) => "timer.enabled",
             GameSetting::TimerDurationMs(_) => "timer.duration_ms",
             GameSetting::Reveal(channel, _) => channel.key(),
+            GameSetting::Language(_) => "stage.language",
         }
     }
 
-    /// True for the keys that freeze at `play_start` (§2.5). Reveal is the one
-    /// exception in this enum: §4.2 lists it as a Game default *and* Control
-    /// live, so it keeps moving while the Play runs.
+    /// True for the keys that freeze at `play_start` (§2.5). Two exceptions:
+    /// reveal, which §4.2 lists as a Game default *and* Control live, and the
+    /// Stage language, which is presentation and can move no score.
     pub fn is_game_affecting(&self) -> bool {
-        !matches!(self, GameSetting::Reveal(..))
+        !matches!(self, GameSetting::Reveal(..) | GameSetting::Language(_))
     }
 
     fn apply(&self, game: &mut GameSettings) {
@@ -535,6 +544,7 @@ impl GameSetting {
             GameSetting::TimerEnabled(v) => game.timer.enabled = v,
             GameSetting::TimerDurationMs(v) => game.timer.duration_ms = v,
             GameSetting::Reveal(channel, mode) => game.reveal.set(channel, mode),
+            GameSetting::Language(v) => game.language = v,
         }
     }
 }
@@ -682,6 +692,7 @@ pub const FLAG_KEYS: &[&str] = &[
     "reveal.answers",
     "reveal.outcome",
     "reveal.leaderboard",
+    "stage.language",
     // runtime flags
     "play.status",
     "play.open",
@@ -981,6 +992,13 @@ impl FlagService {
         self.control.reveal
     }
 
+    /// The `language` `PresentationService` merges into `play-state`: the
+    /// recipe in Control's, English when nothing is loaded. Read per call,
+    /// never stored twice.
+    pub fn language(&self) -> Language {
+        self.current_game.as_ref().map_or(Language::En, |g| g.language)
+    }
+
     /// The `audio` record `PresentationService` merges into `play-state`
     /// (§12.5). Passed in per call like `reveal_modes`, never stored twice.
     pub fn audio(&self) -> AudioSettings {
@@ -1045,6 +1063,7 @@ impl FlagService {
             "reveal.answers" => FlagValue::Text(control.reveal.answers.as_str()),
             "reveal.outcome" => FlagValue::Text(control.reveal.outcome.as_str()),
             "reveal.leaderboard" => FlagValue::Text(control.reveal.leaderboard.as_str()),
+            "stage.language" => FlagValue::Text(self.language().as_str()),
             // runtime flags — derived, never stored
             "play.status" => FlagValue::Status(ctx.play_status),
             "play.open" => FlagValue::Bool(ctx.play_is_open()),

@@ -1,5 +1,6 @@
 import { LAYOUT, SPACE } from '@questiongame/design-stage'
 import { ClockDigits, Text, insetFrame } from '@/atoms'
+import { useCopy } from '@/copy'
 import { hud } from '@/copy/format'
 import type { ClockHours } from '@/copy/format'
 
@@ -25,6 +26,7 @@ export interface TimerPanelProps {
 }
 
 export function TimerPanel({ nodeId, label, value, ms, hours = 'auto', urgent = false, visible = true }: TimerPanelProps) {
+  const copy = useCopy()
   return (
     <div
       {...(nodeId ? { 'data-node-id': nodeId } : {})}
@@ -46,7 +48,7 @@ export function TimerPanel({ nodeId, label, value, ms, hours = 'auto', urgent = 
       }}
     >
       <Text variant="stage-hud" tone="heading">
-        {hud(label, value)}
+        {hud(copy, label, value)}
       </Text>
       <ClockDigits
         ms={ms}

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RulesSection } from './RulesSection'
 import { RulesPreviewPanel } from './RulesPreviewPanel'
@@ -166,5 +166,33 @@ describe('Game ▸ Rules, what each setting is doing', () => {
     expect(keys).toHaveLength(14)
     expect(keys[0]).toBe('scoring.mode')
     expect(keys.at(-1)).toBe('turn.bonus_after_consecutive')
+  })
+})
+
+describe('Game ▸ Rules, the Stage language', () => {
+  let fake: FakeHost
+
+  beforeEach(() => {
+    fake = createFakeHost()
+    setHostTransport(fake)
+  })
+  afterEach(() => {
+    setHostTransport(null)
+    cleanup()
+  })
+
+  it('writes stage.language through recipe_set_settings and never disables it', async () => {
+    const recipe = demoRecipe()
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <RulesSection recipe={recipe} frozenReason={null} />
+      </QueryClientProvider>,
+    )
+    const ro = await screen.findByText('Română')
+    fireEvent.click(ro)
+    await waitFor(() => {
+      const written = fake.calls.filter((c) => c.name === 'recipe_set_settings').at(-1)
+      expect(written?.args).toMatchObject({ id: recipe.id, settings: { language: 'ro' } })
+    })
   })
 })

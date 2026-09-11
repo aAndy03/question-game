@@ -15,7 +15,7 @@ use questiongame_host::catalog::{
     DomainOverlay, EditScope, OverlayTarget, QuestionOverlay, Recipe, RecipeChange, SearchHit,
     SearchQuery, SeedMode, SeedResult, SeedStatus, TeamOverlay,
 };
-use questiongame_host::flags::GameSettings;
+use questiongame_host::flags::{GameSetting, GameSettings};
 use questiongame_host::{DomainId, QuestionId, RecipeId, TeamId};
 use serde::Deserialize;
 use tauri::{AppHandle, State, WebviewWindow};
@@ -287,6 +287,12 @@ pub fn recipe_set_membership(
     Ok(change)
 }
 
+/// The Game tab's B5 document. A catalog write — an open Play's snapshot does
+/// not move (§4.3) — with one live exception: `stage.language` is presentation
+/// and is read per emission, so when the recipe written is the one in Control
+/// the key is pushed through `FlagService` (which refuses nothing for it) and
+/// Stage redraws in the new language. A language the operator picked and
+/// cannot see on Stage would read as a control that did nothing.
 #[tauri::command(async)]
 pub fn recipe_set_settings(
     window: WebviewWindow,
@@ -295,10 +301,24 @@ pub fn recipe_set_settings(
     id: RecipeId,
     settings: GameSettings,
 ) -> AppResult<RecipeChange> {
-    let change = catalog_write(&window, &state, "recipe_set_settings", |h, now| {
-        Ok(h.catalog.recipe_set_settings(&id, settings, now)?)
-    })?;
+    guard::allow(window.label(), "recipe_set_settings")?;
+    let now = crate::state::now_ms();
+    let mut host = state.lock();
+    let language = settings.language;
+    let change = host.catalog.recipe_set_settings(&id, settings, now)?;
     emit::recipe_changed(&app, &change);
+
+    let loaded = host
+        .play
+        .get_state()
+        .map(|p| p.snapshot().recipe_id.clone() == id)
+        .unwrap_or(false);
+    if loaded && host.flags.language() != language {
+        let ctx = host.runtime();
+        host.flags
+            .settings_set_current_game(GameSetting::Language(language), ctx)?;
+        emit::play_state(&app, &mut host, now, true);
+    }
     Ok(change)
 }
 

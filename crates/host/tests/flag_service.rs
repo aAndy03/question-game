@@ -18,8 +18,8 @@ use questiongame_host::flags::{AudioSettings, CueKey,
 use questiongame_host::monitor::StageReattach;
 use questiongame_host::play::PlayStatus;
 use questiongame_host::settings::{
-    ConsecutiveBonus, DifficultyMap, LockSpeedBase, OverrideAfterLock, RevealChannel, RevealMode,
-    ScoringMode, SpeedWindow, TimerLevel,
+    ConsecutiveBonus, DifficultyMap, Language, LockSpeedBase, OverrideAfterLock, RevealChannel,
+    RevealMode, ScoringMode, SpeedWindow, TimerLevel,
 };
 use questiongame_host::{MatchService, PlaySnapshot};
 
@@ -691,4 +691,30 @@ fn the_pacers_display_and_its_mirrors_are_independent() {
         Some("tv-left@1366x768")
     );
     assert_eq!(flags.control().stage_mirror_ids.len(), 1);
+}
+
+#[test]
+fn stage_language_is_a_game_default_and_still_moves_during_a_play() {
+    // The audience-facing labels are presentation, not rules: switching
+    // Romanian on mid-Play moves no score, so the key is never frozen.
+    let mut flags = loaded();
+    assert_eq!(flags.language(), Language::En, "English is the default");
+    flags
+        .settings_set_current_game(GameSetting::Language(Language::Ro), playing())
+        .unwrap();
+    assert_eq!(flags.language(), Language::Ro);
+    assert_eq!(flags.current_game().unwrap().language, Language::Ro);
+    assert!(!GameSetting::Language(Language::En).is_game_affecting());
+    assert_eq!(GameSetting::Language(Language::En).key(), "stage.language");
+}
+
+#[test]
+fn a_settings_document_without_a_language_reads_as_english() {
+    // Recipes written before the key existed carry no `language`.
+    let json = serde_json::to_value(GameSettings::default()).unwrap();
+    let mut without = json.clone();
+    without.as_object_mut().unwrap().remove("language");
+    let parsed: GameSettings = serde_json::from_value(without).unwrap();
+    assert_eq!(parsed.language, Language::En);
+    assert_eq!(json["language"], "en");
 }

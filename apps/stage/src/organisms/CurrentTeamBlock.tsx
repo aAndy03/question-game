@@ -1,7 +1,7 @@
 import { currentTeam, nodeId, teamById, type PlayStateForStage } from '@questiongame/contract'
 import { SPACE } from '@questiongame/design-stage'
 import { Text } from '@/atoms'
-import { resolveCopy } from '@/copy'
+import { useCopy } from '@/copy'
 import { hud } from '@/copy/format'
 import { TeamMark } from '@/molecules'
 
@@ -29,7 +29,7 @@ export interface CurrentTeamBlockProps {
 }
 
 export function CurrentTeamBlock({ state, teamId = null, withNodeIds = false }: CurrentTeamBlockProps) {
-  const copy = resolveCopy()
+  const copy = useCopy()
   const team = teamId ? (teamById(state, teamId) ?? null) : currentTeam(state)
   const session = state.session
   const domain = state.domains.find((d) => d.id === session?.domainId) ?? null
@@ -54,7 +54,7 @@ export function CurrentTeamBlock({ state, teamId = null, withNodeIds = false }: 
         nodeId={id('domain')}
         style={{ visibility: domainLine ? undefined : 'hidden', marginTop: SPACE[3] }}
       >
-        {hud(copy.domainLabel, domainLine)}
+        {hud(copy, copy.domainLabel, domainLine)}
       </Text>
     </div>
   )
