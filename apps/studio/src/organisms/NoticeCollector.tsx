@@ -51,6 +51,9 @@ export function NoticeCollector() {
       case 'open_cue_folder':
         await run('paths_reveal', { which: 'cuePack' })
         return
+      case 'open_display_settings':
+        await run('paths_reveal', { which: 'displaySettings' })
+        return
       case 'rebuild_search':
         await run('catalog_rebuild_search')
         dismiss(notice.id)

@@ -1,3 +1,4 @@
+import type { MonitorInfo } from '@questiongame/contract'
 import { Button, SwitchField, Text } from '@/atoms'
 import { DisplayPicker, MonitorCard, SettingRow, SettingsGroup } from '@/molecules'
 import { CONTROL } from '@/copy'
@@ -17,6 +18,8 @@ import { SettingsForm } from './SettingsForm'
  * Stage is sent, Statistics is shown, both because the operator said so. The
  * display pickers only remember *where*.
  */
+const nameOf = (m: MonitorInfo | undefined) => m?.friendlyName ?? m?.name ?? null
+
 export function MonitorsSettings() {
   const monitors = useMonitors()
   const settings = useSettings()
@@ -43,8 +46,8 @@ export function MonitorsSettings() {
   const placement = useStagePlacement()
   const mirrors = placement.mirrors
   const standsOnName = placement.on
-    ? (list.find((m) => m.key === placement.on)?.name ?? placement.on)
-    : (list.find((m) => m.primary)?.name ?? SETTINGS.monitors.primary)
+    ? (nameOf(list.find((m) => m.key === placement.on)) ?? placement.on)
+    : (nameOf(list.find((m) => m.primary)) ?? SETTINGS.monitors.primary)
 
   /**
    * Send Stage to a display.

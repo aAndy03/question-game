@@ -44,6 +44,13 @@ pub struct HealthInputs {
     /// file told the operator to go looking for something that was there all
     /// along (P11.9).
     pub failed_cues: Vec<(CueKey, String)>,
+    /// Panels that are plugged in and that the OS is **not using** — a Windows
+    /// display set to "Show only on 1", or one that never got a mode. The app
+    /// cannot send Stage to a display the OS does not offer, so the fix is in
+    /// the OS's display settings, and the operator has to be told which panel
+    /// it is (an Atomos recorder arriving this way looked like the app
+    /// ignoring it, 2026-09-11). Friendly names.
+    pub unused_displays: Vec<String>,
 }
 
 /// The worst severity among the items. `Ok` is an empty report.
@@ -122,6 +129,19 @@ pub fn check(inputs: &HealthInputs) -> HealthReport {
         );
     }
 
+    // A `collector` notice, not an inline one: there is no settings field it
+    // belongs to, and the remedy is outside the app.
+    for display in &inputs.unused_displays {
+        items.push(
+            Notice::new(
+                "health.display_unused",
+                Severity::Warn,
+                &["open_display_settings"],
+            )
+            .with("display", display.clone()),
+        );
+    }
+
     for (cue, file) in &inputs.failed_cues {
         items.push(
             Notice::new("health.audio_cue_failed", Severity::Warn, &["open_stage"])
@@ -187,15 +207,12 @@ mod tests {
             stage_contract_version: Some(1),
             missing_cues: vec![(CueKey::Lock, "lock.wav".to_owned())],
             failed_cues: vec![(CueKey::Correct, "correct.wav".to_owned())],
+            unused_displays: vec!["Atomos Ninja V".to_owned()],
         };
         let report = check(&loud);
-        assert_eq!(report.items.len(), 7, "one item per finding");
+        assert_eq!(report.items.len(), 8, "one item per finding");
         for item in &report.items {
-            assert!(
-                !item.actions.is_empty(),
-                "{} has no suggestion",
-                item.code
-            );
+            assert!(!item.actions.is_empty(), "{} has no suggestion", item.code);
             assert!(item.actions.len() <= crate::notice::MAX_ACTIONS);
         }
     }

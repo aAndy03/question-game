@@ -106,14 +106,29 @@ pub struct MonitorInfo {
     /// docs for why the two differ and why both are carried.
     pub physical_size: (u32, u32),
     pub scale_factor: f64,
+    /// What the panel calls itself — its EDID name (`Atomos Ninja V`, `DELL
+    /// G2724D`), when the OS exposes one. Not part of the key: an EDID name is
+    /// shared by every panel of that model, and `name` already tells two
+    /// apart. `None` on platforms that do not say, and on any display whose
+    /// EDID carries no name.
+    #[serde(default)]
+    pub friendly_name: Option<String>,
+    /// Other panels the OS is **duplicating** this display onto — a Windows
+    /// "Duplicate" group, which is a software splitter. The OS reports the
+    /// group as one display, so a recorder plugged in that way is invisible
+    /// to any list of displays; this is how the operator learns it is
+    /// receiving the picture anyway. Friendly names, or the OS's own.
+    #[serde(default)]
+    pub also_on: Vec<String>,
 }
 
 impl MonitorInfo {
     /// What Settings ▸ Monitors shows when the OS gave no name.
     pub fn label(&self) -> String {
-        match &self.name {
-            Some(name) => name.clone(),
-            None => self.resolution(),
+        match (&self.friendly_name, &self.name) {
+            (Some(friendly), _) => friendly.clone(),
+            (None, Some(name)) => name.clone(),
+            (None, None) => self.resolution(),
         }
     }
 
@@ -466,6 +481,8 @@ mod tests {
             size,
             physical_size: size,
             scale_factor: 1.0,
+            friendly_name: None,
+            also_on: Vec::new(),
         }
     }
 
@@ -492,6 +509,8 @@ mod tests {
             size: (1280, 720),
             physical_size: (1920, 1080),
             scale_factor: 1.5,
+            friendly_name: None,
+            also_on: Vec::new(),
         }
     }
 
@@ -530,12 +549,22 @@ mod tests {
     fn changing_a_displays_scaling_does_not_lose_the_pick() {
         let mut display = StageDisplay::new();
         let key = scaled_tv().key.clone();
-        display.monitors_changed(vec![laptop(), scaled_tv()], Some(&key), StageReattach::Auto, false);
+        display.monitors_changed(
+            vec![laptop(), scaled_tv()],
+            Some(&key),
+            StageReattach::Auto,
+            false,
+        );
         assert_eq!(display.current(), Some(&key));
 
         // The operator sets that display back to 100%: logical becomes 1920×1080.
         let unscaled = monitor("tv", false, (1920, 1080));
-        let mv = display.monitors_changed(vec![laptop(), unscaled], Some(&key), StageReattach::Auto, false);
+        let mv = display.monitors_changed(
+            vec![laptop(), unscaled],
+            Some(&key),
+            StageReattach::Auto,
+            false,
+        );
         // Stage stays where it is: same panel, same key, nothing to move.
         assert_eq!(mv.to, None);
         assert_eq!(display.current(), Some(&key));

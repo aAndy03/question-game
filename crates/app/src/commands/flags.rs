@@ -327,6 +327,9 @@ pub struct AppPaths {
 pub enum PathKind {
     UserData,
     CuePack,
+    /// Not a folder: the OS's own display settings, where a display the OS
+    /// is duplicating or not using gets extended (`health.display_unused`).
+    DisplaySettings,
 }
 
 fn cue_pack_dir(app: &AppHandle) -> AppResult<std::path::PathBuf> {
@@ -363,6 +366,14 @@ pub fn paths_reveal(window: WebviewWindow, app: AppHandle, which: PathKind) -> A
     let dir = match which {
         PathKind::UserData => crate::state::user_data_dir(&app)?,
         PathKind::CuePack => cue_pack_dir(&app)?,
+        PathKind::DisplaySettings => {
+            let target = if cfg!(target_os = "windows") {
+                "ms-settings:display"
+            } else {
+                "x-apple.systempreferences:com.apple.preference.displays"
+            };
+            std::path::PathBuf::from(target)
+        }
     };
     let program = if cfg!(target_os = "windows") {
         "explorer"

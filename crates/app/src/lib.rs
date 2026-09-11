@@ -33,6 +33,7 @@ pub mod monitors;
 pub mod perf;
 pub mod state;
 pub mod tick;
+pub mod topology;
 pub mod windows;
 
 use tauri::Manager;

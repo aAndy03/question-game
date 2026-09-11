@@ -52,7 +52,11 @@ const MIRROR_PATH: &str = "stage/index.html?mirror";
 /// Studio's window title. The dev build says so, because the two can run side
 /// by side and the taskbar is where the operator tells them apart (P12.1).
 pub fn studio_title(is_dev: bool) -> &'static str {
-    if is_dev { "questiongame Studio (dev)" } else { "questiongame Studio" }
+    if is_dev {
+        "questiongame Studio (dev)"
+    } else {
+        "questiongame Studio"
+    }
 }
 
 pub fn open_studio(app: &AppHandle) -> AppResult<WebviewWindow> {
@@ -350,7 +354,25 @@ fn place(
 /// holding the lock for the whole of it, which is the bug this shape exists to
 /// prevent (§9, 2026-09-08).
 pub fn refresh(app: &AppHandle, state: &crate::state::AppState) -> AppResult<()> {
-    let list = crate::monitors::list(app);
+    let (list, topology) = crate::monitors::list_with_topology(app);
+    // The one line that says what the OS handed over. Before it existed, a
+    // display the app "did not detect" left no evidence either way.
+    tracing::info!(
+        displays = ?list
+            .iter()
+            .map(|m| format!(
+                "{} {}x{} @{} {}{}",
+                m.label(),
+                m.physical_size.0,
+                m.physical_size.1,
+                m.scale_factor,
+                if m.primary { "primary" } else { "" },
+                if m.also_on.is_empty() { String::new() } else { format!(" also_on={:?}", m.also_on) },
+            ))
+            .collect::<Vec<_>>(),
+        unused = ?topology.unused,
+        "displays"
+    );
     let stats_open = stats_is_open(app);
     let stage_open = stage_is_open(app);
 
@@ -368,6 +390,7 @@ pub fn refresh(app: &AppHandle, state: &crate::state::AppState) -> AppResult<()>
         let stats_monitor_id = control.stats_monitor_id.clone();
         let stats_fullscreen = control.stats_fullscreen;
         let play_is_open = host.runtime().play_is_open();
+        host.health.inputs.unused_displays = topology.unused.clone();
         host.display.set_wanted_mirrors(wanted_mirrors);
         let mv =
             host.display
@@ -393,6 +416,8 @@ pub fn refresh(app: &AppHandle, state: &crate::state::AppState) -> AppResult<()>
         let host = state.lock();
         crate::emit::monitors_changed(app, &host, stats_open, stage_open);
     }
+    // A panel appearing or leaving the unused list is a health change.
+    crate::tick::health_once(app);
     Ok(())
 }
 

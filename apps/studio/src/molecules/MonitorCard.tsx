@@ -39,7 +39,7 @@ export function MonitorCard({ monitor, state, onSendStage, onRemoveStage, isDisa
   const aspect = w > 0 && h > 0 ? w / h : 16 / 9
   const width = Math.round(Math.min(MAX_W, MAX_H * aspect))
   const height = Math.round(width / aspect)
-  const name = monitor.name ?? SETTINGS.monitors.unnamed
+  const name = monitor.friendlyName ?? monitor.name ?? SETTINGS.monitors.unnamed
   const border =
     state === 'stage' || state === 'mirror'
       ? 'border-2 border-[var(--accent)]'
@@ -85,6 +85,11 @@ export function MonitorCard({ monitor, state, onSendStage, onRemoveStage, isDisa
         <Button size="sm" variant="tertiary" onPress={onRemoveStage}>
           {SETTINGS.monitors.removeStage}
         </Button>
+      ) : null}
+      {monitor.alsoOn.length > 0 ? (
+        <Text variant="studio-caption" tone="muted" className="max-w-[16rem]" data-monitor-also-on>
+          {SETTINGS.monitors.alsoOn(monitor.alsoOn)}
+        </Text>
       ) : null}
       {single ? (
         <Text variant="studio-caption" tone="muted" className="max-w-[16rem]">

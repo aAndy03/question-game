@@ -209,7 +209,10 @@ fn an_unchanged_emission_is_not_re_sent() {
 
     let first = host.emission_changed(&state);
     assert!(first.changed, "the first one always goes");
-    assert!(first.bytes > 0, "the digest counts the payload as it hashes it");
+    assert!(
+        first.bytes > 0,
+        "the digest counts the payload as it hashes it"
+    );
     assert!(
         !host.emission_changed(&state).changed,
         "the second one does not"
@@ -348,6 +351,8 @@ fn monitor(name: &str, primary: bool, size: (u32, u32)) -> MonitorInfo {
         size,
         physical_size: size,
         scale_factor: 1.0,
+        friendly_name: None,
+        also_on: Vec::new(),
     }
 }
 
@@ -541,8 +546,7 @@ fn a_cue_that_loads_after_all_clears_its_finding() {
         "a quiet app says nothing"
     );
 
-    host.health
-        .missing_cue(CueKey::Lock, "lock.wav".to_owned());
+    host.health.missing_cue(CueKey::Lock, "lock.wav".to_owned());
     let (warned, _) = host.health.report(false, None);
     assert_eq!(warned.status, HealthStatus::Warn);
     assert_eq!(warned.items.len(), 1);
@@ -586,7 +590,8 @@ fn a_tick_is_only_due_when_the_timer_reaches_zero() {
         Ok(h.play.choose_domain(&DomainId::from("dom-1"), 1_000)?)
     })
     .unwrap();
-    host.write(1_100, |h| Ok(h.play.start_timer(1_100)?)).unwrap();
+    host.write(1_100, |h| Ok(h.play.start_timer(1_100)?))
+        .unwrap();
 
     // Mid-question: the countdown is moving and nothing else is.
     assert!(!host.play.tick_due(2_000), "a running timer is not due");
@@ -615,7 +620,10 @@ fn the_clock_gate_is_quiet_when_neither_number_moves() {
     let clock = (Some(30_000_u32), 1_000_u64, true);
     assert!(host.clock_moved(clock), "the first one always goes");
     host.remember_clock(clock);
-    assert!(!host.clock_moved(clock), "the same instant twice is one emission");
+    assert!(
+        !host.clock_moved(clock),
+        "the same instant twice is one emission"
+    );
     assert!(host.clock_moved((Some(29_900), 1_100, true)));
 }
 

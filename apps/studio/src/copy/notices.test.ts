@@ -30,6 +30,7 @@ describe('NOTICE_COPY', () => {
       'health.contract_mismatch',
       'health.audio_missing_cue',
       'health.audio_cue_failed',
+      'health.display_unused',
     ]) {
       expect(NOTICE_COPY[code], code).toBeDefined()
     }

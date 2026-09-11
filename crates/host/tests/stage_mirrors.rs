@@ -25,6 +25,8 @@ fn monitor(name: &str, primary: bool, size: (u32, u32)) -> MonitorInfo {
         size,
         physical_size: size,
         scale_factor: 1.0,
+        friendly_name: None,
+        also_on: Vec::new(),
     }
 }
 

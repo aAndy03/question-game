@@ -1628,6 +1628,21 @@ release-build commands.
 
 ---
 
+## P11.18 — A recorder Windows duplicates onto  ☑
+
+**Found 2026-09-11** with an Atomos Ninja V plugged into the laptop to record the show. Settings ▸ Monitors listed one display and the operator read it as the app not supporting the recorder. The app log recorded nothing about displays at all, so there was no evidence either way — the first thing this slice added is one `info` line per display change in `windows::refresh` naming every display the OS handed over. That line then said what had happened: Windows had attached the Ninja as a **Duplicate** of the built-in panel, and a Duplicate group is *one* display to `EnumDisplayMonitors`, which is what Tauri's `available_monitors` reads. The recorder was showing the picture and appearing in no list.
+
+**Deliverables (`crates/app/src/topology.rs`):** `QueryDisplayConfig` read once per display change and folded into a `Topology` — the panel's EDID name per GDI display, the other panels each display is duplicated onto, and panels that are connected but that no active path draws on. `MonitorInfo` carries `friendlyName` (shown in preference to `\.\DISPLAY3`, never part of the key) and `alsoOn` (the Duplicate group; the card reads *Also shown on NINJA V (duplicated by Windows)*). A connected-but-unused panel is `HealthInputs::unused_displays` → `health.display_unused`, a warn with *Open display settings* (`paths_reveal { which: 'displaySettings' }` → `ms-settings:display`). Off Windows the topology is empty and every field stays `null` / `[]`. The fold is pure and tested against the Duplicate case, the "Show only on 1" case, and a panel that is active on one path and offered on others.
+
+**What this does not do:** it does not make a duplicated panel a place Stage can be sent, because the OS offers no such place. The operator extends the desktop onto the recorder (Win+P → Extend) and sends Stage or a mirror there as before; or leaves it duplicated, in which case whatever stands on the duplicated display — Stage included — is recorded. A hardware HDMI splitter is invisible to Windows and needs nothing from the app: the display it splits is the one to send Stage to.
+
+**Exit criteria**
+
+- ☑ `cargo test -p questiongame-app --lib topology` (four cases), `health` (8 items), the Studio copy and Monitors tests.
+- ☑ The dev app on the operator's desk logs `displays=["\\.\DISPLAY1 1920x1080 @1 primary also_on=[\"NINJA V\"]"] unused=[]`.
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.

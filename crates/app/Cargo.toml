@@ -30,3 +30,9 @@ tracing-subscriber = { workspace = true }
 fs4 = { workspace = true }
 sysinfo = { workspace = true }
 rfd = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+# `QueryDisplayConfig`: the display topology Tauri's `available_monitors` does
+# not see — EDID names, Duplicate groups, and connected panels Windows is not
+# using (`monitors::topology`).
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Devices_Display", "Win32_Graphics_Gdi"] }

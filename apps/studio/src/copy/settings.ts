@@ -186,6 +186,9 @@ export const SETTINGS = {
      * logical size than the panel's mode, and Stage scales to suit. */
     scaling: (factor: number) => `${Math.round(factor * 100)}% scaling`,
     unnamed: 'Display',
+    /** A Windows Duplicate group: the OS shows one display, and these panels
+     * get its picture too (a recorder on a laptop usually arrives this way). */
+    alsoOn: (names: readonly string[]) => `Also shown on ${names.join(', ')} (duplicated by Windows)`,
     single: 'One display: Stage fullscreen on this display; Studio is an Alt-Tab away.',
     standsOn: 'Stage stands on',
     remembered: 'Remembered',

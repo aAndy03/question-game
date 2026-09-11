@@ -161,6 +161,8 @@ const FAKE_MONITORS: MonitorInfo[] = [
     size: [1920, 1080],
     physicalSize: [1920, 1080],
     scaleFactor: 1,
+    friendlyName: null,
+    alsoOn: [],
   },
   {
     key: 'tv@1920x1080',
@@ -170,6 +172,8 @@ const FAKE_MONITORS: MonitorInfo[] = [
     size: [1280, 720],
     physicalSize: [1920, 1080],
     scaleFactor: 1.5,
+    friendlyName: null,
+    alsoOn: [],
   },
 ]
 

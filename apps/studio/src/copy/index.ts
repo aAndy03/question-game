@@ -482,6 +482,10 @@ export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Read
   },
   // Its own message since P11.9: the file is there, and saying it is missing
   // sent the operator looking for something that was never gone.
+  'health.display_unused': {
+    title: '{display} is connected but Windows is not using it. Extend the desktop onto it (Win+P → Extend) and it appears here.',
+    actions: { open_display_settings: 'Open display settings' },
+  },
   'health.audio_cue_failed': {
     title: 'The {cue} cue ({file}) is there but would not play. Showing Stage usually settles it.',
     actions: { open_stage: 'Show Stage' },

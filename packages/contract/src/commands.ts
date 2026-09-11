@@ -304,6 +304,19 @@ export interface MonitorInfo {
    */
   readonly physicalSize: readonly [number, number]
   readonly scaleFactor: number
+  /**
+   * The panel's own name from its EDID (`Atomos Ninja V`), when the OS
+   * exposes it; shown in preference to `name`, which on Windows is
+   * `DISPLAY3`. Never part of the key.
+   */
+  readonly friendlyName: string | null
+  /**
+   * Panels the OS is **duplicating** this display onto. Windows reports a
+   * Duplicate group as one display, so a recorder plugged in that way shows
+   * up here and nowhere else: it already receives whatever this display
+   * shows.
+   */
+  readonly alsoOn: readonly string[]
 }
 
 /**

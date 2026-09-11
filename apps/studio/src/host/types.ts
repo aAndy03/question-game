@@ -456,7 +456,7 @@ export interface AppPaths {
 }
 
 /** `paths_reveal { which }` — the directories the OS file manager can open. */
-export type PathKind = 'userData' | 'cuePack'
+export type PathKind = 'userData' | 'cuePack' | 'displaySettings'
 
 // ------------------------------------------------------------------ helpers
 

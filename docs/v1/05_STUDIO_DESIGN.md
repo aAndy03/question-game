@@ -930,6 +930,16 @@ Writes `stage_set_monitor` and `settings_set_global { stage_reattach }`.
   shown beside the resolution (*150% scaling*), because that is where the
   difference between the two numbers actually lives. The card's proportions come
   from `physicalSize` too, so its aspect matches the panel.
+- **The card names the panel, and says who else is watching it** (P11.18).
+  `MonitorInfo.friendlyName` is the panel's EDID name (*DELL G2724D*, *NINJA
+  V*) and is shown in preference to the OS's `\.\DISPLAY2`; it is never part
+  of the key. `alsoOn` lists the panels Windows is **duplicating** this display
+  onto — a Duplicate group is one display to the OS, so a recorder attached that
+  way is in no list and the card is where it is reported: *Also shown on NINJA V
+  (duplicated by Windows)*. A panel that is connected and that Windows is not
+  drawing on at all is `health.display_unused`, a warn whose one action opens
+  the OS display settings. Both come from `crates/app/src/topology.rs`, which
+  is empty off Windows.
 - One display is a valid setup and says so: a single card, *Stage
   fullscreen on this display; Studio is an Alt-Tab away* (§2.28).
 - The Statistics display row is disabled with `feature_off` (`stats`) until

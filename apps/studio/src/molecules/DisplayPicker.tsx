@@ -23,7 +23,7 @@ export function DisplayPicker({ label, monitors, value, standingOn, isDisabled, 
     // viewport Stage gets, not a resolution the operator would recognise.
     ...monitors.map((m) => ({
       value: m.key,
-      label: `${m.name ?? m.key}${m.primary ? ' (primary)' : ''}`,
+      label: `${m.friendlyName ?? m.name ?? m.key}${m.primary ? ' (primary)' : ''}`,
       description: `${m.physicalSize[0]}×${m.physicalSize[1]}${standingOn === m.key ? ' · Stage is here' : ''}`,
     })),
   ]
