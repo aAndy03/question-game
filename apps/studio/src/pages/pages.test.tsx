@@ -180,4 +180,39 @@ describe('the question editor saves once and leaves', () => {
     const stem = await screen.findByLabelText('Question', { selector: 'textarea' })
     expect((stem as HTMLTextAreaElement).value).toBe('What is the capital of Chile?')
   })
+
+  it('saves a question that is still incomplete, and says what it lacks (§2.32)', async () => {
+    const fake = createFakeHost()
+    fake.seed(demoLibrary(), [demoRecipe()])
+    setHostTransport(fake)
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'library', mode: 'new' })
+    })
+    const stem = await screen.findByLabelText('Question', { selector: 'textarea' })
+    fireEvent.change(stem, { target: { value: 'Only the question so far?' } })
+
+    // The two blank option rows a new question opens with are not options.
+    expect(await screen.findByText('Incomplete — a game cannot use this question yet')).toBeTruthy()
+    expect(screen.getByText('Fewer than two options · No correct answer · In no domain')).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+    await waitFor(() => expect(fake.calls.some((c) => c.name === 'catalog_upsert')).toBe(true))
+    const saved = [...fake.library.values()].find((row) => row.kind === 'question' && row.item.stem === 'Only the question so far?')
+    expect(saved?.kind === 'question' ? saved.item.options : null).toEqual([])
+  })
+
+  it('has nothing to say about a complete question', async () => {
+    const fake = createFakeHost()
+    fake.seed(demoLibrary(), [demoRecipe()])
+    setHostTransport(fake)
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'library', mode: 'new', domainId: 'dom-history' })
+    })
+    await typeAQuestion()
+    expect(screen.queryByText('Incomplete — a game cannot use this question yet')).toBeNull()
+  })
 })

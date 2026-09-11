@@ -267,7 +267,14 @@ fn question_row(row: &Row<'_>) -> rusqlite::Result<Question> {
             .get::<_, Option<String>>("media_asset_id")?
             .map(AssetId::new),
         options: Vec::new(),
-        difficulty: row.get::<_, i64>("difficulty")? as u8,
+        // `None` is stored as `0` (§2.32). The column is `NOT NULL` from the
+        // first migration and `0` was never a legal difficulty, so the mapping
+        // cannot collide — and a table `domain_questions` references does not
+        // have to be rebuilt to relax the constraint.
+        difficulty: match row.get::<_, i64>("difficulty")? {
+            0 => None,
+            stored => Some(stored as u8),
+        },
         explanation: row.get("explanation")?,
         origin: origin(row)?,
         stamps: stamps(row)?,
@@ -339,7 +346,7 @@ pub(super) fn question_upsert(
             question.id.as_str(),
             question.stem,
             question.media_asset_id.as_ref().map(|a| a.as_str()),
-            i64::from(question.difficulty),
+            i64::from(question.difficulty.unwrap_or(0)),
             question.explanation,
             question.origin.as_str(),
             ms(created_at),

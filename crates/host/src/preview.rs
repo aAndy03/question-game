@@ -77,6 +77,10 @@ pub struct PreviewDomain {
     pub id: DomainId,
     pub name: String,
     pub questions: Vec<PreviewQuestion>,
+    /// Board questions left out of every number here because they are
+    /// incomplete (§2.32) — nothing to pay, and Load would refuse them.
+    #[serde(default)]
+    pub incomplete: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -250,6 +254,11 @@ pub enum PreviewWarning {
     /// library afterwards. The Play will not start until it is fixed, and
     /// hearing that here is better than hearing it from Load.
     DuplicateDifficulty { difficulty: u8, questions: u32 },
+    /// Board questions that are incomplete — no difficulty, no correct
+    /// answer, too few options (§2.32). `recipe_upsert` refuses to select one,
+    /// so this is a question the library changed underneath the board. As
+    /// severe as a duplicate: Load refuses the board.
+    IncompleteQuestions { questions: u32 },
 }
 
 /// Everything the Rules preview draws.
@@ -739,6 +748,14 @@ fn warnings_for(
 ) -> Vec<PreviewWarning> {
     let mut out: Vec<PreviewWarning> = Vec::new();
 
+    // §2.32 — as severe as a duplicate difficulty: Load refuses this board.
+    let incomplete: u32 = board.domains.iter().map(|d| d.incomplete).sum();
+    if incomplete > 0 {
+        out.push(PreviewWarning::IncompleteQuestions {
+            questions: incomplete,
+        });
+    }
+
     // P11.13, and the most severe thing this function can say: a domain that
     // selects two questions at one difficulty cannot start a Play at all.
     // `recipe_upsert` refuses to write such a board, so reaching here means an
@@ -871,6 +888,7 @@ mod tests {
                 .enumerate()
                 .map(|(i, d)| question(&format!("{id}-{i}"), *d))
                 .collect(),
+            incomplete: 0,
         }
     }
 
@@ -913,6 +931,19 @@ mod tests {
                     difficulty: 10,
                     questions: 2
                 }),
+            "got {:?}",
+            p.warnings
+        );
+    }
+
+    #[test]
+    fn incomplete_questions_left_out_of_the_numbers_are_a_warning() {
+        let mut d = domain("d1", &[10, 20]);
+        d.incomplete = 2;
+        let p = preview(&game(), &PreviewBoard { domains: vec![d] });
+        assert!(
+            p.warnings
+                .contains(&PreviewWarning::IncompleteQuestions { questions: 2 }),
             "got {:?}",
             p.warnings
         );

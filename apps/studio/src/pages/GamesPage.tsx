@@ -112,12 +112,23 @@ export function GamesPage() {
                 variant="secondary"
                 icon="games"
                 onPress={() => {
-                  void run<SeedResult>('catalog_seed_demo', { mode: 'missing' }).then((r) => {
+                  void run<SeedResult>('catalog_seed_demo', { demo: 'en', mode: 'missing' }).then((r) => {
                     if (r) void go({ tab: 'games', id: r.recipeId })
                   })
                 }}
               >
                 {CHROME.loadDemo}
+              </Button>
+              <Button
+                variant="secondary"
+                icon="games"
+                onPress={() => {
+                  void run<SeedResult>('catalog_seed_demo', { demo: 'ro', mode: 'missing' }).then((r) => {
+                    if (r) void go({ tab: 'games', id: r.recipeId })
+                  })
+                }}
+              >
+                {CHROME.loadDemoRo}
               </Button>
             </div>
           ) : null

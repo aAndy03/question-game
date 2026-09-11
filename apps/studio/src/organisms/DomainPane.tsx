@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { Button, IconButton, MeaningChip, Panel, Skeleton, Text } from '@/atoms'
+import { useMemo, useState } from 'react'
+import { Button, Icon, IconButton, MeaningChip, Panel, Skeleton, Text } from '@/atoms'
 import { ActionMenu, ArchiveToggle, DomainForm, EmptyState, suggestDomainCode, type DomainFormValue } from '@/molecules'
 import { CONFIRM, DOMAIN, LIST } from '@/copy'
 import { useHostCommand } from '@/host/commands'
+import { activeMemberIds, bodyGaps, questionGaps } from '@/host/question'
 import { useCatalogList } from '@/host/queries'
 import type { ArchiveScope, Domain } from '@/host/types'
 import { useArchive } from './useArchive'
@@ -17,11 +18,28 @@ const EMPTY: DomainFormValue = { name: '', code: '', description: '' }
 /**
  * The domain pane of Domains + Questions: the list with its own archive
  * scope (spec §12: "two scopes in this tab"), Add domain, and edit in place.
+ * An active domain holding incomplete questions says how many (§2.32), so the
+ * operator knows which one to open; *All questions* counts every one,
+ * domain-less ones included.
  */
 export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
   const [scope, setScope] = useState<Exclude<ArchiveScope, 'all'>>('active')
   const domains = useCatalogList('domain', scope)
+  const questions = useCatalogList('question', 'active')
   const run = useHostCommand()
+  const incomplete = useMemo(() => {
+    const byId = new Map((questions.data ?? []).map((q) => [q.id, q]))
+    const inActive = activeMemberIds(domains.data ?? [])
+    return {
+      // A member of an active domain is in one, so only its body can lack anything.
+      of: (d: Domain) =>
+        d.questions.filter((m) => {
+          const q = byId.get(m.questionId)
+          return q !== undefined && bodyGaps(q).length > 0
+        }).length,
+      all: (questions.data ?? []).filter((q) => questionGaps(q, inActive.has(q.id)).length > 0).length,
+    }
+  }, [questions.data, domains.data])
   const archive = useArchive()
   const [editing, setEditing] = useState<'new' | string | null>(null)
   const [draft, setDraft] = useState<DomainFormValue>(EMPTY)
@@ -93,6 +111,7 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
                 name={DOMAIN.all}
                 code=""
                 count={null}
+                incomplete={incomplete.all}
                 isSelected={selectedId === null}
                 onSelect={() => onSelect(null)}
               />
@@ -107,6 +126,7 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
                   name={d.name}
                   code={d.code}
                   count={d.questions.length}
+                  incomplete={scope === 'active' ? incomplete.of(d) : undefined}
                   isSelected={selectedId === d.id}
                   isArchived={d.archivedAt !== null}
                   onSelect={() => onSelect(d.id)}
@@ -140,6 +160,7 @@ function DomainRow({
   name,
   code,
   count,
+  incomplete,
   isSelected,
   isArchived,
   onSelect,
@@ -148,6 +169,8 @@ function DomainRow({
   name: string
   code: string
   count: number | null
+  /** Incomplete questions in it (§2.32). Nothing renders for none. */
+  incomplete?: number | undefined
   isSelected: boolean
   isArchived?: boolean | undefined
   onSelect: () => void
@@ -181,6 +204,14 @@ function DomainRow({
           </Text>
         ) : null}
       </div>
+      {incomplete ? (
+        <span className="inline-flex items-center gap-0.5" style={{ color: 'var(--warning)' }}>
+          <Icon name="warn" size="sm" label={DOMAIN.incompleteCount(incomplete)} />
+          <Text variant="studio-caption" tabular>
+            {incomplete}
+          </Text>
+        </span>
+      ) : null}
       {count !== null ? <MeaningChip meaning="seed">{count}</MeaningChip> : null}
       {actions ? (
         <div className="opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>

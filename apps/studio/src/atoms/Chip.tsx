@@ -44,6 +44,8 @@ export const CHIP_TONES = {
   primary: 'default',
   stage: 'accent',
   disconnected: 'warning',
+  // questions (P11.17): a difficulty not set yet
+  unset: 'default',
 } as const satisfies Record<string, ChipTone>
 
 export type ChipMeaning = keyof typeof CHIP_TONES

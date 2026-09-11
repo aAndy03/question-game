@@ -87,8 +87,8 @@ export interface Question extends Stamps {
   readonly stem: string
   readonly mediaAssetId: string | null
   readonly options: readonly QuestionOption[]
-  /** 1–100. */
-  readonly difficulty: number
+  /** 1–100, or `null` while unset — an incomplete question (§2.32). */
+  readonly difficulty: number | null
   readonly explanation: string | null
 }
 
@@ -385,7 +385,50 @@ export type GlobalSetting =
   | { readonly key: 'audio_muted'; readonly value: boolean }
   | { readonly key: 'audio_cue'; readonly value: readonly [CueKey, string | null] }
 
+// ------------------------------------------------ incomplete questions · import
+
+/** §2.32 — one reason a question cannot go on a board yet, in reading order. */
+export type QuestionGap = 'stem' | 'options' | 'correct' | 'difficulty' | 'domain'
+
+/** A value an imported row carried and the import dropped — said, not swallowed. */
+export interface ImportIgnored {
+  /** `difficulty`, `options[2]`, `options[3].correct`, or an unknown key as written. */
+  readonly field: string
+  readonly why: 'unknown' | 'wrong_type' | 'out_of_range' | 'empty'
+}
+
+/** One row of `catalog_import_questions`' report (§2.32, 05_STUDIO_DESIGN.md §17.3). */
+export interface ImportRow {
+  /** 1-based, as a list is numbered. */
+  readonly index: number
+  readonly status: 'complete' | 'incomplete' | 'duplicate' | 'rejected'
+  readonly stem: string
+  /** The domains it lands in, by name — existing or new. */
+  readonly domains: readonly string[]
+  readonly gaps: readonly QuestionGap[]
+  readonly ignored: readonly ImportIgnored[]
+  readonly reason: 'not_an_object' | 'no_content' | null
+}
+
+export interface ImportCounts {
+  readonly complete: number
+  readonly incomplete: number
+  readonly duplicate: number
+  readonly rejected: number
+}
+
+/** `catalog_import_questions`' answer — the preview and the commit alike. */
+export interface ImportReport {
+  readonly committed: boolean
+  readonly rows: readonly ImportRow[]
+  readonly newDomains: readonly { readonly name: string; readonly code: string }[]
+  readonly counts: ImportCounts
+}
+
 // ---------------------------------------------------------- seed · data · paths
+
+/** Which shipped Demo (P11.17): English, or Romanian. They share no row. */
+export type SeedDemo = 'en' | 'ro'
 
 /** `catalog_seed_demo`: insert what is absent, or rewrite every seed row (§2.28). */
 export type SeedMode = 'missing' | 'overwrite'
@@ -699,6 +742,7 @@ export type PreviewWarning =
   | { readonly code: 'raggedBoard'; readonly min: number; readonly max: number }
   | { readonly code: 'flatBoard'; readonly difficulty: number }
   | { readonly code: 'duplicateDifficulty'; readonly difficulty: number; readonly questions: number }
+  | { readonly code: 'incompleteQuestions'; readonly questions: number }
 
 /**
  * What a setting is set to, structured. The host sends codes and numbers; the

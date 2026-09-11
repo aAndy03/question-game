@@ -15,8 +15,12 @@
 
 export interface BoardMember {
   readonly questionId: string
-  /** The effective difficulty: recipe overlay if set, else the catalog's. */
-  readonly difficulty: number
+  /**
+   * The effective difficulty: recipe overlay if set, else the catalog's.
+   * `null` when neither is set — such a member is incomplete (§2.32) and
+   * claims nothing.
+   */
+  readonly difficulty: number | null
   /** On this recipe's board right now. */
   readonly selected: boolean
 }
@@ -31,11 +35,11 @@ export interface BoardMember {
  */
 export function blockedMembers(members: readonly BoardMember[]): ReadonlyMap<string, number> {
   const claimed = new Map<number, string>()
-  for (const m of members) if (m.selected) claimed.set(m.difficulty, m.questionId)
+  for (const m of members) if (m.selected && m.difficulty !== null) claimed.set(m.difficulty, m.questionId)
 
   const blocked = new Map<string, number>()
   for (const m of members) {
-    if (m.selected) continue
+    if (m.selected || m.difficulty === null) continue
     const holder = claimed.get(m.difficulty)
     if (holder !== undefined && holder !== m.questionId) blocked.set(m.questionId, m.difficulty)
   }

@@ -27,6 +27,13 @@ describe('blockedMembers', () => {
     expect(blocked.get('q-b')).toBe(10)
   })
 
+  it('lets a member with no difficulty claim nothing and be blocked by nothing', () => {
+    // It is incomplete (§2.32); the Board dims it for that reason, not this one.
+    const blocked = blockedMembers([member('q-a', 10, true), { questionId: 'q-open', difficulty: null, selected: false }])
+    expect(blocked.size).toBe(0)
+    expect(blockedMembers([{ questionId: 'q-open', difficulty: null, selected: true }, member('q-b', 10)]).size).toBe(0)
+  })
+
   it('never blocks a question that is already selected', () => {
     // A board saved by an older build can hold two at one difficulty. Blocking
     // them both would disable the checkbox the operator needs to untick.
@@ -73,20 +80,60 @@ describe('oneQuestionPerDifficulty', () => {
  * app. It runs the same rule.
  */
 describe('the fake host', () => {
-  const question = (id: string, difficulty: number): CatalogItem => ({
+  /** Complete — two options, one correct — so a refusal is about the board, not the row. */
+  const question = (id: string, difficulty: number | null): CatalogItem => ({
     kind: 'question',
     item: {
       id,
       origin: 'operator',
       stem: `${id}?`,
       mediaAssetId: null,
-      options: [{ id: `${id}-0`, text: 'A', correct: true }],
+      options: [
+        { id: `${id}-0`, text: 'A', correct: true },
+        { id: `${id}-1`, text: 'B', correct: false },
+      ],
       difficulty,
       explanation: null,
       createdAt: 1,
       updatedAt: 1,
       archivedAt: null,
     },
+  })
+
+  it('refuses a board that selects an incomplete question, as the host does (§2.32)', async () => {
+    const fake = createFakeHost()
+    fake.seed(
+      [question('q-a', 20), question('q-open', null)],
+      [
+        {
+          ...demoRecipe(),
+          id: 'recipe-1',
+          board: [{ domainId: 'dom-1', questionIds: ['q-a'] }],
+          overlays: { teams: {}, domains: {}, questions: {} },
+        },
+      ],
+    )
+    await expect(
+      fake.invoke('recipe_set_membership', {
+        id: 'recipe-1',
+        teams: [],
+        board: [{ domainId: 'dom-1', questionIds: ['q-a', 'q-open'] }],
+      }),
+    ).rejects.toMatchObject({ message: expect.stringContaining('recipe.recipe-1.board.dom-1.question.q-open') })
+
+    // A this-game difficulty completes it for this show, and then it may go on.
+    await fake.invoke('recipe_set_overlay', {
+      id: 'recipe-1',
+      target: { target: 'question', id: 'q-open', patch: { difficulty: 70 } },
+      scope: 'this_game',
+    })
+    await expect(
+      fake.invoke('recipe_set_membership', {
+        id: 'recipe-1',
+        teams: [],
+        board: [{ domainId: 'dom-1', questionIds: ['q-a', 'q-open'] }],
+      }),
+    ).resolves.toBeTruthy()
   })
 
   const hostWithTwins = () => {

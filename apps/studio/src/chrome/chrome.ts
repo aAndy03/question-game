@@ -1,7 +1,7 @@
 /**
  * Chrome preferences — what the operator has arranged, never what the game
  * is. Sidebar mode, theme, grid|table per tab, archive scope per tab, the
- * Settings inner tab.
+ * question filter, the Settings inner tab.
  *
  * Persisted to `localStorage` per operator (spec §8: "grid/table view
  * preference persisted per operator per tab"). The active operator is host
@@ -50,6 +50,12 @@ interface ChromeState {
   readonly prefs: Readonly<Record<string, OperatorPrefs>>
   /** Session-only: not persisted. */
   readonly archiveScope: Readonly<Partial<Record<Tab, ArchiveScope>>>
+  /**
+   * The question list's All | Incomplete (§17.4). Session-only, like the
+   * archive scope, so it survives opening a question and coming back — the
+   * loop is *filter, open, fix, back, next*.
+   */
+  readonly libraryFilter: 'all' | 'incomplete'
   /** True while the pointer is over the left-edge peek strip (sidebar hidden). */
   readonly peeking: boolean
 
@@ -59,6 +65,7 @@ interface ChromeState {
   setTheme(theme: ThemeChoice): void
   setView(tab: ListTab, view: ViewMode): void
   setArchiveScope(tab: Tab, scope: ArchiveScope): void
+  setLibraryFilter(filter: 'all' | 'incomplete'): void
   setSettingsInner(inner: SettingsInner): void
   setPeeking(peeking: boolean): void
 }
@@ -78,6 +85,7 @@ export const useChromeStore = create<ChromeState>()(
         operatorId: '',
         prefs: {},
         archiveScope: {},
+        libraryFilter: 'all',
         peeking: false,
 
         setOperator(id) {
@@ -102,6 +110,9 @@ export const useChromeStore = create<ChromeState>()(
           // follows never returns.
           crumb('scope', `${tab}=${scope}`)
           set((s) => ({ archiveScope: { ...s.archiveScope, [tab]: scope } }))
+        },
+        setLibraryFilter(libraryFilter) {
+          set({ libraryFilter })
         },
         setSettingsInner(settingsInner) {
           update({ settingsInner })

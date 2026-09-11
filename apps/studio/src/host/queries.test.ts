@@ -17,7 +17,9 @@ describe('query keys', () => {
     keys.settings,
     keys.monitors,
     keys.paths,
-    keys.seedStatus,
+    keys.seedStatus.all,
+    keys.seedStatus.of('ro'),
+    keys.importPreview('{}', null),
     keys.plays.list(null),
     keys.plays.events('p'),
   ]
@@ -31,7 +33,17 @@ describe('query keys', () => {
 
   it('mirror the §13 read verbs and nothing else', () => {
     const roots = new Set(every.map((k) => k[0]))
-    expect([...roots].sort()).toEqual(['catalog', 'monitors', 'paths', 'plays', 'recipes', 'search', 'seed-status', 'settings'])
+    expect([...roots].sort()).toEqual([
+      'catalog',
+      'import-preview',
+      'monitors',
+      'paths',
+      'plays',
+      'recipes',
+      'search',
+      'seed-status',
+      'settings',
+    ])
   })
 })
 
@@ -44,6 +56,9 @@ describe('targetPathOf', () => {
     expect(targetPathOf('audio.volume: volume is 0-100')).toBe('audio.volume')
     expect(targetPathOf('shortcuts: that chord is already bound to another command')).toBe('shortcuts')
     expect(targetPathOf('operator.op-1.pin: wrong pin')).toBe('operator.op-1.pin')
+  })
+  it('lands an import refusal on the dialog (§2.32)', () => {
+    expect(targetPathOf('import: the file is not valid JSON: expected value at line 1 column 1')).toBe('import')
   })
   it('has no path for anything else', () => {
     expect(targetPathOf('recipe r already has an open play, p')).toBeNull()

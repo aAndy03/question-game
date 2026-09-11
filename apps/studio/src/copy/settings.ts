@@ -75,8 +75,8 @@ export const SETTINGS_GROUPS: readonly SettingsGroupCopy[] = [
   {
     id: 'library',
     title: 'Library',
-    description: 'The sample catalog.',
-    keys: ['library.restore_demo'],
+    description: 'The sample games.',
+    keys: ['library.restore_demo', 'library.restore_demo_ro'],
   },
   {
     id: 'data',
@@ -125,6 +125,10 @@ export const SETTINGS = {
     'feat.audio': { label: 'Audio', description: 'The audio feature. Off silences Stage regardless of the pack.' },
     'feat.audio.synth': { label: 'Generated tones', description: 'No generated tones in v1.' },
     'library.restore_demo': { label: 'Sample game', description: 'The Demo game: two teams, two domains, six questions.' },
+    'library.restore_demo_ro': {
+      label: 'Sample game (Română)',
+      description: 'Demo (Română): two teams, five domains — Istorie, Geografie, Științe, Biblie, Sport — fifteen questions, Stage in Romanian.',
+    },
     'data.wipe_plays': { label: 'Wipe Plays', description: 'Deletes every closed Play and its events. Games and the library stay.' },
     'data.uninstall': { label: 'Remove generated data', description: 'Deletes the catalog, search index, assets and per-operator files, then quits.' },
   } as const satisfies Readonly<Record<string, { label: string; description: string }>>,
@@ -237,7 +241,8 @@ export const SETTINGS = {
   } as const,
 
   library: {
-    restoreDemo: 'Restore Demo',
+    /** One Restore button per Demo (§17.5); two with one name would be one control to a screen reader. */
+    restore: { en: 'Restore Demo', ro: 'Restore Demo (Română)' } as const,
     restoreDemoHint: 'Inserts the missing sample rows and restores archived ones. Your edits stay.',
     loadDemo: 'Load Demo',
     overwrite: 'Overwrite edits',

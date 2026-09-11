@@ -1561,6 +1561,69 @@ Teams list row meta, and the two `StatCard`s on the team detail.
 
 ---
 
+## P11.17 — Incomplete questions, import, and a second Demo  ☑
+
+The operator writes questions in batches — often in a document, often with a
+language model — and wanted to bring them in at once rather than one editor at
+a time. A file like that is rarely finished: a question without its
+difficulty, a list of options with no answer ticked, no domain. The library
+refused every one of those, so the choice was *finish it all first* or *type it
+all again*.
+
+The rule changed rather than the importer working around it
+(`optimized_first_spec.md` §2.32): **the library may hold an incomplete
+question; a Play may not.** A question is stored if it has text or one option;
+the five things that make it playable — text, two options, a correct mark, a
+difficulty, an active domain — are *gaps*, spelled once in
+`crates/host/src/catalog/complete.rs`, marked wherever the question is listed,
+found by an *Incomplete* filter, and finished in the editor the operator
+already knows. A board refuses one at both doors a board has, and Load refuses
+one that became incomplete underneath it. `Question.difficulty` became
+`Option<u8>`, stored as `0` so no table had to be rebuilt.
+
+Import is one command, `catalog_import_questions`, over a pure planner run
+twice — once for the preview, once for the one-transaction write — so the
+report the operator confirms is the plan that lands. The file is JSON in the
+editor's shape; unknown domains are created, exact duplicates skipped, and
+anything the file carried wrongly is dropped *and listed*.
+
+And a second sample game, *Demo (Română)* — five domains, fifteen questions at
+10/50/100, Stage in Romanian — ships beside the English one, sharing no row,
+restorable on its own, and seeded by first run alongside it. Both are ordinary
+release-build commands.
+
+**Exit criteria**
+
+- ☑ The five gaps, alone and together, and the floor (`complete.rs`,
+  `model.rs`); the same matrix on the Studio side (`host/question.test.ts`).
+- ☑ An unset difficulty round-trips on both adapters, and the library stores an
+  incomplete question while refusing an empty one (`catalog_service.rs`).
+- ☑ A board cannot select an incomplete question through `recipe_upsert` or an
+  `Original` edit; a this-game difficulty completes one for that show only;
+  Load refuses one made incomplete in the library, and the Rules preview
+  counts it (`catalog_service.rs`, `snapshot.rs`, `preview.rs`).
+- ☑ The import planner: stem only and options only are incomplete, neither is
+  rejected, an unknown domain is created once for two spellings with the
+  Domain form's code, duplicates are skipped, dropped values are listed, a
+  file that cannot be read is refused whole with its line and column
+  (`import.rs`); the fake's mirror agrees case for case (`fake/import.test.ts`).
+- ☑ The preview writes nothing and the commit writes what it showed; a second
+  import of one file is all duplicates (`catalog_service.rs`).
+- ☑ The Romanian Demo is five domains of three at 10/50/100, complete, in
+  comma-below Romanian, shares no row with the English one, restores on its
+  own, and loads into a Play with Stage in Romanian (`seed.rs`,
+  `catalog_service.rs`, `host_wiring.rs`).
+- ☑ Studio: the mark only on incomplete rows and gone once finished, the
+  filter narrowing the list (`pages/library.test.tsx`); the editor saving an
+  incomplete question and listing its gaps (`pages/pages.test.tsx`); the dialog
+  previewing, refusing, and committing (`ImportQuestionsDialog.test.tsx`); the
+  Board dimming an incomplete member and keeping a selected one
+  (`BoardSection.test.tsx`); one Restore row per Demo and first run seeding
+  both (`pages/settings.test.tsx`).
+- ☐ Checked in the built app against the operator's own library.
+
+---
+
 ## P12 — Packaging and release  ☐
 
 **Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.
@@ -1576,7 +1639,7 @@ Teams list row meta, and the two `StatCard`s on the team detail.
 
 ## Explicitly not in v1
 
-Wager/stake · CSV import/export · user-replaceable audio packs · `@web-kits/audio` synth · Three.js / WebGL · haptics · mobile · livestream output · git-style branching in the operator UI · hard delete · a pack editor.
+Wager/stake · CSV import/export (JSON question import landed in P11.17; export is still later) · user-replaceable audio packs · `@web-kits/audio` synth · Three.js / WebGL · haptics · mobile · livestream output · git-style branching in the operator UI · hard delete · a pack editor.
 
 ---
 

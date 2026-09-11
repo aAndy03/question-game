@@ -97,6 +97,6 @@ export function useHostCommand(): Run {
  * (`audio.volume`, `shortcuts`) — one Settings row each (§12.2).
  */
 export function targetPathOf(message: string): string | null {
-  const match = /^((?:team|domain|question|operator|recipe|asset|audio|shortcuts)(?:\.[^\s:]+)?):/.exec(message)
+  const match = /^((?:team|domain|question|operator|recipe|asset|audio|shortcuts|import)(?:\.[^\s:]+)?):/.exec(message)
   return match?.[1] ?? null
 }

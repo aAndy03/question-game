@@ -229,8 +229,11 @@ pub struct Question {
     pub media_asset_id: Option<AssetId>,
     /// Authored order. Stage reveals them in it (§2.6).
     pub options: Vec<QuestionOption>,
-    /// 1–100 (§4.1).
-    pub difficulty: u8,
+    /// 1–100 (§4.1), or `None` until the author sets one — an incomplete
+    /// question (§2.32). Stored as `0` by `store.rs`; `0` was never a legal
+    /// difficulty, so the mapping cannot collide.
+    #[serde(default)]
+    pub difficulty: Option<u8>,
     pub explanation: Option<String>,
     #[serde(default)]
     pub origin: Origin,
@@ -245,7 +248,7 @@ impl Question {
             stem: stem.into(),
             media_asset_id: None,
             options: Vec::new(),
-            difficulty,
+            difficulty: Some(difficulty),
             explanation: None,
             origin: Origin::Operator,
             stamps: Stamps::default(),
@@ -274,21 +277,17 @@ impl Question {
             .collect()
     }
 
-    /// §4.1: options ≥ 2, the last correct mark cannot be removed, difficulty
-    /// 1–100. These are the rules the Questions editor disables buttons for;
-    /// the host refuses the write regardless.
+    /// The floor every write keeps (§2.32): a stem **or** an option, option
+    /// ids unique, no option without text, and a difficulty inside 1–100 when
+    /// one is set. Everything above the floor — two options, a correct mark, a
+    /// difficulty at all, a domain — is a *gap* ([`super::complete`]): the
+    /// library stores it and a board refuses it.
     pub(crate) fn validate(&self) -> CatalogResult<()> {
         let path = format!("question.{}", self.id);
-        if self.stem.trim().is_empty() {
+        if self.stem.trim().is_empty() && self.options.is_empty() {
             return Err(CatalogError::invalid(
                 path + ".stem",
-                "a question needs a stem",
-            ));
-        }
-        if self.options.len() < 2 {
-            return Err(CatalogError::invalid(
-                path + ".options",
-                "a question needs at least two options",
+                "a question needs a stem or at least one option",
             ));
         }
         let mut seen: Vec<&OptionId> = Vec::new();
@@ -301,13 +300,15 @@ impl Question {
             }
             seen.push(&option.id);
         }
-        if !self.options.iter().any(|o| o.correct) {
+        if self.options.iter().any(|o| o.text.trim().is_empty()) {
             return Err(CatalogError::invalid(
                 path + ".options",
-                "a question needs at least one correct mark",
+                "an option needs text",
             ));
         }
-        if self.difficulty == 0 || self.difficulty > 100 {
+        if let Some(difficulty) = self.difficulty
+            && (difficulty == 0 || difficulty > 100)
+        {
             return Err(CatalogError::invalid(
                 path + ".difficulty",
                 "difficulty is 1-100",
@@ -743,24 +744,43 @@ mod tests {
     }
 
     #[test]
-    fn the_last_correct_mark_cannot_be_removed() {
+    fn the_floor_is_a_stem_or_an_option() {
         let mut q = question();
-        q.options[0].correct = false;
-        assert!(q.validate().is_err());
+        q.options.clear();
+        assert!(q.validate().is_ok(), "a stem alone is incomplete, not refused");
+        q.stem = "   ".to_owned();
+        assert!(q.validate().is_err(), "nothing at all is refused");
+
+        let mut q = question();
+        q.stem.clear();
+        assert!(q.validate().is_ok(), "options alone are accepted too");
     }
 
     #[test]
-    fn a_question_needs_two_options_and_a_real_difficulty() {
+    fn an_incomplete_question_is_not_a_refusal() {
         let mut q = question();
+        q.options[0].correct = false;
         q.options.pop();
-        assert!(q.validate().is_err());
+        q.difficulty = None;
+        assert!(q.validate().is_ok());
+    }
+
+    #[test]
+    fn the_floor_still_refuses_what_no_edit_can_mean() {
+        let mut q = question();
+        q.options[1].text = " ".to_owned();
+        assert!(q.validate().is_err(), "an option with no text");
 
         let mut q = question();
-        q.difficulty = 0;
+        q.options[1].id = q.options[0].id.clone();
+        assert!(q.validate().is_err(), "two options with one id");
+
+        let mut q = question();
+        q.difficulty = Some(0);
         assert!(q.validate().is_err());
-        q.difficulty = 101;
+        q.difficulty = Some(101);
         assert!(q.validate().is_err());
-        q.difficulty = 100;
+        q.difficulty = Some(100);
         assert!(q.validate().is_ok());
     }
 }

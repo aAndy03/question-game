@@ -28,11 +28,12 @@ export const FIRST_RUN = {
     created: 'Operator created.',
   },
   sample: {
-    title: 'Load the sample game?',
-    body: 'The Demo game: Red and Blue, Geography and Science, six questions. A quick way to see Control and Stage working.',
+    title: 'Load the sample games?',
+    body: 'Two sample games go in: Demo — Red and Blue, Geography and Science, six questions — and Demo (Română) — five domains, fifteen questions, Stage in Romanian. The one you pick opens. A quick way to see Control and Stage working.',
     load: 'Load Demo',
+    loadRo: 'Load Demo (Română)',
     loaded: 'Demo loaded.',
-    skipHint: 'Skip leaves the library empty. Load Demo stays available from Games and Settings.',
+    skipHint: 'Skip leaves the library empty. Both stay available from Games and Settings.',
   },
   defaults: {
     title: 'Defaults for new games',

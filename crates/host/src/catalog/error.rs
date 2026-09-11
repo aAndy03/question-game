@@ -78,14 +78,20 @@ pub enum CatalogError {
         used_by: &'static str,
     },
 
-    /// A shape rule from §4.1: options ≥ 2, at least one correct mark,
-    /// difficulty 1–100, a recipe board that names a question its domain does
-    /// not contain.
+    /// A shape rule — the §2.32 floor for a question (a stem or an option,
+    /// option text, difficulty 1–100) or a recipe board rule (P11.13, §2.32).
     #[error("{target_path}: {reason}")]
     Invalid {
         target_path: String,
         reason: &'static str,
     },
+
+    /// A question file the import could not read at all (§2.32) — not JSON,
+    /// not this format, too long, a default domain that is not there. Nothing
+    /// was written. Its own variant because the reason carries the parser's
+    /// line and column, which a `&'static str` cannot.
+    #[error("import: {reason}")]
+    Import { reason: String },
 
     /// A settings document that would not be legal (§4.2). The recipe store
     /// runs the same interlocks `FlagService` does, because a recipe row is

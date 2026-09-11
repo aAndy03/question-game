@@ -6,7 +6,7 @@ import { FIRST_RUN, type FirstRunStepId } from '@/copy/firstRun'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { useHostCommand } from '@/host/commands'
 import { useCatalogList, usePaths } from '@/host/queries'
-import type { Operator, SeedResult } from '@/host/types'
+import type { Operator, SeedDemo, SeedResult } from '@/host/types'
 import { SettingsForm } from './SettingsForm'
 
 export interface FirstRunFlowProps {
@@ -90,12 +90,15 @@ export function useFirstRunFlow({ onFinish }: FirstRunFlowProps): FirstRunView {
     advance('operator')
   }
 
-  const loadDemo = async () => {
+  const loadDemo = async (pick: SeedDemo) => {
     setPending(true)
-    const result = await run<SeedResult>('catalog_seed_demo', { mode: 'missing' })
+    // Both sample games go in; the one picked is the one first run opens (§17.5).
+    const en = await run<SeedResult>('catalog_seed_demo', { demo: 'en', mode: 'missing' })
+    const ro = en ? await run<SeedResult>('catalog_seed_demo', { demo: 'ro', mode: 'missing' }) : null
     setPending(false)
-    if (result) {
-      setSeeded(result.recipeId)
+    const picked = pick === 'en' ? en : ro
+    if (en && ro && picked) {
+      setSeeded(picked.recipeId)
       advance('sample')
     }
   }
@@ -184,7 +187,10 @@ export function useFirstRunFlow({ onFinish }: FirstRunFlowProps): FirstRunView {
           <Button variant="tertiary" onPress={() => advance('sample')} isDisabled={pending}>
             {FIRST_RUN.skip}
           </Button>
-          <Button variant="primary" icon="games" onPress={() => void loadDemo()} isPending={pending}>
+          <Button variant="secondary" icon="games" onPress={() => void loadDemo('ro')} isPending={pending}>
+            {FIRST_RUN.sample.loadRo}
+          </Button>
+          <Button variant="primary" icon="games" onPress={() => void loadDemo('en')} isPending={pending}>
             {FIRST_RUN.sample.load}
           </Button>
         </>

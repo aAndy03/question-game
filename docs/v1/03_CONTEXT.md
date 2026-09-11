@@ -60,6 +60,14 @@ _Avoid_: rematch, resume
 Soft-delete of a library row, scoped to that tab. Restore is allowed.
 _Avoid_: delete, trash
 
+**Incomplete (question)**:
+A library question with a gap — no text, fewer than two options, no correct answer, no difficulty, or no active domain. Stored and editable; never on a board, never in a Play.
+_Avoid_: draft, invalid, broken
+
+**Import**:
+Bringing many questions into the library from one JSON file, previewed before anything is written.
+_Avoid_: upload, sync
+
 **Overlay (recipe)**:
 A per-recipe patch of a catalog field (this game only).
 _Avoid_: overlay (Stage animation — that is Overlay animation)

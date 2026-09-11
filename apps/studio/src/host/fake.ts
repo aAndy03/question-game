@@ -3,7 +3,8 @@
  *
  * It is the second adapter behind `HostTransport`: the same verbs, the same
  * events, a library kept in maps. It implements what the library tabs, the
- * Settings tab and first run call — `catalog_*` (the Demo seed included),
+ * Settings tab and first run call — `catalog_*` (both Demo seeds and the
+ * import included),
  * `recipe_*`, `referenced_by`, the settings document, shortcuts, pins,
  * `operator_activate`, the gated data commands, paths, health, monitors,
  * `play_list`, `get_state` — and refuses everything else with a `HostError`,
@@ -31,10 +32,15 @@ import type {
   GameSettings,
   GlobalSetting,
   HealthReport,
+  ImportReport,
+  ItemOf,
   LibraryKind,
   Operator,
   PlayRecord,
+  Question,
+  QuestionOverlay,
   Recipe,
+  SeedDemo,
   SeedMode,
   SeedResult,
   SeedStatus,
@@ -43,7 +49,9 @@ import type {
   StatsResult,
 } from './types'
 import { FAKE_LEDGER, FAKE_PREVIEW } from './fake/preview'
-import { SEED_RECIPE_ID, sameBody, seedLibrary, seedRecipe } from './fake/seed'
+import { ImportRefused, planImport } from './fake/import'
+import { SEED_RECIPE_IDS, sameBody, seedLibrary, seedRecipe } from './fake/seed'
+import { bodyGaps, effectiveBody } from './question'
 
 type Handler = (payload: unknown) => void
 
@@ -321,26 +329,34 @@ export function createFakeHost(): FakeHost {
   }
 
   /**
-   * P11.13 — one question per difficulty, per board domain. The real host runs
-   * this inside `recipe_upsert` and `recipe_set_overlay`; a fake that never
+   * The board rules as the host runs them in `recipe_upsert` and
+   * `recipe_set_overlay` (P11.13, §2.32): every selected question complete on
+   * its effective body, and one question per difficulty per domain. `pending`
+   * is the catalog row an `original` edit is about to write. A fake that never
    * refuses is exactly the fake a shell passes against and the app rejects.
    */
-  const checkBoardDifficulties = (recipe: Recipe, pending?: readonly [string, number]) => {
+  const checkBoard = (recipe: Recipe, pending?: Question) => {
     for (const board of recipe.board) {
       const claimed = new Map<number, string>()
       for (const qid of board.questionIds) {
         const row = library.get(key('question', qid))
-        const catalogDifficulty =
-          pending && pending[0] === qid ? pending[1] : row?.kind === 'question' ? row.item.difficulty : undefined
-        const difficulty = recipe.overlays.questions[qid]?.difficulty ?? catalogDifficulty
-        if (difficulty === undefined) continue
-        if (claimed.has(difficulty)) {
+        const question = pending?.id === qid ? pending : row?.kind === 'question' ? row.item : undefined
+        if (!question) continue
+        const body = effectiveBody(question, recipe.overlays.questions[qid])
+        if (bodyGaps(body).length > 0) {
           refuse(
             'catalog',
-            `recipe.${recipe.id}.board.${board.domainId}.difficulty.${difficulty}: two questions in this domain share a difficulty; a domain holds one question per difficulty`,
+            `recipe.${recipe.id}.board.${board.domainId}.question.${qid}: this question is incomplete; finish it in the library or take it off the board`,
           )
         }
-        claimed.set(difficulty, qid)
+        if (body.difficulty === null) continue
+        if (claimed.has(body.difficulty)) {
+          refuse(
+            'catalog',
+            `recipe.${recipe.id}.board.${board.domainId}.difficulty.${body.difficulty}: two questions in this domain share a difficulty; a domain holds one question per difficulty`,
+          )
+        }
+        claimed.set(body.difficulty, qid)
       }
     }
   }
@@ -460,7 +476,7 @@ export function createFakeHost(): FakeHost {
     recipe_upsert: (a) => {
       const r = a.recipe as Recipe
       if (!r.name.trim()) refuse('catalog', `recipe.${r.id}.name: a recipe needs a name`)
-      checkBoardDifficulties(r)
+      checkBoard(r)
       const next = bumpRecipe(r)
       return { id: next.id, rev: next.rev }
     },
@@ -489,7 +505,7 @@ export function createFakeHost(): FakeHost {
       const r = recipes.get(a.id as string)
       if (!r) refuse('catalog', `recipe ${a.id} not found`)
       const board = a.board as Recipe['board']
-      checkBoardDifficulties({ ...r, board })
+      checkBoard({ ...r, board })
       const next = bumpRecipe({ ...r, teams: a.teams as string[], board })
       return { id: next.id, rev: next.rev }
     },
@@ -513,20 +529,25 @@ export function createFakeHost(): FakeHost {
       const overlays = { ...r.overlays, [bucket]: { ...r.overlays[bucket] } } as Recipe['overlays']
       const map = overlays[bucket] as Record<string, unknown>
 
-      // P11.13, before anything is written — a refused write changes nothing,
-      // and the `original` scope below would otherwise have already touched
-      // the catalog row by the time the board was found illegal.
+      // P11.13, §2.32, before anything is written — a refused write changes
+      // nothing, and the `original` scope below would otherwise have already
+      // touched the catalog row by the time the board was found illegal.
       if (target.target === 'question') {
-        const patch = target.patch as { difficulty?: number } | null
-        const questions = { ...overlays.questions } as Record<string, unknown>
+        const patch = target.patch as QuestionOverlay | null
+        const questions = { ...overlays.questions } as Record<string, QuestionOverlay>
         if (a.scope === 'original' || patch === null) delete questions[target.id]
         else questions[target.id] = patch
-        checkBoardDifficulties(
-          { ...r, overlays: { ...overlays, questions } as Recipe['overlays'] },
-          a.scope === 'original' && typeof patch?.difficulty === 'number'
-            ? [target.id, patch.difficulty]
-            : undefined,
-        )
+        const row = library.get(key('question', target.id))
+        const pending: Question | undefined =
+          a.scope === 'original' && patch && row?.kind === 'question'
+            ? {
+                ...row.item,
+                ...(patch.stem != null ? { stem: patch.stem } : {}),
+                ...(patch.options != null ? { options: patch.options } : {}),
+                ...(patch.difficulty != null ? { difficulty: patch.difficulty } : {}),
+              }
+            : undefined
+        checkBoard({ ...r, overlays: { ...overlays, questions } as Recipe['overlays'] }, pending)
       }
 
       if (a.scope === 'original') {
@@ -548,10 +569,11 @@ export function createFakeHost(): FakeHost {
       return { id: next.id, rev: next.rev }
     },
     catalog_seed_demo: (a) => {
+      const demo = (a.demo as SeedDemo | undefined) ?? 'en'
       const mode = a.mode as SeedMode
       let inserted = 0
       let overwritten = 0
-      for (const item of seedLibrary()) {
+      for (const item of seedLibrary(demo)) {
         const k = key(item.kind, item.item.id)
         const existing = library.get(k)
         if (!existing) {
@@ -569,7 +591,7 @@ export function createFakeHost(): FakeHost {
         }
         emit('catalog-changed', { kind: item.kind, id: item.item.id, op: 'upserted' })
       }
-      const recipe = seedRecipe(gameDefaults)
+      const recipe = seedRecipe(demo, gameDefaults)
       const existing = recipes.get(recipe.id)
       if (!existing) {
         bumpRecipe(recipe)
@@ -580,9 +602,10 @@ export function createFakeHost(): FakeHost {
       } else if (existing.archivedAt !== null) {
         bumpRecipe({ ...existing, archivedAt: null })
       }
-      return { recipeId: SEED_RECIPE_ID, inserted, overwritten } satisfies SeedResult
+      return { recipeId: SEED_RECIPE_IDS[demo], inserted, overwritten } satisfies SeedResult
     },
-    catalog_seed_status: () => {
+    catalog_seed_status: (a) => {
+      const demo = (a.demo as SeedDemo | undefined) ?? 'en'
       const status = { present: 0, missing: 0, edited: 0 }
       const count = (stored: unknown, shipped: unknown) => {
         if (!stored) status.missing += 1
@@ -591,9 +614,35 @@ export function createFakeHost(): FakeHost {
           if (!sameBody(stored, shipped)) status.edited += 1
         }
       }
-      for (const item of seedLibrary()) count(library.get(key(item.kind, item.item.id))?.item, item.item)
-      count(recipes.get(SEED_RECIPE_ID), seedRecipe(gameDefaults))
+      for (const item of seedLibrary(demo)) count(library.get(key(item.kind, item.item.id))?.item, item.item)
+      count(recipes.get(SEED_RECIPE_IDS[demo]), seedRecipe(demo, gameDefaults))
       return status satisfies SeedStatus
+    },
+    // §2.32 — the host's planner, mirrored (`fake/import.ts`). A preview
+    // writes nothing; a commit writes the plan and announces each kind once.
+    catalog_import_questions: (a) => {
+      const active = <K extends LibraryKind>(kind: K) =>
+        [...library.values()].filter((r) => r.kind === kind && r.item.archivedAt === null).map((r) => r.item as ItemOf<K>)
+      let plan: ReturnType<typeof planImport>
+      try {
+        plan = planImport(
+          a.text as string,
+          { questions: active('question'), domains: active('domain') },
+          (a.defaultDomainId as string | null | undefined) ?? null,
+          () => crypto.randomUUID().replace(/-/g, '').slice(0, 8),
+        )
+      } catch (e) {
+        if (e instanceof ImportRefused) refuse('catalog', e.message)
+        throw e
+      }
+      if (a.commit !== true) return plan.report
+      plan.questions.forEach((item) => upsert({ kind: 'question', item }))
+      plan.domains.forEach((item) => upsert({ kind: 'domain', item }))
+      if (plan.questions.length > 0) {
+        emit('catalog-changed', { kind: 'question', id: '', op: 'upserted' })
+        emit('catalog-changed', { kind: 'domain', id: '', op: 'upserted' })
+      }
+      return { ...plan.report, committed: true } satisfies ImportReport
     },
     catalog_rebuild_search: () => ({ indexed: library.size }),
     wipe_plays: (a) => {
@@ -865,12 +914,14 @@ function validate(item: CatalogItem): void {
       if (!item.item.name.trim()) refuse('catalog', `domain.${item.item.id}.name: a domain needs a name`)
       break
     case 'question': {
+      // The §2.32 floor, as `Question::validate` has it. Everything above it
+      // is a gap the library stores and a board refuses.
       const q = item.item
       const path = `question.${q.id}`
-      if (!q.stem.trim()) refuse('catalog', `${path}.stem: a question needs a stem`)
-      if (q.options.length < 2) refuse('catalog', `${path}.options: a question needs at least two options`)
-      if (!q.options.some((o) => o.correct)) refuse('catalog', `${path}.options: a question needs at least one correct mark`)
-      if (q.difficulty < 1 || q.difficulty > 100) refuse('catalog', `${path}.difficulty: difficulty is 1-100`)
+      if (!q.stem.trim() && q.options.length === 0) refuse('catalog', `${path}.stem: a question needs a stem or at least one option`)
+      if (new Set(q.options.map((o) => o.id)).size !== q.options.length) refuse('catalog', `${path}.options: two options share an id`)
+      if (q.options.some((o) => !o.text.trim())) refuse('catalog', `${path}.options: an option needs text`)
+      if (q.difficulty !== null && (q.difficulty < 1 || q.difficulty > 100)) refuse('catalog', `${path}.difficulty: difficulty is 1-100`)
       break
     }
     case 'operator':

@@ -1,7 +1,8 @@
 import { Button, Icon, MeaningChip, Panel, Skeleton, Text } from '@/atoms'
-import { EmptyState, MetaList, NavCrumbs, PageHeader } from '@/molecules'
+import { EmptyState, GapNotice, IncompleteMark, MetaList, NavCrumbs, PageHeader } from '@/molecules'
 import { useNavStore } from '@/chrome/nav'
 import { DOMAIN, fmt, LIST, QUESTION, TABS } from '@/copy'
+import { questionGaps } from '@/host/question'
 import { useCatalogItem, useCatalogList } from '@/host/queries'
 import { answerMode, difficultyBand, isArchived } from '@/host/types'
 import { useArchive } from './useArchive'
@@ -12,7 +13,10 @@ export interface QuestionDetailProps {
   compact?: boolean | undefined
 }
 
-/** Stem, options with the correct marks, difficulty, domains, archive/restore. */
+/**
+ * Stem, options with the correct marks, difficulty, domains, archive/restore —
+ * and, while the question is incomplete (§2.32), what it still lacks.
+ */
 export function QuestionDetail({ id, domainId, compact }: QuestionDetailProps) {
   const question = useCatalogItem('question', id)
   const domains = useCatalogList('domain', 'active')
@@ -24,15 +28,22 @@ export function QuestionDetail({ id, domainId, compact }: QuestionDetailProps) {
   const q = question.data
   const archived = isArchived(q)
   const mode = answerMode(q)
-  const band = difficultyBand(q.difficulty)
+  const band = q.difficulty === null ? null : difficultyBand(q.difficulty)
   const inDomains = (domains.data ?? []).filter((d) => d.questions.some((m) => m.questionId === q.id))
+  const gaps = questionGaps(q, inDomains.length > 0)
+  const title = q.stem || QUESTION.noStem
   const back = { tab: 'library' as const, ...(domainId ? { domainId } : {}) }
   const edit = () => void go({ tab: 'library', questionId: q.id, mode: 'edit', ...(domainId ? { domainId } : {}) })
 
   const status = (
     <span className="flex items-center gap-1.5">
+      <IncompleteMark gaps={gaps} />
       <MeaningChip meaning={mode}>{mode === 'single' ? QUESTION.single : QUESTION.multiple}</MeaningChip>
-      <MeaningChip meaning={band}>{`${QUESTION.band[band]} · ${q.difficulty}`}</MeaningChip>
+      {band ? (
+        <MeaningChip meaning={band}>{`${QUESTION.band[band]} · ${q.difficulty}`}</MeaningChip>
+      ) : (
+        <MeaningChip meaning="unset">{`${QUESTION.difficulty} · ${QUESTION.difficultyUnset}`}</MeaningChip>
+      )}
       {archived ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null}
     </span>
   )
@@ -51,7 +62,7 @@ export function QuestionDetail({ id, domainId, compact }: QuestionDetailProps) {
       {compact ? (
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-2">
-            <Text variant="studio-heading">{q.stem}</Text>
+            <Text variant="studio-heading">{title}</Text>
             {status}
           </div>
           <Button size="sm" variant="secondary" icon="edit" onPress={edit} isDisabled={archived}>
@@ -60,7 +71,7 @@ export function QuestionDetail({ id, domainId, compact }: QuestionDetailProps) {
         </div>
       ) : (
         <PageHeader
-          title={q.stem}
+          title={title}
           status={status}
           crumbs={<NavCrumbs crumbs={[{ label: TABS.library.label, onPress: () => void go(back) }, { label: QUESTION.one }]} />}
           primaryAction={
@@ -71,6 +82,7 @@ export function QuestionDetail({ id, domainId, compact }: QuestionDetailProps) {
           secondaryActions={actions}
         />
       )}
+      <GapNotice gaps={gaps} />
       <Panel className="flex flex-col gap-2">
         <Text variant="studio-label">{QUESTION.options}</Text>
         <ol className="flex flex-col gap-1.5">

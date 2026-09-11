@@ -3,7 +3,8 @@
  *
  * Keys mirror the §13 verbs and nothing else: `catalog_*`, `recipe_*`,
  * `settings_get`, `monitors_list`, `play_list`, `play_events`, `paths_get`,
- * `catalog_seed_status`, `stats_query`. **No key names a Play's live state** — `play-state`
+ * `catalog_seed_status`, `stats_query`, and `catalog_import_questions` as a
+ * preview that writes nothing. **No key names a Play's live state** — `play-state`
  * is `playState.ts`, and a test asserts the word `play-state` never appears in
  * a key. (`plays` is the closed-Play *history*, `play_list`, which is a
  * catalog-shaped read: it changes on a host event, never on a tick.)
@@ -20,6 +21,7 @@ import type {
   AppPaths,
   ArchiveScope,
   CatalogItem,
+  ImportReport,
   ItemOf,
   LibraryKind,
   PlayEvent,
@@ -28,6 +30,7 @@ import type {
   RulesPreview,
   SearchHit,
   SearchQuery,
+  SeedDemo,
   SeedStatus,
   SettingsView,
   StatsQuery,
@@ -52,8 +55,17 @@ export const keys = {
   monitors: ['monitors'] as const,
   /** `paths_get` — fixed for the life of the process. */
   paths: ['paths'] as const,
-  /** `catalog_seed_status` — invalidated by every catalog/recipe change. */
-  seedStatus: ['seed-status'] as const,
+  /** `catalog_seed_status`, per Demo — invalidated by every catalog/recipe change. */
+  seedStatus: {
+    all: ['seed-status'] as const,
+    of: (demo: SeedDemo) => ['seed-status', demo] as const,
+  },
+  /**
+   * `catalog_import_questions { commit: false }` — the import dialog's preview.
+   * Keyed on the text itself, so a paste that has not changed is not planned
+   * again.
+   */
+  importPreview: (text: string, defaultDomainId: string | null) => ['import-preview', text, defaultDomainId] as const,
   plays: {
     list: (recipeId: string | null) => ['plays', 'list', recipeId] as const,
     events: (playId: string) => ['plays', 'events', playId] as const,
@@ -173,12 +185,28 @@ export function usePaths() {
   })
 }
 
-/** Seed rows present / missing / edited — Restore Demo's confirm (§12.1). */
-export function useSeedStatus() {
+/** One Demo's seed rows present / missing / edited — its Restore confirm (§12.1, §17.5). */
+export function useSeedStatus(demo: SeedDemo = 'en') {
   return useQuery({
-    queryKey: keys.seedStatus,
-    queryFn: () => command<SeedStatus>('catalog_seed_status'),
+    queryKey: keys.seedStatus.of(demo),
+    queryFn: () => command<SeedStatus>('catalog_seed_status', { demo }),
     enabled: enabled(),
+  })
+}
+
+/**
+ * The import dialog's preview (§2.32): the host plans the file and writes
+ * nothing. A refusal — not JSON, not this format, too long — is this query's
+ * error and the dialog shows it; it is never a notice, because the operator is
+ * mid-paste, not being told off.
+ */
+export function useImportPreview(text: string, defaultDomainId: string | null) {
+  return useQuery({
+    queryKey: keys.importPreview(text, defaultDomainId),
+    queryFn: () => command<ImportReport>('catalog_import_questions', { text, commit: false, defaultDomainId }),
+    enabled: enabled() && text.trim().length > 0,
+    retry: false,
+    placeholderData: (previous) => previous,
   })
 }
 
@@ -234,7 +262,7 @@ export function invalidateForCatalogChange(
   kind: string,
   id: string,
 ): void {
-  void client.invalidateQueries({ queryKey: keys.seedStatus })
+  void client.invalidateQueries({ queryKey: keys.seedStatus.all })
   if (kind === 'recipe') {
     void client.invalidateQueries({ queryKey: keys.recipes.all })
     // `wipe_plays` reports through this event too (§12.3).
@@ -251,7 +279,7 @@ export function invalidateForCatalogChange(
 }
 
 export function invalidateForRecipeChange(client: QueryClient, id: string): void {
-  void client.invalidateQueries({ queryKey: keys.seedStatus })
+  void client.invalidateQueries({ queryKey: keys.seedStatus.all })
   void client.invalidateQueries({ queryKey: keys.recipes.list('active') })
   void client.invalidateQueries({ queryKey: keys.recipes.list('archived') })
   void client.invalidateQueries({ queryKey: keys.recipes.list('all') })

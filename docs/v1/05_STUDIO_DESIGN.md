@@ -332,11 +332,13 @@ someone remembers to add.
 **Chips.** `archived` (warning) · `overridden` (accent) · `seed` (default) ·
 `single` / `multiple` (default) · `easy` / `medium` / `hard` (success /
 warning / danger, thresholds ≤33 / ≤66 / else) · `playing` (success) ·
-`frozen` (warning). Nothing else without adding it here.
+`frozen` (warning) · `unset` (default — a difficulty not set yet, P11.17).
+Nothing else without adding it here.
 
 **Empty states.** `empty` ("No teams yet" + New) · `noResults` ("Nothing
-matches" + Clear search) · `archivedEmpty` ("Nothing archived") · `error`
-(the host message + Retry).
+matches" + Clear search) · `archivedEmpty` ("Nothing archived") ·
+`allComplete` ("No incomplete questions here", the Incomplete filter,
+P11.17) · `error` (the host message + Retry).
 
 **Row actions**, in order, everywhere: Open · Edit · Duplicate (recipes only)
 · Archive / Restore. Destructive last, in `danger` only inside a menu or after
@@ -1895,3 +1897,252 @@ override under `ro` and the table's word under `en`),
 `recipe_set_layout` with `text.en.idleEyebrow` and nothing in `nodes`; the
 canvas iframe carries `hold`; the tab list is seven screens then five
 overlays).
+
+## 17. Incomplete questions, import, and a second Demo (P11.17)
+
+The rule is `optimized_first_spec.md` §2.32 and it is the host's. A question
+can now be in the library before it is ready for a show — typed in halfway, or
+imported from a file that had no difficulties in it — and the operator finishes
+it in the editor they already know. Nothing incomplete reaches a Play.
+
+### 17.1 Five gaps, one spelling
+
+| Gap | Reads |
+| --- | --- |
+| `stem` | the question has no text |
+| `options` | fewer than two options |
+| `correct` | no option is marked correct |
+| `difficulty` | no difficulty is set |
+| `domain` | the question sits in no **active** domain |
+
+`crates/host/src/catalog/complete.rs` is the rule and it is pure:
+`body_gaps(&Question)` returns the first four and `gaps(&Question,
+in_active_domain)` adds the fifth. On a board the domain gap cannot arise — a
+board question is a member of its board domain by construction — so the board
+and the snapshot call `body_gaps` on the **effective** body (the recipe overlay
+applied, §2.17), the way §15 compares the effective difficulty.
+
+`Question::validate` keeps only the floor: stem **or** at least one option;
+option ids unique; no option without text; difficulty, when set, 1–100.
+`Question.difficulty` is `Option<u8>` (`number | null` on the wire). SQLite
+keeps its `NOT NULL` column and `store.rs` maps `0 ↔ None` — `0` was never a
+legal stored value, and that avoids rebuilding a table that `domain_questions`
+references.
+
+`apps/studio/src/host/question.ts` spells the same rule for display
+(`questionGaps`, `acceptsQuestion`, `activeMemberIds`), the pattern of
+`host/board.ts` and `host/session.ts`: the row icon, the filter and the
+editor's live list read it; the host still refuses on its own.
+
+**Enforcement, host side.** `check_board_difficulties` becomes `check_board`
+and refuses, at the same two doors (`recipe_upsert`, `recipe_set_overlay`), a
+selected question with a body gap as well as a difficulty clash — at
+`recipe.<id>.board.<domain>.question.<qid>`. `build_snapshot` refuses one at
+Load, because a question can become incomplete from outside the recipe (an
+`Original` edit, or the editor). `preview_board` skips it and raises
+`PreviewWarning::IncompleteQuestion`, so Game ▸ Rules says it before Load does.
+
+### 17.2 The import document
+
+One JSON file in the editor's shape. Every field but the list is optional:
+
+```json
+{
+  "format": "questiongame.questions",
+  "version": 1,
+  "questions": [
+    {
+      "question": "Care este capitala Australiei?",
+      "options": [
+        { "text": "Canberra", "correct": true },
+        { "text": "Sydney" },
+        "Melbourne",
+        "Perth"
+      ],
+      "difficulty": 50,
+      "domains": ["Geografie"],
+      "explanation": "Optional."
+    }
+  ]
+}
+```
+
+- A bare top-level array of rows is accepted. `format`, when present, must be
+  `questiongame.questions`; `version`, when present, must be `1`.
+- An option is `{ "text", "correct"? }` or a bare string (a wrong option).
+  `correct` defaults to `false`; several `true` make a multiple-answer question.
+- `domains` is a list of names or codes (a single string is accepted).
+- **Accepted**: the row has question text or at least one option with text.
+  **Rejected**: anything else, or a row that is not an object. Everything
+  between is *incomplete* with its gaps.
+- **Ignored, and said so**: an unknown field (a typo like `dificulty` must not
+  vanish silently), a value of the wrong type, a difficulty outside 1–100, an
+  option with no text. The row is kept; the report lists what was dropped.
+- **Refused whole**, nothing written: invalid JSON (with line and column), a
+  wrong `format` / `version`, no row list, more than 2,000 rows.
+
+### 17.3 One command, preview then commit
+
+`catalog_import_questions { text, commit, defaultDomainId }` → `ImportReport`.
+
+```ts
+ImportReport { committed, rows: ImportRow[], newDomains: { name, code }[],
+               counts: { complete, incomplete, duplicate, rejected } }
+ImportRow    { index, status: 'complete' | 'incomplete' | 'duplicate' | 'rejected',
+               stem, domains, gaps: QuestionGap[],
+               ignored: { field, why: 'unknown' | 'wrong_type' | 'out_of_range' | 'empty' }[],
+               reason: 'not_an_object' | 'no_content' | null }
+```
+
+`crates/host/src/catalog/import.rs` is a pure `plan(text, library, mint)`;
+the service runs it with `commit: false` for the preview and again with
+`commit: true` for the write, so the two cannot disagree. The write is one
+`catalog_upsert_many`-style transaction: new domains, questions, then each
+touched domain's membership (appended in file order, §4.1's sort key).
+
+- **Domains** match an active domain by name or code, trimmed and
+  case-insensitive. No match → a new domain, its code suggested the way
+  `suggestDomainCode` does. Two spellings of one new name are one domain.
+- **`defaultDomainId`** receives every row that names no domain. The dialog
+  defaults it to the domain selected in the pane. An id that is not an active
+  domain refuses the command.
+- **Duplicates** — same stem and the same set of options with the same correct
+  marks (trimmed, case-insensitive) as an active question or an earlier row —
+  are skipped and counted.
+- **Ids** are minted by the host: `q-<8 hex>`, options `<qid>-a`, `-b`, …,
+  domains `dom-<8 hex>`. Rows are `origin = operator`.
+- Studio-only: `guard` refuses it from Stage and from the Statistics window.
+
+### 17.4 What the operator sees
+
+**Import** (secondary, `import` icon) sits beside *New question* in the
+Library header and in the empty state. It opens `ImportQuestionsDialog`:
+
+```
+Import questions
+[ Choose a .json file ]  or paste below              [ Copy template ]
+┌──────────────────────────────────────────────────────────────┐
+│ { "questions": [ …                                           │
+└──────────────────────────────────────────────────────────────┘
+Questions without a domain go to   [ Geografie ▾ ]
+─────────────────────────────────────────────────────────────────
+42 complete · 7 incomplete · 3 duplicates · 1 rejected · 2 new domains
+ #  Question                              Status
+ 1  Care este capitala Australiei?        Complete
+ 4  Cine a scris „Luceafărul"?            ⚠ No difficulty · No domain
+ 9  —                                     Rejected: no question and no options
+                                        [ Cancel ]  [ Import 49 questions ]
+```
+
+The file is read in the webview (`<input type="file">` + `File.text()`, no
+new plugin); the preview re-runs on every change of text or default domain.
+A document-level refusal is an `InlineNotice` at `import`. On success the
+dialog closes with a toast (*Imported 49 questions · 7 incomplete*).
+
+**The mark.** An incomplete question carries a warning icon in its row's
+leading slot, beside the difficulty (`—` when unset, and no band chip); the
+tooltip names the gaps. A complete question carries nothing. The same icon
+leads `QuestionDetail`, with the gaps listed under it.
+
+**The filter.** An *Incomplete · n* toggle in the question-list toolbar,
+applied to the selected domain; under *All domains* it is also the only way to
+find questions with no domain. The toggle is chrome (`chrome.ts`
+`libraryFilter`, session-only like the archive scope), so it survives opening
+a question and coming back — the natural loop is *filter, open, fix, back,
+next*. Empty with the filter on reads *No incomplete questions here*.
+
+**Domain rows** show a warning count when the domain holds incomplete
+questions; *All domains* counts every incomplete question.
+
+**The editor.** Save needs the floor (question text or one option with text);
+gaps never disable it, and a blank option row is dropped on save rather than
+blocking it. While gaps remain, a warning line at the top lists them and
+updates as you type; it goes when the last closes. The stem is no longer
+marked required.
+`DifficultyField` takes `null`: an empty number, a *Not set* chip in place of
+the band, the slider parked and dimmed; the first touch of either sets it. A
+new question still starts at 50.
+
+**Game ▸ Board.** An incomplete member renders at 40% with its checkbox
+disabled and the gaps as the reason (§4.2), unless it is already selected —
+then it keeps the checkbox and shows the mark, so the board that Load would
+refuse can be fixed. *Add domain* ticks one **complete** question per
+difficulty.
+
+### 17.5 A second Demo
+
+`seed.rs` holds two documents, `Demo::English` (unchanged — ids, rows, the
+10/20/30 walk) and `Demo::Romanian` (`seed-recipe-demo-ro`, rows `seed-ro-*`).
+They share no row, so restoring one never rewrites the other.
+`catalog_seed_demo { demo, mode }` and `catalog_seed_status { demo }` take
+`demo: 'en' | 'ro'`, defaulting to `en`. Both are ordinary release-build
+commands (`crates/app/src/lib.rs`), not dev harness.
+
+*Demo (Română)*: teams *Roșu* / *Albastru*; game defaults plus `language:
+'ro'` (§16); five domains, three questions each at 10 / 50 / 100, four
+options, the first correct:
+
+| | 10 | 50 | 100 |
+| --- | --- | --- | --- |
+| Istorie | În ce an a avut loc Marea Unire? **1918** · 1859 · 1877 · 1947 | Cine a realizat unirea din 1600? **Mihai Viteazul** · Ștefan cel Mare · Vlad Țepeș · Alexandru Ioan Cuza | În ce an și-a proclamat România independența? **1877** · 1859 · 1866 · 1881 |
+| Geografie | Care este capitala României? **București** · Cluj-Napoca · Iași · Timișoara | Care este cel mai înalt vârf din România? **Moldoveanu** · Negoiu · Omu · Peleaga | Care este cel mai lung fluviu din Europa? **Volga** · Dunărea · Nipru · Rin |
+| Științe | Care este formula chimică a apei? **H2O** · CO2 · O2 · NaCl | Care planetă este cea mai apropiată de Soare? **Mercur** · Venus · Marte · Pământ | Care este, aproximativ, viteza luminii în vid? **300.000 km/s** · 150.000 km/s · 30.000 km/s · 3.000.000 km/s |
+| Biblie | Cine a construit arca? **Noe** · Moise · Avraam · David | Câți apostoli și-a ales Iisus? **12** · 7 · 10 · 40 | Cine a fost primul rege al lui Israel? **Saul** · David · Solomon · Samuel |
+| Sport | Câți jucători are o echipă de fotbal pe teren? **11** · 9 · 10 · 12 | Cine a primit prima notă de 10 din istoria gimnasticii olimpice? **Nadia Comăneci** · Simona Amânar · Lavinia Miloșovici · Andreea Răducan | În ce an a câștigat Steaua București Cupa Campionilor Europeni? **1986** · 1984 · 1989 · 1991 |
+
+Settings ▸ Library has one *Restore* row per Demo, each with its own
+present · missing · edited line and its own overwrite confirm. First run's
+sample step seeds **both** and loads the one the operator picks (*English* /
+*Română*); *Skip* seeds neither.
+
+### 17.6 Tests
+
+- `crates/host/src/catalog/complete.rs`: every gap alone and together; the floor.
+- `crates/host/src/catalog/import.rs`: the §2.32 matrix — question only,
+  options only, neither (rejected), no difficulty, no domain, unknown domain
+  (created once for two spellings), `defaultDomainId`, duplicate against the
+  library and within the file, ignored fields listed, bad JSON with line and
+  column, row cap.
+- `crates/host/tests/catalog_service.rs` (memory *and* file): preview equals
+  commit and writes nothing; a second import of one file is all duplicates; a
+  file that cannot be read writes nothing; difficulty `None` round-trips; a
+  board selecting an incomplete question is refused by both doors and by
+  `build_snapshot`; the preview counts it. The write is one transaction because
+  it is `catalog_upsert_many`, whose atomicity
+  `a_bulk_upsert_is_one_transaction_and_an_illegal_row_writes_none_of_it`
+  already holds.
+- `seed.rs`: the Romanian document is valid, complete, 5 × 3 at 10/50/100,
+  `language = ro`, shares no id with the English one; status and restore are
+  per Demo.
+- `apps/studio/src/host/question.test.ts`: the same gap matrix as the host.
+- `QuestionEditor` saves an incomplete question and its gap line follows the
+  draft; `LibraryPage` shows the icon only on incomplete rows (role and label,
+  not presence) and the filter narrows the list; the import dialog previews
+  then commits against the fake; `BoardSection` dims an incomplete member and
+  keeps a selected one; Settings has two Restore rows; first run offers both.
+- The fake (`host/fake.ts`) runs the same floor, the same board refusal and the
+  same import report. A shell that stays legal only because the fake never
+  refuses is the shell the app rejects (§15.3).
+
+### 17.7 As built — departures worth knowing
+
+- **Blank option rows are dropped, not refused.** The plan kept the editor's
+  old rule that an empty option row blocks Save. A new question opens with two
+  blank rows and a row cannot be removed below two, so that rule made *save the
+  question text alone* impossible — the one thing §2.32 promised the editor.
+  An empty row is now simply not an option yet.
+- **The filter key is `libraryFilter`, not `questionFilter`.** `chrome.test.ts`
+  refuses any store key that looks like Play state, and *question* is on its
+  list. The key is named after the tab instead of loosening the tripwire.
+- **`suggestDomainCode` moved to `host/domain.ts`**, so the fake's import can
+  name a new domain without importing a molecule; `DomainForm` re-exports it.
+  The host's `suggest_code` is pinned to the same numbers by a test
+  (`IST_225`, `TII_812`).
+- **The fake's English Demo was a different six questions** from the host's
+  (`seed.rs`), although its header said it mirrored it. Both Demos now come
+  from one table in `host/fake/seed.ts` that matches `seed.rs` stem for stem.
+- **Two existing host tests encoded the old rule** — one option, or no correct
+  mark, refused. They now assert the floor instead
+  (`the_floor_is_refused_by_the_host_not_only_disabled_in_the_editor`), and
+  the snapshot tests' hand-made twins got options so they still reach the
+  clash they exist to test.

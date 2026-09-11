@@ -51,6 +51,8 @@ export const ICONS = {
   add: 'plus',
   edit: 'pencil',
   duplicate: 'copy',
+  copy: 'copy',
+  import: 'file-arrow-up',
   open: 'arrow-right',
   sort: 'bars-unaligned',
   filter: 'funnel',

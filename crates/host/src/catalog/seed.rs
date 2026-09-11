@@ -1,7 +1,8 @@
-//! The shipped Demo document, and *Restore sample game* (§12.1).
+//! The shipped Demos, and *Restore sample game* (§12.1, P11.17).
 //!
 //! First run offers a sample game so the operator can see a Play before they
-//! have typed a single question. It is built out of the ordinary catalog types
+//! have typed a single question — two of them since P11.17, one in English
+//! and one in Romanian, which share no row. Each is built out of the ordinary catalog types
 //! and written through the ordinary verbs — `catalog_upsert_many` and
 //! `recipe_upsert` — with no SQL of its own. If this could seed a library the
 //! operator could not have typed in by hand, it would be testing the wrong
@@ -19,6 +20,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::flags::GameSettings;
 use crate::ids::{DomainId, QuestionId, RecipeId, TeamId};
+use crate::settings::Language;
 
 use super::error::{CatalogError, CatalogKind, CatalogResult};
 use super::model::{
@@ -27,8 +29,23 @@ use super::model::{
 };
 use super::service::CatalogService;
 
-/// The seed recipe's id — what the first-run wizard loads into Control.
+/// The English Demo's recipe id — what the first-run wizard has loaded since P10.
 pub const RECIPE_ID: &str = "seed-recipe-demo";
+/// The Romanian Demo's (P11.17).
+pub const RECIPE_ID_RO: &str = "seed-recipe-demo-ro";
+
+/// Which shipped Demo (P11.17). They share no row, so restoring one never
+/// rewrites the other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Demo {
+    /// "Demo" — Red and Blue, Geography and Science, 10/20/30.
+    #[default]
+    En,
+    /// "Demo (Română)" — Roșu and Albastru, five domains, 10/50/100, and
+    /// Stage's own words in Romanian.
+    Ro,
+}
 
 /// How far *Restore sample game* may reach (§12.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -64,36 +81,40 @@ pub struct SeedStatus {
     pub edited: usize,
 }
 
-// ------------------------------------------------------------------ the document
+// ------------------------------------------------------------------ the documents
 
-/// One seeded domain: id, name, code, and its three questions as
-/// `(stem, [option; 4])` — the first option is the correct one. Named so the
-/// literal below reads as a document rather than as a nest of tuples.
+/// `(stem, [option; 4])` — the first option is the correct one.
 type SeedQuestion = (&'static str, [&'static str; 4]);
+/// `(key, name, code, questions)`. The key is the id suffix: `geo` →
+/// `seed-dom-geo`, `seed-q-geo-1`.
 type SeedDomain = (&'static str, &'static str, &'static str, [SeedQuestion; 3]);
+/// `(key, name, short code, colour)`.
+type SeedTeam = (&'static str, &'static str, &'static str, &'static str);
 
-/// The Demo: two teams, two domains, three questions each at 10/20/30, and one
-/// recipe that uses all of it. The settings are the caller's
-/// `globals.game_defaults` — the same seed a new recipe would copy (§12).
-///
-/// Questions go in before domains, and both before the recipe, because the
-/// membership rows reference them and a batch is one transaction.
-pub fn demo_document(settings: GameSettings) -> (Vec<CatalogItem>, Recipe) {
-    let mut items: Vec<CatalogItem> = Vec::new();
+/// One Demo as data, named so the literals below read as documents rather than
+/// as a nest of tuples. Every id is `prefix` + `team-` | `dom-` | `q-` + key,
+/// which keeps the English ids exactly what they were before there were two.
+struct Document {
+    recipe_id: &'static str,
+    name: &'static str,
+    prefix: &'static str,
+    teams: [SeedTeam; 2],
+    domains: &'static [SeedDomain],
+    /// Easy → hard inside a domain: the queue walks them in this order (§5.2).
+    difficulties: [u8; 3],
+}
 
-    for (id, name, code, color) in [
-        ("seed-team-red", "Red", "RED", "var(--state-incorrect)"),
-        ("seed-team-blue", "Blue", "BLUE", "var(--state-info)"),
-    ] {
-        let mut team = Team::new(id, name, code);
-        team.color = color.to_owned();
-        team.origin = Origin::Seed;
-        items.push(team.into());
-    }
-
-    let domains: [SeedDomain; 2] = [
+const ENGLISH: Document = Document {
+    recipe_id: RECIPE_ID,
+    name: "Demo",
+    prefix: "seed-",
+    teams: [
+        ("red", "Red", "RED", "var(--state-incorrect)"),
+        ("blue", "Blue", "BLUE", "var(--state-info)"),
+    ],
+    domains: &[
         (
-            "seed-dom-geo",
+            "geo",
             "Geography",
             "GEO_101",
             [
@@ -112,7 +133,7 @@ pub fn demo_document(settings: GameSettings) -> (Vec<CatalogItem>, Recipe) {
             ],
         ),
         (
-            "seed-dom-sci",
+            "sci",
             "Science",
             "SCI_204",
             [
@@ -130,25 +151,180 @@ pub fn demo_document(settings: GameSettings) -> (Vec<CatalogItem>, Recipe) {
                 ),
             ],
         ),
-    ];
+    ],
+    difficulties: [10, 20, 30],
+};
+
+const ROMANIAN: Document = Document {
+    recipe_id: RECIPE_ID_RO,
+    name: "Demo (Română)",
+    prefix: "seed-ro-",
+    teams: [
+        ("red", "Roșu", "ROȘ", "var(--state-incorrect)"),
+        ("blue", "Albastru", "ALB", "var(--state-info)"),
+    ],
+    domains: &[
+        (
+            "ist",
+            "Istorie",
+            "IST_310",
+            [
+                (
+                    "În ce an a avut loc Marea Unire?",
+                    ["1918", "1859", "1877", "1947"],
+                ),
+                (
+                    "Cine a realizat unirea din 1600?",
+                    [
+                        "Mihai Viteazul",
+                        "Ștefan cel Mare",
+                        "Vlad Țepeș",
+                        "Alexandru Ioan Cuza",
+                    ],
+                ),
+                (
+                    "În ce an și-a proclamat România independența?",
+                    ["1877", "1859", "1866", "1881"],
+                ),
+            ],
+        ),
+        (
+            "geo",
+            "Geografie",
+            "GEO_320",
+            [
+                (
+                    "Care este capitala României?",
+                    ["București", "Cluj-Napoca", "Iași", "Timișoara"],
+                ),
+                (
+                    "Care este cel mai înalt vârf din România?",
+                    ["Moldoveanu", "Negoiu", "Omu", "Peleaga"],
+                ),
+                (
+                    "Care este cel mai lung fluviu din Europa?",
+                    ["Volga", "Dunărea", "Nipru", "Rin"],
+                ),
+            ],
+        ),
+        (
+            "sti",
+            "Științe",
+            "STI_330",
+            [
+                (
+                    "Care este formula chimică a apei?",
+                    ["H2O", "CO2", "O2", "NaCl"],
+                ),
+                (
+                    "Care planetă este cea mai apropiată de Soare?",
+                    ["Mercur", "Venus", "Marte", "Pământ"],
+                ),
+                (
+                    "Care este, aproximativ, viteza luminii în vid?",
+                    ["300.000 km/s", "150.000 km/s", "30.000 km/s", "3.000.000 km/s"],
+                ),
+            ],
+        ),
+        (
+            "bib",
+            "Biblie",
+            "BIB_340",
+            [
+                (
+                    "Cine a construit arca?",
+                    ["Noe", "Moise", "Avraam", "David"],
+                ),
+                (
+                    "Câți apostoli și-a ales Iisus?",
+                    ["12", "7", "10", "40"],
+                ),
+                (
+                    "Cine a fost primul rege al lui Israel?",
+                    ["Saul", "David", "Solomon", "Samuel"],
+                ),
+            ],
+        ),
+        (
+            "spo",
+            "Sport",
+            "SPO_350",
+            [
+                (
+                    "Câți jucători are o echipă de fotbal pe teren?",
+                    ["11", "9", "10", "12"],
+                ),
+                (
+                    "Cine a primit prima notă de 10 din istoria gimnasticii olimpice?",
+                    [
+                        "Nadia Comăneci",
+                        "Simona Amânar",
+                        "Lavinia Miloșovici",
+                        "Andreea Răducan",
+                    ],
+                ),
+                (
+                    "În ce an a câștigat Steaua București Cupa Campionilor Europeni?",
+                    ["1986", "1984", "1989", "1991"],
+                ),
+            ],
+        ),
+    ],
+    difficulties: [10, 50, 100],
+};
+
+/// A Demo: its rows and the one recipe that uses all of them. The settings are
+/// the caller's `globals.game_defaults` — the same seed a new recipe would copy
+/// (§12) — plus, for the Romanian one, Stage's language.
+///
+/// Questions go in before domains, and both before the recipe, because the
+/// membership rows reference them and a batch is one transaction.
+pub fn demo_document(demo: Demo, settings: GameSettings) -> (Vec<CatalogItem>, Recipe) {
+    match demo {
+        Demo::En => build(&ENGLISH, settings),
+        Demo::Ro => build(
+            &ROMANIAN,
+            GameSettings {
+                language: Language::Ro,
+                ..settings
+            },
+        ),
+    }
+}
+
+fn build(doc: &Document, settings: GameSettings) -> (Vec<CatalogItem>, Recipe) {
+    let mut items: Vec<CatalogItem> = Vec::new();
+
+    let team_ids: Vec<TeamId> = doc
+        .teams
+        .iter()
+        .map(|(key, ..)| TeamId::new(format!("{}team-{key}", doc.prefix)))
+        .collect();
+    for ((_, name, code, color), id) in doc.teams.iter().zip(&team_ids) {
+        let mut team = Team::new(id.clone(), *name, *code);
+        team.color = (*color).to_owned();
+        team.origin = Origin::Seed;
+        items.push(team.into());
+    }
 
     let mut board: Vec<BoardDomain> = Vec::new();
-    for (domain_id, name, code, questions) in domains {
+    for (key, name, code, questions) in doc.domains {
+        let domain_id = DomainId::new(format!("{}dom-{key}", doc.prefix));
         let question_ids: Vec<QuestionId> = (1..=questions.len())
-            .map(|n| QuestionId::new(question_id(domain_id, n)))
+            .map(|n| QuestionId::new(format!("{}q-{key}-{n}", doc.prefix)))
             .collect();
 
-        // Easy → hard inside a domain: the queue walks these in order (§5.2).
-        for (index, (stem, options)) in questions.into_iter().enumerate() {
-            let difficulty = ((index as u8) + 1) * 10;
-            let id = question_ids[index].clone();
-            let mut question = Question::new(id.clone(), stem, difficulty).with_options(
+        for ((stem, options), (id, difficulty)) in questions
+            .iter()
+            .zip(question_ids.iter().zip(doc.difficulties))
+        {
+            let mut question = Question::new(id.clone(), *stem, difficulty).with_options(
                 options
-                    .into_iter()
+                    .iter()
                     .zip(['a', 'b', 'c', 'd'])
                     .map(|(text, letter)| {
                         // The first option is the correct one, always.
-                        QuestionOption::new(format!("{id}-{letter}"), text, letter == 'a')
+                        QuestionOption::new(format!("{id}-{letter}"), *text, letter == 'a')
                     })
                     .collect(),
             );
@@ -156,7 +332,7 @@ pub fn demo_document(settings: GameSettings) -> (Vec<CatalogItem>, Recipe) {
             items.push(question.into());
         }
 
-        let mut domain = Domain::new(domain_id, name, code);
+        let mut domain = Domain::new(domain_id.clone(), *name, *code);
         domain.questions = question_ids
             .iter()
             .enumerate()
@@ -169,23 +345,17 @@ pub fn demo_document(settings: GameSettings) -> (Vec<CatalogItem>, Recipe) {
         items.push(domain.into());
 
         board.push(BoardDomain {
-            domain_id: DomainId::new(domain_id),
+            domain_id,
             question_ids,
         });
     }
 
-    let mut recipe = Recipe::new(RECIPE_ID, "Demo", settings);
-    recipe.teams = vec![TeamId::new("seed-team-red"), TeamId::new("seed-team-blue")];
+    let mut recipe = Recipe::new(doc.recipe_id, doc.name, settings);
+    recipe.teams = team_ids;
     recipe.board = board;
     recipe.origin = Origin::Seed;
 
     (items, recipe)
-}
-
-fn question_id(domain: &str, n: usize) -> String {
-    // `seed-dom-geo` → `seed-q-geo-1`.
-    let short = domain.strip_prefix("seed-dom-").unwrap_or(domain);
-    format!("seed-q-{short}-{n}")
 }
 
 // ------------------------------------------------------------ edited or not
@@ -254,19 +424,20 @@ fn stored_recipe(service: &CatalogService, id: &RecipeId) -> CatalogResult<Store
 // --------------------------------------------------------------- the service
 
 impl CatalogService {
-    /// `catalog_seed_demo` (§12.1). Writes go through `catalog_upsert_many`
-    /// and `recipe_upsert`, so the batch is one transaction and the same
-    /// validation every operator edit gets.
+    /// `catalog_seed_demo` (§12.1) — one Demo. Writes go through
+    /// `catalog_upsert_many` and `recipe_upsert`, so the batch is one
+    /// transaction and the same validation every operator edit gets.
     ///
     /// Archived seed rows are restored in both modes: a *Restore sample game*
     /// that left half the sample in the archive would not have restored it.
     pub fn seed_demo(
         &self,
+        demo: Demo,
         mode: SeedMode,
         settings: GameSettings,
         now_ms: u64,
     ) -> CatalogResult<SeedResult> {
-        let (items, recipe) = demo_document(settings);
+        let (items, recipe) = demo_document(demo, settings);
         let mut to_write: Vec<CatalogItem> = Vec::new();
         let mut to_restore: Vec<(CatalogKind, String)> = Vec::new();
         let mut inserted = 0;
@@ -335,12 +506,13 @@ impl CatalogService {
         })
     }
 
-    /// `catalog_seed_status` — what *Restore sample game* is about to do, so
-    /// Studio can ask before an `Overwrite` throws an edit away (§12.4
-    /// `seed.edited_rows`). `settings` is the same `game_defaults` a seed would
-    /// write, because a recipe whose settings drifted from them is an edit.
-    pub fn seed_status(&self, settings: GameSettings) -> CatalogResult<SeedStatus> {
-        let (items, recipe) = demo_document(settings);
+    /// `catalog_seed_status` — what *Restore sample game* is about to do for
+    /// one Demo, so Studio can ask before an `Overwrite` throws an edit away
+    /// (§12.4 `seed.edited_rows`). `settings` is the same `game_defaults` a
+    /// seed would write, because a recipe whose settings drifted from them is
+    /// an edit.
+    pub fn seed_status(&self, demo: Demo, settings: GameSettings) -> CatalogResult<SeedStatus> {
+        let (items, recipe) = demo_document(demo, settings);
         let mut status = SeedStatus {
             present: 0,
             missing: 0,
@@ -383,7 +555,7 @@ mod tests {
 
     #[test]
     fn the_document_is_the_one_the_wire_names() {
-        let (items, recipe) = demo_document(GameSettings::default());
+        let (items, recipe) = demo_document(Demo::En, GameSettings::default());
         let ids: Vec<String> = items.iter().map(CatalogItem::id).collect();
         for expected in [
             "seed-team-red",
@@ -404,42 +576,118 @@ mod tests {
     }
 
     #[test]
-    fn every_row_is_valid_marked_seed_and_the_first_option_is_correct() {
-        let (items, recipe) = demo_document(GameSettings::default());
-        for item in &items {
-            item.validate().unwrap();
-            match item {
-                CatalogItem::Team(t) => assert_eq!(t.origin, Origin::Seed),
-                CatalogItem::Domain(d) => assert_eq!(d.origin, Origin::Seed),
-                CatalogItem::Question(q) => {
-                    assert_eq!(q.origin, Origin::Seed);
-                    assert_eq!(q.options.len(), 4);
-                    assert!(q.options[0].correct);
-                    assert_eq!(q.correct_option_ids().len(), 1);
-                    assert_eq!(
-                        q.options[0].id.as_str(),
-                        format!("{}-a", q.id),
-                        "option ids hang off the question id",
-                    );
+    fn every_row_of_both_demos_is_valid_complete_marked_seed_and_the_first_option_is_correct() {
+        for demo in [Demo::En, Demo::Ro] {
+            let (items, recipe) = demo_document(demo, GameSettings::default());
+            for item in &items {
+                item.validate().unwrap();
+                match item {
+                    CatalogItem::Team(t) => assert_eq!(t.origin, Origin::Seed),
+                    CatalogItem::Domain(d) => assert_eq!(d.origin, Origin::Seed),
+                    CatalogItem::Question(q) => {
+                        assert_eq!(q.origin, Origin::Seed);
+                        assert_eq!(q.options.len(), 4);
+                        assert!(q.options[0].correct);
+                        assert_eq!(q.correct_option_ids().len(), 1);
+                        assert_eq!(
+                            q.options[0].id.as_str(),
+                            format!("{}-a", q.id),
+                            "option ids hang off the question id",
+                        );
+                        assert!(
+                            crate::catalog::complete::gaps(q, true).is_empty(),
+                            "{} ships complete",
+                            q.id
+                        );
+                    }
+                    other => panic!("the seed has no {}", other.kind()),
                 }
-                other => panic!("the seed has no {}", other.kind()),
+            }
+            recipe.validate().unwrap();
+            assert_eq!(recipe.origin, Origin::Seed);
+        }
+    }
+
+    #[test]
+    fn the_romanian_demo_is_five_domains_of_three_at_10_50_100_with_stage_in_romanian() {
+        let (items, recipe) = demo_document(Demo::Ro, GameSettings::default());
+        assert_eq!(recipe.id.as_str(), RECIPE_ID_RO);
+        assert_eq!(recipe.name, "Demo (Română)");
+        assert_eq!(recipe.settings.language, Language::Ro);
+        assert_eq!(recipe.teams.len(), 2);
+        assert_eq!(recipe.board.len(), 5);
+        assert_eq!(items.len(), 2 + 15 + 5);
+        let names: Vec<&str> = items
+            .iter()
+            .filter_map(CatalogItem::as_domain)
+            .map(|d| d.name.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            vec!["Istorie", "Geografie", "Științe", "Biblie", "Sport"]
+        );
+        for board in &recipe.board {
+            let difficulties: Vec<Option<u8>> = board
+                .question_ids
+                .iter()
+                .map(|id| {
+                    items
+                        .iter()
+                        .filter_map(CatalogItem::as_question)
+                        .find(|q| &q.id == id)
+                        .expect("on the board and in the document")
+                        .difficulty
+                })
+                .collect();
+            assert_eq!(difficulties, vec![Some(10), Some(50), Some(100)]);
+        }
+    }
+
+    #[test]
+    fn the_two_demos_share_no_row() {
+        let (en, en_recipe) = demo_document(Demo::En, GameSettings::default());
+        let (ro, ro_recipe) = demo_document(Demo::Ro, GameSettings::default());
+        let en_ids: std::collections::BTreeSet<String> = en.iter().map(CatalogItem::id).collect();
+        assert!(ro.iter().all(|item| !en_ids.contains(&item.id())));
+        assert_ne!(en_recipe.id, ro_recipe.id);
+        assert_eq!(
+            en_recipe.settings.language,
+            Language::En,
+            "the English Demo keeps the defaults it always had"
+        );
+    }
+
+    #[test]
+    fn romanian_is_written_with_comma_below_letters() {
+        // ş and ţ (cedilla) are the legacy spelling; Romanian is ș and ț.
+        let (items, recipe) = demo_document(Demo::Ro, GameSettings::default());
+        let mut text = recipe.name.clone();
+        for item in &items {
+            match item {
+                CatalogItem::Team(t) => text.push_str(&t.name),
+                CatalogItem::Domain(d) => text.push_str(&d.name),
+                CatalogItem::Question(q) => {
+                    text.push_str(&q.stem);
+                    q.options.iter().for_each(|o| text.push_str(&o.text));
+                }
+                _ => {}
             }
         }
-        recipe.validate().unwrap();
-        assert_eq!(recipe.origin, Origin::Seed);
+        assert!(!text.contains(['ş', 'ţ', 'Ş', 'Ţ']), "cedilla in: {text}");
+        assert!(text.contains('ș') && text.contains('ț'));
     }
 
     #[test]
     fn difficulty_walks_10_20_30_inside_each_domain() {
-        let (items, _) = demo_document(GameSettings::default());
+        let (items, _) = demo_document(Demo::En, GameSettings::default());
         for prefix in ["seed-q-geo", "seed-q-sci"] {
-            let difficulties: Vec<u8> = items
+            let difficulties: Vec<Option<u8>> = items
                 .iter()
                 .filter_map(CatalogItem::as_question)
                 .filter(|q| q.id.as_str().starts_with(prefix))
                 .map(|q| q.difficulty)
                 .collect();
-            assert_eq!(difficulties, vec![10, 20, 30]);
+            assert_eq!(difficulties, vec![Some(10), Some(20), Some(30)]);
         }
     }
 }

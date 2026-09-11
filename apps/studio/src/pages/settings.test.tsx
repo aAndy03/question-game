@@ -240,4 +240,49 @@ describe('first run', () => {
     // The sample step follows, and the shell is still not up.
     expect(await screen.findByRole('button', { name: FIRST_RUN.sample.load })).toBeTruthy()
   })
+
+  it('seeds both sample games and opens the one picked (§17.5)', { timeout: 20_000 }, async () => {
+    const fake = mount(false)
+    render(<App />)
+    await screen.findByLabelText(FIRST_RUN.stepsLabel)
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: FIRST_RUN.next }))
+    })
+    await act(async () => {
+      fireEvent.change(await screen.findByLabelText(FIRST_RUN.operator.displayName), { target: { value: 'Andy' } })
+    })
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: FIRST_RUN.operator.create }))
+    })
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: FIRST_RUN.sample.loadRo }))
+    })
+    await waitFor(() => expect(fake.recipes.has('seed-recipe-demo-ro')).toBe(true))
+    expect(fake.recipes.has('seed-recipe-demo')).toBe(true)
+    expect(fake.recipes.get('seed-recipe-demo-ro')?.settings.language).toBe('ro')
+    expect(fake.recipes.get('seed-recipe-demo')?.settings.language).toBe('en')
+  })
+})
+
+describe('two sample games (§17.5)', () => {
+  beforeEach(reset)
+  afterEach(() => setHostTransport(null))
+
+  it('has one Restore row per Demo, and each restores only its own', { timeout: 20_000 }, async () => {
+    const fake = mount()
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'settings' })
+    })
+    const ro = await screen.findByRole('button', { name: SETTINGS.library.restore.ro })
+    expect(screen.getByRole('button', { name: SETTINGS.library.restore.en })).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(ro)
+    })
+    await waitFor(() => expect(fake.recipes.has('seed-recipe-demo-ro')).toBe(true))
+    expect(fake.recipes.get('seed-recipe-demo-ro')?.settings.language).toBe('ro')
+    expect(fake.recipes.has('seed-recipe-demo')).toBe(false)
+    const romanian = [...fake.library.values()].filter((row) => row.item.id.startsWith('seed-ro-'))
+    expect(romanian).toHaveLength(22)
+  })
 })

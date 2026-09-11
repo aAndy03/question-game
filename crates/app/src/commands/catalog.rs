@@ -11,9 +11,9 @@
 //! comes from the host; nothing here re-implements it.
 
 use questiongame_host::catalog::{
-    ArchiveScope, Asset, BoardDomain, CatalogChange, CatalogItem, CatalogKind, ChangeOp,
-    DomainOverlay, EditScope, OverlayTarget, QuestionOverlay, Recipe, RecipeChange, SearchHit,
-    SearchQuery, SeedMode, SeedResult, SeedStatus, TeamOverlay,
+    ArchiveScope, Asset, BoardDomain, CatalogChange, CatalogItem, CatalogKind, ChangeOp, Demo,
+    DomainOverlay, EditScope, ImportReport, OverlayTarget, QuestionOverlay, Recipe, RecipeChange,
+    SearchHit, SearchQuery, SeedMode, SeedResult, SeedStatus, TeamOverlay,
 };
 use questiongame_host::flags::{GameSetting, GameSettings};
 use questiongame_host::{DomainId, QuestionId, RecipeId, TeamId};
@@ -141,6 +141,38 @@ pub fn catalog_restore_many(
     })?;
     emit::catalog_changed_many(&app, &changes);
     Ok(changes)
+}
+
+/// `catalog_import_questions` (§2.32). `commit: false` is the import dialog's
+/// preview and writes nothing; `commit: true` writes the same plan in one
+/// transaction. A batch can be two thousand rows, so it announces one
+/// `catalog-changed` per kind rather than one per row — the same as the seed.
+#[tauri::command(async)]
+pub fn catalog_import_questions(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    text: String,
+    commit: bool,
+    default_domain_id: Option<DomainId>,
+) -> AppResult<ImportReport> {
+    let (report, changes) = catalog_write(&window, &state, "catalog_import_questions", |h, now| {
+        Ok(h.catalog
+            .import_questions(&text, commit, default_domain_id.as_ref(), now)?)
+    })?;
+    if !changes.is_empty() {
+        for kind in [CatalogKind::Question, CatalogKind::Domain] {
+            emit::catalog_changed(
+                &app,
+                &CatalogChange {
+                    kind,
+                    id: String::new(),
+                    op: ChangeOp::Upserted,
+                },
+            );
+        }
+    }
+    Ok(report)
 }
 
 /// `catalog_search`. The frontend debounces; it does not compose queries.
@@ -376,8 +408,9 @@ pub fn recipe_new(
     Ok(host.catalog.recipe_get(&recipe.id)?)
 }
 
-/// The sample catalog `"Demo"` (§2.27, §12.1), written through the ordinary
-/// verbs. `missing` inserts what is absent and restores archived seed rows;
+/// A sample catalog (§2.27, §12.1, P11.17), written through the ordinary
+/// verbs. `demo` is `en` (the default, and all an older caller ever meant) or
+/// `ro`. `missing` inserts what is absent and restores archived seed rows;
 /// `overwrite` rewrites every seed row to the shipped body. Three call sites
 /// — first run, the Games empty state, Settings ▸ Library — one command.
 #[tauri::command(async)]
@@ -385,14 +418,18 @@ pub fn catalog_seed_demo(
     window: WebviewWindow,
     app: AppHandle,
     state: State<'_, AppState>,
+    demo: Option<Demo>,
     mode: SeedMode,
 ) -> AppResult<SeedResult> {
     guard::allow(window.label(), "catalog_seed_demo")?;
     let now = crate::state::now_ms();
     let host = state.lock();
-    let result = host
-        .catalog
-        .seed_demo(mode, host.flags.new_recipe_settings(), now)?;
+    let result = host.catalog.seed_demo(
+        demo.unwrap_or_default(),
+        mode,
+        host.flags.new_recipe_settings(),
+        now,
+    )?;
     // The seed touches up to a dozen rows and one recipe; one invalidation per
     // kind is enough for Studio and cheaper than one per row.
     for kind in [
@@ -420,16 +457,19 @@ pub fn catalog_seed_demo(
     Ok(result)
 }
 
-/// How many seed rows are present, missing and edited — what Restore Demo's
-/// confirm names before an `overwrite` throws an edit away (§12.4).
+/// How many of one Demo's seed rows are present, missing and edited — what its
+/// Restore confirm names before an `overwrite` throws an edit away (§12.4).
 #[tauri::command(async)]
 pub fn catalog_seed_status(
     window: WebviewWindow,
     state: State<'_, AppState>,
+    demo: Option<Demo>,
 ) -> AppResult<SeedStatus> {
     guard::allow(window.label(), "catalog_seed_status")?;
     let host = state.lock();
-    Ok(host.catalog.seed_status(host.flags.new_recipe_settings())?)
+    Ok(host
+        .catalog
+        .seed_status(demo.unwrap_or_default(), host.flags.new_recipe_settings())?)
 }
 
 /// Rebuild the in-memory search index from the catalog — the action behind

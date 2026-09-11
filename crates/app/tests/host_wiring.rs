@@ -411,8 +411,10 @@ fn the_host_never_picks_a_display() {
 #[test]
 fn the_demo_library_seeds_a_playable_show() {
     let mut host = Host::open(CatalogLocation::Memory).unwrap();
-    let (items, recipe) =
-        questiongame_host::catalog::seed::demo_document(host.flags.new_recipe_settings());
+    let (items, recipe) = questiongame_host::catalog::seed::demo_document(
+        questiongame_host::catalog::Demo::En,
+        host.flags.new_recipe_settings(),
+    );
 
     host.catalog.catalog_upsert_many(&items, 1_000).unwrap();
     host.catalog.recipe_upsert(&recipe, 1_000).unwrap();
@@ -454,6 +456,28 @@ fn the_demo_library_seeds_a_playable_show() {
             .any(|t| t.score > 0),
         "a correct answer scores",
     );
+}
+
+/// The Romanian Demo (P11.17) loads like the English one and puts Stage's own
+/// words in Romanian — the one setting it carries beyond the defaults.
+#[test]
+fn the_romanian_demo_seeds_a_playable_show_in_romanian() {
+    let mut host = Host::open(CatalogLocation::Memory).unwrap();
+    let (items, recipe) = questiongame_host::catalog::seed::demo_document(
+        questiongame_host::catalog::Demo::Ro,
+        host.flags.new_recipe_settings(),
+    );
+    host.catalog.catalog_upsert_many(&items, 1_000).unwrap();
+    host.catalog.recipe_upsert(&recipe, 1_000).unwrap();
+
+    load(&mut host, &recipe.id, "play-demo-ro", 2_000);
+    host.write(2_000, |h| Ok(h.play.play_start(2_000)?))
+        .unwrap();
+
+    let state = host.stage_state(2_000);
+    assert_eq!(state.game.domains.len(), 5);
+    assert_eq!(state.game.domains[0].next_difficulty, Some(10));
+    assert_eq!(state.language, questiongame_host::settings::Language::Ro);
 }
 
 /// A Restart is a new Play, so nothing queued for the old one may play over it.

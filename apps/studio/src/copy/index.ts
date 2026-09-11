@@ -7,6 +7,7 @@
  */
 
 import type { Tab } from '@/chrome/nav'
+import type { ImportCounts, ImportIgnored, QuestionGap } from '@/host/types'
 
 export const APP = {
   name: 'questiongame',
@@ -59,6 +60,7 @@ export const CHROME = {
   mute: 'Mute Stage audio',
   unmute: 'Unmute Stage audio',
   loadDemo: 'Load the Demo game',
+  loadDemoRo: 'Load the Demo game (Română)',
   displays: (n: number) => (n === 1 ? '1 display' : `${n} displays`),
   notices: 'Notices',
   openCollector: 'Open notices',
@@ -115,6 +117,7 @@ export const LIST = {
 export const EMPTY = {
   empty: (what: string) => ({ title: `No ${what} yet`, body: `Create the first one and it appears here.` }),
   noResults: { title: 'Nothing matches', body: 'Try another search or clear it.' },
+  allComplete: { title: 'No incomplete questions here', body: 'Every question in this view is ready for a board.' },
   archivedEmpty: (what: string) => ({ title: `Nothing archived`, body: `Archived ${what} are restorable from here.` }),
   error: { title: 'Could not load', body: 'The host refused the read.' },
 } as const
@@ -182,7 +185,17 @@ export const DOMAIN = {
   pickHint: 'A question may sit in several domains.',
   create: 'Create domain…',
   sortByDifficulty: 'Sort by difficulty',
+  incompleteCount: (n: number) => (n === 1 ? '1 incomplete question' : `${n} incomplete questions`),
 } as const
+
+/** §2.32 — what a question still lacks before a board can hold it. */
+const QUESTION_GAP = {
+  stem: 'No question text',
+  options: 'Fewer than two options',
+  correct: 'No correct answer',
+  difficulty: 'No difficulty',
+  domain: 'In no domain',
+} as const satisfies Record<QuestionGap, string>
 
 export const QUESTION = {
   one: 'question',
@@ -205,6 +218,70 @@ export const QUESTION = {
   band: { easy: 'Easy', medium: 'Medium', hard: 'Hard' },
   inDomains: 'In domains',
   noDomains: 'In no domain yet',
+  gap: QUESTION_GAP,
+  /** The mark's tooltip and accessible name. */
+  incompleteLabel: (gaps: readonly QuestionGap[]) => `Incomplete — ${gaps.map((g) => QUESTION_GAP[g]).join(' · ')}`,
+  incompleteTitle: 'Incomplete — a game cannot use this question yet',
+  filterLabel: 'Question filter',
+  filterAll: 'All',
+  filterIncomplete: (n: number) => `Incomplete · ${n}`,
+  difficultyUnset: 'Not set',
+  /** Stands in for the title of a question that has options but no text yet. */
+  noStem: '(no question text)',
+} as const
+
+export const IMPORT = {
+  open: 'Import',
+  title: 'Import questions',
+  hint: 'A JSON file in the editor’s shape. Every question with text or at least one option comes in; anything missing is marked incomplete and can be finished in the editor.',
+  choose: 'Choose a .json file',
+  paste: 'Or paste the file',
+  pasteHint: 'The preview follows what is in the box.',
+  copyTemplate: 'Copy template',
+  templateCopied: 'Template copied',
+  defaultDomain: 'Questions without a domain go to',
+  noDomain: 'No domain',
+  empty: 'Choose a file or paste one to see what it holds.',
+  summary: (c: ImportCounts, newDomains: number): string =>
+    [
+      `${c.complete} complete`,
+      c.incomplete ? `${c.incomplete} incomplete` : null,
+      c.duplicate ? `${c.duplicate} ${c.duplicate === 1 ? 'duplicate' : 'duplicates'}` : null,
+      c.rejected ? `${c.rejected} rejected` : null,
+      newDomains ? `${newDomains} new ${newDomains === 1 ? 'domain' : 'domains'}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+  status: { complete: 'Complete', incomplete: 'Incomplete', duplicate: 'Already in the library', rejected: 'Rejected' },
+  reason: { not_an_object: 'Rejected: not a question', no_content: 'Rejected: no question and no options' },
+  ignored: (i: ImportIgnored): string =>
+    `${i.field}: ${{ unknown: 'unknown field, ignored', wrong_type: 'wrong type, ignored', out_of_range: 'outside 1–100, ignored', empty: 'empty, ignored' }[i.why]}`,
+  newDomains: (names: readonly string[]) => `New domains: ${names.join(', ')}`,
+  submit: (n: number) => (n === 1 ? 'Import 1 question' : `Import ${n} questions`),
+  done: (c: ImportCounts) => {
+    const n = c.complete + c.incomplete
+    return `Imported ${n} ${n === 1 ? 'question' : 'questions'}${c.incomplete ? ` · ${c.incomplete} incomplete` : ''}`
+  },
+  /** The document 05_STUDIO_DESIGN.md §17.2 describes, ready to fill in. */
+  template: `{
+  "format": "questiongame.questions",
+  "version": 1,
+  "questions": [
+    {
+      "question": "Care este capitala Australiei?",
+      "options": [
+        { "text": "Canberra", "correct": true },
+        { "text": "Sydney" },
+        "Melbourne",
+        "Perth"
+      ],
+      "difficulty": 50,
+      "domains": ["Geografie"],
+      "explanation": "Optional."
+    }
+  ]
+}
+`,
 } as const
 
 export const OPERATOR = {
@@ -249,6 +326,8 @@ export const GAME = {
     'A domain can hold many questions at one difficulty — a game plays one of them. Untick the one on the board to free the others.',
   difficultyTaken: (difficulty: number) =>
     `Difficulty ${difficulty} is already taken by another question in this domain. Untick that one to use this.`,
+  incomplete: (gaps: readonly QuestionGap[]) =>
+    `Incomplete — ${gaps.map((g) => QUESTION_GAP[g].toLowerCase()).join(', ')}. Finish it in the library to use it here.`,
   rules: 'Rules',
   rulesHint: 'Award, judging, cap and bonus, the timer. Frozen at Play start.',
   plays: 'Plays',

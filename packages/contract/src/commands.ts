@@ -22,6 +22,10 @@ export const COMMAND_GROUPS = {
     'catalog_archive_many',
     'catalog_restore',
     'catalog_restore_many',
+    /** Many questions from one JSON file (spec §2.32). `commit: false` is the
+     * dialog's preview and writes nothing; `commit: true` writes the same plan
+     * in one transaction. Studio only. */
+    'catalog_import_questions',
     'catalog_search',
     /** What still points at a row — what the Archive confirm shows first. */
     'referenced_by',
@@ -38,13 +42,15 @@ export const COMMAND_GROUPS = {
     'recipe_set_settings',
     'recipe_set_layout',
     'recipe_set_overlay',
-    /** The sample catalog `"Demo"` (spec §2.27, §2.28), written through the
-     * ordinary verbs. `mode: 'missing'` inserts what is absent and keeps
-     * edits; `'overwrite'` rewrites every seed row. First run, the Games empty
-     * state and Settings ▸ Library ▸ Restore Demo are its three call sites. */
+    /** A sample catalog (spec §2.27, §2.28, P11.17), written through the
+     * ordinary verbs. `demo: 'en' | 'ro'` picks the Demo — `en` when absent,
+     * which is all an older caller meant; the two share no row. `mode:
+     * 'missing'` inserts what is absent and keeps edits; `'overwrite'`
+     * rewrites every seed row of that Demo. First run, the Games empty state
+     * and Settings ▸ Library are its call sites. */
     'catalog_seed_demo',
-    /** How many seed rows are present, missing and edited — what Restore
-     * Demo's confirm names before it overwrites anything. */
+    /** How many of one Demo's seed rows are present, missing and edited — what
+     * its Restore confirm names before it overwrites anything. */
     'catalog_seed_status',
     /** Rebuild the in-memory Tantivy index from the catalog (a health action). */
     'catalog_rebuild_search',

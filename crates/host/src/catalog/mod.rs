@@ -4,9 +4,11 @@
 //! ```text
 //! service   the verb list — the only thing outside this module talks to
 //! model     the §4.1 entities, the recipe, and the §2.17 overlays
+//! complete  what makes a question ready for a show (§2.32)
+//! import    many questions from one JSON file, previewed then written (§2.32)
 //! snapshot  the §4.3 copy: catalog bodies with overlays applied
 //! search    Tantivy, inside the service — there is no `SearchService`
-//! seed      the shipped Demo document, and Restore sample game (§12.1)
+//! seed      the two shipped Demos, and Restore sample game (§12.1, P11.17)
 //! store     every SQL statement in the project
 //! db        the connection, the pragmas, the forward-only migrations
 //! error     the reject table for stored data
@@ -18,8 +20,10 @@
 //! adapter is indirection, not a seam. Search is `catalog_search` on this
 //! service for the same reason; there is no `SearchService`.
 
+pub mod complete;
 pub mod db;
 pub mod error;
+pub mod import;
 pub mod model;
 pub mod search;
 pub mod seed;
@@ -28,15 +32,17 @@ mod snapshot;
 mod store;
 
 pub use crate::flags::GameSettings;
+pub use complete::QuestionGap;
 pub use db::CatalogLocation;
 pub use error::{CatalogError, CatalogKind, CatalogResult};
+pub use import::{ImportCounts, ImportReport, ImportRow, RowStatus};
 pub use model::{
     ArchiveScope, Asset, BoardDomain, CatalogItem, Domain, DomainMember, DomainOverlay, EditScope,
     Operator, Origin, PlayRecord, Question, QuestionOption, QuestionOverlay, Recipe,
     RecipeOverlays, Stamps, Team, TeamOverlay,
 };
 pub use search::{SearchHit, SearchQuery};
-pub use seed::{SeedMode, SeedResult, SeedStatus};
+pub use seed::{Demo, SeedMode, SeedResult, SeedStatus};
 pub use service::{
     CatalogChange, CatalogService, ChangeOp, OverlayTarget, RecipeChange, WipedPlays,
 };

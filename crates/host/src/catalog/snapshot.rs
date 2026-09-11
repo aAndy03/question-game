@@ -20,6 +20,7 @@ use crate::snapshot::{
     PlaySnapshot, SnapshotDomain, SnapshotOption, SnapshotQuestion, SnapshotTeam,
 };
 
+use super::complete;
 use super::error::{CatalogError, CatalogResult};
 use super::model::{Domain, Question, Recipe, Team};
 
@@ -110,7 +111,7 @@ pub(super) fn build(
                     if question.stamps.is_archived() {
                         return Err(archived("question", &recipe.id, id.as_str()));
                     }
-                    Ok(snapshot_question(question, recipe, id))
+                    snapshot_question(question, recipe, &board.domain_id, id)
                 })
                 .collect::<CatalogResult<Vec<_>>>()?;
 
@@ -163,8 +164,27 @@ fn clash_in(domain: &SnapshotDomain) -> Option<u8> {
         .map(|clash| clash.difficulty)
 }
 
-fn snapshot_question(question: &Question, recipe: &Recipe, id: &QuestionId) -> SnapshotQuestion {
+/// One question as this show asks it, overlays applied. Refused when the
+/// effective body is incomplete (§2.32): `recipe_upsert` refuses such a board,
+/// but a question can become incomplete from outside the recipe — the editor
+/// saves incomplete rows — so this is the second line, as for a clash.
+fn snapshot_question(
+    question: &Question,
+    recipe: &Recipe,
+    domain: &DomainId,
+    id: &QuestionId,
+) -> CatalogResult<SnapshotQuestion> {
     let overlay = recipe.overlays.questions.get(id);
+    let difficulty = overlay.and_then(|o| o.difficulty).or(question.difficulty);
+    let (true, Some(difficulty)) = (
+        complete::effective_gaps(question, overlay).is_empty(),
+        difficulty,
+    ) else {
+        return Err(CatalogError::invalid(
+            format!("recipe.{}.board.{domain}.question.{id}", recipe.id),
+            complete::INCOMPLETE,
+        ));
+    };
     // Options come as a set: overriding them overrides the correct marks with
     // them, because an overlay that changed the text but kept the old marks
     // could mark an option that no longer exists.
@@ -172,7 +192,7 @@ fn snapshot_question(question: &Question, recipe: &Recipe, id: &QuestionId) -> S
         .and_then(|o| o.options.clone())
         .unwrap_or_else(|| question.options.clone());
 
-    SnapshotQuestion {
+    Ok(SnapshotQuestion {
         id: id.clone(),
         stem: pick(overlay.and_then(|o| o.stem.clone()), &question.stem),
         options: options
@@ -187,11 +207,9 @@ fn snapshot_question(question: &Question, recipe: &Recipe, id: &QuestionId) -> S
             .filter(|o| o.correct)
             .map(|o| o.id.clone())
             .collect(),
-        difficulty: overlay
-            .and_then(|o| o.difficulty)
-            .unwrap_or(question.difficulty),
+        difficulty,
         duration_ms: overlay.and_then(|o| o.duration_ms),
-    }
+    })
 }
 
 fn pick(overlay: Option<String>, catalog: &str) -> String {
@@ -239,6 +257,15 @@ mod tests {
             questions: [(question.id.clone(), question)].into_iter().collect(),
         };
         (recipe, bodies)
+    }
+
+    /// A second, complete question — the twin the clash tests need. It has
+    /// options so that it stops on the clash, not on being incomplete.
+    fn twin(id: &str, difficulty: u8) -> Question {
+        Question::new(id, "Another stem?", difficulty).with_options(vec![
+            QuestionOption::new("opt-x", "X", true),
+            QuestionOption::new("opt-y", "Y", false),
+        ])
     }
 
     #[test]
@@ -361,7 +388,7 @@ mod tests {
         // a row written by an older build (P11.13). It is caught before a
         // Stage window is created for a show that would walk 10, 10, 30.
         let (mut recipe, mut bodies) = fixture();
-        let twin = Question::new("q-2", "Another stem?", 40);
+        let twin = twin("q-2", 40);
         recipe.board[0].question_ids.push(twin.id.clone());
         bodies.questions.insert(twin.id.clone(), twin);
 
@@ -381,7 +408,7 @@ mod tests {
     #[test]
     fn the_same_difficulty_in_two_different_domains_is_fine() {
         let (mut recipe, mut bodies) = fixture();
-        let twin = Question::new("q-2", "Another stem?", 40);
+        let twin = twin("q-2", 40);
         let other = Domain::new("dom-2", "History", "HIS_101");
         recipe.board.push(BoardDomain {
             domain_id: other.id.clone(),
@@ -407,7 +434,7 @@ mod tests {
         // collides, which is exactly the case a check reading catalog rows
         // would miss.
         let (mut recipe, mut bodies) = fixture();
-        let twin = Question::new("q-2", "Another stem?", 70);
+        let twin = twin("q-2", 70);
         recipe.board[0].question_ids.push(twin.id.clone());
         bodies.questions.insert(twin.id.clone(), twin);
         recipe.overlays.questions.insert(
@@ -423,6 +450,52 @@ mod tests {
             Err(CatalogError::Invalid { target_path, .. })
                 if target_path == "recipe.recipe-1.board.dom-1.difficulty.40"
         ));
+    }
+
+    #[test]
+    fn an_incomplete_question_on_the_board_stops_the_snapshot() {
+        let (recipe, mut bodies) = fixture();
+        bodies
+            .questions
+            .get_mut(&QuestionId::from("q-1"))
+            .unwrap()
+            .difficulty = None;
+        let error = build(
+            &recipe,
+            &bodies,
+            PlayId::from("play-1"),
+            FrozenSettings::default(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "recipe.recipe-1.board.dom-1.question.q-1: this question is incomplete; finish it in the library or take it off the board"
+        );
+    }
+
+    #[test]
+    fn a_this_game_difficulty_completes_a_question_for_this_show() {
+        let (mut recipe, mut bodies) = fixture();
+        bodies
+            .questions
+            .get_mut(&QuestionId::from("q-1"))
+            .unwrap()
+            .difficulty = None;
+        recipe.overlays.questions.insert(
+            QuestionId::from("q-1"),
+            QuestionOverlay {
+                difficulty: Some(25),
+                ..QuestionOverlay::default()
+            },
+        );
+        let snapshot = build(
+            &recipe,
+            &bodies,
+            PlayId::from("play-1"),
+            FrozenSettings::default(),
+        )
+        .unwrap();
+        assert_eq!(snapshot.domains[0].questions[0].difficulty, 25);
     }
 
     #[test]

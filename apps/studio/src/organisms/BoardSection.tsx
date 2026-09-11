@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Button, CheckboxField, IconButton, MeaningChip, Panel, SelectField, Text } from '@/atoms'
-import { BoardBalance, EmptyState, InlineNotice, ScopeConfirm } from '@/molecules'
+import { BoardBalance, EmptyState, IncompleteMark, InlineNotice, ScopeConfirm } from '@/molecules'
 import { DOMAIN, GAME, QUESTION } from '@/copy'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { blockedMembers, oneQuestionPerDifficulty } from '@/host/board'
 import { useHostCommand } from '@/host/commands'
+import { bodyGaps, effectiveBody } from '@/host/question'
 import { useCatalogList, useRulesPreview } from '@/host/queries'
 import { difficultyBand, type BoardDomain, type EditScope, type Recipe } from '@/host/types'
 
@@ -27,6 +28,12 @@ export interface BoardSectionProps {
  * `recipe_upsert` refuses the board and `build_snapshot` refuses the Play;
  * `host/board.ts` spells it here so the operator does not have to be refused
  * in order to find out.
+ *
+ * **An incomplete question** (§2.32) is dimmed the same way, its gaps as the
+ * reason — unless it is already on the board, when it keeps its checkbox and
+ * its mark so the board Load would refuse can be fixed. It is judged on the
+ * body this show would ask, so a this-game difficulty can complete it here.
+ * *Add domain* ticks only complete questions.
  */
 export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
   const preview = useRulesPreview(recipe.id, recipe.rev)
@@ -43,9 +50,16 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
   const questionById = new Map((questions.data ?? []).map((q) => [q.id, q]))
   const onBoard = new Set(recipe.board.map((b) => b.domainId))
   const available = (domains.data ?? []).filter((d) => !onBoard.has(d.id))
-  /** Overlay if this recipe set one, else the catalog's — the §4.3 one-liner. */
-  const difficultyOf = (questionId: string) =>
-    recipe.overlays.questions[questionId]?.difficulty ?? questionById.get(questionId)?.difficulty ?? 0
+  /** The body this show would ask: overlay if this recipe set one, else the catalog's (§4.3). */
+  const bodyOf = (questionId: string) => {
+    const q = questionById.get(questionId)
+    return q ? effectiveBody(q, recipe.overlays.questions[questionId]) : null
+  }
+  const gapsOf = (questionId: string) => {
+    const body = bodyOf(questionId)
+    return body ? bodyGaps(body) : []
+  }
+  const difficultyOf = (questionId: string) => bodyOf(questionId)?.difficulty ?? null
   const boardNotices = noticesAt(notices, `recipe.${recipe.id}.board`)
 
   const write = async (board: readonly BoardDomain[]) => {
@@ -54,13 +68,14 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
     setPending(false)
   }
   const addDomain = (id: string) => {
-    // One per difficulty, `difficulty ASC, id ASC` — the order the snapshot
-    // queue walks, so a freshly added domain is already a playable ladder
-    // rather than a board the host would refuse (P11.13).
-    const members = (domainById.get(id)?.questions ?? []).map((m) => ({
-      questionId: m.questionId,
-      difficulty: difficultyOf(m.questionId),
-    }))
+    // One complete question per difficulty, `difficulty ASC, id ASC` — the
+    // order the snapshot queue walks, so a freshly added domain is already a
+    // playable ladder rather than a board the host would refuse (P11.13,
+    // §2.32). Complete means the difficulty is set.
+    const members = (domainById.get(id)?.questions ?? []).flatMap((m) => {
+      const difficulty = difficultyOf(m.questionId)
+      return difficulty !== null && gapsOf(m.questionId).length === 0 ? [{ questionId: m.questionId, difficulty }] : []
+    })
     void write([...recipe.board, { domainId: id, questionIds: oneQuestionPerDifficulty(members) }])
   }
   const toggleQuestion = (domainId: string, questionId: string, on: boolean) =>
@@ -155,26 +170,35 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
                 {members.map((qid) => {
                   const q = questionById.get(qid)
                   const qOverlay = recipe.overlays.questions[qid]
-                  const difficulty = qOverlay?.difficulty ?? q?.difficulty ?? 0
-                  const band = difficultyBand(difficulty)
+                  const selected = b.questionIds.includes(qid)
+                  const gaps = gapsOf(qid)
+                  // Incomplete and not on the board: nothing to tick until it
+                  // is finished. On the board already: kept, so it can come off.
+                  const unusable = !selected && gaps.length > 0
+                  const difficulty = difficultyOf(qid)
+                  const band = difficulty === null ? null : difficultyBand(difficulty)
                   const takenAt = blocked.get(qid)
+                  const stem = qOverlay?.stem ?? q?.stem ?? qid
                   return (
                     <li
                       key={qid}
-                      data-blocked={takenAt === undefined ? undefined : ''}
+                      data-blocked={unusable || takenAt !== undefined ? '' : undefined}
                       className="flex h-9 items-center gap-3 rounded px-1.5 hover:bg-[var(--surface-secondary)] data-[blocked]:opacity-40"
                     >
                       <CheckboxField
-                        label={q?.stem ?? qid}
+                        label={stem || QUESTION.noStem}
                         hideLabel
-                        isSelected={b.questionIds.includes(qid)}
+                        isSelected={selected}
                         onChange={(on) => toggleQuestion(b.domainId, qid, on)}
                         isDisabled={pending}
-                        disabledReason={frozenReason ?? (takenAt === undefined ? null : GAME.difficultyTaken(takenAt))}
+                        disabledReason={
+                          frozenReason ?? (unusable ? GAME.incomplete(gaps) : takenAt === undefined ? null : GAME.difficultyTaken(takenAt))
+                        }
                       />
                       <Text variant="studio-body" truncate className="min-w-0 flex-1">
-                        {qOverlay?.stem ?? q?.stem ?? qid}
+                        {stem || QUESTION.noStem}
                       </Text>
+                      <IncompleteMark gaps={gaps} />
                       {qOverlay ? <MeaningChip meaning="overridden">{GAME.overridden}</MeaningChip> : null}
                       <button
                         type="button"
@@ -182,12 +206,16 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
                         title={QUESTION.difficulty}
                         disabled={frozenReason !== null}
                         onClick={() => {
-                          const next = window.prompt(`${QUESTION.difficulty} (1–100)`, String(difficulty))
+                          const next = window.prompt(`${QUESTION.difficulty} (1–100)`, difficulty === null ? '' : String(difficulty))
                           const n = next === null ? Number.NaN : Number(next)
                           if (Number.isInteger(n) && n >= 1 && n <= 100 && n !== difficulty) setScopeFor({ questionId: qid, difficulty: n })
                         }}
                       >
-                        <MeaningChip meaning={band}>{`${QUESTION.band[band]} · ${difficulty}`}</MeaningChip>
+                        {band ? (
+                          <MeaningChip meaning={band}>{`${QUESTION.band[band]} · ${difficulty}`}</MeaningChip>
+                        ) : (
+                          <MeaningChip meaning="unset">{QUESTION.difficultyUnset}</MeaningChip>
+                        )}
                       </button>
                       {qOverlay ? (
                         <IconButton

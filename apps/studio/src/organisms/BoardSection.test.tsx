@@ -19,7 +19,7 @@ import type { CatalogItem, Recipe } from '@/host/types'
  */
 const stamps = { createdAt: 1_000, updatedAt: 1_000, archivedAt: null }
 
-const question = (id: string, stem: string, difficulty: number): CatalogItem => ({
+const question = (id: string, stem: string, difficulty: number | null): CatalogItem => ({
   kind: 'question',
   item: {
     id,
@@ -132,5 +132,62 @@ describe('Game ▸ Board, one question per difficulty', () => {
         'q-hard',
       ])
     })
+  })
+})
+
+describe('Game ▸ Board, incomplete questions (§2.32)', () => {
+  let fake: FakeHost
+
+  /** The P11.13 library plus `q-open`: a member of History with no difficulty. */
+  const withOpen = (): CatalogItem[] => {
+    const [domain, ...rest] = library()
+    if (domain?.kind !== 'domain') throw new Error('the fixture starts with its domain')
+    return [
+      { kind: 'domain', item: { ...domain.item, questions: [...domain.item.questions, { questionId: 'q-open', sortKey: 4 }] } },
+      ...rest,
+      question('q-open', 'Open one?', null),
+    ]
+  }
+
+  beforeEach(() => {
+    fake = createFakeHost()
+    fake.seed(withOpen(), [recipeWith([])])
+    setHostTransport(fake)
+  })
+  afterEach(() => {
+    setHostTransport(null)
+    cleanup()
+  })
+
+  const draw = (recipe: Recipe) =>
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <BoardSection recipe={recipe} frozenReason={null} />
+      </QueryClientProvider>,
+    )
+  const box = (name: string) => screen.getByRole('checkbox', { name })
+  const isDisabled = (el: HTMLElement) =>
+    (el as HTMLInputElement).disabled || el.getAttribute('aria-disabled') === 'true'
+
+  it('dims an incomplete member and names what it lacks', async () => {
+    draw(recipeWith([]))
+    await waitFor(() => expect(box('Open one?')).toBeTruthy())
+    expect(isDisabled(box('Open one?'))).toBe(true)
+    expect(screen.getByRole('img', { name: 'Incomplete — No difficulty' })).toBeTruthy()
+    expect(isDisabled(box('Hard one?'))).toBe(false)
+  })
+
+  it('keeps the checkbox of an incomplete member that is already on the board', async () => {
+    // Load would refuse this board; taking the question off is how to fix it.
+    draw(recipeWith(['q-open']))
+    await waitFor(() => expect(box('Open one?')).toBeTruthy())
+    expect(isDisabled(box('Open one?'))).toBe(false)
+  })
+
+  it('lets a this-game difficulty make it selectable', async () => {
+    draw({ ...recipeWith([]), overlays: { teams: {}, domains: {}, questions: { 'q-open': { difficulty: 70 } } } })
+    await waitFor(() => expect(box('Open one?')).toBeTruthy())
+    expect(isDisabled(box('Open one?'))).toBe(false)
+    expect(screen.queryByRole('img', { name: /^Incomplete — / })).toBeNull()
   })
 })

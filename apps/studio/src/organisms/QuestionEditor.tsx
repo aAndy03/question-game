@@ -5,6 +5,7 @@ import {
   DirtyGuard,
   DomainPicker,
   EditorFooter,
+  GapNotice,
   InlineNotice,
   NavCrumbs,
   OptionRow,
@@ -16,6 +17,7 @@ import { useNavStore, type Route } from '@/chrome/nav'
 import { LIST, QUESTION, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
+import { acceptsQuestion, questionGaps } from '@/host/question'
 import { useCatalogItem, useCatalogList } from '@/host/queries'
 import { answerMode, type Domain, type Question, type QuestionOption } from '@/host/types'
 import { useDirtyGuard, useDraft } from './useDraft'
@@ -54,10 +56,17 @@ function emptyQuestion(): Question {
 }
 
 /**
- * Stem · options (≥2, at least one correct) · difficulty · explanation ·
- * domains (`DomainPicker`, create in place). Answer mode is derived from the
- * ticks (spec §2.17). Writes the question, then each domain whose membership
- * changed; the host's `catalog-changed` events refresh both lists.
+ * Stem · options · difficulty · explanation · domains (`DomainPicker`, create
+ * in place). Answer mode is derived from the ticks (spec §2.17). Writes the
+ * question, then each domain whose membership changed; the host's
+ * `catalog-changed` events refresh both lists.
+ *
+ * **It saves an incomplete question** (§2.32): the floor is question text or
+ * one option, and a blank option row is dropped on save. What the question
+ * lacks — two options, a correct tick, a difficulty, a domain — is listed at
+ * the top as the draft changes and never disables Save, because the operator
+ * who has the answer but not the difficulty must not lose the answer. A board
+ * will not take it until the list is empty.
  */
 export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
   const source = useCatalogItem('question', id)
@@ -94,12 +103,13 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
   const fieldError = (field: string) => inline.find((n) => n.targetPath === `${path}.${field}`)?.detail.message ?? null
 
   const correctCount = q.options.filter((o) => o.correct).length
-  const canSave =
-    draft.isDirty &&
-    q.stem.trim().length > 0 &&
-    q.options.length >= 2 &&
-    q.options.every((o) => o.text.trim().length > 0) &&
-    correctCount >= 1
+  // A blank option row is not an option yet: it is dropped on save rather
+  // than blocking it, since a new question opens with two of them and a row
+  // cannot go below two. The §2.32 floor is the only thing that disables Save
+  // — a gap never does.
+  const filled = q.options.filter((o) => o.text.trim().length > 0)
+  const canSave = draft.isDirty && acceptsQuestion(q)
+  const gaps = questionGaps({ ...q, options: filled }, draft.value.domainIds.length > 0)
 
   const back: Route = { tab: 'library', ...(domainId ? { domainId } : {}) }
 
@@ -109,7 +119,7 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
       ...q,
       stem: q.stem.trim(),
       explanation: q.explanation?.trim() ? q.explanation : null,
-      options: q.options.map((o) => ({ ...o, text: o.text.trim() })),
+      options: filled.map((o) => ({ ...o, text: o.text.trim() })),
     }
     const result = await run('catalog_upsert', { item: { kind: 'question', item } }, { targetPath: path })
     if (result === null) {
@@ -176,6 +186,7 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
           />
         }
       />
+      <GapNotice gaps={gaps} />
       {inline
         .filter((n) => !n.targetPath?.startsWith(`${path}.`))
         .map((n) => (
@@ -186,7 +197,6 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
           label={QUESTION.stem}
           value={q.stem}
           onChange={(stem) => setQ({ stem })}
-          isRequired
           rows={3}
           autoFocus={!id}
           description={QUESTION.stemHint}

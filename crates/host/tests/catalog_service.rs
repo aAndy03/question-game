@@ -19,8 +19,9 @@ use std::path::PathBuf;
 
 use questiongame_host::catalog::{
     ArchiveScope, Asset, BoardDomain, CatalogError, CatalogKind, CatalogLocation, CatalogService,
-    ChangeOp, Domain, DomainMember, DomainOverlay, EditScope, Operator, OverlayTarget, Question,
-    QuestionOption, QuestionOverlay, Recipe, SearchQuery, Team, TeamOverlay,
+    ChangeOp, Demo, Domain, DomainMember, DomainOverlay, EditScope, ImportCounts, Operator,
+    OverlayTarget, Question, QuestionOption, QuestionOverlay, Recipe, SearchQuery, SeedMode, Team,
+    TeamOverlay,
 };
 use questiongame_host::flags::{FlagService, GameSetting, GameSettings};
 use questiongame_host::settings::{FrozenSettings, ScoringMode};
@@ -274,20 +275,27 @@ fn a_row_a_recipe_points_at_reports_what_uses_it() {
 }
 
 #[test]
-fn the_shape_rules_are_refused_by_the_host_not_only_disabled_in_the_editor() {
+fn the_floor_is_refused_by_the_host_not_only_disabled_in_the_editor() {
+    // §2.32: one option, or no correct mark, is an *incomplete* question — the
+    // library stores it (see the P11.17 block below). What the host refuses
+    // is the floor: a row that is nothing at all, or says something no edit
+    // can mean.
     let service = CatalogService::in_memory().unwrap();
-    let one_option = Question::new("q-x", "Only one?", 10)
-        .with_options(vec![QuestionOption::new("opt-a", "A", true)]);
+    let nothing = Question::new("q-x", "   ", 10);
     assert!(matches!(
-        service.catalog_upsert(&one_option.into(), 0),
+        service.catalog_upsert(&nothing.into(), 0),
         Err(CatalogError::Invalid { .. })
     ));
 
-    let no_correct = Question::new("q-y", "None right?", 10).with_options(vec![
-        QuestionOption::new("opt-a", "A", false),
-        QuestionOption::new("opt-b", "B", false),
+    let blank_option = Question::new("q-y", "A blank option?", 10).with_options(vec![
+        QuestionOption::new("opt-a", "A", true),
+        QuestionOption::new("opt-b", "  ", false),
     ]);
-    assert!(service.catalog_upsert(&no_correct.into(), 0).is_err());
+    assert!(service.catalog_upsert(&blank_option.into(), 0).is_err());
+
+    let mut out_of_range = question("q-z", 10);
+    out_of_range.difficulty = Some(101);
+    assert!(service.catalog_upsert(&out_of_range.into(), 0).is_err());
 
     // Nothing landed.
     assert!(
@@ -493,7 +501,7 @@ fn apply_to_original_writes_the_catalog_and_leaves_other_recipes_overlays_standi
         .cloned()
         .unwrap();
     assert_eq!(stored.stem, "The corrected stem");
-    assert_eq!(stored.difficulty, 55);
+    assert_eq!(stored.difficulty, Some(55));
 
     assert!(
         service
@@ -772,7 +780,7 @@ fn applying_a_difficulty_to_the_original_is_refused_on_the_same_rule() {
         questiongame_host::catalog::CatalogItem::Question(question) => *question,
         other => panic!("expected a question, got {other:?}"),
     };
-    assert_eq!(question.difficulty, 20, "the catalog row is untouched");
+    assert_eq!(question.difficulty, Some(20), "the catalog row is untouched");
 }
 
 #[test]
@@ -798,6 +806,339 @@ fn a_difficulty_override_on_a_question_the_board_does_not_hold_is_none_of_the_ru
         .unwrap();
 }
 
+// ------------------------------------------- incomplete questions (P11.17)
+
+#[test]
+fn an_unset_difficulty_round_trips_on_both_adapters() {
+    each_adapter("no-difficulty", |service| {
+        let mut open = question("q-open", 10);
+        open.difficulty = None;
+        service.catalog_upsert(&open.into(), 1_000).unwrap();
+        let stored = service
+            .catalog_get(CatalogKind::Question, "q-open")
+            .unwrap();
+        assert_eq!(stored.as_question().unwrap().difficulty, None);
+        assert!(
+            service
+                .catalog_list(CatalogKind::Question, ArchiveScope::Active)
+                .unwrap()
+                .iter()
+                .any(|item| item.id() == "q-open"),
+            "an incomplete question lists like any other"
+        );
+    });
+}
+
+#[test]
+fn the_library_stores_an_incomplete_question_and_refuses_an_empty_one() {
+    each_adapter("floor", |service| {
+        service
+            .catalog_upsert(&Question::new("q-stem", "Only a stem?", 10).into(), 1_000)
+            .unwrap();
+        let nothing = Question::new("q-nothing", "   ", 10);
+        assert!(matches!(
+            service.catalog_upsert(&nothing.into(), 1_000),
+            Err(CatalogError::Invalid { .. })
+        ));
+    });
+}
+
+/// `seed` plus `q-open`, a member of `dom-1` with no difficulty — in the
+/// library, not on the board.
+fn seed_with_an_incomplete_member(service: &CatalogService) -> Recipe {
+    let recipe = seed(service);
+    let mut open = question("q-open", 30);
+    open.difficulty = None;
+    service.catalog_upsert(&open.into(), 1_000).unwrap();
+    let mut domain = match service.catalog_get(CatalogKind::Domain, "dom-1").unwrap() {
+        questiongame_host::catalog::CatalogItem::Domain(domain) => *domain,
+        other => panic!("expected a domain, got {other:?}"),
+    };
+    domain.questions.push(DomainMember {
+        question_id: QuestionId::from("q-open"),
+        sort_key: 2,
+    });
+    service.catalog_upsert(&domain.into(), 1_000).unwrap();
+    recipe
+}
+
+/// A board of `dom-1` holding exactly these questions.
+fn dom_1(ids: &[&str]) -> Vec<BoardDomain> {
+    vec![BoardDomain {
+        domain_id: DomainId::from("dom-1"),
+        question_ids: ids.iter().map(|id| QuestionId::from(*id)).collect(),
+    }]
+}
+
+#[test]
+fn a_board_cannot_select_an_incomplete_question() {
+    each_adapter("incomplete-board", |service| {
+        let recipe = seed_with_an_incomplete_member(service);
+        let rev = service.recipe_get(&recipe.id).unwrap().rev;
+        let error = service
+            .recipe_set_membership(
+                &recipe.id,
+                recipe.teams.clone(),
+                dom_1(&["q-1", "q-2", "q-open"]),
+                2_000,
+            )
+            .unwrap_err();
+        assert!(
+            matches!(&error, CatalogError::Invalid { target_path, .. }
+                if target_path == "recipe.recipe-1.board.dom-1.question.q-open"),
+            "expected the question named, got {error:?}"
+        );
+        assert_eq!(
+            service.recipe_get(&recipe.id).unwrap().rev,
+            rev,
+            "a refused write changes nothing"
+        );
+    });
+}
+
+#[test]
+fn a_this_game_difficulty_completes_a_question_for_this_show_only() {
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed_with_an_incomplete_member(&service);
+    service
+        .recipe_set_overlay(
+            &recipe.id,
+            OverlayTarget::Question(
+                QuestionId::from("q-open"),
+                Some(QuestionOverlay {
+                    difficulty: Some(30),
+                    ..QuestionOverlay::default()
+                }),
+            ),
+            EditScope::ThisGame,
+            2_000,
+        )
+        .unwrap();
+    service
+        .recipe_set_membership(
+            &recipe.id,
+            recipe.teams.clone(),
+            dom_1(&["q-1", "q-2", "q-open"]),
+            3_000,
+        )
+        .unwrap();
+    let snapshot = service
+        .build_snapshot(&recipe.id, PlayId::from("play-1"), frozen())
+        .unwrap();
+    assert_eq!(snapshot.total_questions(), 3);
+    let open = service
+        .catalog_get(CatalogKind::Question, "q-open")
+        .unwrap();
+    assert_eq!(
+        open.as_question().unwrap().difficulty,
+        None,
+        "the library row is still incomplete"
+    );
+}
+
+#[test]
+fn an_original_edit_that_empties_the_correct_marks_is_refused_while_the_board_holds_it() {
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed(&service);
+    let error = service
+        .recipe_set_overlay(
+            &recipe.id,
+            OverlayTarget::Question(
+                QuestionId::from("q-1"),
+                Some(QuestionOverlay {
+                    options: Some(vec![
+                        QuestionOption::new("x", "X", false),
+                        QuestionOption::new("y", "Y", false),
+                    ]),
+                    ..QuestionOverlay::default()
+                }),
+            ),
+            EditScope::Original,
+            2_000,
+        )
+        .unwrap_err();
+    assert!(
+        matches!(&error, CatalogError::Invalid { target_path, .. }
+            if target_path == "recipe.recipe-1.board.dom-1.question.q-1"),
+        "got {error:?}"
+    );
+    let stored = service.catalog_get(CatalogKind::Question, "q-1").unwrap();
+    assert!(
+        stored.as_question().unwrap().options[0].correct,
+        "the catalog row is untouched"
+    );
+}
+
+#[test]
+fn a_question_made_incomplete_in_the_library_stops_load_and_the_preview_counts_it() {
+    each_adapter("incomplete-load", |service| {
+        let recipe = seed(service);
+        let mut q = service
+            .catalog_get(CatalogKind::Question, "q-2")
+            .unwrap()
+            .as_question()
+            .cloned()
+            .unwrap();
+        q.difficulty = None;
+        // The library does not veto an edit on a recipe's behalf (§2.31).
+        service.catalog_upsert(&q.into(), 2_000).unwrap();
+
+        let error = service
+            .build_snapshot(&recipe.id, PlayId::from("play-1"), frozen())
+            .unwrap_err();
+        assert!(
+            matches!(&error, CatalogError::Invalid { target_path, .. }
+                if target_path == "recipe.recipe-1.board.dom-1.question.q-2"),
+            "got {error:?}"
+        );
+        let board = service.preview_board(&recipe.id).unwrap();
+        assert_eq!(board.domains[0].questions.len(), 1);
+        assert_eq!(board.domains[0].incomplete, 1);
+    });
+}
+
+// --------------------------------------------------------- two Demos (P11.17)
+
+#[test]
+fn the_two_demos_are_restored_and_counted_apart() {
+    let service = CatalogService::in_memory().unwrap();
+    service
+        .seed_demo(Demo::Ro, SeedMode::Missing, GameSettings::default(), 1_000)
+        .unwrap();
+    let ro = service
+        .seed_status(Demo::Ro, GameSettings::default())
+        .unwrap();
+    assert_eq!((ro.present, ro.missing, ro.edited), (23, 0, 0));
+    let en = service
+        .seed_status(Demo::En, GameSettings::default())
+        .unwrap();
+    assert_eq!((en.present, en.missing), (0, 11));
+
+    service
+        .seed_demo(Demo::En, SeedMode::Overwrite, GameSettings::default(), 2_000)
+        .unwrap();
+    let ro = service
+        .seed_status(Demo::Ro, GameSettings::default())
+        .unwrap();
+    assert_eq!(
+        (ro.present, ro.edited),
+        (23, 0),
+        "restoring English does not touch a Romanian row"
+    );
+    let snapshot = service
+        .build_snapshot(
+            &RecipeId::from("seed-recipe-demo-ro"),
+            PlayId::from("play-ro"),
+            frozen(),
+        )
+        .unwrap();
+    assert_eq!(snapshot.total_questions(), 15);
+}
+
+// ------------------------------------------------------------ import (P11.17)
+
+#[test]
+fn an_import_preview_writes_nothing_and_the_commit_writes_what_it_showed() {
+    each_adapter("import", |service| {
+        seed(service);
+        let text = r#"{ "format": "questiongame.questions", "version": 1, "questions": [
+            { "question": "Capitala Australiei?",
+              "options": [{ "text": "Canberra", "correct": true }, "Sydney"],
+              "difficulty": 50, "domains": ["Science"] },
+            { "question": "Doar textul?" },
+            { "question": "Domeniu nou?", "options": ["A", "B"], "domains": ["Istorie"] },
+            { "difficulty": 10 }
+        ] }"#;
+        let active = |service: &CatalogService| {
+            service
+                .catalog_list(CatalogKind::Question, ArchiveScope::Active)
+                .unwrap()
+                .len()
+        };
+        let before = active(service);
+
+        let (preview, changes) = service.import_questions(text, false, None, 2_000).unwrap();
+        assert!(!preview.committed);
+        assert!(changes.is_empty());
+        assert_eq!(active(service), before, "a preview writes nothing");
+
+        let (report, changes) = service.import_questions(text, true, None, 3_000).unwrap();
+        assert!(report.committed);
+        assert_eq!(
+            report.rows, preview.rows,
+            "the commit is the plan the preview showed"
+        );
+        assert_eq!(
+            report.counts,
+            ImportCounts {
+                complete: 1,
+                incomplete: 2,
+                duplicate: 0,
+                rejected: 1
+            }
+        );
+        assert_eq!(active(service), before + 3);
+        assert!(!changes.is_empty());
+
+        let science = service
+            .catalog_get(CatalogKind::Domain, "dom-1")
+            .unwrap()
+            .as_domain()
+            .cloned()
+            .unwrap();
+        assert_eq!(
+            science.questions.len(),
+            3,
+            "appended to the existing domain"
+        );
+        let istorie = service
+            .catalog_list(CatalogKind::Domain, ArchiveScope::Active)
+            .unwrap()
+            .into_iter()
+            .filter_map(|item| item.as_domain().cloned())
+            .find(|d| d.name == "Istorie")
+            .expect("a new domain");
+        assert_eq!(istorie.questions.len(), 1);
+    });
+}
+
+#[test]
+fn importing_the_same_file_twice_imports_it_once() {
+    let service = CatalogService::in_memory().unwrap();
+    let text = r#"[ { "question": "Q?", "options": ["A", { "text": "B", "correct": true }] } ]"#;
+    service.import_questions(text, true, None, 1_000).unwrap();
+    let (again, changes) = service.import_questions(text, true, None, 2_000).unwrap();
+    assert_eq!(again.counts.duplicate, 1);
+    assert!(changes.is_empty(), "nothing to write, nothing to announce");
+    assert_eq!(
+        service
+            .catalog_list(CatalogKind::Question, ArchiveScope::Active)
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn a_file_the_import_cannot_read_is_refused_and_writes_nothing() {
+    let service = CatalogService::in_memory().unwrap();
+    let error = service
+        .import_questions(
+            "{ \"questions\": [ { \"question\": \"Q?\" } ",
+            true,
+            None,
+            1_000,
+        )
+        .unwrap_err();
+    assert!(error.to_string().starts_with("import: "), "{error}");
+    assert!(
+        service
+            .catalog_list(CatalogKind::Question, ArchiveScope::All)
+            .unwrap()
+            .is_empty()
+    );
+}
+
 #[test]
 fn a_catalog_edit_during_an_open_play_leaves_the_snapshot_byte_identical() {
     each_adapter("snapshot-frozen", |service| {
@@ -819,7 +1160,7 @@ fn a_catalog_edit_during_an_open_play_leaves_the_snapshot_byte_identical() {
             .cloned()
             .unwrap();
         question.stem = "Edited mid-show".to_owned();
-        question.difficulty = 99;
+        question.difficulty = Some(99);
         service.catalog_upsert(&question.into(), 5_000).unwrap();
         service
             .catalog_archive(CatalogKind::Team, "team-b", 5_000)
@@ -1428,7 +1769,8 @@ fn a_bulk_upsert_is_one_transaction_and_an_illegal_row_writes_none_of_it() {
         let mut broken: Vec<_> = (5..8)
             .map(|i| question(&format!("q-bulk-{i}"), 10).into())
             .collect();
-        broken.push(Question::new("q-bulk-bad", "No options?", 10).into());
+        // Neither a stem nor an option: below the §2.32 floor.
+        broken.push(Question::new("q-bulk-bad", "   ", 10).into());
         assert!(service.catalog_upsert_many(&broken, 2_000).is_err());
         assert_eq!(
             service

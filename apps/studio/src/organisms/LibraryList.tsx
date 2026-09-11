@@ -37,7 +37,7 @@ export interface LibraryListProps {
   /** The plural noun for empty states. */
   what: string
   /** Which empty state applies when there are no rows. */
-  emptyKind: 'empty' | 'noResults' | 'archivedEmpty'
+  emptyKind: 'empty' | 'noResults' | 'archivedEmpty' | 'allComplete'
   emptyAction?: ReactNode
   sortBy?: string | undefined
   sortDesc?: boolean | undefined

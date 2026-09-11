@@ -414,6 +414,24 @@ Why: teams choose a **domain**, never a question, and difficulty walks easy→ha
 - **The rule is enforced on the write.** `recipe_upsert` refuses an illegal board and a refused write changes nothing. `build_snapshot` refuses to start a Play from one, because a board can become illegal from *outside* the recipe — the library does not veto an edit on a recipe's behalf (§11.A `referenced_by` exists for exactly that reason), so re-grading a question in Questions can collide a board that was legal when it was saved. The Rules preview says so before Load rather than leaving Load to be the first anyone hears of it.
 - **Studio disables the illegal sibling** with the reason on a still-visible control (§4.2). Adding a domain to a board ticks one question per difficulty, `difficulty ASC, id ASC`.
 
+### 2.32 Incomplete questions, and importing many at once
+
+*(Decided 2026-09-11.)*
+
+**The library may hold an incomplete question; a Play may not.** A question is *incomplete* while it has any of five **gaps**: no stem, fewer than two options, no correct mark, no difficulty, or no active domain. It is stored, listed, searched, archived and edited like any other question, and it carries a warning mark wherever it is listed until the last gap closes. It can never reach a Play.
+
+A question is **accepted** by the library when it has a stem **or** at least one option. That is the whole floor — everything above it is a gap, not a refusal. The same floor holds for the question editor and for an import: the editor saves an incomplete question and lists what is still missing, because an operator who has the answer but not the difficulty should not lose the answer.
+
+- **Still refused on every write:** a question with neither a stem nor an option, two options sharing an id, an option with no text, a difficulty outside 1–100.
+- **The domain gap reads active domains.** A question whose only domain is archived cannot reach a board, which is the question the mark answers.
+- **Enforced where a show is prepared**, the same two doors as §2.31: `recipe_upsert` and `recipe_set_overlay` refuse a board that selects an incomplete question, judged on the **effective** body (overlay applied). `build_snapshot` refuses one at Load, because a question can become incomplete from outside the recipe exactly as a difficulty can collide from outside it. The Rules preview warns before Load.
+
+**Import is one file, one preview, one transaction.** A JSON document in the editor's own shape (`question`, `options`, `difficulty`, `domains`, `explanation`) is parsed by the host and answered with a report — per row *complete*, *incomplete* (with its gaps), *duplicate* or *rejected* (with its reason), plus the domains it would create — before anything is written. The operator confirms the report once and the host writes it as §2.19 writes a bulk edit: one transaction, validated whole first. Preview and commit run the same plan, so they cannot disagree.
+
+- A domain named in the file is matched to an active domain by name or code, case-insensitively, and **created** when none matches. A row that names no domain goes to the domain the operator chose in the dialog, if any.
+- A row identical to an active question — same stem, same options, same correct marks — or to an earlier row of the same file is a **duplicate** and is skipped, so importing a file twice imports it once.
+- CSV stays out of v1 (§2.19 was about spreadsheets; JSON is the format a script or a language model produces reliably).
+
 ---
 
 ## 3. Vocabulary
@@ -452,7 +470,7 @@ Why: teams choose a **domain**, never a question, and difficulty walks easy→ha
 
 **Domain** — `id`, name, description, question membership with `sort_key`, `archived_at`. A question may sit in many domains. Difficulty edits do not reorder membership. **Sort by difficulty** is an explicit action.
 
-**Question** — stem, media, `answer_mode` derived from correct ticks (`single` if one, `multiple` if more), ordered options, correct id set, `difficulty` 1–100, explanation, `archived_at`. Options ≥ 2. Cannot delete the last correct mark.
+**Question** — stem, media, `answer_mode` derived from correct ticks (`single` if one, `multiple` if more), ordered options, correct id set, `difficulty` 1–100, explanation, `archived_at`. Options ≥ 2. Cannot delete the last correct mark. *(§2.32: these are what makes a question **complete**; the library stores an incomplete one — stem or one option is the floor — and a Play never sees it. `difficulty` may be unset.)*
 
 **Recipe overlays** — optional per-id patches on teams, domains, questions (text, difficulty, duration, marks). Snapshot applies them at Play start.
 
@@ -884,7 +902,7 @@ Record lists (Teams, Domains, Questions, Games, Operators, play history, stats e
 
 **Teams:** grid/table → `team/:id` → edit. Optional history. **This tab’s archive** + bulk archive/restore.
 
-**Domains + Questions:** domain pane **Add domain**. Question editor: `DomainPicker` (existing) + embedded `DomainForm` (create in place). Difficulty required. Options ≥ 2. Correct ticks derive single vs multiple. Stack remembers referrer. Domain archive and Question archive are two scopes in this tab (switch which list you are looking at).
+**Domains + Questions:** domain pane **Add domain**. Question editor: `DomainPicker` (existing) + embedded `DomainForm` (create in place). Difficulty required *to be complete* (§2.32 — the editor saves an incomplete question and names its gaps). Options ≥ 2. Correct ticks derive single vs multiple. **Import** (§2.32) sits beside *New question*. Stack remembers referrer. Domain archive and Question archive are two scopes in this tab (switch which list you are looking at).
 
 **Game — all games:** project cards / folders (or table). Hide archived unless **this tab’s archive** is open. All-games timer default lives here and in Settings.
 

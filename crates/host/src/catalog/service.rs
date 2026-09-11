@@ -11,6 +11,7 @@
 //! stats_query                                                 §11.K, read-only
 //! wipe_plays                                                  §12.3, pin-gated
 //! seed_demo | seed_status                                     §12.1 (`seed.rs`)
+//! import_questions                                            §2.32 (`import.rs`)
 //! settings_load | settings_store                              §11.L L1/L2
 //! ```
 //!
@@ -46,10 +47,11 @@ use crate::play::Play;
 use crate::settings::FrozenSettings;
 use crate::snapshot::PlaySnapshot;
 
+use super::complete;
 use super::db::{self, CatalogLocation};
 use super::error::{CatalogError, CatalogKind, CatalogResult};
 use super::model::{
-    ArchiveScope, Asset, BoardDomain, CatalogItem, DomainOverlay, EditScope, PlayRecord,
+    ArchiveScope, Asset, BoardDomain, CatalogItem, DomainOverlay, EditScope, PlayRecord, Question,
     QuestionOverlay, Recipe, TeamOverlay,
 };
 use super::search::{SearchHit, SearchIndex, SearchQuery};
@@ -480,7 +482,7 @@ impl CatalogService {
     /// in, so a recipe row can never be where an illegal document hides.
     pub fn recipe_upsert(&self, recipe: &Recipe, now_ms: u64) -> CatalogResult<RecipeChange> {
         recipe.validate()?;
-        self.check_board_difficulties(recipe, None)?;
+        self.check_board(recipe, None)?;
         let mut guard = self.conn();
         let tx = guard.transaction()?;
         let rev = store::recipe_upsert(&tx, recipe, now_ms)?;
@@ -599,10 +601,10 @@ impl CatalogService {
                     store::overlay_set_domain(tx, id, &domain, patch.as_ref())
                 })?,
             (EditScope::ThisGame, OverlayTarget::Question(question, patch)) => {
-                // P11.13. A difficulty override is the second door into the
-                // board's difficulties, and a *reset* is one too — it hands the
-                // question back its catalog difficulty. Both are checked on the
-                // recipe this write would produce.
+                // P11.13, §2.32. An override is the second door into a board:
+                // it can move a difficulty or empty the correct marks, and a
+                // *reset* hands the question back its catalog body. All of it
+                // is checked on the recipe this write would produce.
                 let mut prospective = recipe.clone();
                 match patch.as_ref() {
                     Some(patch) => prospective
@@ -611,7 +613,7 @@ impl CatalogService {
                         .insert(question.clone(), patch.clone()),
                     None => prospective.overlays.questions.remove(&question),
                 };
-                self.check_board_difficulties(&prospective, None)?;
+                self.check_board(&prospective, None)?;
                 self.write_overlay(id, |tx| {
                     store::overlay_set_question(tx, id, &question, patch.as_ref())
                 })?
@@ -659,17 +661,6 @@ impl CatalogService {
                         "a per-question duration is a game overlay; it has no original",
                     ));
                 }
-                // P11.13. Applying to the original changes the catalog
-                // difficulty *and* drops this recipe's patch, so both halves
-                // are in the recipe this write would produce.
-                if let Some(difficulty) = patch.difficulty {
-                    let mut prospective = recipe.clone();
-                    prospective.overlays.questions.remove(&question_id);
-                    self.check_board_difficulties(
-                        &prospective,
-                        Some((&question_id, difficulty)),
-                    )?;
-                }
                 let mut question = store::question_get(&self.conn(), &question_id)?;
                 if let Some(stem) = patch.stem {
                     question.stem = stem;
@@ -678,8 +669,14 @@ impl CatalogService {
                     question.options = options;
                 }
                 if let Some(difficulty) = patch.difficulty {
-                    question.difficulty = difficulty;
+                    question.difficulty = Some(difficulty);
                 }
+                // P11.13, §2.32. Applying to the original changes the catalog
+                // row *and* drops this recipe's patch, so both halves are in the
+                // recipe this write would produce — checked before either lands.
+                let mut prospective = recipe.clone();
+                prospective.overlays.questions.remove(&question_id);
+                self.check_board(&prospective, Some(&question))?;
                 self.catalog_upsert(&question.into(), now_ms)?;
                 self.write_overlay(id, |tx| {
                     store::overlay_set_question(tx, id, &question_id, None)
@@ -696,53 +693,59 @@ impl CatalogService {
         })
     }
 
-    /// **One question per difficulty, per board domain** (P11.13). The rule is
-    /// [`crate::board::clashes`]; this reads the effective difficulty
-    /// (`overlay ?? catalog`) of every *selected* question and refuses on the
-    /// first clash. A domain in the library may hold as many questions at one
-    /// difficulty as the author wrote — the board picks one of them.
+    /// The board rules a write must keep, on the recipe this write would
+    /// produce (P11.13, §2.32): every **selected** question is complete on its
+    /// effective body (`overlay ?? catalog`, field by field), and no domain
+    /// selects two at one difficulty. The rules are [`complete`] and
+    /// [`crate::board::clashes`]; this only reads the rows. A domain in the
+    /// library may hold incomplete questions and twins as the author wrote
+    /// them — the board picks the ones a show can play.
     ///
-    /// `pending` stands in for a catalog row this write is about to change,
-    /// which is how [`Self::recipe_set_overlay`]'s `Original` scope is checked
-    /// *before* it writes rather than after.
+    /// `pending` stands in for the catalog row an `Original` edit is about to
+    /// write, which is how [`Self::recipe_set_overlay`] is checked *before* it
+    /// writes rather than after.
     ///
-    /// Two call sites, because there are two doors into a board's
-    /// difficulties: [`Self::recipe_upsert`] (the checkbox, and every other
-    /// recipe write funnels through it) and [`Self::recipe_set_overlay`] (the
-    /// inline override, which does not). A difficulty edited in the *library*
-    /// is deliberately not refused — a library row does not know which recipes
-    /// use it, and `referenced_by` exists because the catalog does not veto on
+    /// Two call sites, because there are two doors into a board:
+    /// [`Self::recipe_upsert`] (the checkbox, and every other recipe write
+    /// funnels through it) and [`Self::recipe_set_overlay`] (the inline
+    /// override, which does not). A row edited in the *library* is
+    /// deliberately not refused — a library row does not know which recipes use
+    /// it, and `referenced_by` exists because the catalog does not veto on
     /// their behalf. That board becomes illegal from outside, which is what
-    /// `build_snapshot`'s second line and `PreviewWarning::DuplicateDifficulty`
-    /// are for.
-    fn check_board_difficulties(
-        &self,
-        recipe: &Recipe,
-        pending: Option<(&QuestionId, u8)>,
-    ) -> CatalogResult<()> {
+    /// `build_snapshot`'s second line and the preview warnings are for.
+    fn check_board(&self, recipe: &Recipe, pending: Option<&Question>) -> CatalogResult<()> {
         let conn = self.conn();
         for board in &recipe.board {
             let mut selected: Vec<(QuestionId, u8)> = Vec::with_capacity(board.question_ids.len());
             for id in &board.question_ids {
-                let overlaid = recipe
-                    .overlays
-                    .questions
-                    .get(id)
-                    .and_then(|patch| patch.difficulty);
-                let difficulty = match overlaid {
-                    Some(difficulty) => difficulty,
-                    None => match pending {
-                        Some((pending_id, difficulty)) if pending_id == id => difficulty,
-                        // A row the library no longer has is `build_snapshot`'s
-                        // refusal to make, with a message about the missing
-                        // row. This rule has nothing to say about it.
-                        _ => match store::question_get(&conn, id) {
-                            Ok(question) => question.difficulty,
-                            Err(_) => continue,
-                        },
+                let question = match pending {
+                    Some(question) if &question.id == id => question.clone(),
+                    // A row the library no longer has is `build_snapshot`'s
+                    // refusal to make, with a message about the missing row.
+                    // These rules have nothing to say about it.
+                    _ => match store::question_get(&conn, id) {
+                        Ok(question) => question,
+                        Err(_) => continue,
                     },
                 };
-                selected.push((id.clone(), difficulty));
+                let overlay = recipe.overlays.questions.get(id);
+                if !complete::effective_gaps(&question, overlay).is_empty() {
+                    return Err(CatalogError::invalid(
+                        format!(
+                            "recipe.{}.board.{}.question.{}",
+                            recipe.id,
+                            board.domain_id.as_str(),
+                            id
+                        ),
+                        complete::INCOMPLETE,
+                    ));
+                }
+                if let Some(difficulty) = overlay
+                    .and_then(|patch| patch.difficulty)
+                    .or(question.difficulty)
+                {
+                    selected.push((id.clone(), difficulty));
+                }
             }
             if let Some(clash) = crate::board::clashes(&selected).into_iter().next() {
                 return Err(CatalogError::invalid(
@@ -851,16 +854,25 @@ impl CatalogService {
                 continue;
             };
             let overlay = recipe.overlays.domains.get(&board.domain_id);
+            let mut incomplete = 0u32;
             let questions = board
                 .question_ids
                 .iter()
                 .filter_map(|id| {
                     let question = store::question_get(&conn, id).ok()?;
                     let patch = recipe.overlays.questions.get(id);
+                    // §2.32: an incomplete question has nothing to pay, so it
+                    // is counted rather than priced — the warning says Load
+                    // will refuse it.
+                    let difficulty = patch.and_then(|p| p.difficulty).or(question.difficulty);
+                    let Some(difficulty) = difficulty
+                        .filter(|_| complete::effective_gaps(&question, patch).is_empty())
+                    else {
+                        incomplete += 1;
+                        return None;
+                    };
                     Some(PreviewQuestion {
-                        difficulty: patch
-                            .and_then(|p| p.difficulty)
-                            .unwrap_or(question.difficulty),
+                        difficulty,
                         duration_ms: patch.and_then(|p| p.duration_ms),
                         correct_count: patch
                             .and_then(|p| p.options.as_ref())
@@ -881,6 +893,7 @@ impl CatalogService {
                     .unwrap_or(domain.name),
                 id: domain.id,
                 questions,
+                incomplete,
             });
         }
         Ok(PreviewBoard { domains })

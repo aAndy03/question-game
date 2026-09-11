@@ -1,5 +1,8 @@
 import { TextAreaField, TextField } from '@/atoms'
 import { DOMAIN } from '@/copy'
+import { suggestDomainCode } from '@/host/domain'
+
+export { suggestDomainCode }
 
 export interface DomainFormValue {
   readonly name: string
@@ -59,16 +62,4 @@ export function DomainForm({ value, onChange, errors, isDisabled, disabledReason
       )}
     </div>
   )
-}
-
-/** A code from a name: first three consonant-heavy letters + a stable number. */
-export function suggestDomainCode(name: string, seed = 0): string {
-  const letters = name
-    .toUpperCase()
-    .replace(/[^A-Z]/g, '')
-    .slice(0, 3)
-    .padEnd(3, 'X')
-  let hash = seed
-  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) % 1000
-  return `${letters}_${String(hash).padStart(3, '0')}`
 }

@@ -73,7 +73,7 @@ export function previewPlay(src: PreviewSources, screen: StageScreen, layout: St
         code: o?.code ?? d.code,
         remaining: b.questionIds.length,
         exhausted: b.questionIds.length === 0,
-        nextDifficulty: first ? (src.recipe.overlays.questions[first.id]?.difficulty ?? first.difficulty) : null,
+        nextDifficulty: first ? (src.recipe.overlays.questions[first.id]?.difficulty ?? first.difficulty ?? null) : null,
       }
     })
     .filter((d): d is NonNullable<typeof d> => d !== null)
@@ -89,7 +89,9 @@ export function previewPlay(src: PreviewSources, screen: StageScreen, layout: St
           stem: qo?.stem ?? q.stem,
           options,
           answerMode: (qo?.options ?? q.options).filter((o) => o.correct).length > 1 ? ('multiple' as const) : ('single' as const),
-          difficulty: qo?.difficulty ?? q.difficulty,
+          // A preview draws; nothing is scored here, so an unset difficulty
+          // (an incomplete question, §2.32) is drawn as 0.
+          difficulty: qo?.difficulty ?? q.difficulty ?? 0,
           selectedOptionIds: [],
           lockedOptionIds: null,
           outcome: null,

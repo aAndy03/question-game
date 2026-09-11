@@ -47,7 +47,12 @@ impl Demo {
     fn load() -> Demo {
         let catalog = CatalogService::open(CatalogLocation::Memory).expect("library opens");
         catalog
-            .seed_demo(SeedMode::Missing, GameSettings::default(), 1_000)
+            .seed_demo(
+                questiongame_host::catalog::Demo::En,
+                SeedMode::Missing,
+                GameSettings::default(),
+                1_000,
+            )
             .expect("the demo seeds");
 
         // The same three steps `play_load` takes (`commands/play.rs`): put the

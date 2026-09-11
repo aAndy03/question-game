@@ -2,12 +2,13 @@ import type { ReactNode } from 'react'
 import { Icon, Text, type IconName } from '@/atoms'
 import { EMPTY } from '@/copy'
 
-export type EmptyKind = 'empty' | 'noResults' | 'archivedEmpty' | 'error'
+export type EmptyKind = 'empty' | 'noResults' | 'archivedEmpty' | 'allComplete' | 'error'
 
 const ICON: Record<EmptyKind, IconName> = {
   empty: 'add',
   noResults: 'search',
   archivedEmpty: 'archive',
+  allComplete: 'correct',
   error: 'error',
 }
 
@@ -21,7 +22,7 @@ export interface EmptyStateProps {
   compact?: boolean | undefined
 }
 
-/** The four empty states, one look (05_STUDIO_DESIGN.md §4.6). */
+/** The empty states, one look (05_STUDIO_DESIGN.md §4.6). */
 export function EmptyState({ kind, what = 'items', detail, action, compact }: EmptyStateProps) {
   const copy =
     kind === 'empty'
@@ -30,7 +31,9 @@ export function EmptyState({ kind, what = 'items', detail, action, compact }: Em
         ? EMPTY.archivedEmpty(what)
         : kind === 'noResults'
           ? EMPTY.noResults
-          : EMPTY.error
+          : kind === 'allComplete'
+            ? EMPTY.allComplete
+            : EMPTY.error
   return (
     <div
       role="status"
