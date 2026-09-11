@@ -164,6 +164,8 @@ export function OverlayLayer({ state }: OverlayLayerProps) {
   // nothing would play, nothing would be acked, and the host's queue would
   // stop for the rest of the Play (spec §2.6 — the queue advances on an ack).
   const runId = state.overlay.runId
+  // The Screens canvas (`?viewer&hold`) draws the request at rest.
+  const hold = isHoldMode()
 
   // What is on screen right now: kept locally so it runs to completion.
   const [showing, setShowing] = useState<OverlayRequest | null>(null)
@@ -174,6 +176,7 @@ export function OverlayLayer({ state }: OverlayLayerProps) {
 
   // A new active request: show it now, or queue it (depth 1) behind the running one.
   useEffect(() => {
+    if (hold) return
     if (runId === lastRun.current) return
     lastRun.current = runId
     if (!active) return
@@ -184,13 +187,11 @@ export function OverlayLayer({ state }: OverlayLayerProps) {
     }
     if (running.current) next.current = active
     else setShowing(active)
-  }, [runId, active, enabled])
+  }, [hold, runId, active, enabled])
 
   // Play whatever is showing once the sheet exists and no transition runs.
   useEffect(() => {
     if (!showing || !sheet.current) return
-    // The Screens canvas: the sheet stands as rendered, nothing is reported.
-    if (isHoldMode()) return
     const el = sheet.current
     const request = showing
     let release = () => {}
@@ -219,10 +220,18 @@ export function OverlayLayer({ state }: OverlayLayerProps) {
     }
   }, [showing])
 
-  if (!showing) return null
+  // Hold mode is a projection, not a queue: the canvas shows exactly the
+  // request the preview has on air, and nothing once it has none. The local
+  // `showing` copy exists so a live overlay survives the host clearing
+  // `active` mid-animation — and only the timeline's completion clears it. A
+  // canvas never starts a timeline, so a copy there is never cleared: the
+  // first overlay picked stayed on top of every screen picked after it.
+  // (Screens-tab-only; see 05_STUDIO_DESIGN.md §16.6.)
+  const drawn = hold ? active : showing
+  if (!drawn) return null
   return (
-    <Sheet kind={showing.kind} ref={sheet}>
-      <Content state={state} request={showing} />
+    <Sheet key={hold ? drawn.kind : undefined} kind={drawn.kind} ref={sheet}>
+      <Content state={state} request={drawn} />
     </Sheet>
   )
 }

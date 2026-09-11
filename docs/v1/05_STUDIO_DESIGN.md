@@ -1898,6 +1898,34 @@ override under `ro` and the table's word under `en`),
 canvas iframe carries `hold`; the tab list is seven screens then five
 overlays).
 
+### 16.6 Overlays on the canvas are drawn, not played (temporary)
+
+**Could be improved in future versions.** On the Screens canvas an overlay
+is a still picture of the request on air, and moving between an overlay and
+a screen, or between two overlays, is a cut. Screen to screen still plays
+the real base transition, as before P11.16.
+
+**Why it is this way.** On Stage an overlay is a queue item with a timeline:
+`OverlayLayer` keeps the request in local state so a live overlay survives
+the host clearing `active` mid-animation, and only the timeline's completion
+clears that copy. The canvas iframe never starts the timeline (hold mode), so
+the copy was never cleared: the first overlay picked stayed mounted and
+painted over every screen picked after it, and a second overlay was ignored
+because every canvas overlay carries the same `runId`. Fixed in hold mode
+only: the layer draws `state.overlay.active` directly, keyed on its kind, and
+keeps no copy. Stage and Control's Viewer are untouched — they still queue,
+play, and ack.
+
+**What a better version would do.** Play each overlay's enter and exit on
+the canvas so the operator previews the motion the audience will see, and
+give overlay ↔ screen a real transition, without reporting `anim-complete`
+to a host that is not listening. That needs a canvas-only timeline driver
+beside `runOverlay`, which is more than this fix should carry.
+
+`apps/stage/src/pages/hold.test.tsx` holds it down: an overlay is drawn and
+then gone when the canvas returns to a screen; one overlay swaps for another
+at the same `runId`; nothing is played or reported.
+
 ## 17. Incomplete questions, import, and a second Demo (P11.17)
 
 The rule is `optimized_first_spec.md` §2.32 and it is the host's. A question
