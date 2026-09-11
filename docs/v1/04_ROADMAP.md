@@ -1620,7 +1620,11 @@ release-build commands.
   Board dimming an incomplete member and keeping a selected one
   (`BoardSection.test.tsx`); one Restore row per Demo and first run seeding
   both (`pages/settings.test.tsx`).
-- ☐ Checked in the built app against the operator's own library.
+- ☑ Checked in the app against the operator's own library (2026-09-11): a
+  test file covering every import case — complete, each gap, an unknown
+  domain, a domain by code, duplicates against the library and within the
+  file, ignored fields, rejected rows — previewed and imported as the report
+  said.
 
 ---
 
