@@ -1,5 +1,7 @@
 # questiongame
 
+![questiongame: Studio for the operator, Stage for the audience](docs/media/cover.png)
+
 **A quiz show you run from one computer.** An operator drives the game from
 **Studio**; the teams, the audience and the camera see only **Stage**, a
 fullscreen screen on a TV, a projector, or a second monitor.
@@ -96,6 +98,34 @@ questiongame keeps a log next to your data (`questiongame.log`), and
 Settings ▸ Data shows where. If the app refuses to start, it says why in a
 message box. Please attach the log when you
 [open an issue](https://github.com/aAndy03/question-game/issues).
+
+---
+
+## What it looks like
+
+### Studio — where the operator runs the show
+
+![Control: the game panel, the live Stage preview, and the action panel](docs/media/studio-control.png)
+*Control: who holds the token, a live preview of Stage, and every action for the current question.*
+
+| | |
+| --- | --- |
+| ![Domains and questions](docs/media/studio-questions.png) | ![A game's roster](docs/media/studio-games.png) |
+| **Domains & Questions** — the library, with difficulty and completeness at a glance. | **Games** — the roster, the board and the scoring rules of one show. |
+| ![Screens editor](docs/media/studio-screens.png) | ![Statistics](docs/media/studio-statistics.png) |
+| **Screens** — restyle Stage and rewrite its words, on the real canvas. | **Statistics** — every turn of every Play, by team, domain or game. |
+
+### Stage — what the teams, the audience and the camera see
+
+| | |
+| --- | --- |
+| ![Idle screen](docs/media/stage-idle.png) | ![Choose a domain](docs/media/stage-choose-domain.png) |
+| **Idle** — the show's title while everyone gets ready. | **Choose domain** — the team picks a subject; difficulty rises by itself. |
+| ![A correct answer](docs/media/stage-question-outcome-correct.png) | ![Scoreboard](docs/media/stage-scoreboard.png) |
+| **Question** — revealed step by step, then scored. | **Scoreboard** — the standings between turns. |
+
+![Final leaderboard](docs/media/stage-final-leaderboard-full.png)
+*The final leaderboard, revealed from last place to first.*
 
 ---
 
