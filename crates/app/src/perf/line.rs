@@ -115,6 +115,9 @@ pub struct Line {
     pub t: String,
     /// Seconds since this file was opened.
     pub sec: u64,
+    /// `dev` or `release` (P12.1). A release line has no webview keys by
+    /// design — this is what tells a reader that from a webview that stopped.
+    pub build: &'static str,
     pub os: OsSample,
     pub host: HostSecond,
     #[serde(flatten)]
@@ -127,6 +130,7 @@ pub struct Line {
 pub struct Inputs {
     pub t: String,
     pub sec: u64,
+    pub build: &'static str,
     pub os: OsSample,
     /// The previous second's total working set, for the growth trigger.
     pub prev_total_ws_bytes: Option<u64>,
@@ -207,6 +211,7 @@ pub fn build(mut inputs: Inputs) -> Line {
     Line {
         t: inputs.t,
         sec: inputs.sec,
+        build: inputs.build,
         os: inputs.os,
         host: inputs.host,
         webviews: inputs.webviews,
@@ -237,11 +242,21 @@ mod tests {
         Inputs {
             t: "2026-09-10T10:00:00+03:00".into(),
             sec: 7,
+            build: "dev",
             os,
             prev_total_ws_bytes: prev,
             host: HostSecond::default(),
             webviews: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn a_line_says_which_build_wrote_it() {
+        let mut i = inputs(os(300.0, 1.0), None);
+        i.build = "release";
+        let text = serde_json::to_string(&build(i)).unwrap();
+        assert!(text.contains("\"build\":\"release\""), "{text}");
+        assert!(!text.contains("\"main\""), "a release line carries no webview section: {text}");
     }
 
     #[test]

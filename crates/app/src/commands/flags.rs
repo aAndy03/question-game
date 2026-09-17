@@ -319,7 +319,13 @@ pub fn operator_activate(
 pub struct AppPaths {
     pub user_data: String,
     pub catalog: String,
-    pub cue_pack: String,
+    /// `questiongame.log`, beside the library (P12.1).
+    pub log_file: String,
+    /// Where the performance log's run files go (P12.1).
+    pub perf_dir: String,
+    /// `None` when the folder is not on disk: a release build embeds the pack
+    /// in the binary, so there is nothing to reveal (P12.1).
+    pub cue_pack: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -351,10 +357,13 @@ fn cue_pack_dir(app: &AppHandle) -> AppResult<std::path::PathBuf> {
 pub fn paths_get(window: WebviewWindow, app: AppHandle) -> AppResult<AppPaths> {
     guard::allow(window.label(), "paths_get")?;
     let user_data = crate::state::user_data_dir(&app)?;
+    let cue_pack = cue_pack_dir(&app).ok().filter(|dir| dir.is_dir());
     Ok(AppPaths {
         catalog: user_data.join("questiongame.sqlite3").display().to_string(),
+        log_file: user_data.join(crate::LOG_FILE).display().to_string(),
+        perf_dir: user_data.join(crate::perf::DIR).display().to_string(),
         user_data: user_data.display().to_string(),
-        cue_pack: cue_pack_dir(&app)?.display().to_string(),
+        cue_pack: cue_pack.map(|dir| dir.display().to_string()),
     })
 }
 

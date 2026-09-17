@@ -91,14 +91,18 @@ export interface FakeHost extends HostTransport {
   statsOpen: boolean
   /** And the Stage window, the same way. `stage_open` sets it. */
   stageOpen: boolean
+  /** What `paths_get` answers; a test may replace it. */
+  paths: AppPaths
 }
 
 const now = () => Date.now()
 
 export const FAKE_PATHS: AppPaths = {
-  userData: 'C:\\Users\\operator\\AppData\\Roaming\\com.questiongame.app',
-  catalog: 'C:\\Users\\operator\\AppData\\Roaming\\com.questiongame.app\\catalog.sqlite',
-  cuePack: 'C:\\Program Files\\questiongame\\resources\\stage\\audio',
+  userData: 'C:\\Users\\operator\\AppData\\Roaming\\org.questiongame.desktop',
+  catalog: 'C:\\Users\\operator\\AppData\\Roaming\\org.questiongame.desktop\\questiongame.sqlite3',
+  logFile: 'C:\\Users\\operator\\AppData\\Roaming\\org.questiongame.desktop\\questiongame.log',
+  perfDir: 'C:\\Users\\operator\\AppData\\Roaming\\org.questiongame.desktop\\perf',
+  cuePack: 'C:\\questiongame\\packages\\design-stage\\audio',
 }
 
 const DEFAULT_CONTROL: ControlSettings = {
@@ -689,7 +693,7 @@ export function createFakeHost(): FakeHost {
     // not vary with the settings, so shell work can lay the panel out but
     // cannot check the arithmetic; that is `crates/host`'s job and its tests.
     rules_preview: () => FAKE_PREVIEW,
-    paths_get: () => FAKE_PATHS,
+    paths_get: () => fake.paths,
     paths_reveal: () => null,
     health_get: () => fake.health,
     // `stats_window` opens or closes a window of numbers and writes nothing
@@ -842,6 +846,7 @@ export function createFakeHost(): FakeHost {
     uninstalled: false,
     statsOpen: false,
     stageOpen: false,
+    paths: { ...FAKE_PATHS },
     emit,
     listenerCount(name) {
       if (name) return listeners.get(name)?.size ?? 0

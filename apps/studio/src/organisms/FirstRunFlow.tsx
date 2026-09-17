@@ -116,7 +116,9 @@ export function useFirstRunFlow({ onFinish }: FirstRunFlowProps): FirstRunView {
             <div className="flex flex-col divide-y divide-[var(--separator)]">
               <PathRow label={SETTINGS.paths.userData} path={paths.data.userData} onReveal={() => void run('paths_reveal', { which: 'userData' })} />
               <PathRow label={SETTINGS.paths.catalog} path={paths.data.catalog} />
-              <PathRow label={SETTINGS.paths.cuePack} path={paths.data.cuePack} onReveal={() => void run('paths_reveal', { which: 'cuePack' })} />
+              {paths.data.cuePack ? (
+                <PathRow label={SETTINGS.paths.cuePack} path={paths.data.cuePack} onReveal={() => void run('paths_reveal', { which: 'cuePack' })} />
+              ) : null}
             </div>
           ) : null}
           <Text variant="studio-caption" tone="muted">

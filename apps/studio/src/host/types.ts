@@ -452,7 +452,12 @@ export interface SeedResult {
 export interface AppPaths {
   readonly userData: string
   readonly catalog: string
-  readonly cuePack: string
+  /** `questiongame.log`, beside the library (P12.1). */
+  readonly logFile: string
+  /** The performance log's folder (P12.1). */
+  readonly perfDir: string
+  /** Null in a release build: the pack is embedded, so there is no folder (P12.1). */
+  readonly cuePack: string | null
 }
 
 /** `paths_reveal { which }` — the directories the OS file manager can open. */

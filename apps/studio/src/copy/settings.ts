@@ -240,6 +240,8 @@ export const SETTINGS = {
     userData: 'User data',
     catalog: 'Catalog',
     cuePack: 'Cue pack',
+    logFile: 'Log file',
+    perfDir: 'Performance log',
     reveal: (mac: boolean) => (mac ? 'Reveal in Finder' : 'Reveal in Explorer'),
   } as const,
 

@@ -19,6 +19,9 @@
  *    per-second line. A leak is a rate that never comes down, and a rate is
  *    what a log can show that a screenshot of Task Manager cannot.
  *
+ * **A release build keeps only item 1** (P12.1). The watchdog, the report and
+ * the breadcrumbs are dev-build tools and compile out of a release bundle.
+ *
  * One thing here *does* change what the page holds: the user-timing sweep.
  * React's development build calls `performance.measure()` for every component
  * whose props changed, on every commit, with a props diff in `detail`
@@ -250,6 +253,8 @@ const crumbs = new Map<string, number>()
 const CRUMB_EVERY_MS = 2000
 
 export function crumb(step: string, detail?: string): void {
+  // A dev-build diagnostic: release builds keep only errors (P12.1).
+  if (!import.meta.env.DEV) return
   const key = `${step}|${detail ?? ''}`
   const now = Date.now()
   const last = crumbs.get(key)
@@ -288,18 +293,24 @@ export function installDiagnostics(): void {
     }
   }
 
-  // The sweep runs whether or not there is a host: the buffer grows in a plain
-  // browser too, and a `?fake` session is where a shell change gets measured.
-  // What it removes is the performance log's view of which components
-  // rendered, so the accumulator sees the entries first.
-  startUserTimingSweep(performance, USER_TIMING_SWEEP_MS, {
-    count: (held) => second.sweptCount(held),
-    inspect: (entries) => second.sweptEntries(entries),
-  })
-  // The second, posted every second (`perf.ts`); quiet without a host.
-  startPerfReporting()
-
-  // One line, so the log shows the webview's own boot on the host's timeline —
-  // and so "nothing from Studio" can be told apart from "Studio never started".
-  send('debug', 'studio ready', `heapMb=${heapMb() ?? 'n/a'} ua=${navigator.userAgent.slice(0, 80)}`)
+  // Dev builds only (P12.1). `import.meta.env.DEV` is a constant Vite folds
+  // at build time, so none of this reaches a release bundle — the error
+  // forwarding above is the one thing a release webview posts, and
+  // `scripts/release-check.ts` fails the build if `perf_report` is found.
+  if (import.meta.env.DEV) {
+    // The sweep runs whether or not there is a host: the buffer grows in a
+    // plain browser too, and a `?fake` session is where a shell change gets
+    // measured. What it removes is the performance log's view of which
+    // components rendered, so the accumulator sees the entries first.
+    startUserTimingSweep(performance, USER_TIMING_SWEEP_MS, {
+      count: (held) => second.sweptCount(held),
+      inspect: (entries) => second.sweptEntries(entries),
+    })
+    // The second, posted every second (`perf.ts`); quiet without a host.
+    startPerfReporting()
+    // One line, so the log shows the webview's own boot on the host's
+    // timeline — and so "nothing from Studio" can be told apart from "Studio
+    // never started".
+    send('debug', 'studio ready', `heapMb=${heapMb() ?? 'n/a'} ua=${navigator.userAgent.slice(0, 80)}`)
+  }
 }

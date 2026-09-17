@@ -102,9 +102,13 @@ let installed = false
 export function installStageDiagnostics(): void {
   if (installed || typeof window === 'undefined') return
   installed = true
+  // Dev builds only (P12.1): a release Stage runs no diagnostic at all. The
+  // leak the sweep contains is React's development build, which a release
+  // bundle is not, and the per-second report is a dev-build tool.
+  if (!import.meta.env.DEV) return
   startUserTimingSweep(performance, USER_TIMING_SWEEP_MS, {
-  count: (held) => second.sweptCount(held),
-  inspect: (entries) => second.sweptEntries(entries),
-})
+    count: (held) => second.sweptCount(held),
+    inspect: (entries) => second.sweptEntries(entries),
+  })
   startPerfReporting()
 }

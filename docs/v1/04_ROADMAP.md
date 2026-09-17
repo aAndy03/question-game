@@ -1645,16 +1645,47 @@ release-build commands.
 
 ## P12 — Packaging and release  ☐
 
-**Deliverables:** Windows and macOS bundles; install paths vs user-data separation; uninstall screen offering app files and generated user files independently; processes visible in Task Manager / Activity Monitor; GPLv3 notices; offline verification.
+The app had only ever run under `tauri dev`. Packaging it meant deciding what a release build is: which folders it owns, what it logs, how it is installed and removed, and what it says about its licence. The design is `docs/superpowers/specs/2026-09-11-packaging-release-design.md`, the task list `docs/superpowers/plans/2026-09-11-packaging-release.md`.
 
-The full design is `docs/superpowers/specs/2026-09-11-packaging-release-design.md` and the task list `docs/superpowers/plans/2026-09-11-packaging-release.md`. **P12.0 (2026-09-11) shipped the minimum that makes an installable 1.0.0**: two identities (`org.questiongame.desktop` installed, `org.questiongame.app` dev, refused when crossed), a boot-failure message box and a logged panic hook, version `1.0.0` in the three files, the NSIS per-user installer, the app icon. Everything else in the plan — host-side perf log in release, log rotation, dev-only webview diagnostics, Settings ▸ Data paths, single-instance focus, the close guard, in-app uninstall, third-party notices, About, the release check — is deferred to P12.1+.
+**Deliverables:** a Windows installer and a macOS bundle, built by CI on a version tag; dev and installed builds on separate folders; a host-side performance log in the installed app; an uninstall offering app files and generated user files independently; single instance and a close guard; GPLv3 notices and a licence audit; a release check over the bundle.
 
-**Exit criteria**
+### P12.0 — An installable build  ☑
 
-- ☐ Clean install → first run → Demo recipe → full Play to `Completed` on both OSes. (Windows installer built and installed 2026-09-11; the full Play is the operator's check.)
-- ☐ A run with the network disabled behaves identically.
-- ☐ Uninstall removes exactly what the operator selected. (The NSIS uninstaller's *Delete application data* box removes `org.questiongame.desktop` only; the in-app data removal is deferred.)
-- ☐ No memory growth across three consecutive Plays.
+- ☑ Production identifier `org.questiongame.desktop`; dev keeps `org.questiongame.app` through `tauri.dev.conf.json`; a binary with the wrong identity for its build refuses to start (`identity.rs`, `tests/identity.rs`).
+- ☑ NSIS, per user, unsigned; macOS config prepared; the app icon; a boot failure is a message box and panics reach the log.
+
+### P12.1 — Host-side monitoring  ☑
+
+- ☑ The perf log is written by every build; a release line is `os` + `host` + `spike` with `"build": "release"`; old runs capped at ten and 100 MB.
+- ☑ Webview diagnostics compile out of a release except Studio's error forwarding.
+- ☑ `questiongame.log` rotates past 10 MB.
+- ☑ Settings ▸ Data shows the data folder, the log and the performance log.
+
+### P12.2 — Single instance, close guard, uninstall  ☐
+
+- ☐ A second launch focuses Studio; closing Studio asks first with unsaved work or a loaded game.
+- ☐ *Remove generated data* also clears the WebView2 profile; *Uninstall questiongame…* opens the Windows uninstaller.
+
+### P12.3 — Notices, licence, and CI releases  ☐
+
+- ☐ Settings ▸ About: version, build, GPL, the GSAP permission, third-party notices.
+- ☐ Notices generated at build time; the generator fails on a licence outside the allowlist.
+- ☐ `npm run release`; the release check fails on an external load, `perf_report`, or the fake host in `dist/`.
+- ☐ GitHub Actions builds the Windows installer and the macOS bundle on a `v*` tag and attaches both to a GitHub Release.
+
+### P12.4 — The release, checked on the installed build  ☐
+
+**Exit criteria** (on Windows)
+
+- ☐ Clean install → first run → Demo → a full Play to `Completed`.
+- ☐ Dev and the installed app run side by side, each on its own library.
+- ☐ Each uninstall outcome removes exactly its set.
+- ☐ No memory growth across three consecutive Plays (third `Completed` ≤ 110% of the first, total working set).
+- ☐ The installed build's perf log: `"build": "release"`, no webview sections, within retention.
+- ☐ Second launch focuses Studio; the close guard asks and a second close exits.
+- ☐ About shows the version, the GPL and the GSAP permission.
+- ☐ A run with the network disabled behaves identically — verified by the operator.
+- ☐ macOS: clean install → full Play; uninstall — needs a Mac.
 
 ---
 

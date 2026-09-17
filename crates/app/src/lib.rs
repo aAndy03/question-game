@@ -29,6 +29,7 @@ pub mod emit;
 pub mod error;
 pub mod guard;
 pub mod identity;
+pub mod logfile;
 pub mod monitors;
 pub mod perf;
 pub mod state;
@@ -140,8 +141,7 @@ pub const LOG_FILE: &str = "questiongame.log";
 /// one's evidence, which is exactly the evidence anyone is here to read
 /// (2026-09-08: it cost an evening of the operator's log going missing). Each
 /// boot writes a banner with its pid instead, so runs interleave and none is
-/// lost. `wipe_logs` is not a feature; delete the file between runs if it gets
-/// long.
+/// lost. It rotates at boot once past 10 MB, keeping three (`logfile`).
 ///
 /// The third layer is the performance log's (`perf::PerfLayer`): it sees only
 /// `target: "perf"` events and folds them into the current second. The two
@@ -164,6 +164,9 @@ fn tracing_logging(dir: Option<&std::path::Path>, perf_layer: perf::PerfLayer) {
 
     let file = dir.and_then(|dir| {
         std::fs::create_dir_all(dir).ok()?;
+        // Bounded (P12.1). A rename that fails — another process holds the
+        // file — is not an error; this run appends as before.
+        let _ = logfile::rotate(dir, LOG_FILE, logfile::ROTATE_AT_BYTES, logfile::KEEP_ROTATED);
         std::fs::OpenOptions::new()
             .create(true)
             .append(true)

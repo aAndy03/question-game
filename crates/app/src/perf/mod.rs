@@ -7,10 +7,11 @@
 //! os       the process tree, through `sysinfo`
 //! ```
 //!
-//! `<app data>/perf/perf-<timestamp>-<pid>.jsonl`, one file per run, the ten
-//! newest kept. Dev builds write it by default; a release build only with
-//! `QUESTIONGAME_PERF=1`, because a packaged app should not grow a file by
-//! 86 k lines a day for an operator who will never read it.
+//! `<app data>/perf/perf-<timestamp>-<pid>.jsonl`, one file per run; old runs
+//! are pruned to the newest ten **and** 100 MB. Every build writes it
+//! (`QUESTIONGAME_PERF=0` turns it off) so the installed app can be monitored
+//! too (P12.1). A release build's lines carry `os`, `host` and `spike` only:
+//! its webviews post nothing, and `build` says so.
 //!
 //! Nothing here takes the host lock. The webviews post their own second
 //! through `perf_report`; the writer folds whatever arrived and writes the
@@ -35,6 +36,11 @@ use line::{Inputs, WebviewReport};
 
 /// How many run files stay after a prune.
 pub const KEEP_FILES: usize = 10;
+/// The run files' folder, under the data directory.
+pub const DIR: &str = "perf";
+/// Old runs kept at most this many bytes between them. The run being written
+/// is not counted: pruning happens before it exists (P12.1).
+pub const MAX_OLD_BYTES: u64 = 100 * 1024 * 1024;
 const EVERY: Duration = Duration::from_secs(1);
 
 thread_local! {
@@ -58,13 +64,15 @@ pub fn take_current() -> &'static str {
     })
 }
 
-/// Whether this build writes the file at all.
+/// Whether this build writes the file: every build does, unless
+/// `QUESTIONGAME_PERF` says `0`, `off` or `false` (P12.1).
 pub fn enabled() -> bool {
-    match std::env::var("QUESTIONGAME_PERF").ok().as_deref() {
-        Some("0") | Some("off") | Some("false") => false,
-        Some(_) => true,
-        None => cfg!(debug_assertions),
-    }
+    enabled_from(std::env::var("QUESTIONGAME_PERF").ok().as_deref())
+}
+
+/// [`enabled`], given the variable's value.
+pub fn enabled_from(var: Option<&str>) -> bool {
+    !matches!(var, Some("0" | "off" | "false"))
 }
 
 /// [`enabled`], decided once — the show loop asks ten times a second.
@@ -110,12 +118,14 @@ pub fn file_for_run(dir: &Path, now: &str, pid: u32) -> PathBuf {
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
-    dir.join("perf").join(format!("perf-{stamp}-{pid}.jsonl"))
+    dir.join(DIR).join(format!("perf-{stamp}-{pid}.jsonl"))
 }
 
-/// Delete all but the newest `keep` run files. Names sort by time.
-pub fn prune(perf_dir: &Path, keep: usize) -> std::io::Result<Vec<PathBuf>> {
-    let mut files: Vec<PathBuf> = std::fs::read_dir(perf_dir)?
+/// Delete old run files until at most `keep` remain **and** they hold at most
+/// `max_bytes` between them, oldest first. Called before this run's file is
+/// created, so the run being written is never a candidate. Names sort by time.
+pub fn prune(perf_dir: &Path, keep: usize, max_bytes: u64) -> std::io::Result<Vec<PathBuf>> {
+    let mut files: Vec<(PathBuf, u64)> = std::fs::read_dir(perf_dir)?
         .filter_map(Result::ok)
         .map(|e| e.path())
         .filter(|p| {
@@ -123,11 +133,17 @@ pub fn prune(perf_dir: &Path, keep: usize) -> std::io::Result<Vec<PathBuf>> {
                 .and_then(|n| n.to_str())
                 .is_some_and(|n| n.starts_with("perf-") && n.ends_with(".jsonl"))
         })
+        .map(|p| {
+            let len = std::fs::metadata(&p).map_or(0, |m| m.len());
+            (p, len)
+        })
         .collect();
     files.sort();
+    let mut total: u64 = files.iter().map(|(_, len)| len).sum();
     let mut removed = Vec::new();
-    while files.len() > keep {
-        let oldest = files.remove(0);
+    while !files.is_empty() && (files.len() > keep || total > max_bytes) {
+        let (oldest, len) = files.remove(0);
+        total = total.saturating_sub(len);
         if std::fs::remove_file(&oldest).is_ok() {
             removed.push(oldest);
         }
@@ -164,7 +180,7 @@ fn now_rfc3339() -> String {
 /// Open the file for this run, prune the old ones, and start the writer.
 pub fn spawn(app: AppHandle, data_dir: Option<PathBuf>) {
     if !enabled() {
-        tracing::debug!("perf log off (release build without QUESTIONGAME_PERF=1)");
+        tracing::debug!("perf log off (QUESTIONGAME_PERF=0)");
         return;
     }
     let Some(dir) = data_dir else {
@@ -177,7 +193,7 @@ pub fn spawn(app: AppHandle, data_dir: Option<PathBuf>) {
         tracing::warn!(%error, "perf log: cannot create directory");
         return;
     }
-    match prune(&perf_dir, KEEP_FILES.saturating_sub(1)) {
+    match prune(&perf_dir, KEEP_FILES.saturating_sub(1), MAX_OLD_BYTES) {
         Ok(removed) if !removed.is_empty() => tracing::debug!(n = removed.len(), "perf log: pruned old runs"),
         Ok(_) => {}
         Err(error) => tracing::warn!(%error, "perf log: prune failed"),
@@ -193,6 +209,7 @@ pub fn spawn(app: AppHandle, data_dir: Option<PathBuf>) {
     let state: tauri::State<'_, PerfState> = tauri::Manager::state(&app);
     *state.path.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(path.clone());
 
+    let build = crate::identity::build_label(tauri::is_dev());
     async_runtime::spawn(async move {
         let state: tauri::State<'_, PerfState> = tauri::Manager::state(&app);
         let mut out = std::io::BufWriter::new(file);
@@ -208,6 +225,7 @@ pub fn spawn(app: AppHandle, data_dir: Option<PathBuf>) {
             let line = line::build(Inputs {
                 t: now_rfc3339(),
                 sec: started.elapsed().as_secs(),
+                build,
                 os: os_sample,
                 prev_total_ws_bytes: prev_ws,
                 host: state.counters.take(),
@@ -248,7 +266,7 @@ mod tests {
             std::fs::write(dir.join(format!("perf-2026-09-10T10-00-0{i}Z-1.jsonl")), "{}\n").unwrap();
         }
         std::fs::write(dir.join("notes.txt"), "keep me").unwrap();
-        let removed = prune(&dir, 3).unwrap();
+        let removed = prune(&dir, 3, u64::MAX).unwrap();
         assert_eq!(removed.len(), 2);
         let mut left: Vec<String> = std::fs::read_dir(&dir)
             .unwrap()
@@ -264,6 +282,34 @@ mod tests {
                 "perf-2026-09-10T10-00-04Z-1.jsonl",
             ]
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn every_build_writes_unless_told_not_to() {
+        assert!(enabled_from(None));
+        assert!(enabled_from(Some("1")));
+        for off in ["0", "off", "false"] {
+            assert!(!enabled_from(Some(off)), "{off}");
+        }
+    }
+
+    #[test]
+    fn prune_also_holds_the_old_runs_under_a_size() {
+        let dir = std::env::temp_dir().join(format!("qg-perf-size-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for i in 0..5 {
+            std::fs::write(dir.join(format!("perf-2026-09-11T10-00-0{i}Z-1.jsonl")), "0123456789").unwrap();
+        }
+        let removed = prune(&dir, 10, 25).unwrap();
+        assert_eq!(removed.len(), 3, "10 bytes each, 25 allowed: the newest two stay");
+        let mut left: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        left.sort();
+        assert_eq!(left, vec!["perf-2026-09-11T10-00-03Z-1.jsonl", "perf-2026-09-11T10-00-04Z-1.jsonl"]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

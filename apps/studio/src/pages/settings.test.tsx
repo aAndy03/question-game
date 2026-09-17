@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { App } from '@/App'
 import { HOME, useNavStore } from '@/chrome/nav'
 import { useNoticeStore } from '@/chrome/notices'
-import { createFakeHost, type FakeHost } from '@/host/fake'
+import { createFakeHost, FAKE_PATHS, type FakeHost } from '@/host/fake'
 import { demoLibrary, demoRecipe } from '@/host/devFake'
 import { setHostTransport } from '@/host/host'
 import { receivePlayState } from '@/host/playState'
@@ -83,6 +83,18 @@ describe('Settings', () => {
    * can be operated and that the host hears about it — rather than that one
    * is on screen.
    */
+  it('Data lists the data folder, the log and the performance log (P12.1)', async () => {
+    mount()
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'settings' })
+    })
+    expect(await screen.findByText(FAKE_PATHS.logFile)).toBeTruthy()
+    expect(screen.getByText(FAKE_PATHS.perfDir)).toBeTruthy()
+    expect(screen.getByText(SETTINGS.paths.logFile)).toBeTruthy()
+    expect(screen.getByText(SETTINGS.paths.perfDir)).toBeTruthy()
+  })
+
   it('a settings switch is an operable control and reaches the host', async () => {
     const fake = mount()
     render(<App />)

@@ -160,9 +160,15 @@ function Shell() {
         * commits hundreds of times a second is spinning, and nothing else in
         * the app would ever notice. It wraps only the routed page, so the
         * count is the page's own and not the shell's. */}
-      <Profiler id="page" onRender={onPageCommit}>
+      {import.meta.env.DEV ? (
+        <Profiler id="page" onRender={onPageCommit}>
+          <Page route={route} />
+        </Profiler>
+      ) : (
+        // A release build has no watchdog (P12.1): React's production build
+        // never calls `onRender`, and the code that would count is compiled out.
         <Page route={route} />
-      </Profiler>
+      )}
     </ShellLayout>
   )
 }

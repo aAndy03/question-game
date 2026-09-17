@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/atoms'
-import { ConfirmDialog, SettingRow, type ConfirmFrame } from '@/molecules'
+import { ConfirmDialog, PathRow, SettingRow, type ConfirmFrame } from '@/molecules'
 import { SETTINGS } from '@/copy/settings'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
@@ -76,6 +76,15 @@ export function DataActions() {
 
   return (
     <>
+      {paths.data ? (
+        // Where the generated files are (P12.1): the log and the performance
+        // log live beside the library, so one Reveal shows all three.
+        <div data-data-paths className="pb-2">
+          <PathRow label={SETTINGS.paths.userData} path={paths.data.userData} onReveal={() => void run('paths_reveal', { which: 'userData' })} />
+          <PathRow label={SETTINGS.paths.logFile} path={paths.data.logFile} />
+          <PathRow label={SETTINGS.paths.perfDir} path={paths.data.perfDir} />
+        </div>
+      ) : null}
       <SettingRow label={SETTINGS.rows['data.wipe_plays'].label} description={SETTINGS.rows['data.wipe_plays'].description}>
         <Button variant="danger" icon="wipe" onPress={() => setOpen('wipe')} isDisabled={playOpen || count === 0} disabledReason={blocked ?? (count === 0 ? SETTINGS.data.wiped(0) : null)}>
           {SETTINGS.data.wipePlays}
