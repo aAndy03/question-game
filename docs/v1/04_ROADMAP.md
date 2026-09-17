@@ -1661,10 +1661,11 @@ The app had only ever run under `tauri dev`. Packaging it meant deciding what a 
 - ☑ `questiongame.log` rotates past 10 MB.
 - ☑ Settings ▸ Data shows the data folder, the log and the performance log.
 
-### P12.2 — Single instance, close guard, uninstall  ☐
+### P12.2 — Single instance, close guard, uninstall  ☑
 
-- ☐ A second launch focuses Studio; closing Studio asks first with unsaved work or a loaded game.
-- ☐ *Remove generated data* also clears the WebView2 profile; *Uninstall questiongame…* opens the Windows uninstaller.
+- ☑ A second launch focuses Studio; closing Studio asks first with unsaved work or a loaded game, and a second press exits regardless.
+- ☑ *Remove generated data* also clears the WebView2 profile; *Uninstall questiongame…* opens the Windows uninstaller.
+- ☑ Version 1.0.1.
 
 ### P12.3 — Notices, licence, and CI releases  ☐
 

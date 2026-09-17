@@ -159,6 +159,15 @@ export const COMMAND_GROUPS = {
      * opens it on its own: a remembered display says *where*, this says *now*. */
     'stats_window',
   ],
+  /** The app itself (P12): the close guard's answers and the uninstaller. */
+  app: [
+    /** Studio's answer to `close-requested`: quit now. */
+    'app_quit',
+    /** Studio's answer to `close-requested`: keep working; the next close asks again. */
+    'app_close_cancelled',
+    /** Open the Windows uninstaller beside the exe and quit. Pin-gated, refused while a Play is loaded. */
+    'app_uninstall',
+  ],
 } as const
 
 export type CommandGroup = keyof typeof COMMAND_GROUPS
@@ -212,6 +221,12 @@ export const EVENTS = [
   /** Spec §14 `{ code, severity, targetPath, actions[] }`. */
   'notice',
   'anim-complete',
+  /**
+   * Studio's close button was pressed (P12). The host holds the window open
+   * until Studio answers with `app_quit` or `app_close_cancelled`; a second
+   * press exits regardless. `main` only.
+   */
+  'close-requested',
 ] as const
 
 export type EventName = (typeof EVENTS)[number]

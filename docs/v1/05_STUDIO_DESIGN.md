@@ -2184,3 +2184,41 @@ sample step seeds **both** and loads the one the operator picks (*English* /
   (`the_floor_is_refused_by_the_host_not_only_disabled_in_the_editor`), and
   the snapshot tests' hand-made twins got options so they still reach the
   clash they exist to test.
+
+## 18. Production (P12)
+
+### 18.1 The close guard
+
+Studio's close button — the title bar's X, Alt+F4 — no longer ends the process
+on the first press. The host holds the window open and emits
+`close-requested`; `QuitGuard` (mounted beside the shell, so first run is
+covered too) answers:
+
+1. **An editor with unsaved changes** asks through its ordinary `DirtyGuard`
+   dialog. The nav store's `askLeave()` hands the guard `QUIT_ROUTE`; *Save*
+   then ends in a quit rather than a navigation, *Discard* quits, *Keep
+   editing* sends `app_close_cancelled`.
+2. **A game loaded in Control** asks once more in a `ConfirmDialog`
+   (`severity="warning"`): *Quit questiongame?* — the Play is saved as it
+   stands and resumes next time, and Stage closes with Studio. *Quit* sends
+   `app_quit`; *Keep working* sends `app_close_cancelled`.
+3. **Otherwise** Studio sends `app_quit` at once.
+
+A **second press** of the close button while the question is open exits
+regardless. That rule is the host's (`quit::QuitState`), so a Studio that has
+stopped answering cannot keep the operator in. Never add a close path that
+cannot be escaped this way.
+
+### 18.2 Settings ▸ Data
+
+The Data group opens with three `PathRow`s — the data folder (with *Reveal*),
+`questiongame.log` and the performance log's folder — and keeps its two gated
+actions. A third row, **Uninstall questiongame**, appears only when the host
+reports an uninstaller beside the exe (`paths_get.uninstaller`), which is only
+true for a copy the Windows installer put there. It follows the same arm →
+confirm → pin shape as the other two, is disabled with *A Play is open* while a
+game is loaded, and on confirm the host starts the uninstaller and quits. The
+uninstaller's own *Delete the application data* box decides whether the
+library goes too. *Remove generated data* now also clears the app's WebView2
+browser storage.
+

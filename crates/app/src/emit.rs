@@ -236,3 +236,9 @@ pub fn anim_complete(app: &AppHandle, key: &str) {
 pub fn health(app: &AppHandle, report: &questiongame_host::HealthReport) {
     let _ = app.emit_to(MAIN, "health", report);
 }
+
+/// Studio's close button was pressed (P12.2). The window is being held open
+/// until Studio answers with `app_quit` or `app_close_cancelled`.
+pub fn close_requested(app: &AppHandle) {
+    let _ = app.emit_to(MAIN, "close-requested", ());
+}

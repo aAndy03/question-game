@@ -36,6 +36,7 @@ import type {
 } from '@questiongame/contract'
 import { useHealthStore } from '@/chrome/health'
 import { useNoticeStore } from '@/chrome/notices'
+import { useQuitStore } from '@/chrome/quit'
 import { useWindowsStore } from '@/chrome/windows'
 import { command, hasHost, on } from './host'
 import { receivePlayState, receivePlayTick } from './playState'
@@ -90,6 +91,8 @@ export function HostBridge() {
       }),
     )
     add(on<Notice>('notice', pushNotice))
+    // Studio's close button (P12.2): `QuitGuard` answers it.
+    add(on<null>('close-requested', () => useQuitStore.getState().request()))
     add(on<HealthReport>('health', receiveHealth))
 
     void command<PlayStateForMain | null>('get_state')

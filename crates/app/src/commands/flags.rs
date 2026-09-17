@@ -326,6 +326,9 @@ pub struct AppPaths {
     /// `None` when the folder is not on disk: a release build embeds the pack
     /// in the binary, so there is nothing to reveal (P12.1).
     pub cue_pack: Option<String>,
+    /// The Windows uninstaller beside the exe; `None` for a copy the
+    /// installer did not put there (dev, macOS) (P12.2).
+    pub uninstaller: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -364,6 +367,7 @@ pub fn paths_get(window: WebviewWindow, app: AppHandle) -> AppResult<AppPaths> {
         perf_dir: user_data.join(crate::perf::DIR).display().to_string(),
         user_data: user_data.display().to_string(),
         cue_pack: cue_pack.map(|dir| dir.display().to_string()),
+        uninstaller: super::app::uninstaller_path().map(|p| p.display().to_string()),
     })
 }
 
@@ -416,6 +420,14 @@ pub fn uninstall_data(
         refuse_while_play_loaded(&host)?;
         require_active_operator_pin(&host, pin.as_deref())?;
         host.catalog = questiongame_host::CatalogService::in_memory()?;
+    }
+    // The webview's own storage — the chrome document, the mosaic layout —
+    // lives in the WebView2 profile, not in `dir` (P12.2). Outside the lock:
+    // this reaches the webview.
+    if let Some(main) = app.get_webview_window(guard::MAIN)
+        && let Err(error) = main.clear_all_browsing_data()
+    {
+        tracing::warn!(%error, "uninstall: could not clear the webview profile");
     }
     std::fs::remove_dir_all(&dir)
         .map_err(|e| AppError::Window(format!("cannot remove {}: {e}", dir.display())))?;

@@ -125,6 +125,16 @@ fn refused(command: &'static str) {
 mod tests {
     use super::*;
 
+    /// P12.2: the close guard's answers and the uninstaller are Studio's alone.
+    #[test]
+    fn only_studio_answers_the_close_guard() {
+        for command in ["app_quit", "app_close_cancelled", "app_uninstall"] {
+            assert!(allow(MAIN, command).is_ok());
+            assert!(allow(STAGE, command).is_err(), "{command} from Stage");
+            assert!(allow(STATS, command).is_err(), "{command} from Statistics");
+        }
+    }
+
     /// P11 exit criterion: the Statistics window is never a second Stage, and
     /// it cannot write. It is Studio's page on another display — reads only.
     #[test]

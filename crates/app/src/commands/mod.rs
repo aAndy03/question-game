@@ -30,6 +30,7 @@
 //! the log grew, and emit. A command that skips it would be a second writer in
 //! all but name.
 
+pub mod app;
 pub mod catalog;
 pub mod flags;
 pub mod play;

@@ -75,14 +75,6 @@ describe('Settings', () => {
     }
   })
 
-  /**
-   * Every switch in Studio is a `SwitchField`, and a `SwitchField` that
-   * renders no `Switch.Content` is decorative markup: HeroUI v3's `Switch`
-   * root is React Aria's `SwitchField`, which has no input and no ARIA of its
-   * own. This asserts the thing the operator actually needs — that a switch
-   * can be operated and that the host hears about it — rather than that one
-   * is on screen.
-   */
   it('Data lists the data folder, the log and the performance log (P12.1)', async () => {
     mount()
     render(<App />)
@@ -95,6 +87,52 @@ describe('Settings', () => {
     expect(screen.getByText(SETTINGS.paths.perfDir)).toBeTruthy()
   })
 
+  it('offers no in-app uninstall where the installer put no uninstaller (P12.2)', async () => {
+    mount()
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'settings' })
+    })
+    await screen.findByText(FAKE_PATHS.logFile)
+    expect(screen.queryByRole('button', { name: SETTINGS.data.uninstallApp })).toBeNull()
+  })
+
+  it('Uninstall… arms, confirms and starts the uninstaller (P12.2)', async () => {
+    const fake = mount()
+    fake.paths = { ...fake.paths, uninstaller: 'C:\\Users\\operator\\AppData\\Local\\questiongame\\uninstall.exe' }
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'settings' })
+    })
+    await screen.findByText(FAKE_PATHS.logFile)
+    fireEvent.click(await screen.findByRole('button', { name: SETTINGS.data.uninstallApp }))
+    fireEvent.click(await screen.findByRole('button', { name: SETTINGS.data.uninstallAppArm }))
+    fireEvent.click(await screen.findByRole('button', { name: SETTINGS.data.uninstallAppArmed }))
+    await waitFor(() => expect(fake.uninstallerStarted).toBe(true))
+  })
+
+  it('Uninstall… is disabled with a reason while a Play is open (P12.2)', async () => {
+    const fake = mount()
+    fake.paths = { ...fake.paths, uninstaller: 'C:\\questiongame\\uninstall.exe' }
+    // Before render: the bridge's `get_state` answers on mount.
+    fake.playState = OPEN_PLAY
+    receivePlayState(OPEN_PLAY)
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'settings' })
+    })
+    await screen.findByText(FAKE_PATHS.logFile)
+    await waitFor(() => expect(isDisabled(screen.getByRole('button', { name: SETTINGS.data.uninstallApp }))).toBe(true))
+  })
+
+  /**
+   * Every switch in Studio is a `SwitchField`, and a `SwitchField` that
+   * renders no `Switch.Content` is decorative markup: HeroUI v3's `Switch`
+   * root is React Aria's `SwitchField`, which has no input and no ARIA of its
+   * own. This asserts the thing the operator actually needs — that a switch
+   * can be operated and that the host hears about it — rather than that one
+   * is on screen.
+   */
   it('a settings switch is an operable control and reaches the host', async () => {
     const fake = mount()
     render(<App />)

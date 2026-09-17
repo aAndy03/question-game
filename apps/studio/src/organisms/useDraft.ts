@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavStore, type Route } from '@/chrome/nav'
+import { QUIT_ROUTE, useNavStore, type Route } from '@/chrome/nav'
 
 export interface Draft<T> {
   readonly value: T
@@ -145,6 +145,11 @@ export function useDirtyGuard(draft: DirtySource): DirtyGuardState {
         return
       }
       const to = pending
+      // A quit is not a navigation: allow it and let the app close (P12.2).
+      if (to === QUIT_ROUTE) {
+        finish(true)
+        return
+      }
       // The draft is clean now, so the guard goes and the deferred navigation
       // is re-issued rather than merely allowed (the effect that would clear
       // the guard has not run yet).

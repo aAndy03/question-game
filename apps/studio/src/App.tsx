@@ -2,7 +2,7 @@ import { Profiler, useEffect, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { Text } from '@/atoms'
-import { NoticeCollector, SidebarNav, StatusBar, TopBar } from '@/organisms'
+import { NoticeCollector, QuitGuard, SidebarNav, StatusBar, TopBar } from '@/organisms'
 import {
   ControlPage,
   FirstRunPage,
@@ -65,7 +65,15 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <HostBridge />
-      {isStatsWindow() ? <StatsWindow /> : <Shell />}
+      {isStatsWindow() ? (
+        <StatsWindow />
+      ) : (
+        <>
+          {/* Outside the shell, so first run is covered too (P12.2). */}
+          <QuitGuard />
+          <Shell />
+        </>
+      )}
     </QueryClientProvider>
   )
 }

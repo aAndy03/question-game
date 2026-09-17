@@ -59,12 +59,21 @@ export const HOME: Route = { tab: 'teams' }
  */
 export type NavGuard = (to: Route) => boolean | Promise<boolean>
 
+/**
+ * Where "quitting the app" navigates to, as far as a guard can tell (P12.2).
+ * A real route by value, so every guard can read it; `useDirtyGuard` compares
+ * it by identity to know that a save should end in a quit, not a navigation.
+ */
+export const QUIT_ROUTE: Route = Object.freeze({ tab: 'settings' }) as Route
+
 interface NavState {
   readonly route: Route
   readonly back: readonly Route[]
   readonly forward: readonly Route[]
   readonly guard: NavGuard | null
   go(route: Route): Promise<boolean>
+  /** Ask the current guard whether the app may close (P12.2). */
+  askLeave(): Promise<boolean>
   replace(route: Route): void
   goBack(): Promise<boolean>
   goForward(): Promise<boolean>
@@ -83,6 +92,11 @@ export const useNavStore = create<NavState>((set, get) => ({
     if (guard && !(await guard(route))) return false
     set({ route, back: [...back, current].slice(-50), forward: [] })
     return true
+  },
+
+  async askLeave() {
+    const { guard } = get()
+    return guard ? await guard(QUIT_ROUTE) : true
   },
 
   replace(route) {

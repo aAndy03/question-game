@@ -458,6 +458,8 @@ export interface AppPaths {
   readonly perfDir: string
   /** Null in a release build: the pack is embedded, so there is no folder (P12.1). */
   readonly cuePack: string | null
+  /** The Windows uninstaller beside the exe; null when this copy was not installed (P12.2). */
+  readonly uninstaller: string | null
 }
 
 /** `paths_reveal { which }` — the directories the OS file manager can open. */

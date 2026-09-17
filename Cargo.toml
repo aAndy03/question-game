@@ -9,7 +9,7 @@ resolver = "3"
 members = ["crates/host", "crates/app"]
 
 [workspace.package]
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
 publish = false
@@ -55,6 +55,10 @@ sysinfo = { version = "0.38", default-features = false, features = ["system"] }
 # its own to be seen at all. The crate tauri-plugin-dialog is built on; used
 # directly because the message is shown before Tauri's event loop exists.
 rfd = "0.16"
+# P12.2. A second launch focuses the running Studio instead of dying on the
+# library lock with nowhere to say so. Keyed on the identifier, so dev and the
+# installed app each have their own.
+tauri-plugin-single-instance = "2"
 
 # P12.2. The release build is what the operator runs on show day.
 [profile.release]

@@ -73,6 +73,17 @@ pub fn open_studio(app: &AppHandle) -> AppResult<WebviewWindow> {
     .build()?)
 }
 
+/// A second launch of the app (P12.2): bring the running Studio to the front
+/// rather than start a second copy of the library. Takes no host lock.
+pub fn focus_studio(app: &AppHandle) {
+    crate::state::assert_unlocked("windows::focus_studio");
+    if let Some(main) = app.get_webview_window(MAIN) {
+        let _ = main.unminimize();
+        let _ = main.show();
+        let _ = main.set_focus();
+    }
+}
+
 /// The switches wry hands WebView2 when nobody else does — the "mini menu"
 /// and SmartScreen off. Passing our own replaces them, so they are repeated.
 #[cfg(all(windows, debug_assertions))]

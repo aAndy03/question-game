@@ -32,6 +32,7 @@ pub mod identity;
 pub mod logfile;
 pub mod monitors;
 pub mod perf;
+pub mod quit;
 pub mod state;
 pub mod tick;
 pub mod topology;
@@ -50,15 +51,31 @@ use crate::state::{AppState, Host, catalog_location};
 /// while the operator is still choosing a game is worse than no window.
 pub fn run() {
     tauri::Builder::default()
+        // First, by the plugin's own rule: a second process must find the
+        // first before it builds anything (P12.2). The file lock in `start`
+        // stays as the library's own guard.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            windows::focus_studio(app);
+        }))
         .invoke_handler(handlers())
         // Studio is the app. Stage and Statistics are surfaces it puts on
-        // displays, so closing Studio ends the show rather than leaving a
-        // window of numbers running with nothing behind it.
+        // displays, so closing Studio ends the show — but not on one click:
+        // the first press asks Studio, a second exits regardless (`quit`).
+        .manage(quit::QuitState::default())
         .on_window_event(|window, event| {
-            if matches!(event, tauri::WindowEvent::CloseRequested { .. })
-                && window.label() == guard::MAIN
-            {
-                window.app_handle().exit(0);
+            let tauri::WindowEvent::CloseRequested { api, .. } = event else {
+                return;
+            };
+            if window.label() != guard::MAIN {
+                return;
+            }
+            let app = window.app_handle();
+            match app.state::<quit::QuitState>().on_close_requested() {
+                quit::CloseDecision::Exit => app.exit(0),
+                quit::CloseDecision::Ask => {
+                    api.prevent_close();
+                    emit::close_requested(app);
+                }
             }
         })
         .setup(|app| {
@@ -202,6 +219,10 @@ fn tracing_logging(dir: Option<&std::path::Path>, perf_layer: perf::PerfLayer) {
 /// groups it, so the two lists can be read side by side.
 fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
+        // The app itself (P12.2)
+        commands::app::app_quit,
+        commands::app::app_close_cancelled,
+        commands::app::app_uninstall,
         // CatalogService
         commands::catalog::catalog_list,
         commands::catalog::catalog_get,

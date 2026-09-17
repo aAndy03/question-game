@@ -8,10 +8,18 @@ import { usePlayState } from '@/host/playState'
 import { useCatalogItem, usePaths, usePlays, useSettings } from '@/host/queries'
 import { useNoticeStore, noticesAt } from '@/chrome/notices'
 
-type Action = 'wipe' | 'uninstall'
+type Action = 'wipe' | 'uninstall' | 'app'
+
+/** One dialog, three actions: what each one says (P12.2). */
+const DIALOG: Record<Action, { arm: string; armed: string }> = {
+  wipe: { arm: SETTINGS.data.wipeArm, armed: SETTINGS.data.wipeArmed },
+  uninstall: { arm: SETTINGS.data.uninstallArm, armed: SETTINGS.data.uninstallArmed },
+  app: { arm: SETTINGS.data.uninstallAppArm, armed: SETTINGS.data.uninstallAppArmed },
+}
 
 /**
- * Wipe Plays · Remove generated data (05_STUDIO_DESIGN.md §12.3). Each is one
+ * Wipe Plays · Remove generated data · Uninstall questiongame
+ * (05_STUDIO_DESIGN.md §12.3, §18.2). Each is one
  * `ConfirmDialog`: arm → confirm, then a pin frame when the active operator
  * has one — three frames at most, in the same component (§14). Both buttons
  * are disabled with a reason whenever a Play is loaded; the host refuses
@@ -54,7 +62,7 @@ export function DataActions() {
       if (result === null) return
       toast.success(SETTINGS.data.wiped(result.removed))
     } else {
-      const ok = await run.ok('uninstall_data', { pin }, target)
+      const ok = await run.ok(action === 'app' ? 'app_uninstall' : 'uninstall_data', { pin }, target)
       setPending(false)
       if (!ok) return
     }
@@ -65,7 +73,7 @@ export function DataActions() {
     if (!open) return
     if (pinned) {
       // The pin is the last frame, never a second dialog (§14).
-      setFrames([{ variant: 'pin', title: SETTINGS.pin.promptTitle, body: SETTINGS.data.pinFrame, confirmLabel: open === 'wipe' ? SETTINGS.data.wipeArmed : SETTINGS.data.uninstallArmed }])
+      setFrames([{ variant: 'pin', title: SETTINGS.pin.promptTitle, body: SETTINGS.data.pinFrame, confirmLabel: DIALOG[open].armed }])
       return
     }
     await execute(open, null)
@@ -73,6 +81,8 @@ export function DataActions() {
 
   const count = plays.data?.length ?? 0
   const pathList = paths.data ? [paths.data.userData, paths.data.catalog].join('\n') : ''
+  const title = open === 'uninstall' ? SETTINGS.data.uninstallTitle : open === 'app' ? SETTINGS.data.uninstallAppTitle : SETTINGS.data.wipeTitle(count)
+  const body = open === 'uninstall' ? `${SETTINGS.data.uninstallBody}\n${pathList}` : open === 'app' ? SETTINGS.data.uninstallAppBody : SETTINGS.data.wipeBody
 
   return (
     <>
@@ -95,16 +105,24 @@ export function DataActions() {
           {SETTINGS.data.uninstall}
         </Button>
       </SettingRow>
+      {paths.data?.uninstaller ? (
+        // Only a copy the Windows installer put there has one (P12.2).
+        <SettingRow label={SETTINGS.rows['data.uninstall_app'].label} description={SETTINGS.rows['data.uninstall_app'].description}>
+          <Button variant="danger" icon="trash" onPress={() => setOpen('app')} isDisabled={playOpen} disabledReason={blocked}>
+            {SETTINGS.data.uninstallApp}
+          </Button>
+        </SettingRow>
+      ) : null}
       <ConfirmDialog
         isOpen={open !== null}
         onOpenChange={(o) => {
           if (!o) close()
         }}
-        title={open === 'uninstall' ? SETTINGS.data.uninstallTitle : SETTINGS.data.wipeTitle(count)}
-        body={open === 'uninstall' ? `${SETTINGS.data.uninstallBody}\n${pathList}` : SETTINGS.data.wipeBody}
-        confirmLabel={open === 'uninstall' ? SETTINGS.data.uninstallArm : SETTINGS.data.wipeArm}
+        title={title}
+        body={body}
+        confirmLabel={DIALOG[open ?? 'wipe'].arm}
         arm
-        armedLabel={open === 'uninstall' ? SETTINGS.data.uninstallArmed : SETTINGS.data.wipeArmed}
+        armedLabel={DIALOG[open ?? 'wipe'].armed}
         isPending={pending}
         onConfirm={confirm}
         frames={frames}

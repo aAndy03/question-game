@@ -3156,7 +3156,7 @@ dependencies = [
 
 [[package]]
 name = "questiongame-app"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "fs4",
  "questiongame-host",
@@ -3166,6 +3166,7 @@ dependencies = [
  "sysinfo",
  "tauri",
  "tauri-build",
+ "tauri-plugin-single-instance",
  "thiserror 2.0.20",
  "tokio",
  "tracing",
@@ -3175,7 +3176,7 @@ dependencies = [
 
 [[package]]
 name = "questiongame-host"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "argon2",
  "proptest",
@@ -4330,6 +4331,22 @@ dependencies = [
  "syn 2.0.119",
  "tauri-codegen",
  "tauri-utils",
+]
+
+[[package]]
+name = "tauri-plugin-single-instance"
+version = "2.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cd0cb5c412a5071b69bab6a6df1583cbb89460d4a83b6a24769b08d15b6b1e1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "thiserror 2.0.20",
+ "tokio",
+ "tracing",
+ "windows-sys 0.60.2",
+ "zbus",
 ]
 
 [[package]]

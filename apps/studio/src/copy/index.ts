@@ -535,3 +535,11 @@ export * from './control'
 export * from './screens'
 export * from './settings'
 export * from './firstRun'
+
+/** The close guard (P12.2). */
+export const QUIT = {
+  title: 'Quit questiongame?',
+  playLoaded: 'A game is loaded in Control. The Play is saved as it stands and resumes next time; Stage closes with Studio.',
+  quit: 'Quit',
+  keepWorking: 'Keep working',
+} as const

@@ -93,6 +93,11 @@ export interface FakeHost extends HostTransport {
   stageOpen: boolean
   /** What `paths_get` answers; a test may replace it. */
   paths: AppPaths
+  /** The close guard's answers (P12.2): the fake cannot quit, so it counts. */
+  quits: number
+  closeCancels: number
+  /** Set by `app_uninstall`. */
+  uninstallerStarted: boolean
 }
 
 const now = () => Date.now()
@@ -103,6 +108,7 @@ export const FAKE_PATHS: AppPaths = {
   logFile: 'C:\\Users\\operator\\AppData\\Roaming\\org.questiongame.desktop\\questiongame.log',
   perfDir: 'C:\\Users\\operator\\AppData\\Roaming\\org.questiongame.desktop\\perf',
   cuePack: 'C:\\questiongame\\packages\\design-stage\\audio',
+  uninstaller: null,
 }
 
 const DEFAULT_CONTROL: ControlSettings = {
@@ -689,6 +695,22 @@ export function createFakeHost(): FakeHost {
       fake.uninstalled = true
       return null
     },
+    // The app itself (P12.2), refusing in the host's order.
+    app_quit: () => {
+      fake.quits += 1
+      return null
+    },
+    app_close_cancelled: () => {
+      fake.closeCancels += 1
+      return null
+    },
+    app_uninstall: (a) => {
+      if (!fake.paths.uninstaller) refuse('window', 'this copy was not installed by the Windows installer')
+      if (playOpen()) refuse('match', 'a Play is open')
+      verifyActivePin(a.pin as string | null | undefined)
+      fake.uninstallerStarted = true
+      return null
+    },
     // A canned document, not a second fold — see `fake/preview.ts`. It does
     // not vary with the settings, so shell work can lay the panel out but
     // cannot check the arithmetic; that is `crates/host`'s job and its tests.
@@ -844,6 +866,9 @@ export function createFakeHost(): FakeHost {
     health: { status: 'ok', items: [] },
     stats: EMPTY_STATS,
     uninstalled: false,
+    quits: 0,
+    closeCancels: 0,
+    uninstallerStarted: false,
     statsOpen: false,
     stageOpen: false,
     paths: { ...FAKE_PATHS },
