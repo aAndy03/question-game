@@ -167,6 +167,8 @@ export const COMMAND_GROUPS = {
     'app_close_cancelled',
     /** Open the Windows uninstaller beside the exe and quit. Pin-gated, refused while a Play is loaded. */
     'app_uninstall',
+    /** Settings ▸ About: version, build (`dev` | `release`), identifier. */
+    'app_info',
   ],
 } as const
 

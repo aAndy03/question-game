@@ -12,6 +12,8 @@ members = ["crates/host", "crates/app"]
 version = "1.0.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
+authors = ["aAndy03 <https://github.com/aAndy03>"]
+repository = "https://github.com/aAndy03/question-game"
 publish = false
 
 [workspace.dependencies]

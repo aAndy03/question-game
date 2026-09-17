@@ -49,7 +49,7 @@ export type Route =
   | { readonly tab: 'settings'; readonly inner?: SettingsInner }
 
 export type GameSection = 'roster' | 'board' | 'rules' | 'plays'
-export type SettingsInner = 'monitors' | 'settings' | 'shortcuts'
+export type SettingsInner = 'monitors' | 'settings' | 'shortcuts' | 'about'
 
 export const HOME: Route = { tab: 'teams' }
 

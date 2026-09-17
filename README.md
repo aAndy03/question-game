@@ -1,23 +1,114 @@
 # questiongame
 
-A desktop quiz-show engine for a recorded show. An operator drives it from
-**Studio**; the audience, the teams and the camera see only **Stage**, a
-fullscreen window on a second display.
+**A quiz show you run from one computer.** An operator drives the game from
+**Studio**; the teams, the audience and the camera see only **Stage**, a
+fullscreen screen on a TV, a projector, or a second monitor.
 
-Offline-first, Windows and macOS, GPLv3. Built as one repo: a Rust host that
-owns every fact, and two React webviews that only draw.
-
-> **Status: P0–P9 of thirteen.** The engine, the library, the Tauri wiring, the
-> **Studio shell** and the **Control tab** are done: Stage reads live state from
-> the host, the operator app has its four library tabs, and Control runs a show
-> — the Viewer embeds the real Stage, and every button, chord and Viewer click
-> is one host command, and **Screens** restyles a recipe's Stage on the same
-> embedded canvas. Settings and first run arrive with P10. See
-> [`docs/v1/04_ROADMAP.md`](docs/v1/04_ROADMAP.md).
+It works completely offline, on Windows and macOS, and it is free and open
+source. It is made for recorded shows, but works just as well for a classroom
+or a quiz night with friends.
 
 ---
 
-## Running it
+## Download and install
+
+Get the latest version from the
+**[Releases page](https://github.com/aAndy03/question-game/releases/latest)**.
+
+| Your computer | Download |
+| --- | --- |
+| Windows 10 or 11 | `questiongame_…_x64-setup.exe` |
+| macOS 13 or later (Apple Silicon or Intel) | `questiongame_…_universal.dmg` |
+
+> [!WARNING]
+> **The installers are not signed.** questiongame is a free project and does
+> not pay for code-signing certificates, so your computer will warn you the
+> first time you install it. This is expected. The steps below get you past
+> the warning.
+
+### Windows
+
+1. Double-click the downloaded `questiongame_…_x64-setup.exe`.
+2. A blue **"Windows protected your PC"** screen (Microsoft Defender
+   SmartScreen) appears. Click **More info**, then **Run anyway**.
+3. Follow the installer. It installs for your user account only and does not
+   ask for administrator rights.
+4. Start **questiongame** from the Start menu.
+
+### macOS
+
+1. Open the downloaded `.dmg` and drag **questiongame** into **Applications**.
+2. Open questiongame from Applications. macOS says it cannot verify the
+   developer; click **Done** (or **Cancel**).
+3. Open **System Settings → Privacy & Security**, scroll down, and click
+   **Open Anyway** next to questiongame. Confirm once more.
+4. From then on, questiongame opens normally.
+
+---
+
+## Your first show
+
+1. **First run** asks for an operator name and offers to load the **Demo**
+   game (in English, and a Romanian one). Load it: it is the fastest way to
+   see everything work.
+2. Open **Games**, pick the Demo, and press **Load into Control**. Stage opens
+   fullscreen. With a second screen connected, use **Stage display** at the
+   top of Control to send Stage there; questiongame remembers it.
+3. In **Control**, press **Start Play**. Choose a domain (or press `1`–`9`),
+   reveal the question and the answers, then **Lock** (`Enter`) and **Reveal
+   outcome** (`R`). `Space` starts and pauses the timer; `Ctrl+Z` undoes a
+   turn.
+4. When every question is used, the Play ends and **Reveal next place** walks
+   the final leaderboard from last place to first.
+
+Build your own game in the tabs on the left: **Teams**, **Domains &
+Questions** (questions can also be imported from a JSON file), **Games** for
+the roster, board and scoring rules, and **Screens** to restyle Stage and
+change its wording.
+
+One screen is enough: Stage goes fullscreen and Studio is an `Alt+Tab` (or
+`Cmd+Tab`) away.
+
+### Good to know
+
+- **Your work is saved as you go.** Every answer is written to disk the moment
+  it happens. If the app is closed mid-show, the Play resumes where it
+  stopped.
+- **Closing Studio asks first** when a game is loaded or an editor has unsaved
+  changes. Pressing close a second time quits regardless.
+- **Where your data lives:** Windows `%APPDATA%\org.questiongame.desktop`,
+  macOS `~/Library/Application Support/org.questiongame.desktop`. Settings ▸
+  Data shows the exact folder and can open it.
+
+### Uninstalling
+
+- **Remove the app, keep your library:** on Windows, Settings ▸ Data ▸
+  **Uninstall…** inside questiongame (or Windows Settings ▸ Apps) opens the
+  uninstaller; leave *Delete the application data* unticked. On macOS, drag
+  questiongame from Applications to the Trash.
+- **Remove the app and your library:** tick *Delete the application data* in
+  the Windows uninstaller. On macOS, also delete the data folder above.
+- **Remove only your library:** Settings ▸ Data ▸ **Remove generated data**.
+
+### Something went wrong?
+
+questiongame keeps a log next to your data (`questiongame.log`), and
+Settings ▸ Data shows where. If the app refuses to start, it says why in a
+message box. Please attach the log when you
+[open an issue](https://github.com/aAndy03/question-game/issues).
+
+---
+
+## For developers
+
+Everything below is technical: building from source, testing, releasing, and
+how the code is organised.
+
+The app is a monorepo: a Rust host (Tauri 2) that owns every fact, and two
+React webviews that only draw. See
+[`docs/v1/04_ROADMAP.md`](docs/v1/04_ROADMAP.md) for what is built.
+
+### Running it from source
 
 ```bash
 npm install
@@ -47,7 +138,7 @@ One display is a valid setup: Stage goes fullscreen on it and Studio is an
 Alt-Tab away. With an external display connected, **Stage display ▸ \<name\>**
 sends Stage there and remembers it.
 
-### Working on Stage alone
+#### Working on Stage alone
 
 ```bash
 npm run dev:stage      # http://localhost:5180/stage/
@@ -71,10 +162,10 @@ the app: a real host always wins.
 
 ---
 
-## Verifying
+### Verifying
 
 ```bash
-npm run test:all       # 383 TypeScript + 194 Rust
+npm run test:all       # every TypeScript and Rust test
 npm run typecheck      # tsc --build across all project references
 npm run lint           # eslint — this is where the architecture rules live
 npm run lint:host      # clippy over the host crate
@@ -87,13 +178,46 @@ dependency direction, the rule that only organisms and pages may touch
 violation is a failing lint, not a review comment.
 
 ```bash
-npm run build          # both webviews into dist/
-npm run tauri build     # the installer
+npm run build          # licence audit + notices, then both webviews into dist/
+npm run release:check  # dist/ loads nothing from the network, ships no dev code
+npm run release        # typecheck, lint, every test, then the installer
 ```
+
+`npm run release` writes the Windows installer to
+`target/release/bundle/nsis/questiongame_<version>_x64-setup.exe`. The
+installed app keeps its data in `%APPDATA%\org.questiongame.desktop`; a dev
+build (`npm run dev:app`) keeps its own in `%APPDATA%\org.questiongame.app`,
+so the two never touch each other's library and can run side by side.
+
+`npm run build` fails if any shipped dependency is under a licence outside the
+allowlist in `scripts/lib/notices.ts`. That is deliberate: a GPL program may
+only ship what it can ship.
+
+### Publishing a release
+
+GitHub Actions builds both installers (`.github/workflows/release.yml`).
+
+1. Bump the version in `Cargo.toml` (`[workspace.package]`),
+   `crates/app/tauri.conf.json` and `package.json` — a test fails if they
+   disagree — then commit.
+2. Tag the commit with that version and push the tag:
+
+   ```bash
+   git tag v1.0.1
+   git push origin v1.0.1
+   ```
+
+3. The workflow runs every test, builds the Windows installer and a universal
+   macOS disk image, and publishes both on the
+   [Releases](https://github.com/aAndy03/question-game/releases) page next to
+   GitHub's source-code archives.
+
+**Run workflow** on the Actions tab builds the same installers without
+publishing; they are attached to the run.
 
 ---
 
-## Layout
+### Layout
 
 ```
 apps/
@@ -119,7 +243,7 @@ fixtures/     play-state JSON — the frontend's dev data and the host's
 docs/v1/      the specs and the build plan
 ```
 
-### The one rule everything else follows
+#### The one rule everything else follows
 
 **Rust owns all truth. TypeScript owns only presentation.** A visual state
 changes because the backend changed it, never because the frontend decided to.
@@ -144,7 +268,7 @@ FlagService::freeze  →  CatalogService::build_snapshot  →  MatchService::pla
 
 ---
 
-## Two webviews, one origin
+### Two webviews, one origin
 
 Both frontends are served under the path they occupy in the bundle —
 `/studio/` and `/stage/` — in dev as well as in the installer. Studio's dev
@@ -167,7 +291,7 @@ webview that sent it.
 
 ---
 
-## Where to read next
+### Where to read next
 
 | You want to know | Read |
 | --- | --- |
@@ -184,6 +308,37 @@ document disagree, the document is right and the code is a bug.
 
 ---
 
+---
+
+## Contributors
+
+- [@aAndy03](https://github.com/aAndy03) — creator and maintainer
+
+Contributions are welcome. Read [`CLAUDE.md`](CLAUDE.md) and
+[`docs/v1/03_CONTEXT.md`](docs/v1/03_CONTEXT.md) before opening a pull
+request: the architecture rules are enforced by `npm run lint`.
+
+---
+
 ## Licence
 
-GPL-3.0-or-later. See [`LICENSE`](LICENSE).
+questiongame is free software under the **GNU General Public License,
+version 3 or later** (GPL-3.0-or-later). See [`LICENSE`](LICENSE). You may use
+it for anything, share it, and change it, as long as what you share stays
+under the same licence. It comes with no warranty.
+
+### GSAP
+
+Stage animates with [GSAP](https://gsap.com), which is distributed under
+GSAP's own *Standard "no charge" license*, not a free-software licence. So
+that the GPL's freedoms still reach everyone who receives questiongame, its
+licensors add this permission:
+
+> **Additional permission under GNU GPL version 3 section 7.** If you modify
+> this Program, or any covered work, by linking or combining it with GSAP (or
+> a modified version of that library), containing parts covered by the terms
+> of the GSAP Standard License, the licensors of this Program grant you
+> additional permission to convey the resulting work.
+
+Settings ▸ About in the app shows the licence, this permission, and the
+licence of every library and font the build ships.

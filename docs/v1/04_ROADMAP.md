@@ -1667,12 +1667,13 @@ The app had only ever run under `tauri dev`. Packaging it meant deciding what a 
 - ☑ *Remove generated data* also clears the WebView2 profile; *Uninstall questiongame…* opens the Windows uninstaller.
 - ☑ Version 1.0.1.
 
-### P12.3 — Notices, licence, and CI releases  ☐
+### P12.3 — Notices, licence, and CI releases  ☑
 
-- ☐ Settings ▸ About: version, build, GPL, the GSAP permission, third-party notices.
-- ☐ Notices generated at build time; the generator fails on a licence outside the allowlist.
-- ☐ `npm run release`; the release check fails on an external load, `perf_report`, or the fake host in `dist/`.
-- ☐ GitHub Actions builds the Windows installer and the macOS bundle on a `v*` tag and attaches both to a GitHub Release.
+- ☑ Settings ▸ About: version, build, GPL, the GSAP permission, third-party notices.
+- ☑ Notices generated at build time; the generator fails on a licence outside the allowlist (2026-09-17: 134 npm + 556 cargo packages, only GSAP excepted).
+- ☑ `npm run release`; the release check fails on an external load, `perf_report`, or the fake host in `dist/`.
+- ☑ GitHub Actions builds the Windows installer and the macOS bundle on a `v*` tag and attaches both to a GitHub Release (the workflow is written; its first run is the check).
+- ☑ README leads with install steps for non-developers, including the unsigned-installer warnings.
 
 ### P12.4 — The release, checked on the installed build  ☐
 

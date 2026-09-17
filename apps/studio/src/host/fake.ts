@@ -93,6 +93,7 @@ export interface FakeHost extends HostTransport {
   stageOpen: boolean
   /** What `paths_get` answers; a test may replace it. */
   paths: AppPaths
+  readonly marker: typeof FAKE_HOST_MARKER
   /** The close guard's answers (P12.2): the fake cannot quit, so it counts. */
   quits: number
   closeCancels: number
@@ -101,6 +102,9 @@ export interface FakeHost extends HostTransport {
 }
 
 const now = () => Date.now()
+
+/** Found by `scripts/release-check.ts` if the fake host ever ships (P12.3). */
+export const FAKE_HOST_MARKER = '__QG_FAKE_HOST__'
 
 export const FAKE_PATHS: AppPaths = {
   userData: 'C:\\Users\\operator\\AppData\\Roaming\\org.questiongame.desktop',
@@ -696,6 +700,7 @@ export function createFakeHost(): FakeHost {
       return null
     },
     // The app itself (P12.2), refusing in the host's order.
+    app_info: () => ({ version: '1.0.1', build: 'dev', identifier: 'org.questiongame.app' }),
     app_quit: () => {
       fake.quits += 1
       return null
@@ -872,6 +877,7 @@ export function createFakeHost(): FakeHost {
     statsOpen: false,
     stageOpen: false,
     paths: { ...FAKE_PATHS },
+    marker: FAKE_HOST_MARKER,
     emit,
     listenerCount(name) {
       if (name) return listeners.get(name)?.size ?? 0

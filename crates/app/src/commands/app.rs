@@ -4,6 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
 use tauri::{AppHandle, State, WebviewWindow};
 
 use crate::error::{AppError, AppResult};
@@ -73,6 +74,27 @@ pub fn app_uninstall(
     tracing::info!(path = %uninstaller.display(), "uninstaller started; quitting");
     app.exit(0);
     Ok(())
+}
+
+/// What Settings ▸ About says this build is (P12.3).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppInfo {
+    pub version: String,
+    /// `dev` or `release`.
+    pub build: &'static str,
+    pub identifier: String,
+}
+
+/// Settings ▸ About. Studio only (`guard`).
+#[tauri::command(async)]
+pub fn app_info(window: WebviewWindow, app: AppHandle) -> AppResult<AppInfo> {
+    guard::allow(window.label(), "app_info")?;
+    Ok(AppInfo {
+        version: app.package_info().version.to_string(),
+        build: crate::identity::build_label(tauri::is_dev()),
+        identifier: app.config().identifier.clone(),
+    })
 }
 
 #[cfg(test)]

@@ -60,6 +60,9 @@ fn macos_is_prepared_and_does_not_change_who_the_app_is() {
 fn every_listed_icon_exists() {
     let config = json("tauri.conf.json");
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let listed: Vec<&str> = config["bundle"]["icon"].as_array().expect("an icon list").iter().filter_map(|v| v.as_str()).collect();
+    assert!(listed.contains(&"icons/icon.icns"), "macOS needs the .icns: {listed:?}");
+    assert!(listed.contains(&"icons/icon.ico"), "Windows needs the .ico: {listed:?}");
     for icon in config["bundle"]["icon"].as_array().expect("an icon list") {
         let rel = icon.as_str().expect("a path");
         assert!(dir.join(rel).is_file(), "{rel} is listed but missing");

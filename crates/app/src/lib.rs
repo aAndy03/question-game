@@ -223,6 +223,7 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::app::app_quit,
         commands::app::app_close_cancelled,
         commands::app::app_uninstall,
+        commands::app::app_info,
         // CatalogService
         commands::catalog::catalog_list,
         commands::catalog::catalog_get,

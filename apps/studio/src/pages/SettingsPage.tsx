@@ -1,6 +1,6 @@
 import { Tabs } from '@heroui/react'
 import { PageHeader } from '@/molecules'
-import { MonitorsSettings, SettingsForm, ShortcutsEditor } from '@/organisms'
+import { AboutPanel, MonitorsSettings, SettingsForm, ShortcutsEditor } from '@/organisms'
 import { SettingsLayout } from '@/templates'
 import { useChromeStore, useSettingsInner, type SettingsInner } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
@@ -12,9 +12,9 @@ export interface SettingsPageProps {
   inner?: SettingsInner | undefined
 }
 
-const INNER: readonly SettingsInner[] = ['monitors', 'settings', 'shortcuts']
+const INNER: readonly SettingsInner[] = ['monitors', 'settings', 'shortcuts', 'about']
 
-/** Settings — Monitors | Settings | Keyboard shortcuts (§2.20, 05_STUDIO_DESIGN.md §12.2). */
+/** Settings — Monitors | Settings | Keyboard shortcuts | About (§2.20, 05_STUDIO_DESIGN.md §12.2, §18.3). */
 export function SettingsPage({ inner }: SettingsPageProps) {
   const remembered = useSettingsInner()
   const setInner = useChromeStore((s) => s.setSettingsInner)
@@ -50,7 +50,15 @@ export function SettingsPage({ inner }: SettingsPageProps) {
         </Tabs>
       }
     >
-      {selected === 'monitors' ? <MonitorsSettings /> : selected === 'shortcuts' ? <ShortcutsEditor /> : <SettingsForm />}
+      {selected === 'monitors' ? (
+        <MonitorsSettings />
+      ) : selected === 'shortcuts' ? (
+        <ShortcutsEditor />
+      ) : selected === 'about' ? (
+        <AboutPanel />
+      ) : (
+        <SettingsForm />
+      )}
     </SettingsLayout>
   )
 }

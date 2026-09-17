@@ -87,6 +87,18 @@ describe('Settings', () => {
     expect(screen.getByText(SETTINGS.paths.perfDir)).toBeTruthy()
   })
 
+  it('About shows the version, the GPL and the GSAP permission (P12.3)', async () => {
+    mount()
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'about' })
+    })
+    expect(await screen.findByText(SETTINGS.about.version('1.0.1', 'dev'))).toBeTruthy()
+    expect(screen.getByText(SETTINGS.about.gplSummary)).toBeTruthy()
+    expect(screen.getByText(SETTINGS.about.gsapPermission)).toBeTruthy()
+    await waitFor(() => expect(screen.getAllByText(SETTINGS.about.notGenerated).length).toBe(2))
+  })
+
   it('offers no in-app uninstall where the installer put no uninstaller (P12.2)', async () => {
     mount()
     render(<App />)

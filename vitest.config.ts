@@ -12,6 +12,13 @@ export default defineConfig({
         },
       },
       {
+        test: {
+          name: 'scripts',
+          environment: 'node',
+          include: ['scripts/**/*.test.ts'],
+        },
+      },
+      {
         resolve: {
           alias: {
             '@': fileURLToPath(new URL('./apps/stage/src', import.meta.url)),

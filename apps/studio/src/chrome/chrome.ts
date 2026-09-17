@@ -27,7 +27,7 @@ export type ViewMode = 'grid' | 'table'
 export type ListTab = 'teams' | 'library' | 'games' | 'operators' | 'statistics'
 
 /** The Settings tab's inner tab, in its fixed order (§12.2). */
-export type SettingsInner = 'monitors' | 'settings' | 'shortcuts'
+export type SettingsInner = 'monitors' | 'settings' | 'shortcuts' | 'about'
 
 export interface OperatorPrefs {
   readonly sidebar: SidebarMode

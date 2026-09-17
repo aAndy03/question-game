@@ -449,6 +449,13 @@ export interface SeedResult {
 }
 
 /** `paths_get` — where the generated files live (§12.1, §12.3). */
+/** `app_info` — what Settings ▸ About says this build is (P12.3). */
+export interface AppInfo {
+  readonly version: string
+  readonly build: 'dev' | 'release'
+  readonly identifier: string
+}
+
 export interface AppPaths {
   readonly userData: string
   readonly catalog: string

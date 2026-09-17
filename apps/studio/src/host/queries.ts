@@ -18,6 +18,7 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import type { MonitorInfo } from '@questiongame/contract'
 import { command, hasHost } from './host'
 import type {
+  AppInfo,
   AppPaths,
   ArchiveScope,
   CatalogItem,
@@ -55,6 +56,7 @@ export const keys = {
   monitors: ['monitors'] as const,
   /** `paths_get` — fixed for the life of the process. */
   paths: ['paths'] as const,
+  appInfo: ['appInfo'] as const,
   /** `catalog_seed_status`, per Demo — invalidated by every catalog/recipe change. */
   seedStatus: {
     all: ['seed-status'] as const,
@@ -173,6 +175,16 @@ export function usePlayList(recipeId: string | null) {
 /** Every closed Play — what Wipe Plays' confirm counts (§12.3). */
 export function usePlays() {
   return usePlayList(null)
+}
+
+/** What this build is (Settings ▸ About, P12.3). It never changes while the app runs. */
+export function useAppInfo() {
+  return useQuery({
+    queryKey: keys.appInfo,
+    queryFn: () => command<AppInfo>('app_info'),
+    enabled: enabled(),
+    staleTime: Infinity,
+  })
 }
 
 /** Where the generated files live (§12.1, §12.3). */
