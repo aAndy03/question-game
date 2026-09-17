@@ -532,7 +532,7 @@ fn fold(facts: &[&TurnFact], query: &StatsQuery, awards: &[TurnAward]) -> StatsR
             .take(query.detail as usize)
             .cloned()
             .collect();
-        recent.sort_by(|a, b| b.fact.at_ms.cmp(&a.fact.at_ms));
+        recent.sort_by_key(|a| std::cmp::Reverse(a.fact.at_ms));
         recent
     };
     StatsResult {

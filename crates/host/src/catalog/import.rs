@@ -593,19 +593,20 @@ impl<'a> Resolver<'a> {
             .iter()
             .filter_map(|id| {
                 let mut domain = self.find(id)?.clone();
-                let mut next = domain
+                let first = domain
                     .questions
                     .iter()
                     .map(|m| m.sort_key)
                     .max()
                     .map_or(0, |key| key + 1);
-                for question in &self.members[id] {
-                    domain.questions.push(DomainMember {
+                let appended = self.members[id]
+                    .iter()
+                    .zip(first..)
+                    .map(|(question, sort_key)| DomainMember {
                         question_id: question.clone(),
-                        sort_key: next,
+                        sort_key,
                     });
-                    next += 1;
-                }
+                domain.questions.extend(appended);
                 Some(domain)
             })
             .collect();
