@@ -1677,15 +1677,17 @@ The app had only ever run under `tauri dev`. Packaging it meant deciding what a 
 
 ### P12.4 — The release, checked on the installed build  ☐
 
+Checked 2026-09-17 on the 1.0.1 installer (6.1 MB), installed silently over 1.0.0:
+
 **Exit criteria** (on Windows)
 
-- ☐ Clean install → first run → Demo → a full Play to `Completed`.
-- ☐ Dev and the installed app run side by side, each on its own library.
-- ☐ Each uninstall outcome removes exactly its set.
-- ☐ No memory growth across three consecutive Plays (third `Completed` ≤ 110% of the first, total working set).
-- ☐ The installed build's perf log: `"build": "release"`, no webview sections, within retention.
-- ☐ Second launch focuses Studio; the close guard asks and a second close exits.
-- ☐ About shows the version, the GPL and the GSAP permission.
+- ☐ Clean install → first run → Demo → a full Play to `Completed` — the operator's run.
+- ☑ The installed app keeps its own library in `org.questiongame.desktop`; the dev library's three files hashed identical before and after the install and the installed app's runs.
+- ☐ Each uninstall outcome removes exactly its set — the operator's run (it deletes a library).
+- ☐ No memory growth across three consecutive Plays (third `Completed` ≤ 110% of the first, total working set) — needs three full Plays.
+- ☑ The installed build's perf log: every line `"build": "release"`, no webview section, and no `perf_report` in the log.
+- ☑ A second launch leaves one process; closing Studio with nothing loaded reaches Studio's guard and quits (`app_quit` in the log). The guard's dialogs are covered by `QuitGuard.test.tsx`.
+- ☐ About shows the version, the GPL and the GSAP permission — covered by `settings.test.tsx`; a look at the installed build is the operator's.
 - ☐ A run with the network disabled behaves identically — verified by the operator.
 - ☐ macOS: clean install → full Play; uninstall — needs a Mac.
 
