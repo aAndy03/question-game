@@ -39,6 +39,10 @@ export default defineConfig({
         test: {
           name: 'studio',
           environment: 'jsdom',
+          // Many Studio tests render the whole App against the fake host. Alone
+          // each takes ~1 s; with every jsdom worker busy one can take 5 s, and
+          // the default timeout then fails a test that is merely slow (P12.9).
+          testTimeout: 20_000,
           setupFiles: ['./apps/studio/src/test/setup.ts'],
           include: ['apps/studio/src/**/*.test.{ts,tsx}'],
         },
