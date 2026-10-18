@@ -6,6 +6,7 @@ import { useNoticeStore } from '@/chrome/notices'
 import { createFakeHost, FAKE_PATHS, type FakeHost } from '@/host/fake'
 import { demoLibrary, demoRecipe } from '@/host/devFake'
 import { setHostTransport } from '@/host/host'
+import { resetUpdateCheck } from '@/host/updates'
 import { receivePlayState } from '@/host/playState'
 import { FIELD, HOTKEYS, OPERATOR } from '@/copy'
 import { SETTINGS, SETTINGS_GROUPS } from '@/copy/settings'
@@ -100,6 +101,53 @@ describe('Settings', () => {
     expect(screen.getByText(SETTINGS.about.gsapPermission)).toBeTruthy()
     await waitFor(() => expect(screen.getAllByText(SETTINGS.about.notGenerated).length).toBe(2))
   })
+
+  it('About checks for updates on request and opens the release page by version (P12.9)', async () => {
+    const fake = mount()
+    fake.update = { current: '1.0.2', latest: '1.0.3', url: 'https://example.invalid', newer: true }
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'about' })
+    })
+    fireEvent.click(await screen.findByRole('button', { name: SETTINGS.about.checkUpdates }, { timeout: 5000 }))
+    expect(await screen.findByText(SETTINGS.about.updateAvailable('1.0.3'))).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: SETTINGS.about.openRelease }))
+    await waitFor(() => expect(fake.openedReleases).toEqual(['1.0.3']))
+  }, 20_000)
+
+  it('About says when this is the latest release, and when GitHub cannot be reached (P12.9)', async () => {
+    const fake = mount()
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'about' })
+    })
+    const check = await screen.findByRole('button', { name: SETTINGS.about.checkUpdates }, { timeout: 5000 })
+    fireEvent.click(check)
+    expect(await screen.findByText(SETTINGS.about.upToDate('1.0.2'))).toBeTruthy()
+    fake.update = 'offline'
+    fireEvent.click(check)
+    expect(await screen.findByText(SETTINGS.about.unreachable)).toBeTruthy()
+  }, 20_000)
+
+  it('Studio mentions a newer release once it is up, from the status bar (P12.9)', async () => {
+    resetUpdateCheck()
+    const fake = mount()
+    fake.update = { current: '1.0.2', latest: '1.0.3', url: 'https://example.invalid', newer: true }
+    render(<App />)
+    expect(await screen.findByText('questiongame 1.0.3 is available.', undefined, { timeout: 5000 })).toBeTruthy()
+  }, 20_000)
+
+  it('About turns the update check on start off (P12.9)', async () => {
+    const fake = mount()
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'about' })
+    })
+    fireEvent.click(await screen.findByRole('switch', { name: SETTINGS.about.checkOnStart }, { timeout: 5000 }))
+    await waitFor(() => expect(fake.updatesOnStart).toBe(false))
+    const write = fake.calls.findLast((c) => c.name === 'settings_set_global')
+    expect(write?.args).toEqual({ setting: { key: 'updates_check_on_start', value: false } })
+  }, 20_000)
 
   it('offers no in-app uninstall where the installer put no uninstaller (P12.2)', async () => {
     mount()

@@ -2259,13 +2259,20 @@ browser storage.
 ### 18.3 Settings ▸ About
 
 A fourth inner tab: **Monitors | Settings | Keyboard shortcuts | About**.
-`AboutPanel` is three `SettingsGroup`s:
+`AboutPanel` is four `SettingsGroup`s:
 
 1. **questiongame** — the version and whether this is the installed or the
    dev build (`app_info`), and the app identifier under it.
-2. **Licence** — a plain-language GPL-3.0-or-later summary, the GSAP §7
+2. **Updates** (P12.9) — what the app does and does not do about updates,
+   the *Check for updates when questiongame starts* switch
+   (`updates.check_on_start`), and *Check for updates*, which answers inline:
+   *You have the latest release*, *questiongame X is available* with *Open
+   release page*, or *Couldn't reach GitHub* — a sentence, not an error
+   notice, because the operator just asked. The start-of-session check is a
+   `update.available` info notice in the collector, with the same action.
+3. **Licence** — a plain-language GPL-3.0-or-later summary, the GSAP §7
    additional permission, and the full `LICENSE` text.
-3. **Third-party notices** — every library and font the build ships, with its
+4. **Third-party notices** — every library and font the build ships, with its
    licence.
 
 The two long texts are files beside Studio (`dist/studio/notices/`, written by

@@ -169,6 +169,10 @@ export const COMMAND_GROUPS = {
     'app_uninstall',
     /** Settings ▸ About: version, build (`dev` | `release`), identifier. */
     'app_info',
+    /** Is there a newer release on GitHub? The app's one network call, made in Rust (P12.9). */
+    'update_check',
+    /** Open a release's page; takes a version, never a URL (P12.9). */
+    'update_open_release',
   ],
 } as const
 

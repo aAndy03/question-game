@@ -27,6 +27,12 @@ export function NoticeCollector() {
       case 'dismiss':
         dismiss(notice.id)
         return
+      // A version, never a URL: the host builds the page (P12.9).
+      case 'open_release':
+        if (notice.detail.version) await run('update_open_release', { version: notice.detail.version })
+        setOpen(false)
+        dismiss(notice.id)
+        return
       case 'pick_monitor':
         setOpen(false)
         await go({ tab: 'settings', inner: 'monitors' })

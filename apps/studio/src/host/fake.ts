@@ -22,6 +22,7 @@ import { DEFAULT_AUDIO, type Command, type EventName, type MonitorInfo, type Pla
 import type { HostError, HostTransport } from './host'
 import type {
   AppPaths,
+  UpdateStatus,
   ArchiveScope,
   AudioSettings,
   BoardSettings,
@@ -94,6 +95,12 @@ export interface FakeHost extends HostTransport {
   stageOpen: boolean
   /** What `paths_get` answers; a test may replace it. */
   paths: AppPaths
+  /** What `update_check` answers (P12.9); `offline` refuses as the host does when GitHub cannot be reached. */
+  update: UpdateStatus | 'offline'
+  /** `updates.check_on_start` (P12.9). */
+  updatesOnStart: boolean
+  /** The versions `update_open_release` was asked to open. */
+  readonly openedReleases: string[]
   readonly marker: typeof FAKE_HOST_MARKER
   /** The close guard's answers (P12.2): the fake cannot quit, so it counts. */
   quits: number
@@ -324,6 +331,7 @@ export function createFakeHost(): FakeHost {
       features,
       shortcuts,
       active_operator_id: activeOperatorId,
+      updates: { check_on_start: fake.updatesOnStart },
     },
     currentGame: null,
     control,
@@ -776,6 +784,9 @@ export function createFakeHost(): FakeHost {
           activeOperatorId = setting.value
           break
         }
+        case 'updates_check_on_start':
+          fake.updatesOnStart = setting.value
+          break
         case 'timer_enabled':
           globalsTimer = { ...globalsTimer, enabled: setting.value }
           break
@@ -859,6 +870,14 @@ export function createFakeHost(): FakeHost {
       return recipeId === null ? fake.plays : fake.plays.filter((p) => p.recipeId === recipeId)
     },
     play_events: () => [],
+    update_check: () => {
+      if (fake.update === 'offline') refuse('network', 'could not reach GitHub: offline')
+      return fake.update
+    },
+    update_open_release: (a) => {
+      fake.openedReleases.push(a.version as string)
+      return null
+    },
     // `build_snapshot`'s second line: a board can become illegal from outside
     // the recipe, and Load is where the host says so (§2.31, §2.32). The fake
     // builds no Play — a shell test that needs one seeds `playState` itself.
@@ -894,6 +913,9 @@ export function createFakeHost(): FakeHost {
     statsOpen: false,
     stageOpen: false,
     paths: { ...FAKE_PATHS },
+    update: { current: '1.0.2', latest: '1.0.2', url: null, newer: false },
+    updatesOnStart: true,
+    openedReleases: [],
     marker: FAKE_HOST_MARKER,
     emit,
     listenerCount(name) {

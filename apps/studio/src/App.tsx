@@ -30,6 +30,7 @@ import { HostBridge } from '@/host/bridge'
 import { hasHost } from '@/host/host'
 import { isPlayOpen, peekPlayState } from '@/host/playState'
 import { useCatalogList, useSettings } from '@/host/queries'
+import { useUpdateCheckOnStart } from '@/host/updates'
 
 /**
  * The Studio shell (P7): providers, the shell layout, and the page switch.
@@ -106,6 +107,8 @@ function Shell() {
   const [wizardDone, setWizardDone] = useState(false)
   const pushNotice = useNoticeStore((s) => s.push)
   const { theme } = usePrefs()
+  // "Is there a newer release?" — once per session, never during a game (P12.9).
+  useUpdateCheckOnStart()
 
   // Chrome preferences follow the active operator (host truth).
   useEffect(() => {

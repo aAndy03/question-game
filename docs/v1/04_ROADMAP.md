@@ -1723,6 +1723,14 @@ The first maintenance release. Operators take it by installing over 1.0.1; nothi
 - ☑ The same refusal pressed again is one notice; a write the host accepts clears what it answered.
 - ☑ The collector drawer is on the right again (HeroUI 3.2.6 regression from P12.5).
 
+### P12.9 — A newer release is mentioned  ☑
+
+- ☑ `update_check` reads GitHub's latest release in Rust (rustls, OS roots, 5 s), ignores drafts, prereleases and non-semver tags, and compares by semver; the live call answers (`--ignored` test).
+- ☑ Studio asks once per session, only with `updates.check_on_start` on and no game loaded, and says so (an `info` notice with *Open release page*) only when it is newer. Offline: nothing.
+- ☑ Settings ▸ About: the switch and *Check for updates*, answering inline (latest / available / unreachable).
+- ☑ The release page opens from a version; the host builds the URL. README says how to update and what the network call is.
+- ☑ Licence audit: 560 cargo packages, none refused.
+
 ---
 
 ## Explicitly not in v1

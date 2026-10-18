@@ -719,3 +719,23 @@ fn a_settings_document_without_a_language_reads_as_english() {
     assert_eq!(parsed.language, Language::En);
     assert_eq!(json["language"], "en");
 }
+
+/// P12.9. The update check is on unless the operator turns it off, a
+/// settings document written before the key existed reads it as on, and
+/// turning it off is legal at any time — it touches no Play.
+#[test]
+fn the_update_check_is_on_by_default_and_the_operator_can_turn_it_off() {
+    assert!(GlobalSettings::default().updates.check_on_start);
+
+    let mut old = serde_json::to_value(GlobalSettings::default()).unwrap();
+    old.as_object_mut().unwrap().remove("updates");
+    let read: GlobalSettings = serde_json::from_value(old).unwrap();
+    assert!(read.updates.check_on_start);
+
+    let mut flags = FlagService::new(GlobalSettings::default());
+    flags
+        .settings_set_global(GlobalSetting::UpdatesCheckOnStart(false), playing())
+        .unwrap();
+    assert!(!flags.globals().updates.check_on_start);
+    assert_eq!(GlobalSetting::UpdatesCheckOnStart(false).key(), "updates.check_on_start");
+}

@@ -391,6 +391,12 @@ pub fn paths_reveal(window: WebviewWindow, app: AppHandle, which: PathKind) -> A
             std::path::PathBuf::from(target)
         }
     };
+    os_open(dir.as_os_str())
+}
+
+/// Hand a folder, a settings URI or a web page to the OS, the way a
+/// double-click would. No plugin: one process spawn, its exit status ignored.
+pub(crate) fn os_open(target: &std::ffi::OsStr) -> AppResult<()> {
     let program = if cfg!(target_os = "windows") {
         "explorer"
     } else if cfg!(target_os = "macos") {
@@ -399,9 +405,9 @@ pub fn paths_reveal(window: WebviewWindow, app: AppHandle, which: PathKind) -> A
         "xdg-open"
     };
     std::process::Command::new(program)
-        .arg(&dir)
+        .arg(target)
         .spawn()
-        .map_err(|e| AppError::Window(format!("cannot open {}: {e}", dir.display())))?;
+        .map_err(|e| AppError::Window(format!("cannot open {}: {e}", target.to_string_lossy())))?;
     Ok(())
 }
 

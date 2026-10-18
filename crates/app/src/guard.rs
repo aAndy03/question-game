@@ -128,7 +128,14 @@ mod tests {
     /// P12.2: the close guard's answers and the uninstaller are Studio's alone.
     #[test]
     fn only_studio_answers_the_close_guard() {
-        for command in ["app_quit", "app_close_cancelled", "app_uninstall", "app_info"] {
+        for command in [
+            "app_quit",
+            "app_close_cancelled",
+            "app_uninstall",
+            "app_info",
+            "update_check",
+            "update_open_release",
+        ] {
             assert!(allow(MAIN, command).is_ok());
             assert!(allow(STAGE, command).is_err(), "{command} from Stage");
             assert!(allow(STATS, command).is_err(), "{command} from Statistics");

@@ -32,6 +32,10 @@ pub enum AppError {
     /// (§5.7) — see [`crate::guard`].
     #[error("stage may not call {command}")]
     NotForStage { command: &'static str },
+    /// The one network call (P12.9) did not get an answer. Never shown
+    /// unprompted: only the operator's own *Check for updates* reports it.
+    #[error("could not reach GitHub: {0}")]
+    Network(String),
 }
 
 impl AppError {
@@ -43,6 +47,7 @@ impl AppError {
             AppError::Monitor(_) => "monitor",
             AppError::Window(_) => "window",
             AppError::NotForStage { .. } => "stage_not_allowed",
+            AppError::Network(_) => "network",
         }
     }
 }

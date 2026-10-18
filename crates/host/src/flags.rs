@@ -450,6 +450,25 @@ pub struct GlobalSettings {
     /// it. `None` until the first operator is created. Pin gating is P10's.
     #[serde(default)]
     pub active_operator_id: Option<OperatorId>,
+    /// "Is there a newer release?" (P12.9). `#[serde(default)]`: a document
+    /// written before the key existed checks.
+    #[serde(default)]
+    pub updates: UpdateSettings,
+}
+
+/// The update notice (P12.9). The app never installs anything; it asks GitHub
+/// once per session whether a newer release exists, and says so.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateSettings {
+    /// `updates.check_on_start`. Control-behaviour; the app's only network
+    /// call, so the operator can turn it off.
+    pub check_on_start: bool,
+}
+
+impl Default for UpdateSettings {
+    fn default() -> Self {
+        UpdateSettings { check_on_start: true }
+    }
 }
 
 impl Default for GlobalSettings {
@@ -463,6 +482,7 @@ impl Default for GlobalSettings {
             features: FeatureRoots::default(),
             shortcuts: ShortcutMap::default(),
             active_operator_id: None,
+            updates: UpdateSettings::default(),
         }
     }
 }
@@ -588,6 +608,8 @@ pub enum GlobalSetting {
     /// `operator.active`. Whether the id names a live operator is the
     /// catalog's to say; the command layer asks it before this lands.
     ActiveOperatorId(Option<OperatorId>),
+    /// `updates.check_on_start` (P12.9).
+    UpdatesCheckOnStart(bool),
 }
 
 impl GlobalSetting {
@@ -611,6 +633,7 @@ impl GlobalSetting {
             GlobalSetting::StageReattach(_) => "stage.reattach",
             GlobalSetting::Feature(root, _) => root.key(),
             GlobalSetting::ActiveOperatorId(_) => "operator.active",
+            GlobalSetting::UpdatesCheckOnStart(_) => "updates.check_on_start",
         }
     }
 }
@@ -894,6 +917,7 @@ impl FlagService {
             }
             GlobalSetting::Feature(root, on) => globals.features.set(root, on),
             GlobalSetting::ActiveOperatorId(v) => globals.active_operator_id = v,
+            GlobalSetting::UpdatesCheckOnStart(v) => globals.updates.check_on_start = v,
         }
 
         validate_globals(&globals)?;

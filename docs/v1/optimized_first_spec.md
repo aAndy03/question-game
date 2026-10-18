@@ -932,6 +932,8 @@ Banner: open Plays keep their frozen copy. Global award default does not rewrite
 
 Commands: `catalog_*`, `recipe_*`, `recipe_set_overlay`, `play_load|unload|start|pause|resume|restart|abandon|get_state`, `choose_domain`, `reveal_stem`, `reveal_next_option`, `set_selection`, `lock_selection`, `start_timer`, `pause_timer`, `reveal_outcome`, `give_token`, `reorder_ring`, `show_screen`, `stage_set_monitor`, `overlay_ack_complete`, `undo_turn`, `redo_turn`, `settings_get|set_global|set_current_game`, `settings_set_shortcut`, `rules_preview`, `stats_query`.
 
+**Updates (P12.9):** `update_check` asks GitHub for the latest release and compares it with the running version — the app's only network call, made in the host, never in a webview, silent when it fails; `update_open_release { version }` opens that release's page, built in the host from a parsed version. Studio asks once per session while no game is loaded, unless `updates.check_on_start` is off. The app never installs an update: the operator runs the new installer over the old one, and the library is copied before it changes (P12.6).
+
 Events: `catalog-changed`, `recipe-changed`, `play-state` (full to main, stripped to stage), `health`, `monitors-changed`, `anim-complete`.
 
 `play-state` includes Play status, ring, session (reveals, selection, locked, `remaining_ms`, `remaining_ms_at_lock`), scores, current screen, overlay busy/pending, live reveal flags.

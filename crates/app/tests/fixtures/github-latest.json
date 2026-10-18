@@ -1,0 +1,16 @@
+{
+  "url": "https://api.github.com/repos/aAndy03/question-game/releases/250000000",
+  "html_url": "https://github.com/aAndy03/question-game/releases/tag/v1.0.3",
+  "id": 250000000,
+  "tag_name": "v1.0.3",
+  "target_commitish": "main",
+  "name": "questiongame 1.0.3",
+  "draft": false,
+  "prerelease": false,
+  "created_at": "2026-11-20T10:00:00Z",
+  "published_at": "2026-11-20T10:30:00Z",
+  "assets": [
+    { "name": "questiongame_1.0.3_x64-setup.exe", "size": 6400000 }
+  ],
+  "body": "Install over your current version."
+}

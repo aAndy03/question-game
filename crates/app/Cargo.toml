@@ -33,6 +33,10 @@ fs4 = { workspace = true }
 sysinfo = { workspace = true }
 rfd = { workspace = true }
 tauri-plugin-single-instance = { workspace = true }
+ureq = { workspace = true }
+rustls = { workspace = true }
+rustls-native-certs = { workspace = true }
+semver = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 # `QueryDisplayConfig`: the display topology Tauri's `available_monitors` does

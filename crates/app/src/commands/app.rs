@@ -97,6 +97,30 @@ pub fn app_info(window: WebviewWindow, app: AppHandle) -> AppResult<AppInfo> {
     })
 }
 
+/// Is there a newer release? (P12.9). The app's one network call, made here
+/// and never from a webview; Studio asks once per session when no Play is
+/// loaded, and again from Settings ▸ About. Studio only (`guard`).
+#[tauri::command(async)]
+pub fn update_check(window: WebviewWindow) -> AppResult<crate::update::UpdateStatus> {
+    guard::allow(window.label(), "update_check")?;
+    let status = crate::update::check(crate::update::fetch_latest, env!("CARGO_PKG_VERSION"))
+        .map_err(AppError::Network)?;
+    tracing::info!(latest = status.latest.as_deref().unwrap_or("-"), newer = status.newer, "update check");
+    Ok(status)
+}
+
+/// Open a release's page in the browser. Studio passes a **version**, never a
+/// URL: the page is built here from the parsed version, so nothing a webview
+/// sends can choose what the OS opens. Studio only (`guard`).
+#[tauri::command(async)]
+pub fn update_open_release(window: WebviewWindow, version: String) -> AppResult<()> {
+    guard::allow(window.label(), "update_open_release")?;
+    let version = semver::Version::parse(&version)
+        .map_err(|e| AppError::Window(format!("not a version: {version} ({e})")))?;
+    let url = crate::update::release_url(&version);
+    super::flags::os_open(std::ffi::OsStr::new(&url))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

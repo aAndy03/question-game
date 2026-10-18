@@ -36,6 +36,7 @@ pub mod quit;
 pub mod state;
 pub mod tick;
 pub mod topology;
+pub mod update;
 pub mod windows;
 
 use tauri::Manager;
@@ -226,6 +227,8 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::app::app_close_cancelled,
         commands::app::app_uninstall,
         commands::app::app_info,
+        commands::app::update_check,
+        commands::app::update_open_release,
         // CatalogService
         commands::catalog::catalog_list,
         commands::catalog::catalog_get,

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Text } from '@/atoms'
+import { Button, SwitchField, Text } from '@/atoms'
 import { SettingsGroup } from '@/molecules'
 import { SETTINGS } from '@/copy/settings'
-import { useAppInfo } from '@/host/queries'
+import { useAppInfo, useSettings } from '@/host/queries'
+import { useHostCommand } from '@/host/commands'
+import { command } from '@/host/host'
+import type { UpdateStatus } from '@/host/types'
 
 type Loaded = { state: 'loading' } | { state: 'ready'; text: string } | { state: 'missing' }
 
@@ -47,6 +50,62 @@ function ShippedText({ loaded }: { loaded: Loaded }) {
  * Settings ▸ About (P12.3, `05_STUDIO_DESIGN.md` §18.3): what this build is,
  * the licence it ships under, the GSAP permission, and what it is made of.
  */
+type Check = { state: 'idle' } | { state: 'checking' } | { state: 'done'; status: UpdateStatus } | { state: 'unreachable' }
+
+/**
+ * *Check for updates* (P12.9). The answer is said here, inline, because the
+ * operator just asked: unreachable is a sentence, not an error notice. The
+ * release page opens by **version** — the host builds the URL.
+ */
+function Updates() {
+  const settings = useSettings()
+  const run = useHostCommand()
+  const [check, setCheck] = useState<Check>({ state: 'idle' })
+  const onStart = settings.data?.globals.updates.check_on_start ?? true
+
+  const ask = async () => {
+    setCheck({ state: 'checking' })
+    try {
+      setCheck({ state: 'done', status: await command<UpdateStatus>('update_check') })
+    } catch {
+      setCheck({ state: 'unreachable' })
+    }
+  }
+
+  return (
+    <SettingsGroup title={SETTINGS.about.updatesTitle} description={SETTINGS.about.updatesHint}>
+      <SwitchField
+        label={SETTINGS.about.checkOnStart}
+        isSelected={onStart}
+        onChange={(value) => void run('settings_set_global', { setting: { key: 'updates_check_on_start', value } })}
+      />
+      <div className="flex flex-wrap items-center gap-3 pt-2">
+        <Button variant="secondary" onPress={() => void ask()} isPending={check.state === 'checking'}>
+          {SETTINGS.about.checkUpdates}
+        </Button>
+        {check.state === 'done' && check.status.newer && check.status.latest ? (
+          <>
+            <Text variant="studio-body">{SETTINGS.about.updateAvailable(check.status.latest)}</Text>
+            <Button variant="primary" onPress={() => void run('update_open_release', { version: check.status.latest })}>
+              {SETTINGS.about.openRelease}
+            </Button>
+          </>
+        ) : null}
+        {check.state === 'done' && !check.status.newer ? (
+          <Text variant="studio-body" tone="muted">
+            {SETTINGS.about.upToDate(check.status.current)}
+          </Text>
+        ) : null}
+        {check.state === 'unreachable' ? (
+          <Text variant="studio-body" tone="warning">
+            {SETTINGS.about.unreachable}
+          </Text>
+        ) : null}
+      </div>
+    </SettingsGroup>
+  )
+}
+
 export function AboutPanel() {
   const info = useAppInfo()
   const licence = useShippedText('LICENSE.txt')
@@ -64,6 +123,7 @@ export function AboutPanel() {
           </Text>
         ) : null}
       </SettingsGroup>
+      <Updates />
       <SettingsGroup title={SETTINGS.about.licenceTitle}>
         <Text as="p" variant="studio-body">
           {SETTINGS.about.gplSummary}

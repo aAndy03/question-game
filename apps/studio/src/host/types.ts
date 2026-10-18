@@ -334,6 +334,16 @@ export interface GlobalSettings {
   readonly shortcuts: Readonly<Record<string, string>>
   /** Who is at the keyboard (§2.15). Null until an operator exists. */
   readonly active_operator_id: string | null
+  /** "Is there a newer release?" (P12.9). The app's only network call. */
+  readonly updates: { readonly check_on_start: boolean }
+}
+
+/** `update_check` (P12.9): the running version, GitHub's latest, and whether it is newer. */
+export interface UpdateStatus {
+  readonly current: string
+  readonly latest: string | null
+  readonly url: string | null
+  readonly newer: boolean
 }
 
 export type DisabledReason =
@@ -374,6 +384,7 @@ export type GameSetting =
 /** `settings_set_global`'s payload. */
 export type GlobalSetting =
   | { readonly key: 'timer_enabled'; readonly value: boolean }
+  | { readonly key: 'updates_check_on_start'; readonly value: boolean }
   | { readonly key: 'timer_duration_ms'; readonly value: number }
   | { readonly key: 'game'; readonly value: GameSetting }
   | { readonly key: 'override_after_lock'; readonly value: OverrideAfterLock }

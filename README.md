@@ -82,6 +82,24 @@ One screen is enough: Stage goes fullscreen and Studio is an `Alt+Tab` (or
   macOS `~/Library/Application Support/org.questiongame.desktop`. Settings ▸
   Data shows the exact folder and can open it.
 
+### Updating
+
+questiongame does not update itself. When a newer release is out, Studio says
+so once when it starts (never during a game), and Settings ▸ About has
+**Check for updates**. Both open the release page.
+
+**Install the new version over the one you have — do not uninstall first.**
+Run the new installer (Windows) or drag the new app over the old one in
+Applications (macOS). Your library stays where it is, and the new version
+copies it to `backups/` in the data folder before it changes anything — the
+five newest copies are kept. Uninstalling first risks ticking *Delete the
+application data*, which removes your library.
+
+Checking for updates is the only time questiongame uses the network: one
+request to GitHub's public API, from the app itself. Turn it off in Settings ▸
+About (*Check for updates when questiongame starts*); everything else works
+the same offline.
+
 ### Uninstalling
 
 - **Remove the app, keep your library:** on Windows, Settings ▸ Data ▸

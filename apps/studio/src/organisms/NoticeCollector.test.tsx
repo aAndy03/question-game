@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { Notice } from '@questiongame/contract'
 import { NoticeCollector } from './NoticeCollector'
 import { useNoticeStore } from '@/chrome/notices'
@@ -88,5 +88,29 @@ describe('the collector drawer (P12.8)', () => {
     const dialog = document.querySelector('.drawer__dialog')
     expect(dialog?.className).toContain('w-[26rem]')
     expect(document.querySelector('.drawer__content')?.className).not.toContain('w-[26rem]')
+  })
+})
+
+describe('the update notice (P12.9)', () => {
+  it('opens the release page by version, and leaves the collector', async () => {
+    const fake = createFakeHost()
+    setHostTransport(fake)
+    useNoticeStore.setState({ notices: [], collectorOpen: true })
+    useNoticeStore.getState().push({
+      code: 'update.available',
+      severity: 'info',
+      targetPath: null,
+      actions: ['open_release', 'dismiss'],
+      detail: { version: '1.0.3' },
+    })
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <NoticeCollector />
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByText('questiongame 1.0.3 is available.')).toBeTruthy()
+    screen.getByRole('button', { name: 'Open release page' }).click()
+    await waitFor(() => expect(fake.openedReleases).toEqual(['1.0.3']))
+    await waitFor(() => expect(useNoticeStore.getState().notices).toHaveLength(0))
   })
 })

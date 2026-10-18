@@ -60,6 +60,16 @@ rfd = "0.17"
 # library lock with nowhere to say so. Keyed on the identifier, so dev and the
 # installed app each have their own.
 tauri-plugin-single-instance = "2"
+# P12.9. "Is there a newer release?" — one GET to the GitHub API per launch,
+# from the app crate only (the webview fetches nothing, `release:check`).
+# rustls with ring, trusting the roots the OS trusts (`rustls-native-certs`),
+# so a corporate proxy the machine already trusts works. Not `native-tls`,
+# `platform-verifier` or the default roots: each pulls a CDLA-licensed root
+# list the licence audit refuses.
+ureq = { version = "3", default-features = false, features = ["rustls-no-provider"] }
+rustls-native-certs = "0.8"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+semver = "1"
 
 # P12.2. The release build is what the operator runs on show day.
 [profile.release]
