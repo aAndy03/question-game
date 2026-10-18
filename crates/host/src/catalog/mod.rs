@@ -20,6 +20,7 @@
 //! adapter is indirection, not a seam. Search is `catalog_search` on this
 //! service for the same reason; there is no `SearchService`.
 
+pub mod backup;
 pub mod complete;
 pub mod db;
 pub mod error;
@@ -32,6 +33,7 @@ mod snapshot;
 mod store;
 
 pub use crate::flags::GameSettings;
+pub use backup::{META_LAST_OPENED, META_LAST_SEEN, OpenOptions, OpenReport, UNSTAMPED_VERSION};
 pub use complete::QuestionGap;
 pub use db::CatalogLocation;
 pub use error::{CatalogError, CatalogKind, CatalogResult};

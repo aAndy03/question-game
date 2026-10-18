@@ -33,6 +33,7 @@
 //!   loses a projection row, never a fact (§2.10, §5.10).
 
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use rusqlite::Connection;
@@ -47,6 +48,7 @@ use crate::play::Play;
 use crate::settings::FrozenSettings;
 use crate::snapshot::PlaySnapshot;
 
+use super::backup::{OpenOptions, OpenReport};
 use super::complete;
 use super::db::{self, CatalogLocation};
 use super::error::{CatalogError, CatalogKind, CatalogResult};
@@ -154,6 +156,23 @@ impl CatalogService {
     /// log. Boot is a replay, not a repair (§2.10).
     pub fn open(location: CatalogLocation) -> CatalogResult<Self> {
         let conn = db::open(&location)?;
+        Self::finish_open(conn, location)
+    }
+
+    /// Open the installed library: back it up first when a migration is due
+    /// or another build opened it last, then migrate and stamp this build
+    /// (P12.6). A backup that cannot be written refuses the open and leaves
+    /// the file untouched. `open` stays for memory and for tests.
+    pub fn open_file(path: &Path, options: &OpenOptions) -> CatalogResult<(Self, OpenReport)> {
+        let (conn, report) = db::open_guarded(path, options)?;
+        let service = Self::finish_open(conn, CatalogLocation::file(path))?;
+        if report.backup.is_some() {
+            super::backup::prune(&options.backup_dir, options.keep);
+        }
+        Ok((service, report))
+    }
+
+    fn finish_open(conn: Connection, location: CatalogLocation) -> CatalogResult<Self> {
         let service = CatalogService {
             conn: Mutex::new(conn),
             search: SearchIndex::open()?,
@@ -163,6 +182,20 @@ impl CatalogService {
         let indexed = service.rebuild_search_index()?;
         tracing::info!(plays = rebuilt, rows = indexed, "library open");
         Ok(service)
+    }
+
+    /// A string the app keeps beside the settings document —
+    /// [`super::META_LAST_OPENED`], [`super::META_LAST_SEEN`]. A row in
+    /// `globals`, so no schema change and an older build reads past it.
+    pub fn meta_get(&self, key: &str) -> CatalogResult<Option<String>> {
+        let Some(json) = store::global_get(&self.conn(), key)? else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_str(&json)?))
+    }
+
+    pub fn meta_set(&self, key: &str, value: &str) -> CatalogResult<()> {
+        store::global_set(&self.conn(), key, &serde_json::to_string(value)?)
     }
 
     /// The test adapter: the same code path, the same SQL, no file.

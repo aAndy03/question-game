@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 
+use super::backup::{self, META_LAST_OPENED, OpenOptions, OpenReport, UNSTAMPED_VERSION};
 use super::error::{CatalogError, CatalogResult};
 
 /// Where the library lives. The in-memory variant is the test adapter — the
@@ -228,6 +229,59 @@ pub(crate) fn open(location: &CatalogLocation) -> CatalogResult<Connection> {
     Ok(conn)
 }
 
+/// [`open`] for an installed library: copy it before anything can change it,
+/// then migrate, then stamp the running version (P12.6, [`super::backup`]).
+///
+/// A copy is due when the file existed **and** either a migration is pending
+/// or a different build opened it last. The copy is taken before `migrate` and
+/// before the caller's first write — the projection rebuild — so it is the
+/// library exactly as the previous build left it.
+pub(crate) fn open_guarded(
+    path: &Path,
+    options: &OpenOptions,
+) -> CatalogResult<(Connection, OpenReport)> {
+    let existed = path.exists();
+    let conn = Connection::open(path)?;
+    apply_pragmas(&conn, false)?;
+
+    let mut report = OpenReport {
+        existed,
+        previous_version: None,
+        backup: None,
+    };
+    if existed {
+        let applied: u32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        // Before migration 1 there is no `globals` table to read; an error
+        // here means "never stamped", which is what 1.0.1 left behind.
+        report.previous_version = super::store::global_get(&conn, META_LAST_OPENED)
+            .ok()
+            .flatten()
+            .and_then(|json| serde_json::from_str::<String>(&json).ok());
+        let migrating = applied < MIGRATIONS.len() as u32;
+        let new_build = report.previous_version.as_deref() != Some(options.app_version.as_str());
+        if migrating || new_build {
+            let label = report
+                .previous_version
+                .as_deref()
+                .unwrap_or(UNSTAMPED_VERSION);
+            report.backup = Some(backup::write(
+                &conn,
+                &options.backup_dir,
+                label,
+                &options.stamp,
+            )?);
+        }
+    }
+
+    migrate(&conn)?;
+    super::store::global_set(
+        &conn,
+        META_LAST_OPENED,
+        &serde_json::to_string(&options.app_version)?,
+    )?;
+    Ok((conn, report))
+}
+
 fn apply_pragmas(conn: &Connection, memory: bool) -> CatalogResult<()> {
     // Referential integrity is off by default in SQLite, and every `REFERENCES`
     // above is load-bearing for "cannot purge a row a recipe points at".
@@ -330,5 +384,49 @@ mod tests {
             .pragma_query_value(None, "foreign_keys", |row| row.get(0))
             .unwrap();
         assert_eq!(on, 1);
+    }
+
+    /// The copy is the library *before* the migration: a backup taken after
+    /// it would be a copy of the thing it exists to undo.
+    #[test]
+    fn a_pending_migration_is_backed_up_before_it_runs() {
+        let dir = std::env::temp_dir().join(format!(
+            "questiongame-premigrate-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("questiongame.sqlite3");
+        let behind = MIGRATIONS.len() as u32 - 1;
+        {
+            // A library one step behind, stamped by this very build, so the
+            // pending migration is the only reason to copy it.
+            let conn = Connection::open(&path).unwrap();
+            for step in &MIGRATIONS[..behind as usize] {
+                conn.execute_batch(step).unwrap();
+            }
+            conn.execute_batch(&format!("PRAGMA user_version = {behind}")).unwrap();
+            super::super::store::global_set(&conn, META_LAST_OPENED, "\"1.0.2\"").unwrap();
+        }
+
+        let options = OpenOptions {
+            app_version: "1.0.2".to_string(),
+            backup_dir: dir.join("backups"),
+            keep: 5,
+            stamp: "20261018-120000".to_string(),
+        };
+        let (conn, report) = open_guarded(&path, &options).unwrap();
+        let version = |c: &Connection| -> u32 {
+            c.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap()
+        };
+        assert_eq!(version(&conn), MIGRATIONS.len() as u32);
+        let backup = report.backup.expect("a backup before migrating");
+        assert_eq!(version(&Connection::open(&backup).unwrap()), behind);
+
+        drop(conn);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

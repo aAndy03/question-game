@@ -151,7 +151,7 @@ pub fn prune(perf_dir: &Path, keep: usize, max_bytes: u64) -> std::io::Result<Ve
     Ok(removed)
 }
 
-fn now_rfc3339() -> String {
+pub(crate) fn now_rfc3339() -> String {
     // No chrono in the tree; the log's own timestamps are UTC too.
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

@@ -88,11 +88,13 @@ export function DataActions() {
     <>
       {paths.data ? (
         // Where the generated files are (P12.1): the log and the performance
-        // log live beside the library, so one Reveal shows all three.
+        // log live beside the library, and so do the backups an update takes
+        // (P12.6), so one Reveal shows all four.
         <div data-data-paths className="pb-2">
           <PathRow label={SETTINGS.paths.userData} path={paths.data.userData} onReveal={() => void run('paths_reveal', { which: 'userData' })} />
           <PathRow label={SETTINGS.paths.logFile} path={paths.data.logFile} />
           <PathRow label={SETTINGS.paths.perfDir} path={paths.data.perfDir} />
+          <PathRow label={SETTINGS.paths.backups} path={paths.data.backups} />
         </div>
       ) : null}
       <SettingRow label={SETTINGS.rows['data.wipe_plays'].label} description={SETTINGS.rows['data.wipe_plays'].description}>

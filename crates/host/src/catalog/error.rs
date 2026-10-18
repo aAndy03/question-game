@@ -110,6 +110,12 @@ pub enum CatalogError {
     #[error("the library is at schema {found}, this build knows {known}")]
     SchemaTooNew { found: u32, known: u32 },
 
+    /// The copy an upgrade takes before it changes anything could not be
+    /// written (P12.6). Nothing was migrated and nothing was written: the
+    /// library is as the previous build left it.
+    #[error("could not back up the library to {}: {reason}. Nothing was changed; the previous version can still open it.", dir.display())]
+    BackupFailed { dir: std::path::PathBuf, reason: String },
+
     #[error(transparent)]
     Sqlite(#[from] rusqlite::Error),
 

@@ -323,6 +323,8 @@ pub struct AppPaths {
     pub log_file: String,
     /// Where the performance log's run files go (P12.1).
     pub perf_dir: String,
+    /// Where an upgrade copies the library before changing it (P12.6).
+    pub backups: String,
     /// `None` when the folder is not on disk: a release build embeds the pack
     /// in the binary, so there is nothing to reveal (P12.1).
     pub cue_pack: Option<String>,
@@ -362,7 +364,8 @@ pub fn paths_get(window: WebviewWindow, app: AppHandle) -> AppResult<AppPaths> {
     let user_data = crate::state::user_data_dir(&app)?;
     let cue_pack = cue_pack_dir(&app).ok().filter(|dir| dir.is_dir());
     Ok(AppPaths {
-        catalog: user_data.join("questiongame.sqlite3").display().to_string(),
+        catalog: user_data.join(crate::state::CATALOG_FILE).display().to_string(),
+        backups: user_data.join(crate::state::BACKUP_DIR).display().to_string(),
         log_file: user_data.join(crate::LOG_FILE).display().to_string(),
         perf_dir: user_data.join(crate::perf::DIR).display().to_string(),
         user_data: user_data.display().to_string(),

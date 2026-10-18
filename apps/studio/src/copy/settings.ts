@@ -259,6 +259,7 @@ export const SETTINGS = {
     cuePack: 'Cue pack',
     logFile: 'Log file',
     perfDir: 'Performance log',
+    backups: 'Backups before an update',
     reveal: (mac: boolean) => (mac ? 'Reveal in Finder' : 'Reveal in Explorer'),
   } as const,
 

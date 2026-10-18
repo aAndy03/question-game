@@ -85,6 +85,8 @@ describe('Settings', () => {
     expect(screen.getByText(FAKE_PATHS.perfDir)).toBeTruthy()
     expect(screen.getByText(SETTINGS.paths.logFile)).toBeTruthy()
     expect(screen.getByText(SETTINGS.paths.perfDir)).toBeTruthy()
+    expect(screen.getByText(FAKE_PATHS.backups)).toBeTruthy()
+    expect(screen.getByText(SETTINGS.paths.backups)).toBeTruthy()
   })
 
   it('About shows the version, the GPL and the GSAP permission (P12.3)', async () => {

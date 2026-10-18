@@ -463,6 +463,8 @@ export interface AppPaths {
   readonly logFile: string
   /** The performance log's folder (P12.1). */
   readonly perfDir: string
+  /** Copies of the library taken before an update changed it, the newest five (P12.6). */
+  readonly backups: string
   /** Null in a release build: the pack is embedded, so there is no folder (P12.1). */
   readonly cuePack: string | null
   /** The Windows uninstaller beside the exe; null when this copy was not installed (P12.2). */

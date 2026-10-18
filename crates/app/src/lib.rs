@@ -40,7 +40,7 @@ pub mod windows;
 
 use tauri::Manager;
 
-use crate::state::{AppState, Host, catalog_location};
+use crate::state::{AppState, Host, catalog_path, open_options};
 
 /// Build and run the desktop app.
 ///
@@ -120,7 +120,9 @@ fn start(handle: &tauri::AppHandle, data_dir: Option<std::path::PathBuf>) -> err
     if let Some(dir) = &data_dir {
         crate::state::take_single_instance_lock(dir)?;
     }
-    let host = Host::open(catalog_location(handle)?)?;
+    let library = catalog_path(handle)?;
+    let options = open_options(library.parent().unwrap_or(std::path::Path::new(".")));
+    let host = Host::open_installed(&library, &options)?;
     handle.manage(AppState::new(host));
     windows::open_studio(handle)?;
     // The first health report is the watch's own first tick: computing it

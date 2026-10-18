@@ -28,7 +28,7 @@
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use questiongame_host::catalog::{CatalogLocation, CatalogService};
+use questiongame_host::catalog::{CatalogLocation, CatalogService, OpenOptions, OpenReport};
 use questiongame_host::flags::{CueKey, Disabled, FlagService, RuntimeContext};
 use questiongame_host::health::{self, HealthInputs, HealthReport};
 use questiongame_host::presentation::PresentationService;
@@ -66,6 +66,10 @@ pub struct Host {
     last_emitted: Option<u64>,
     /// The clock of the last thing sent, full emission or `play-tick` alike.
     last_clock: Option<(Option<u32>, u64, bool)>,
+    /// What opening the installed library found (P12.6) — whether it
+    /// existed, which build opened it last, the backup taken. `None` for a
+    /// library opened by `open` (memory, tests). *What's new* reads it.
+    pub open_report: Option<OpenReport>,
 }
 
 impl Host {
@@ -77,7 +81,23 @@ impl Host {
     /// boot cost, not a per-command one, and it is why this runs before the
     /// first window is shown.
     pub fn open(location: CatalogLocation) -> AppResult<Host> {
-        let catalog = CatalogService::open(location)?;
+        Self::from_catalog(CatalogService::open(location)?, None)
+    }
+
+    /// Boot on the installed library: back it up first when this build is
+    /// new to it or a migration is due (P12.6), then as [`Host::open`].
+    pub fn open_installed(path: &std::path::Path, options: &OpenOptions) -> AppResult<Host> {
+        let (catalog, report) = CatalogService::open_file(path, options)?;
+        tracing::info!(
+            existed = report.existed,
+            previous = report.previous_version.as_deref().unwrap_or("-"),
+            backup = %report.backup.as_ref().map_or_else(|| "-".to_string(), |p| p.display().to_string()),
+            "library version checked"
+        );
+        Self::from_catalog(catalog, Some(report))
+    }
+
+    fn from_catalog(catalog: CatalogService, open_report: Option<OpenReport>) -> AppResult<Host> {
         let globals = catalog.settings_load()?.unwrap_or_default();
         let mut play = MatchService::new();
 
@@ -100,6 +120,7 @@ impl Host {
             health,
             last_emitted: None,
             last_clock: None,
+            open_report,
         })
     }
 
@@ -568,9 +589,12 @@ pub fn take_single_instance_lock(dir: &std::path::Path) -> AppResult<()> {
     }
 }
 
+/// The library file, in the app-data directory.
+pub const CATALOG_FILE: &str = "questiongame.sqlite3";
+
 /// Where the catalog lives. Under the OS app-data directory, which Tauri
 /// resolves — the host never builds a path.
-pub fn catalog_location(app: &tauri::AppHandle) -> AppResult<CatalogLocation> {
+pub fn catalog_path(app: &tauri::AppHandle) -> AppResult<std::path::PathBuf> {
     use tauri::Manager;
 
     let dir = app
@@ -579,7 +603,7 @@ pub fn catalog_location(app: &tauri::AppHandle) -> AppResult<CatalogLocation> {
         .map_err(|e| AppError::Window(format!("no app data directory: {e}")))?;
     std::fs::create_dir_all(&dir)
         .map_err(|e| AppError::Window(format!("cannot create {}: {e}", dir.display())))?;
-    Ok(CatalogLocation::File(dir.join("questiongame.sqlite3")))
+    Ok(dir.join(CATALOG_FILE))
 }
 
 /// The user-data directory, where the catalog and everything generated live.
@@ -588,6 +612,28 @@ pub fn user_data_dir(app: &tauri::AppHandle) -> AppResult<std::path::PathBuf> {
     app.path()
         .app_data_dir()
         .map_err(|e| AppError::Window(format!("no app data directory: {e}")))
+}
+
+/// Where the library's pre-upgrade copies go, beside it (P12.6).
+pub const BACKUP_DIR: &str = "backups";
+/// How many of them are kept.
+pub const BACKUPS_KEPT: usize = 5;
+
+/// What [`Host::open_installed`] needs from the app: this build's version,
+/// the backup folder, and the time — the host has none of the three.
+pub fn open_options(data_dir: &std::path::Path) -> OpenOptions {
+    OpenOptions {
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        backup_dir: data_dir.join(BACKUP_DIR),
+        keep: BACKUPS_KEPT,
+        stamp: backup_stamp(&crate::perf::now_rfc3339()),
+    }
+}
+
+/// `2026-10-18T14:04:47Z` → `20261018-140447`: UTC, and sorts by time.
+fn backup_stamp(rfc3339: &str) -> String {
+    let digits: String = rfc3339.chars().filter(char::is_ascii_digit).collect();
+    format!("{}-{}", &digits[..8], &digits[8..14])
 }
 
 #[cfg(test)]
@@ -640,5 +686,15 @@ mod lock_discipline {
         })
         .join()
         .expect("the stand-in event loop");
+    }
+}
+
+#[cfg(test)]
+mod upgrade {
+    use super::*;
+
+    #[test]
+    fn a_backup_stamp_is_the_utc_time_compacted_so_names_sort() {
+        assert_eq!(backup_stamp("2026-10-18T14:04:47Z"), "20261018-140447");
     }
 }

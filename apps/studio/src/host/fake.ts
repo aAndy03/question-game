@@ -111,6 +111,7 @@ export const FAKE_PATHS: AppPaths = {
   catalog: 'C:\\Users\\operator\\AppData\\Roaming\\org.questiongame.desktop\\questiongame.sqlite3',
   logFile: 'C:\\Users\\operator\\AppData\\Roaming\\org.questiongame.desktop\\questiongame.log',
   perfDir: 'C:\\Users\\operator\\AppData\\Roaming\\org.questiongame.desktop\\perf',
+  backups: 'C:\\Users\\operator\\AppData\\Roaming\\org.questiongame.desktop\\backups',
   cuePack: 'C:\\questiongame\\packages\\design-stage\\audio',
   uninstaller: null,
 }

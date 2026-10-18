@@ -1702,6 +1702,13 @@ The first maintenance release. Operators take it by installing over 1.0.1; nothi
 - ☑ A pin hashed by 1.0.1 still verifies under argon2 0.6 (`operator::a_pin_hashed_by_an_earlier_release_still_verifies`).
 - ☑ Every suite, both clippy runs on Rust 1.99, and the licence audit (126 npm + 543 cargo, none refused).
 
+### P12.6 — An update copies the library first  ☑
+
+- ☑ An existing library opened by a different build, or with a migration pending, is copied with `VACUUM INTO` to `backups/questiongame-<old version>-<stamp>.sqlite3` before anything writes to it; the copy opens and holds the old rows.
+- ☑ A library 1.0.1 wrote carries no version and is labelled 1.0.1; the same build reopening copies nothing; a new library copies nothing.
+- ☑ A copy that cannot be written refuses the open and leaves the file byte-identical.
+- ☑ Five copies kept; files the app did not write are left alone. Settings ▸ Data lists the folder.
+
 ---
 
 ## Explicitly not in v1
