@@ -2,7 +2,7 @@ import { Profiler, useEffect, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { Text } from '@/atoms'
-import { NoticeCollector, QuitGuard, SidebarNav, StatusBar, TopBar } from '@/organisms'
+import { NoticeCollector, QuitGuard, SidebarNav, StatusBar, TopBar, WhatsNewDialog } from '@/organisms'
 import {
   ControlPage,
   FirstRunPage,
@@ -31,6 +31,7 @@ import { hasHost } from '@/host/host'
 import { isPlayOpen, peekPlayState } from '@/host/playState'
 import { useCatalogList, useSettings } from '@/host/queries'
 import { useUpdateCheckOnStart } from '@/host/updates'
+import { useWhatsNewOnStart } from '@/host/whatsNew'
 
 /**
  * The Studio shell (P7): providers, the shell layout, and the page switch.
@@ -109,6 +110,8 @@ function Shell() {
   const { theme } = usePrefs()
   // "Is there a newer release?" — once per session, never during a game (P12.9).
   useUpdateCheckOnStart()
+  // What changed, once after an update and never over a game (P12.10).
+  useWhatsNewOnStart()
 
   // Chrome preferences follow the active operator (host truth).
   useEffect(() => {
@@ -163,6 +166,7 @@ function Shell() {
       overlays={
         <>
           <NoticeCollector />
+          <WhatsNewDialog />
           <Toaster theme={theme} position="bottom-right" closeButton duration={3500} toastOptions={{ style: { fontFamily: 'var(--font-sans)' } }} />
         </>
       }

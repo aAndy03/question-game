@@ -101,6 +101,8 @@ export interface FakeHost extends HostTransport {
   updatesOnStart: boolean
   /** The versions `update_open_release` was asked to open. */
   readonly openedReleases: string[]
+  /** Where What's new starts (P12.10); `whats_new_seen` moves it to 1.0.2. */
+  whatsNewSince: string | null
   readonly marker: typeof FAKE_HOST_MARKER
   /** The close guard's answers (P12.2): the fake cannot quit, so it counts. */
   quits: number
@@ -874,6 +876,11 @@ export function createFakeHost(): FakeHost {
       if (fake.update === 'offline') refuse('network', 'could not reach GitHub: offline')
       return fake.update
     },
+    whats_new_get: () => ({ since: fake.whatsNewSince, current: '1.0.2' }),
+    whats_new_seen: () => {
+      fake.whatsNewSince = '1.0.2'
+      return null
+    },
     update_open_release: (a) => {
       fake.openedReleases.push(a.version as string)
       return null
@@ -916,6 +923,7 @@ export function createFakeHost(): FakeHost {
     update: { current: '1.0.2', latest: '1.0.2', url: null, newer: false },
     updatesOnStart: true,
     openedReleases: [],
+    whatsNewSince: null,
     marker: FAKE_HOST_MARKER,
     emit,
     listenerCount(name) {

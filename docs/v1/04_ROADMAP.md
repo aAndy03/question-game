@@ -1731,6 +1731,13 @@ The first maintenance release. Operators take it by installing over 1.0.1; nothi
 - ☑ The release page opens from a version; the host builds the URL. README says how to update and what the network call is.
 - ☑ Licence audit: 560 cargo packages, none refused.
 
+### P12.10 — What's new, once per update  ☑
+
+- ☑ The first launch after an update shows the releases newer than the one last seen, in plain words, in English and Romanian (a switch; it opens in the game-defaults language).
+- ☑ A library 1.0.1 left sees 1.0.2's notes; a new library sees nothing; *Got it* records it and it does not return.
+- ☑ Never over a loaded game; it waits for the game to be unloaded.
+- ☑ Settings ▸ About ▸ *What's new* reopens this release's notes.
+
 ---
 
 ## Explicitly not in v1

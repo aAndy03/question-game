@@ -6,6 +6,8 @@ import { useAppInfo, useSettings } from '@/host/queries'
 import { useHostCommand } from '@/host/commands'
 import { command } from '@/host/host'
 import type { UpdateStatus } from '@/host/types'
+import { useWhatsNewStore } from '@/chrome/whatsNew'
+import { WHATS_NEW } from '@/copy/whatsNew'
 
 type Loaded = { state: 'loading' } | { state: 'ready'; text: string } | { state: 'missing' }
 
@@ -110,6 +112,9 @@ export function AboutPanel() {
   const info = useAppInfo()
   const licence = useShippedText('LICENSE.txt')
   const notices = useShippedText('THIRD-PARTY-NOTICES.txt')
+  const showWhatsNew = useWhatsNewStore((s) => s.show)
+  // This build's notes; a dev build ahead of the newest notes shows those.
+  const thisRelease = WHATS_NEW.find((r) => r.version === info.data?.version) ?? WHATS_NEW[0]
 
   return (
     <div className="flex flex-col gap-4" data-about>
@@ -121,6 +126,13 @@ export function AboutPanel() {
           <Text as="div" variant="studio-caption" tone="muted">
             {info.data.identifier}
           </Text>
+        ) : null}
+        {thisRelease ? (
+          <div className="pt-2">
+            <Button variant="secondary" onPress={() => showWhatsNew({ releases: [thisRelease], markSeen: false })}>
+              {SETTINGS.about.whatsNew}
+            </Button>
+          </div>
         ) : null}
       </SettingsGroup>
       <Updates />

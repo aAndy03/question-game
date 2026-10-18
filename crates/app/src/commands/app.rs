@@ -121,6 +121,47 @@ pub fn update_open_release(window: WebviewWindow, version: String) -> AppResult<
     super::flags::os_open(std::ffi::OsStr::new(&url))
 }
 
+/// What `whats_new_get` answers (P12.10).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhatsNew {
+    /// Show the notes for every version newer than this; `None` when nothing
+    /// is new to this library.
+    pub since: Option<String>,
+    pub current: &'static str,
+}
+
+/// Where *What's new* starts for this library (P12.10). A library this build
+/// created is stamped here and told nothing. Studio only (`guard`).
+#[tauri::command(async)]
+pub fn whats_new_get(window: WebviewWindow, state: State<'_, AppState>) -> AppResult<WhatsNew> {
+    use questiongame_host::catalog::META_LAST_SEEN;
+
+    guard::allow(window.label(), "whats_new_get")?;
+    let current = env!("CARGO_PKG_VERSION");
+    let host = state.lock();
+    let existed = host.open_report.as_ref().is_some_and(|r| r.existed);
+    let since = match crate::whats_new::since(host.catalog.meta_get(META_LAST_SEEN)?, existed) {
+        crate::whats_new::Since::Show(version) => Some(version),
+        crate::whats_new::Since::StampSilently => {
+            host.catalog.meta_set(META_LAST_SEEN, current)?;
+            None
+        }
+    };
+    Ok(WhatsNew { since, current })
+}
+
+/// The operator closed *What's new*: nothing up to this version is new any
+/// more (P12.10). Studio only (`guard`).
+#[tauri::command(async)]
+pub fn whats_new_seen(window: WebviewWindow, state: State<'_, AppState>) -> AppResult<()> {
+    guard::allow(window.label(), "whats_new_seen")?;
+    let host = state.lock();
+    host.catalog
+        .meta_set(questiongame_host::catalog::META_LAST_SEEN, env!("CARGO_PKG_VERSION"))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

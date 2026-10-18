@@ -135,6 +135,8 @@ mod tests {
             "app_info",
             "update_check",
             "update_open_release",
+            "whats_new_get",
+            "whats_new_seen",
         ] {
             assert!(allow(MAIN, command).is_ok());
             assert!(allow(STAGE, command).is_err(), "{command} from Stage");

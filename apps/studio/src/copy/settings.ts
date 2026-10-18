@@ -119,6 +119,7 @@ export const SETTINGS = {
     updateAvailable: (version: string) => `questiongame ${version} is available.`,
     unreachable: "Couldn't reach GitHub. Check the connection and try again.",
     openRelease: 'Open release page',
+    whatsNew: "What's new",
   } as const,
   /** The permanent info banner above the form (§12.2.2). */
   banner: {

@@ -173,6 +173,10 @@ export const COMMAND_GROUPS = {
     'update_check',
     /** Open a release's page; takes a version, never a URL (P12.9). */
     'update_open_release',
+    /** Where What's new starts for this library; stamps a new one silently (P12.10). */
+    'whats_new_get',
+    /** The operator closed What's new (P12.10). */
+    'whats_new_seen',
   ],
 } as const
 
