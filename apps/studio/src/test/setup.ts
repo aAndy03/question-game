@@ -38,4 +38,11 @@ if (typeof window !== 'undefined') {
   if (typeof Element.prototype.getAnimations !== 'function') {
     Element.prototype.getAnimations = () => []
   }
+  // React Aria ≥ 3.53 builds `meta[name="…"]` selectors with `CSS.escape`
+  // when a modal mounts; jsdom has no `CSS` global. Escapes every character a
+  // selector string cannot carry raw, which is all a meta name needs.
+  if (typeof globalThis.CSS === 'undefined') {
+    const escape = (value: string) => value.replace(/[^\w-]/g, (c) => `\\${c}`)
+    globalThis.CSS = { escape, supports: () => false } as unknown as typeof CSS
+  }
 }

@@ -24,7 +24,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 proptest = "1"
 # P5. `bundled` compiles SQLite from source: no system library on either OS,
 # which is what offline-first and a clean install require (04_ROADMAP.md).
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 tracing = "0.1"
 # P6. The host has emitted `tracing` spans since P5 with nobody listening;
 # this is the subscriber, and it lives in the app crate because a library must
@@ -33,7 +33,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # P5. Search is `catalog_search` on `CatalogService`, not a `SearchService`:
 # one adapter exists and no second is planned (2.13), so a port would be
 # indirection rather than a seam.
-tantivy = "0.26"
+tantivy = "0.27"
 # P6. Only `crates/app` may name these.
 tauri = { version = "2", features = [] }
 tauri-build = { version = "2", features = [] }
@@ -42,21 +42,20 @@ tauri-build = { version = "2", features = [] }
 # that touches the database off the main thread; `time` drives the 100ms tick.
 tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
 # P10. Operator pins are hashed in the host and never in the webview (§2.15).
-# argon2id with a random salt, stored as a PHC string; `rand_core`'s
-# `getrandom` is what makes `OsRng` available to the salt.
-argon2 = { version = "0.5", features = ["std", "password-hash"] }
-rand_core = { version = "0.6", features = ["getrandom"] }
+# argon2id with a random salt, stored as a PHC string. 0.6's default
+# `getrandom` feature is what salts it from the OS RNG.
+argon2 = "0.6"
 # P10. Free space on the user-data volume, for `health.disk_low`. Only the app
 # crate names it: the host takes the number as an input (§12.6).
-fs4 = { version = "0.13", default-features = false, features = ["sync"] }
+fs4 = { version = "1.1", default-features = false, features = ["sync"] }
 # P11.5. The per-second performance log (`crates/app/src/perf`): CPU and
 # memory of the host process and every WebView2 child, from one crate on both
 # platforms. Replaced the hand-rolled Win32 sampler of P11.4.
-sysinfo = { version = "0.38", default-features = false, features = ["system"] }
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 # P12.1. A release build has no console, so a boot failure needs a window of
 # its own to be seen at all. The crate tauri-plugin-dialog is built on; used
 # directly because the message is shown before Tauri's event loop exists.
-rfd = "0.16"
+rfd = "0.17"
 # P12.2. A second launch focuses the running Studio instead of dying on the
 # library lock with nowhere to say so. Keyed on the identifier, so dev and the
 # installed app each have their own.

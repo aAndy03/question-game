@@ -11,9 +11,9 @@
 //! and on the two data actions, which is why the cost is modest and there is
 //! no lockout. Live Play commands never ask for it.
 
-use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use argon2::password_hash::phc::PasswordHash;
+use argon2::password_hash::{PasswordHasher, PasswordVerifier};
 use argon2::Argon2;
-use rand_core::OsRng;
 use thiserror::Error;
 
 /// A pin is 4–8 ASCII digits — the shape of a keypad entry, and short enough
@@ -38,13 +38,12 @@ pub fn validate_pin_format(pin: &str) -> Result<(), PinError> {
     Ok(())
 }
 
-/// Digits in, PHC string out. Default argon2id parameters: a few tens of
-/// milliseconds, once per switch — not a hot path.
+/// Digits in, PHC string out, salted from the OS RNG. Default argon2id
+/// parameters: a few tens of milliseconds, once per switch — not a hot path.
 pub fn hash_pin(pin: &str) -> Result<String, PinError> {
     validate_pin_format(pin)?;
-    let salt = SaltString::generate(&mut OsRng);
     Argon2::default()
-        .hash_password(pin.as_bytes(), &salt)
+        .hash_password(pin.as_bytes())
         .map(|h| h.to_string())
         .map_err(|_| PinError::Hash)
 }
@@ -95,5 +94,14 @@ mod tests {
     fn a_malformed_hash_verifies_nothing() {
         assert!(!verify_pin("1234", "not-a-phc-string"));
         assert!(!verify_pin("1234", ""));
+    }
+
+    /// A hash written by 1.0.1 (argon2 0.5) — every operator's stored pin is
+    /// one of these, so a crate upgrade that cannot read it locks them out.
+    #[test]
+    fn a_pin_hashed_by_an_earlier_release_still_verifies() {
+        const FROM_1_0_1: &str = "$argon2id$v=19$m=19456,t=2,p=1$B7/FQ5OMpzyCqgLlloUNAA$UKGwyGMcU/bmdnnvTCem683scN0UjRPurZ26iWa/9to";
+        assert!(verify_pin("2468", FROM_1_0_1));
+        assert!(!verify_pin("2469", FROM_1_0_1));
     }
 }

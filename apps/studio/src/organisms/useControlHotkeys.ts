@@ -1,4 +1,4 @@
-import { useHotkeys, type UseHotkeyDefinition } from '@tanstack/react-hotkeys'
+import { useHotkeys, type RegisterableHotkeyChord } from '@tanstack/react-hotkeys'
 import { STAGE_SCREENS } from '@questiongame/contract'
 import { HOTKEYS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
@@ -64,7 +64,7 @@ export function useControlHotkeys(enabled: boolean): void {
   ].filter((d) => d.hotkey !== '')
 
   useHotkeys(
-    definitions.map((d) => ({ hotkey: d.hotkey as UseHotkeyDefinition['hotkey'], callback: d.callback })),
+    definitions.map((d) => ({ hotkey: d.hotkey as RegisterableHotkeyChord, callback: d.callback })),
     { enabled: enabled && open, ignoreInputs: true, preventDefault: true },
   )
 }

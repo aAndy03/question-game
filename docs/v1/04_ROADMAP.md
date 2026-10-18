@@ -86,7 +86,7 @@ Consult these rather than memory; several moved fast in the last year.
 
 | Area | Reference |
 | --- | --- |
-| HeroUI v3 (**pin `^3.2.4`**) | https://heroui.com/react/llms.txt · components at `heroui.com/en/docs/react/components/<name>` · `heroui-react` skill in `.agents/skills/` |
+| HeroUI v3 (**pin `^3.2.6`**) | https://heroui.com/react/llms.txt · components at `heroui.com/en/docs/react/components/<name>` · `heroui-react` skill in `.agents/skills/` |
 | Base UI | https://base-ui.com |
 | React 19 | https://react.dev/reference/react |
 | Tailwind v4 | https://tailwindcss.com/docs |
@@ -1690,6 +1690,17 @@ Checked 2026-09-17 on the 1.0.1 installer (6.1 MB), installed silently over 1.0.
 - ☐ About shows the version, the GPL and the GSAP permission — covered by `settings.test.tsx`; a look at the installed build is the operator's.
 - ☐ A run with the network disabled behaves identically — verified by the operator.
 - ☐ macOS: clean install → full Play; uninstall — needs a Mac.
+
+## 1.0.2 — a month on
+
+The first maintenance release. Operators take it by installing over 1.0.1; nothing in it asks them to uninstall.
+
+### P12.5 — Dependencies a month on  ☑
+
+- ☑ Every npm and Cargo dependency on its latest release, except `@tanstack/react-table` (held at 8: version 9 is an API rewrite of the table `LibraryList` freezes on, P11.3) and TypeScript (held at 6.0: `typescript-eslint` supports `<6.1`).
+- ☑ Taken across a major: Vite 8, `@vitejs/plugin-react` 6, Vitest 4, jsdom 29, ESLint 10, `globals` 17, TypeScript 6, motion 14, `@tanstack/react-hotkeys` 0.15, `@tanstack/react-pacer` 0.24; rusqlite 0.40, Tantivy 0.27, sysinfo 0.39, rfd 0.17, fs4 1.1, argon2 0.6.
+- ☑ A pin hashed by 1.0.1 still verifies under argon2 0.6 (`operator::a_pin_hashed_by_an_earlier_release_still_verifies`).
+- ☑ Every suite, both clippy runs on Rust 1.99, and the licence audit (126 npm + 543 cargo, none refused).
 
 ---
 

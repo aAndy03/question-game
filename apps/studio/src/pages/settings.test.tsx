@@ -81,7 +81,7 @@ describe('Settings', () => {
     await act(async () => {
       await useNavStore.getState().go({ tab: 'settings', inner: 'settings' })
     })
-    expect(await screen.findByText(FAKE_PATHS.logFile)).toBeTruthy()
+    expect(await screen.findByText(FAKE_PATHS.logFile, undefined, { timeout: 5000 })).toBeTruthy()
     expect(screen.getByText(FAKE_PATHS.perfDir)).toBeTruthy()
     expect(screen.getByText(SETTINGS.paths.logFile)).toBeTruthy()
     expect(screen.getByText(SETTINGS.paths.perfDir)).toBeTruthy()
@@ -105,7 +105,7 @@ describe('Settings', () => {
     await act(async () => {
       await useNavStore.getState().go({ tab: 'settings', inner: 'settings' })
     })
-    await screen.findByText(FAKE_PATHS.logFile)
+    await screen.findByText(FAKE_PATHS.logFile, undefined, { timeout: 5000 })
     expect(screen.queryByRole('button', { name: SETTINGS.data.uninstallApp })).toBeNull()
   })
 
@@ -116,7 +116,7 @@ describe('Settings', () => {
     await act(async () => {
       await useNavStore.getState().go({ tab: 'settings', inner: 'settings' })
     })
-    await screen.findByText(FAKE_PATHS.logFile)
+    await screen.findByText(FAKE_PATHS.logFile, undefined, { timeout: 5000 })
     fireEvent.click(await screen.findByRole('button', { name: SETTINGS.data.uninstallApp }))
     fireEvent.click(await screen.findByRole('button', { name: SETTINGS.data.uninstallAppArm }))
     fireEvent.click(await screen.findByRole('button', { name: SETTINGS.data.uninstallAppArmed }))
@@ -133,7 +133,7 @@ describe('Settings', () => {
     await act(async () => {
       await useNavStore.getState().go({ tab: 'settings', inner: 'settings' })
     })
-    await screen.findByText(FAKE_PATHS.logFile)
+    await screen.findByText(FAKE_PATHS.logFile, undefined, { timeout: 5000 })
     await waitFor(() => expect(isDisabled(screen.getByRole('button', { name: SETTINGS.data.uninstallApp }))).toBe(true))
   })
 

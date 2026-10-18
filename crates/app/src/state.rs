@@ -544,8 +544,6 @@ impl std::fmt::Debug for AppState {
 /// is deliberately leaked — dropping it would release the lock, and it should
 /// last exactly as long as the process does.
 pub fn take_single_instance_lock(dir: &std::path::Path) -> AppResult<()> {
-    use fs4::fs_std::FileExt;
-
     std::fs::create_dir_all(dir).ok();
     let path = dir.join("questiongame.lock");
     let file = std::fs::OpenOptions::new()
@@ -556,8 +554,9 @@ pub fn take_single_instance_lock(dir: &std::path::Path) -> AppResult<()> {
         .open(&path)
         .map_err(|e| AppError::Window(format!("cannot open {}: {e}", path.display())))?;
 
-    match FileExt::try_lock_exclusive(&file) {
-        Ok(true) => {
+    // `File::try_lock` is std's exclusive, non-blocking lock (Rust 1.89).
+    match file.try_lock() {
+        Ok(()) => {
             // Held for the life of the process, on purpose.
             std::mem::forget(file);
             Ok(())

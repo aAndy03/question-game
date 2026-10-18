@@ -369,7 +369,7 @@ Callers never learn which. That is the whole point of the module: swapping Calli
 
 ### 2.30 Two design systems, one component stack
 
-**HeroUI v3 only.** Pin `@heroui/react@^3.2.4` (latest as of 2026-09-04). v3 is Tailwind v4 + React Aria Components; **v2 patterns are wrong**, not merely old: no `HeroUIProvider`, no `framer-motion`, theming through oklch CSS variables. Source of truth is `https://heroui.com/react/llms.txt`, component docs at `heroui.com/en/docs/react/components/<name>`, plus the `heroui-react` skill in `.agents/skills/`. Never answer a HeroUI question from memory.
+**HeroUI v3 only.** Pin `@heroui/react@^3.2.6` (raised from 3.2.4 on 2026-10-18). v3 is Tailwind v4 + React Aria Components; **v2 patterns are wrong**, not merely old: no `HeroUIProvider`, no `framer-motion`, theming through oklch CSS variables. Source of truth is `https://heroui.com/react/llms.txt`, component docs at `heroui.com/en/docs/react/components/<name>`, plus the `heroui-react` skill in `.agents/skills/`. Never answer a HeroUI question from memory.
 
 #### The split is tokens, not libraries
 
@@ -720,7 +720,7 @@ Unchanged from the last dependency pass.
 
 Platform: Rust stable + Tauri 2 + `@tauri-apps/api` (`availableMonitors`, `WebviewWindow`, `emitTo`, `listen`, `convertFileSrc`). Convert physical `Monitor` pixels with `toLogical(scaleFactor)`.
 
-Studio: React 19, Tailwind v4, `@heroui/react@^3.2.4`, `@heroui/styles`, Base UI on gaps, Iconify Gravity UI default, Phosphor supplement, `@dnd-kit/react` + `@dnd-kit/helpers`. Stage: same React and libraries under the questiongame token scope, Base UI first, no interactive widgets (§2.30).
+Studio: React 19, Tailwind v4, `@heroui/react@^3.2.6`, `@heroui/styles`, Base UI on gaps, Iconify Gravity UI default, Phosphor supplement, `@dnd-kit/react` + `@dnd-kit/helpers`. Stage: same React and libraries under the questiongame token scope, Base UI first, no interactive widgets (§2.30).
 
 TanStack (Studio only, exact uses — not Start, not Router unless later):
 
