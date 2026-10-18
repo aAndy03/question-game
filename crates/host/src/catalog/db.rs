@@ -264,12 +264,12 @@ pub(crate) fn open_guarded(
                 .previous_version
                 .as_deref()
                 .unwrap_or(UNSTAMPED_VERSION);
-            report.backup = Some(backup::write(
-                &conn,
-                &options.backup_dir,
-                label,
-                &options.stamp,
-            )?);
+            let taken = backup::write(&conn, &options.backup_dir, label, &options.stamp)?;
+            // Now, not after a good open: a boot that fails past this point
+            // (a newer schema, a failed migration) would otherwise leave one
+            // more full copy per launch.
+            backup::prune(&options.backup_dir, options.keep, &taken);
+            report.backup = Some(taken);
         }
     }
 

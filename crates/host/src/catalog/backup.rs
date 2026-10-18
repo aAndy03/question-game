@@ -77,8 +77,11 @@ pub(super) fn write(
     let target = path
         .to_str()
         .ok_or_else(|| failed("the backup path is not valid UTF-8".to_string()))?;
-    conn.execute("VACUUM INTO ?1", [target])
-        .map_err(|e| failed(e.to_string()))?;
+    if let Err(error) = conn.execute("VACUUM INTO ?1", [target]) {
+        // A half-written copy would pass for a backup and push a real one out.
+        let _ = std::fs::remove_file(&path);
+        return Err(failed(error.to_string()));
+    }
     // Windows flushes a file only through a handle that may write to it.
     std::fs::OpenOptions::new()
         .write(true)
@@ -89,9 +92,12 @@ pub(super) fn write(
     Ok(path)
 }
 
-/// Keep the `keep` newest backups. Only files this module names are touched;
-/// anything else the operator put in the folder stays.
-pub(super) fn prune(dir: &Path, keep: usize) {
+/// Keep the `keep` newest backups, `taken` always among them. Only files this
+/// module names are touched; anything else the operator put in the folder
+/// stays. `taken` is exempt because the order is the stamp, from the clock: a
+/// clock that is behind would otherwise make the copy just taken the "oldest"
+/// and delete it on the spot.
+pub(super) fn prune(dir: &Path, keep: usize, taken: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -102,9 +108,10 @@ pub(super) fn prune(dir: &Path, keep: usize) {
             let stamp = stamp_of(&name)?.to_string();
             Some((stamp, entry.path()))
         })
+        .filter(|(_, path)| path != taken)
         .collect();
     ours.sort();
-    let excess = ours.len().saturating_sub(keep);
+    let excess = ours.len().saturating_sub(keep.saturating_sub(1));
     for (_, path) in ours.into_iter().take(excess) {
         if let Err(error) = std::fs::remove_file(&path) {
             tracing::warn!(path = %path.display(), %error, "could not prune a backup");

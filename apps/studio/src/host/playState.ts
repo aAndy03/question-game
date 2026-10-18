@@ -60,6 +60,12 @@ const NO_CLOCK: PlayClock = { remainingMs: null, elapsedMs: 0 }
 let state: PlayStateForMain | null = null
 /** The last `play-tick`, or the clock of the last `play-state`. */
 let clock: PlayClock = NO_CLOCK
+/**
+ * Whether the host has said yet — by `get_state` or an event — what is loaded.
+ * Before that, `state === null` means "not known", not "no Play": a show
+ * resumed at boot is a Play this store has not heard of (P12.10 review).
+ */
+let known = false
 const listeners = new Set<Listener>()
 
 const clockOf = (play: PlayStateForMain | null): PlayClock =>
@@ -68,6 +74,7 @@ const clockOf = (play: PlayStateForMain | null): PlayClock =>
 /** The bridge calls this on every `play-state` event; nothing else may. */
 export function receivePlayState(next: PlayStateForMain | null): void {
   state = next
+  known = true
   // A full emission carries the clock, so it is also the newest tick.
   clock = clockOf(next)
   for (const listener of listeners) listener()
@@ -210,4 +217,21 @@ export function peekPlayState(): PlayStateForMain | null {
 /** A Play is open when it may still change (§5.1). */
 export function isPlayOpen(state: PlayStateForMain | null): boolean {
   return state !== null && (state.status === 'playing' || state.status === 'paused')
+}
+
+/**
+ * Has the host said what is loaded yet? Chrome that must never act over a
+ * show — What's new, the update notice — waits for this before reading "no
+ * Play" as an answer.
+ */
+export function usePlayStateKnown(): boolean {
+  return useSyncExternalStore(subscribe, () => known, () => known)
+}
+
+/** For tests: back to the moment before the host has answered. */
+export function forgetPlayState(): void {
+  state = null
+  clock = NO_CLOCK
+  known = false
+  for (const listener of listeners) listener()
 }

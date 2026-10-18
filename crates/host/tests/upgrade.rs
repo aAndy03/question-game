@@ -213,3 +213,47 @@ fn an_unwritable_backup_dir_refuses_to_open_and_leaves_the_file_unchanged() {
         Some("1.0.1")
     );
 }
+
+/// From the final review: prune ordered by the stamp alone, so a clock that
+/// is behind made the copy just taken the "oldest" and deleted it on the spot.
+#[test]
+fn retention_never_deletes_the_backup_just_taken() {
+    let dir = TempDir::new("clock-behind");
+    drop(CatalogService::open_file(&dir.library(), &options(&dir, "1.0.1", "20300101-000000")).unwrap());
+    std::fs::create_dir_all(dir.backups()).unwrap();
+    for day in 1..=5 {
+        let name = format!("questiongame-1.0.0-203001{day:02}-000000.sqlite3");
+        std::fs::write(dir.backups().join(name), b"old").unwrap();
+    }
+
+    // The machine's clock says 2026; the backups say 2030.
+    let (_, report) =
+        CatalogService::open_file(&dir.library(), &options(&dir, "1.0.2", "20261018-120000"))
+            .unwrap();
+    let taken = report.backup.expect("a backup");
+    assert!(taken.exists(), "the copy just taken was pruned");
+    assert_eq!(backups_in(&dir.backups()).len(), 5);
+}
+
+/// From the final review: a boot that fails after the copy (a schema from a
+/// newer build, a failed migration) used to write a full copy per launch and
+/// never prune.
+#[test]
+fn a_boot_that_fails_after_the_backup_still_keeps_only_five() {
+    let dir = TempDir::new("fails-after");
+    drop(CatalogService::open_file(&dir.library(), &options(&dir, "1.0.1", "20261001-000000")).unwrap());
+    // A schema this build does not know, as a newer build would leave it.
+    rusqlite::Connection::open(dir.library())
+        .unwrap()
+        .execute_batch("PRAGMA user_version = 99")
+        .unwrap();
+
+    for attempt in 0..7 {
+        let stamp = format!("20261018-1200{attempt:02}");
+        assert!(matches!(
+            CatalogService::open_file(&dir.library(), &options(&dir, "1.0.2", &stamp)),
+            Err(CatalogError::SchemaTooNew { .. })
+        ));
+    }
+    assert_eq!(backups_in(&dir.backups()).len(), 5);
+}

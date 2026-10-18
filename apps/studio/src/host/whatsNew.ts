@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react'
 import { useWhatsNewStore } from '@/chrome/whatsNew'
 import { notesAfter } from '@/copy/whatsNew'
 import { command } from './host'
-import { usePlayState } from './playState'
+import { usePlayState, usePlayStateKnown } from './playState'
 
 interface WhatsNewAnswer {
   readonly since: string | null
@@ -29,6 +29,8 @@ export function resetWhatsNew(): void {
 
 export function useWhatsNewOnStart(): void {
   const loaded = usePlayState((s) => s !== null)
+  // "No Play" before the host has answered is "not known yet" (review).
+  const known = usePlayStateKnown()
   const show = useWhatsNewStore((s) => s.show)
   const [pending, setPending] = useState<ReturnType<typeof notesAfter> | null>(null)
 
@@ -50,8 +52,8 @@ export function useWhatsNewOnStart(): void {
   }, [])
 
   useEffect(() => {
-    if (pending === null || loaded) return
+    if (pending === null || !known || loaded) return
     show({ releases: pending, markSeen: true })
     setPending(null)
-  }, [pending, loaded, show])
+  }, [pending, known, loaded, show])
 }

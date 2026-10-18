@@ -166,9 +166,6 @@ impl CatalogService {
     pub fn open_file(path: &Path, options: &OpenOptions) -> CatalogResult<(Self, OpenReport)> {
         let (conn, report) = db::open_guarded(path, options)?;
         let service = Self::finish_open(conn, CatalogLocation::file(path))?;
-        if report.backup.is_some() {
-            super::backup::prune(&options.backup_dir, options.keep);
-        }
         Ok((service, report))
     }
 

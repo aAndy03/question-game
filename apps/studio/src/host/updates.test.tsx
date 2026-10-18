@@ -5,7 +5,7 @@ import { EMPTY_PLAY_STATE } from '@questiongame/contract'
 import { useNoticeStore } from '@/chrome/notices'
 import { createFakeHost, type FakeHost } from './fake'
 import { setHostTransport } from './host'
-import { receivePlayState } from './playState'
+import { forgetPlayState, receivePlayState } from './playState'
 import { resetUpdateCheck, useUpdateCheckOnStart } from './updates'
 
 /**
@@ -89,5 +89,19 @@ describe('the update check on start (P12.9)', () => {
     mount()
     await new Promise((r) => setTimeout(r, 50))
     expect(checks()).toBe(1)
+  })
+})
+
+describe('before the host has said whether a game is loaded (P12.9 review)', () => {
+  // Studio starts with no Play in its store before `get_state` answers, and
+  // a show resumed at boot is a Play the store has not heard of yet.
+  it('does not ask until the Play state is known', async () => {
+    forgetPlayState()
+    mount()
+    await waitFor(() => expect(fake.calls.some((c) => c.name === 'settings_get')).toBe(true))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(checks()).toBe(0)
+    act(() => receivePlayState(null))
+    await waitFor(() => expect(checks()).toBe(1))
   })
 })

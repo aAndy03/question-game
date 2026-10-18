@@ -11,7 +11,7 @@
 import { useEffect } from 'react'
 import { useNoticeStore } from '@/chrome/notices'
 import { command } from './host'
-import { usePlayState } from './playState'
+import { usePlayState, usePlayStateKnown } from './playState'
 import { useSettings } from './queries'
 import type { UpdateStatus } from './types'
 
@@ -26,11 +26,13 @@ export function resetUpdateCheck(): void {
 export function useUpdateCheckOnStart(): void {
   const settings = useSettings()
   const loaded = usePlayState((s) => s !== null)
+  // "No Play" before the host has answered is "not known yet" (review).
+  const known = usePlayStateKnown()
   const push = useNoticeStore((s) => s.push)
   const wanted = settings.data?.globals.updates.check_on_start
 
   useEffect(() => {
-    if (asked || wanted !== true || loaded) return
+    if (asked || wanted !== true || !known || loaded) return
     asked = true
     void (async () => {
       try {
@@ -44,8 +46,8 @@ export function useUpdateCheckOnStart(): void {
           detail: { version: status.latest },
         })
       } catch {
-        // Offline is normal; the host logged it.
+        // Offline is normal, and nothing is said about it.
       }
     })()
-  }, [wanted, loaded, push])
+  }, [wanted, known, loaded, push])
 }
