@@ -783,6 +783,103 @@ fn applying_a_difficulty_to_the_original_is_refused_on_the_same_rule() {
     assert_eq!(question.difficulty, Some(20), "the catalog row is untouched");
 }
 
+// ------------------------------- repeated difficulties, when the game allows (P12.7)
+
+fn allow_repeats(service: &CatalogService, recipe: &Recipe, allow: bool) -> Result<(), CatalogError> {
+    let mut settings = service.recipe_get(&recipe.id).unwrap().settings;
+    settings.board.allow_repeated_difficulty = allow;
+    service
+        .recipe_set_settings(&recipe.id, settings, 1_500)
+        .map(|_| ())
+}
+
+fn board_of_all_three() -> Vec<BoardDomain> {
+    vec![BoardDomain {
+        domain_id: DomainId::from("dom-1"),
+        question_ids: vec![
+            QuestionId::from("q-1"),
+            QuestionId::from("q-2"),
+            QuestionId::from("q-3"),
+        ],
+    }]
+}
+
+#[test]
+fn a_board_may_repeat_a_difficulty_when_the_game_allows_it() {
+    each_adapter("repeats-allowed", |service| {
+        let recipe = seed_with_a_twin(service);
+        allow_repeats(service, &recipe, true).unwrap();
+        service
+            .recipe_set_membership(&recipe.id, recipe.teams.clone(), board_of_all_three(), 2_000)
+            .unwrap();
+
+        let snapshot = service
+            .build_snapshot(&recipe.id, PlayId::from("play-1"), frozen())
+            .unwrap();
+        let ids: Vec<&str> = snapshot.domains[0]
+            .questions
+            .iter()
+            .map(|q| q.id.as_str())
+            .collect();
+        assert_eq!(
+            ids,
+            vec!["q-1", "q-3", "q-2"],
+            "two at one difficulty are asked one after the other, lower id first"
+        );
+    });
+}
+
+#[test]
+fn turning_the_switch_off_on_a_repeating_board_is_refused() {
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed_with_a_twin(&service);
+    allow_repeats(&service, &recipe, true).unwrap();
+    service
+        .recipe_set_membership(&recipe.id, recipe.teams.clone(), board_of_all_three(), 2_000)
+        .unwrap();
+    let rev_before = service.recipe_get(&recipe.id).unwrap().rev;
+
+    let error = allow_repeats(&service, &recipe, false).unwrap_err();
+    assert!(
+        matches!(&error, CatalogError::Invalid { target_path, .. }
+            if target_path == "recipe.recipe-1.board.dom-1.difficulty.10"),
+        "expected the clash named, got {error:?}"
+    );
+    let after = service.recipe_get(&recipe.id).unwrap();
+    assert_eq!(after.rev, rev_before, "a refused write changes nothing");
+    assert!(after.settings.board.allow_repeated_difficulty);
+}
+
+#[test]
+fn a_this_game_override_may_repeat_a_difficulty_when_allowed() {
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed(&service);
+    allow_repeats(&service, &recipe, true).unwrap();
+    service
+        .recipe_set_overlay(
+            &recipe.id,
+            OverlayTarget::Question(
+                QuestionId::from("q-2"),
+                Some(QuestionOverlay {
+                    difficulty: Some(10),
+                    ..QuestionOverlay::default()
+                }),
+            ),
+            EditScope::ThisGame,
+            2_000,
+        )
+        .unwrap();
+}
+
+#[test]
+fn a_recipe_written_before_the_switch_existed_reads_it_as_off() {
+    let json = serde_json::to_value(GameSettings::default()).unwrap();
+    let mut old = json.as_object().unwrap().clone();
+    old.remove("board");
+    let settings: GameSettings = serde_json::from_value(old.into()).unwrap();
+    assert!(!settings.board.allow_repeated_difficulty);
+}
+
 #[test]
 fn a_difficulty_override_on_a_question_the_board_does_not_hold_is_none_of_the_rules_business() {
     let service = CatalogService::in_memory().unwrap();

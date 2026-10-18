@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { Button, CheckboxField, IconButton, MeaningChip, Panel, SelectField, Text } from '@/atoms'
+import { Button, CheckboxField, IconButton, MeaningChip, Panel, SelectField, SwitchField, Text } from '@/atoms'
 import { BoardBalance, EmptyState, IncompleteMark, InlineNotice, ScopeConfirm } from '@/molecules'
 import { DOMAIN, GAME, QUESTION } from '@/copy'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
-import { blockedMembers, oneQuestionPerDifficulty } from '@/host/board'
+import { blockedMembers, everyQuestion, oneQuestionPerDifficulty } from '@/host/board'
 import { useHostCommand } from '@/host/commands'
 import { bodyGaps, effectiveBody } from '@/host/question'
 import { useCatalogList, useRulesPreview } from '@/host/queries'
-import { difficultyBand, type BoardDomain, type EditScope, type Recipe } from '@/host/types'
+import { difficultyBand, type BoardDomain, type BoardSettings, type EditScope, type Recipe } from '@/host/types'
 
 export interface BoardSectionProps {
   recipe: Recipe
@@ -28,6 +28,11 @@ export interface BoardSectionProps {
  * `recipe_upsert` refuses the board and `build_snapshot` refuses the Play;
  * `host/board.ts` spells it here so the operator does not have to be refused
  * in order to find out.
+ *
+ * **Unless the game allows repeats** (`board.allow_repeated_difficulty`,
+ * P12.7): then nothing is dimmed for its difficulty and *Add domain* ticks
+ * every complete question. The switch is game-affecting, so it freezes with
+ * the rest of the page while the game is playing.
  *
  * **An incomplete question** (§2.32) is dimmed the same way, its gaps as the
  * reason — unless it is already on the board, when it keeps its checkbox and
@@ -61,6 +66,8 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
   }
   const difficultyOf = (questionId: string) => bodyOf(questionId)?.difficulty ?? null
   const boardNotices = noticesAt(notices, `recipe.${recipe.id}.board`)
+  // A recipe row written before P12.7 has no `board`; the host reads that as off.
+  const allowRepeats = (recipe.settings.board as BoardSettings | undefined)?.allow_repeated_difficulty === true
 
   const write = async (board: readonly BoardDomain[]) => {
     setPending(true)
@@ -76,7 +83,8 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
       const difficulty = difficultyOf(m.questionId)
       return difficulty !== null && gapsOf(m.questionId).length === 0 ? [{ questionId: m.questionId, difficulty }] : []
     })
-    void write([...recipe.board, { domainId: id, questionIds: oneQuestionPerDifficulty(members) }])
+    const questionIds = allowRepeats ? everyQuestion(members) : oneQuestionPerDifficulty(members)
+    void write([...recipe.board, { domainId: id, questionIds }])
   }
   const toggleQuestion = (domainId: string, questionId: string, on: boolean) =>
     void write(
@@ -112,6 +120,19 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
         </Text>
       </div>
 
+      <SwitchField
+        label={GAME.allowRepeats}
+        description={GAME.allowRepeatsHint}
+        isSelected={allowRepeats}
+        onChange={(on) =>
+          void run('recipe_set_settings', {
+            id: recipe.id,
+            settings: { ...recipe.settings, board: { allow_repeated_difficulty: on } },
+          })
+        }
+        disabledReason={frozenReason}
+      />
+
       {boardNotices.map((n) => (
         <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} compact />
       ))}
@@ -135,6 +156,7 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
             difficulty: difficultyOf(qid),
             selected: b.questionIds.includes(qid),
           })),
+          allowRepeats,
         )
         const overlay = recipe.overlays.domains[b.domainId]
         return (

@@ -1,4 +1,5 @@
-//! One question per difficulty, inside one board domain (P11.13).
+//! One question per difficulty, inside one board domain (P11.13) — unless the
+//! game says otherwise (P12.7).
 //!
 //! The library may hold as many difficulty-10 history questions as the author
 //! cares to write — that is what a library is for. **A recipe board may select
@@ -21,6 +22,12 @@
 //!                                 older build, before a Stage window exists
 //! preview::build                  warns, so the operator hears it before Load
 //! ```
+//!
+//! A game may switch the rule off (`board.allow_repeated_difficulty`). The
+//! award still never reads which question it was, so two at one difficulty
+//! pay the same and are asked one after the other, `id ASC` — the order
+//! `SnapshotDomain::new` already sorts the queue in. [`check`] is the door all
+//! three callers use.
 
 use std::collections::BTreeMap;
 
@@ -59,6 +66,17 @@ pub fn clashes(questions: &[(QuestionId, u8)]) -> Vec<DifficultyClash> {
             }
         })
         .collect()
+}
+
+/// The rule as every door applies it: the first clash, unless the game has
+/// switched repeated difficulties on (`board.allow_repeated_difficulty`,
+/// P12.7). Read from the **recipe** the write or the Play is built from — the
+/// one source, so the write and the Play start cannot disagree.
+pub fn check(allow_repeats: bool, questions: &[(QuestionId, u8)]) -> Option<DifficultyClash> {
+    if allow_repeats {
+        return None;
+    }
+    clashes(questions).into_iter().next()
 }
 
 #[cfg(test)]
@@ -104,5 +122,16 @@ mod tests {
     #[test]
     fn an_empty_selection_has_nothing_to_clash() {
         assert_eq!(clashes(&[]), vec![]);
+    }
+
+    #[test]
+    fn check_with_repeats_allowed_finds_nothing() {
+        assert_eq!(check(true, &[q("q-a", 10), q("q-b", 10)]), None);
+    }
+
+    #[test]
+    fn check_without_finds_the_first_clash() {
+        let clash = check(false, &[q("q-c", 30), q("q-d", 30), q("q-b", 10), q("q-a", 10)]);
+        assert_eq!(clash.map(|c| c.difficulty), Some(10));
     }
 }

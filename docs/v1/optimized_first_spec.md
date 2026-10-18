@@ -73,7 +73,7 @@ Expiry = per-Play consumption. Never a library delete. A resolved question does 
 
 A recipe may mix them. The Game tab **Shape manager** (floating dialog) manages these flags. It does not only display warnings. See §11.B4.
 
-These four freedoms are about *domains*. What a **board** may select from one is narrowed by §2.31: one question per difficulty. A domain's difficulty progression is therefore strictly increasing on the board, however many questions the library holds at each step.
+These four freedoms are about *domains*. What a **board** may select from one is narrowed by §2.31: one question per difficulty, unless the game allows repeats. A domain's difficulty progression is therefore strictly increasing on the board (non-decreasing in a game that allows repeats), however many questions the library holds at each step.
 
 ### 2.3 Award — flat, difficulty, lock-speed both ways
 
@@ -413,6 +413,8 @@ Why: teams choose a **domain**, never a question, and difficulty walks easy→ha
 - **Cross-domain is untouched.** History 10 and Science 10 are two different walks and stay legal.
 - **The rule is enforced on the write.** `recipe_upsert` refuses an illegal board and a refused write changes nothing. `build_snapshot` refuses to start a Play from one, because a board can become illegal from *outside* the recipe — the library does not veto an edit on a recipe's behalf (§11.A `referenced_by` exists for exactly that reason), so re-grading a question in Questions can collide a board that was legal when it was saved. The Rules preview says so before Load rather than leaving Load to be the first anyone hears of it.
 - **Studio disables the illegal sibling** with the reason on a still-visible control (§4.2). Adding a domain to a board ticks one question per difficulty, `difficulty ASC, id ASC`.
+
+**A game may allow repeats** *(decided 2026-10-18, P12.7)*. `board.allow_repeated_difficulty` is a per-recipe Game key, **off by default**, game-affecting (frozen at Play start). On, a board may hold several questions at one difficulty in one domain: every door above stops refusing them, they are asked one after the other `difficulty ASC, id ASC` (the order the queue already walks), and they pay the same — the award is unchanged. It is read from the **recipe** at every door, never a live copy, so the write and the Play start cannot disagree. Switching it off on a board that holds repeats is refused like any illegal board, naming the clash. Adding a domain with it on ticks every complete question.
 
 ### 2.32 Incomplete questions, and importing many at once
 

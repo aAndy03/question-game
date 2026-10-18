@@ -147,6 +147,7 @@ fn every_game_affecting_key_is_refused_while_a_play_is_open() {
         GameSetting::OrderMatters(true),
         GameSetting::TimerEnabled(Some(false)),
         GameSetting::TimerDurationMs(Some(10_000)),
+        GameSetting::AllowRepeatedDifficulty(true),
     ];
     // The list above is the §4.2 "Game, frozen" block; if a key is added there
     // and not here, this catches it.

@@ -125,7 +125,9 @@ pub(super) fn build(
             // means a row written by an older build — the same second line
             // `play_load` keeps for a snapshot's settings. Measured on the
             // *snapshot* difficulty, which is the overlay-applied one.
-            if let Some(clash) = clash_in(&snapshot_domain) {
+            if let Some(clash) =
+                clash_in(recipe.settings.board.allow_repeated_difficulty, &snapshot_domain)
+            {
                 return Err(CatalogError::invalid(
                     format!(
                         "recipe.{}.board.{}.difficulty.{}",
@@ -133,7 +135,7 @@ pub(super) fn build(
                         board.domain_id.as_str(),
                         clash
                     ),
-                    "two questions in this domain share a difficulty; a domain holds one question per difficulty",
+                    "two questions in this domain share a difficulty; turn on Allow repeated difficulties in Board, or keep one",
                 ));
             }
             Ok(snapshot_domain)
@@ -149,19 +151,17 @@ pub(super) fn build(
     ))
 }
 
-/// The lowest difficulty this domain's queue holds twice, if it holds one.
+/// The lowest difficulty this domain's queue holds twice, if it holds one and
+/// the game does not allow it.
 /// The whole rule lives in [`crate::board`]; this is only the adapter from a
 /// built queue to the `(id, difficulty)` pairs it reads.
-fn clash_in(domain: &SnapshotDomain) -> Option<u8> {
+fn clash_in(allow_repeats: bool, domain: &SnapshotDomain) -> Option<u8> {
     let pairs: Vec<_> = domain
         .questions
         .iter()
         .map(|q| (q.id.clone(), q.difficulty))
         .collect();
-    crate::board::clashes(&pairs)
-        .into_iter()
-        .next()
-        .map(|clash| clash.difficulty)
+    crate::board::check(allow_repeats, &pairs).map(|clash| clash.difficulty)
 }
 
 /// One question as this show asks it, overlays applied. Refused when the
@@ -401,7 +401,7 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             error.to_string(),
-            "recipe.recipe-1.board.dom-1.difficulty.40: two questions in this domain share a difficulty; a domain holds one question per difficulty"
+            "recipe.recipe-1.board.dom-1.difficulty.40: two questions in this domain share a difficulty; turn on Allow repeated difficulties in Board, or keep one"
         );
     }
 

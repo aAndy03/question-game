@@ -45,6 +45,11 @@ impl Demo {
     /// Loaded and not started: the recipe is in Control and nothing has
     /// happened yet.
     fn load() -> Demo {
+        Demo::load_prepared(|_| {})
+    }
+
+    /// [`Demo::load`], after `prepare` has changed the seeded library.
+    fn load_prepared(prepare: impl FnOnce(&CatalogService)) -> Demo {
         let catalog = CatalogService::open(CatalogLocation::Memory).expect("library opens");
         catalog
             .seed_demo(
@@ -54,6 +59,7 @@ impl Demo {
                 1_000,
             )
             .expect("the demo seeds");
+        prepare(&catalog);
 
         // The same three steps `play_load` takes (`commands/play.rs`): put the
         // recipe's settings into Control, freeze them, build the snapshot.
@@ -713,4 +719,73 @@ fn s16_every_ledger_row_reproduces_what_the_log_recorded() {
     demo.play.undo_turn(now).expect("undo");
     let after = stats::awards(demo.play.get_state().expect("a play").events());
     assert_eq!(after.len(), 3);
+}
+
+/// **Scenario 17 — a game that allows a repeated difficulty plays both
+/// (P12.7).**
+///
+/// Geography gains a second difficulty-10 question and the Demo switches
+/// `board.allow_repeated_difficulty` on. Red answers Geography twice: the two
+/// tens come one after the other, lower id first, and each pays what a ten
+/// pays — the award never reads which question it was.
+#[test]
+fn s17_two_questions_at_one_difficulty_are_asked_in_id_order_and_pay_the_same() {
+    use questiongame_host::catalog::{
+        BoardDomain, CatalogItem, CatalogKind, DomainMember, Question, QuestionOption,
+    };
+    use questiongame_host::ids::RecipeId;
+
+    let mut demo = Demo::load_prepared(|catalog| {
+        let twin = Question::new("seed-q-geo-4", "Which ocean borders Portugal?", 10)
+            .with_options(
+                ['a', 'b', 'c', 'd']
+                    .into_iter()
+                    .map(|l| QuestionOption::new(format!("seed-q-geo-4-{l}"), l.to_string(), l == 'a'))
+                    .collect(),
+            );
+        catalog.catalog_upsert(&twin.into(), 1_100).unwrap();
+        let CatalogItem::Domain(mut geo) = catalog.catalog_get(CatalogKind::Domain, GEO).unwrap()
+        else {
+            panic!("Geography is a domain");
+        };
+        let next = geo.questions.len() as i64;
+        geo.questions.push(DomainMember {
+            question_id: QuestionId::new("seed-q-geo-4"),
+            sort_key: next,
+        });
+        catalog.catalog_upsert(&(*geo).into(), 1_200).unwrap();
+
+        let id = RecipeId::new("seed-recipe-demo");
+        let recipe = catalog.recipe_get(&id).unwrap();
+        let mut settings = recipe.settings.clone();
+        settings.board.allow_repeated_difficulty = true;
+        catalog.recipe_set_settings(&id, settings, 1_300).unwrap();
+        let board: Vec<BoardDomain> = recipe
+            .board
+            .iter()
+            .cloned()
+            .map(|mut b| {
+                if b.domain_id.as_str() == GEO {
+                    b.question_ids.push(QuestionId::new("seed-q-geo-4"));
+                }
+                b
+            })
+            .collect();
+        catalog
+            .recipe_set_membership(&id, recipe.teams.clone(), board, 1_400)
+            .unwrap();
+    });
+    demo.play.play_start(3_000).expect("starts");
+
+    assert_eq!(demo.answer(GEO, 'a'), Verdict::Correct);
+    assert_eq!(demo.question_id(), QuestionId::new("seed-q-geo-1"));
+    let first = demo.score(RED);
+
+    assert_eq!(demo.answer(GEO, 'a'), Verdict::Correct);
+    assert_eq!(demo.question_id(), QuestionId::new("seed-q-geo-4"));
+    assert_eq!(demo.score(RED), first * 2, "two tens pay the same");
+
+    let now = demo.tick(1_000);
+    demo.play.choose_domain(&DomainId::new(GEO), now).unwrap();
+    assert_eq!(demo.question_id(), QuestionId::new("seed-q-geo-2"), "then the walk goes on");
 }

@@ -780,7 +780,9 @@ impl CatalogService {
                     selected.push((id.clone(), difficulty));
                 }
             }
-            if let Some(clash) = crate::board::clashes(&selected).into_iter().next() {
+            if let Some(clash) =
+                crate::board::check(recipe.settings.board.allow_repeated_difficulty, &selected)
+            {
                 return Err(CatalogError::invalid(
                     format!(
                         "recipe.{}.board.{}.difficulty.{}",
@@ -788,7 +790,7 @@ impl CatalogService {
                         board.domain_id.as_str(),
                         clash.difficulty
                     ),
-                    "two questions in this domain share a difficulty; a domain holds one question per difficulty",
+                    "two questions in this domain share a difficulty; turn on Allow repeated difficulties in Board, or keep one",
                 ));
             }
         }

@@ -767,7 +767,7 @@ fn warnings_for(
             .iter()
             .map(|q| (q.id.clone(), q.difficulty))
             .collect();
-        if let Some(clash) = crate::board::clashes(&pairs).into_iter().next() {
+        if let Some(clash) = crate::board::check(game.board.allow_repeated_difficulty, &pairs) {
             out.push(PreviewWarning::DuplicateDifficulty {
                 difficulty: clash.difficulty,
                 questions: clash.question_ids.len() as u32,
@@ -944,6 +944,23 @@ mod tests {
         assert!(
             p.warnings
                 .contains(&PreviewWarning::IncompleteQuestions { questions: 2 }),
+            "got {:?}",
+            p.warnings
+        );
+    }
+
+    #[test]
+    fn a_repeated_difficulty_the_game_allows_is_not_a_warning() {
+        let board = PreviewBoard {
+            domains: vec![domain("d1", &[10, 10, 30])],
+        };
+        let mut allowed = game();
+        allowed.board.allow_repeated_difficulty = true;
+        let p = preview(&allowed, &board);
+        assert!(
+            !p.warnings
+                .iter()
+                .any(|w| matches!(w, PreviewWarning::DuplicateDifficulty { .. })),
             "got {:?}",
             p.warnings
         );
@@ -1297,7 +1314,12 @@ mod tests {
         let p = preview(&game(), &PreviewBoard::default());
         let keys: Vec<&str> = p.rules.iter().map(|r| r.key).collect();
         assert_eq!(keys, AWARD_KEYS.to_vec(), "rules must follow AWARD_KEYS exactly");
-        for key in crate::flags::GAME_AFFECTING_KEYS {
+        // `board.*` decides what a board may hold, not what an answer pays: the
+        // Board section says it (P12.7), the award table has nothing to add.
+        for key in crate::flags::GAME_AFFECTING_KEYS
+            .iter()
+            .filter(|key| !key.starts_with("board."))
+        {
             assert!(
                 keys.contains(key),
                 "{key} freezes at play_start but is not explained",

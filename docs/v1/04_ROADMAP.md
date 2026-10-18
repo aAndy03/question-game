@@ -1709,6 +1709,13 @@ The first maintenance release. Operators take it by installing over 1.0.1; nothi
 - ☑ A copy that cannot be written refuses the open and leaves the file byte-identical.
 - ☑ Five copies kept; files the app did not write are left alone. Settings ▸ Data lists the folder.
 
+### P12.7 — A game may repeat a difficulty  ☑
+
+- ☑ `board.allow_repeated_difficulty` on a recipe: off by default (an older row reads as off), game-affecting, frozen at Play start.
+- ☑ On, both write doors and `build_snapshot` accept several questions at one difficulty in a domain; the queue asks them `id ASC`; each pays the same (Demo replay s17).
+- ☑ Off on a board that holds repeats: refused, naming the clash; the rev does not move.
+- ☑ Game ▸ Board has the switch; with it on nothing is dimmed for its difficulty and *Add domain* ticks every complete question. The Rules preview raises no duplicate warning.
+
 ---
 
 ## Explicitly not in v1

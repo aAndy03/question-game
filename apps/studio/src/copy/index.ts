@@ -316,16 +316,19 @@ export const GAME = {
   moveDown: 'Move down',
   board: 'Board',
   boardHint:
-    'Pick domains for this show, then the questions from each. One question per difficulty in each domain; consumed questions never return in a Play.',
+    'Pick domains for this show, then the questions from each. One question per difficulty in each domain unless repeats are allowed; consumed questions never return in a Play.',
+  allowRepeats: 'Allow repeated difficulties',
+  allowRepeatsHint:
+    'Several questions at one difficulty in a domain, asked one after the other. They pay the same, and teams cannot tell them apart when they choose.',
   boardEmpty: 'No domains on the board yet.',
   addDomain: 'Add domain',
   removeDomain: 'Remove from board',
   questionsOn: (n: number, of: number) => `${n} of ${of} questions`,
   shape: 'Shape',
   shapeHint:
-    'A domain can hold many questions at one difficulty — a game plays one of them. Untick the one on the board to free the others.',
+    'A domain can hold many questions at one difficulty — a game plays one of them, unless it allows repeated difficulties. Untick the one on the board to free the others.',
   difficultyTaken: (difficulty: number) =>
-    `Difficulty ${difficulty} is already taken by another question in this domain. Untick that one to use this.`,
+    `Difficulty ${difficulty} is already taken by another question in this domain. Untick that one, or allow repeated difficulties.`,
   incomplete: (gaps: readonly QuestionGap[]) =>
     `Incomplete — ${gaps.map((g) => QUESTION_GAP[g].toLowerCase()).join(', ')}. Finish it in the library to use it here.`,
   rules: 'Rules',

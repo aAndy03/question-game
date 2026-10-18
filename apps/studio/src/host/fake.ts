@@ -24,6 +24,7 @@ import type {
   AppPaths,
   ArchiveScope,
   AudioSettings,
+  BoardSettings,
   CatalogItem,
   ControlSettings,
   Disabled,
@@ -212,6 +213,7 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   timer: { enabled: null, duration_ms: null },
   reveal: { question: 'operator', answers: 'operator', outcome: 'operator', leaderboard: 'operator' },
   language: 'en',
+  board: { allow_repeated_difficulty: false },
 }
 
 function refuse(code: string, message: string): never {
@@ -355,6 +357,8 @@ export function createFakeHost(): FakeHost {
    * refuses is exactly the fake a shell passes against and the app rejects.
    */
   const checkBoard = (recipe: Recipe, pending?: Question) => {
+    // A recipe written before P12.7 has no `board` key; the host reads it as off.
+    const allowRepeats = (recipe.settings.board as BoardSettings | undefined)?.allow_repeated_difficulty === true
     for (const board of recipe.board) {
       const claimed = new Map<number, string>()
       for (const qid of board.questionIds) {
@@ -368,11 +372,11 @@ export function createFakeHost(): FakeHost {
             `recipe.${recipe.id}.board.${board.domainId}.question.${qid}: this question is incomplete; finish it in the library or take it off the board`,
           )
         }
-        if (body.difficulty === null) continue
+        if (body.difficulty === null || allowRepeats) continue
         if (claimed.has(body.difficulty)) {
           refuse(
             'catalog',
-            `recipe.${recipe.id}.board.${board.domainId}.difficulty.${body.difficulty}: two questions in this domain share a difficulty; a domain holds one question per difficulty`,
+            `recipe.${recipe.id}.board.${board.domainId}.difficulty.${body.difficulty}: two questions in this domain share a difficulty; turn on Allow repeated difficulties in Board, or keep one`,
           )
         }
         claimed.set(body.difficulty, qid)
@@ -531,6 +535,9 @@ export function createFakeHost(): FakeHost {
     recipe_set_settings: (a) => {
       const r = recipes.get(a.id as string)
       if (!r) refuse('catalog', `recipe ${a.id} not found`)
+      // Every recipe write funnels through the board rule on the host, this one
+      // included: switching repeats off on a board that holds them is refused.
+      checkBoard({ ...r, settings: a.settings as GameSettings })
       const next = bumpRecipe({ ...r, settings: a.settings as GameSettings })
       return { id: next.id, rev: next.rev }
     },

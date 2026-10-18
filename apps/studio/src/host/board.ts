@@ -10,7 +10,8 @@
  *
  * It reads only the **effective** difficulty each row already shows — the
  * recipe overlay if there is one, else the catalog's. It decides nothing about
- * whether the rule applies; the rule always applies.
+ * whether the rule applies: the recipe says (`board.allow_repeated_difficulty`,
+ * P12.7), and the caller passes it in.
  */
 
 export interface BoardMember {
@@ -29,11 +30,15 @@ export interface BoardMember {
  * Every member the board may **not** select right now, mapped to the difficulty
  * another selected question has already claimed.
  *
+ * Nothing is blocked when the game allows repeated difficulties
+ * (`board.allow_repeated_difficulty`, P12.7).
+ *
  * A selected member is never blocked — a board written by an older build can
  * hold two at one difficulty, and disabling both would take away the checkbox
  * the operator needs to fix it.
  */
-export function blockedMembers(members: readonly BoardMember[]): ReadonlyMap<string, number> {
+export function blockedMembers(members: readonly BoardMember[], allowRepeats = false): ReadonlyMap<string, number> {
+  if (allowRepeats) return new Map()
   const claimed = new Map<number, string>()
   for (const m of members) if (m.selected && m.difficulty !== null) claimed.set(m.difficulty, m.questionId)
 
@@ -60,4 +65,14 @@ export function oneQuestionPerDifficulty(
     if (held === undefined || m.questionId < held) picked.set(m.difficulty, m.questionId)
   }
   return [...picked.entries()].sort((a, b) => a[0] - b[0]).map(([, id]) => id)
+}
+
+/**
+ * Every question, `difficulty ASC, id ASC` — what *Add domain* ticks when the
+ * game allows repeated difficulties (P12.7), in the order the queue asks them.
+ */
+export function everyQuestion(members: readonly { readonly questionId: string; readonly difficulty: number }[]): string[] {
+  return [...members]
+    .sort((a, b) => a.difficulty - b.difficulty || (a.questionId < b.questionId ? -1 : a.questionId > b.questionId ? 1 : 0))
+    .map((m) => m.questionId)
 }

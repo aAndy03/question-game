@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blockedMembers, oneQuestionPerDifficulty, type BoardMember } from './board'
+import { blockedMembers, everyQuestion, oneQuestionPerDifficulty, type BoardMember } from './board'
 import { createFakeHost } from './fake'
 import { demoRecipe } from './devFake'
 import type { CatalogItem } from './types'
@@ -211,5 +211,22 @@ describe('the fake host', () => {
       id: 'q-b',
     })
     expect(row.item.difficulty).toBe(60)
+  })
+})
+
+describe('repeated difficulties, when the game allows them (P12.7)', () => {
+  it('blocks nothing when the game allows repeats', () => {
+    const blocked = blockedMembers([member('q-a', 10, true), member('q-b', 10), member('q-c', 10)], true)
+    expect(blocked.size).toBe(0)
+  })
+
+  it('adds every question, difficulty ASC then id ASC, when the game allows repeats', () => {
+    expect(
+      everyQuestion([
+        { questionId: 'q-c', difficulty: 30 },
+        { questionId: 'q-b', difficulty: 10 },
+        { questionId: 'q-a', difficulty: 10 },
+      ]),
+    ).toEqual(['q-a', 'q-b', 'q-c'])
   })
 })

@@ -191,3 +191,57 @@ describe('Game ▸ Board, incomplete questions (§2.32)', () => {
     expect(screen.queryByRole('img', { name: /^Incomplete — / })).toBeNull()
   })
 })
+
+describe('Game ▸ Board, repeated difficulties (P12.7)', () => {
+  let fake: FakeHost
+
+  const allowing = (questionIds: string[], allow: boolean): Recipe => {
+    const recipe = recipeWith(questionIds)
+    return { ...recipe, settings: { ...recipe.settings, board: { allow_repeated_difficulty: allow } } }
+  }
+
+  beforeEach(() => {
+    fake = createFakeHost()
+    fake.seed(library(), [allowing(['q-easy-a'], false)])
+    setHostTransport(fake)
+  })
+  afterEach(() => {
+    setHostTransport(null)
+    cleanup()
+  })
+
+  const draw = (recipe: Recipe, frozenReason: string | null = null) =>
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <BoardSection recipe={recipe} frozenReason={frozenReason} />
+      </QueryClientProvider>,
+    )
+  const box = (name: string) => screen.getByRole('checkbox', { name })
+  const isDisabled = (el: HTMLElement) =>
+    (el as HTMLInputElement).disabled || el.getAttribute('aria-disabled') === 'true'
+
+  it('offers the switch and writes it through recipe_set_settings', async () => {
+    draw(allowing(['q-easy-a'], false))
+    const toggle = await screen.findByRole('switch', { name: /allow repeated difficulties/i })
+    fireEvent.click(toggle)
+    await waitFor(() => {
+      const call = fake.calls.findLast((c) => c.name === 'recipe_set_settings')
+      expect(call).toBeTruthy()
+      expect((call!.args as { settings: { board: { allow_repeated_difficulty: boolean } } }).settings.board).toEqual({
+        allow_repeated_difficulty: true,
+      })
+    })
+  })
+
+  it('frees the twin when the game allows repeats', async () => {
+    draw(allowing(['q-easy-a'], true))
+    await waitFor(() => expect(box('Easy B?')).toBeTruthy())
+    expect(isDisabled(box('Easy B?'))).toBe(false)
+  })
+
+  it('freezes the switch with the reason while the game is playing', async () => {
+    draw(allowing(['q-easy-a'], false), 'Playing — game rules are frozen')
+    const toggle = await screen.findByRole('switch', { name: /allow repeated difficulties/i })
+    expect(isDisabled(toggle)).toBe(true)
+  })
+})

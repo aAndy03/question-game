@@ -568,6 +568,19 @@ impl RevealMode {
     }
 }
 
+/// What a recipe's board may select (P12.7, §2.31).
+///
+/// Game-affecting: it decides what a Play can contain. Not in
+/// [`FrozenSettings`] because the snapshot already *is* the board it allowed —
+/// it is read where a board is written or a snapshot is built, from the recipe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct BoardSettings {
+    /// Several questions at one difficulty in one domain. Off by default: two
+    /// at one difficulty pay the same and the team choosing cannot tell them
+    /// apart. On, they are asked one after the other, `id ASC`.
+    pub allow_repeated_difficulty: bool,
+}
+
 /// The four channels, each independently operator or auto. Serializes as the
 /// `revealModes` record `PlayStateForStage` carries — a `Record<RevealChannel,
 /// RevealMode>`, which is exactly these four keys.

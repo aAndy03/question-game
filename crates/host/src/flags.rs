@@ -35,7 +35,7 @@ use crate::monitor::StageReattach;
 use crate::play::PlayStatus;
 use crate::service::MatchService;
 use crate::settings::{
-    ConsecutiveBonus, DifficultyMap, FrozenSettings, JudgingSettings, Language, LiveSettings, LockSpeedBase,
+    BoardSettings, ConsecutiveBonus, DifficultyMap, FrozenSettings, JudgingSettings, Language, LiveSettings, LockSpeedBase,
     OverrideAfterLock, RevealChannel, RevealMode, RevealSettings, ScoringMode, ScoringSettings,
     SpeedWindow, TimerCascade, TimerLevel, TurnSettings,
 };
@@ -366,6 +366,10 @@ pub struct GameSettings {
     /// the key existed is English.
     #[serde(default)]
     pub language: Language,
+    /// What the board may select (P12.7). `#[serde(default)]`: a recipe row
+    /// written before the key existed keeps one question per difficulty.
+    #[serde(default)]
+    pub board: BoardSettings,
 }
 
 /// Control-behaviour keys: live for the whole Play (§2.5), so none of them is
@@ -494,6 +498,8 @@ pub enum GameSetting {
     Reveal(RevealChannel, RevealMode),
     /// Stage's authored-copy language. Live, like `Reveal`.
     Language(Language),
+    /// Several questions at one difficulty per board domain (P12.7).
+    AllowRepeatedDifficulty(bool),
 }
 
 impl GameSetting {
@@ -517,6 +523,7 @@ impl GameSetting {
             GameSetting::TimerDurationMs(_) => "timer.duration_ms",
             GameSetting::Reveal(channel, _) => channel.key(),
             GameSetting::Language(_) => "stage.language",
+            GameSetting::AllowRepeatedDifficulty(_) => "board.allow_repeated_difficulty",
         }
     }
 
@@ -545,6 +552,7 @@ impl GameSetting {
             GameSetting::TimerDurationMs(v) => game.timer.duration_ms = v,
             GameSetting::Reveal(channel, mode) => game.reveal.set(channel, mode),
             GameSetting::Language(v) => game.language = v,
+            GameSetting::AllowRepeatedDifficulty(v) => game.board.allow_repeated_difficulty = v,
         }
     }
 }
@@ -1231,6 +1239,7 @@ pub const GAME_AFFECTING_KEYS: &[&str] = &[
     "judging.order_matters",
     "timer.enabled",
     "timer.duration_ms",
+    "board.allow_repeated_difficulty",
 ];
 
 // ------------------------------------------------------------------ validation

@@ -298,7 +298,7 @@ someone remembers to add.
 | `TeamDetail` `QuestionDetail` `OperatorDetail` | one item Query, `referenced_by` | archive / restore | read view with `MetaList`, `StatCard`s, chips |
 | `RecipeEditor` | recipe, teams, domains, questions Queries | `recipe_upsert`, `recipe_set_membership`, `recipe_set_settings`, `recipe_set_overlay` | sections Roster · Board · Rules · Plays; frozen when that recipe's Play is `playing\|paused` (banner + all controls disabled with reason) |
 | `RosterSection` | recipe, teams | `recipe_set_membership` | order via HeroUI `ListBox` with up/down actions in P7; dnd-kit arrives with P8 |
-| `BoardSection` | recipe, domains, questions | `recipe_set_membership`, `recipe_set_overlay` (ScopeConfirm) | domain chips → question checklist; `BoardBalance` reports the shape (P11.12); **one question per difficulty** — a member whose difficulty is taken is disabled with the reason (§15) |
+| `BoardSection` | recipe, domains, questions | `recipe_set_membership`, `recipe_set_overlay` (ScopeConfirm), `recipe_set_settings` (the repeats switch) | domain chips → question checklist; `BoardBalance` reports the shape (P11.12); **one question per difficulty** — a member whose difficulty is taken is disabled with the reason (§15), unless *Allow repeated difficulties* is on (§15.4) |
 | `RulesSection` | recipe settings, `settings_get.disabled` | `recipe_set_settings` | `SettingRow`s; interlocks come from the host's `disabled` list, never recomputed |
 | `PlaysSection` | `play_list(recipeId)` | — | history table; read-only |
 | `DevHarness` | play-state, monitors | any command | **dev builds only** (`import.meta.env.DEV`); the P6 harness restyled, lives under Control until P8 replaces it |
@@ -1724,13 +1724,14 @@ the established pattern for *spelling a host rule so the operator meets it as a
 greyed control rather than as a refusal*. Two pure functions:
 
 ```ts
-blockedMembers(members)            // questionId → the difficulty already taken
+blockedMembers(members, allow)     // questionId → the difficulty already taken
 oneQuestionPerDifficulty(members)  // difficulty ASC, id ASC — one id each
+everyQuestion(members)             // the same order, every id (P12.7)
 ```
 
 They read only the **effective** difficulty each row already shows
-(`recipe.overlays.questions[id]?.difficulty ?? catalog`), and they decide
-nothing about whether the rule applies — it always applies. Deriving the dim
+(`recipe.overlays.questions[id]?.difficulty ?? catalog`); whether the rule
+applies is the recipe's switch, passed in (§15.4). Deriving the dim
 locally rather than from `rules_preview` is deliberate: the preview is a
 separate Query keyed on `rev`, so it lags a checkbox by a refetch, and the dim
 has to be instant to read as *dynamic*.
@@ -1758,6 +1759,19 @@ and `recipe_set_overlay` — including *before* the `Original` scope touches a
 catalog row, so a refused write changes nothing there as well. A shell that
 only stays legal because the fake never refuses is exactly the shell the app
 rejects.
+
+### 15.4 A game that allows repeats (P12.7)
+
+`board.allow_repeated_difficulty` is a `SwitchField` at the top of the Board
+section — *Allow repeated difficulties*, with the consequence as its
+description (two at one difficulty pay the same and the team cannot tell them
+apart). It writes `recipe_set_settings` like any Rules key and freezes with the
+page while the game is playing (`frozenReason`). On, `blockedMembers(members,
+true)` blocks nothing and *Add domain* ticks `everyQuestion(members)` —
+`difficulty ASC, id ASC`, the order the queue asks them. Off on a board that
+holds repeats, the host (and the fake) refuse the write and name the clash.
+It sits on Board, not Rules: it decides what the board may hold, not what an
+answer pays.
 
 ### 15.4 As built — departures worth knowing
 

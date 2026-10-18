@@ -272,6 +272,10 @@ export interface RevealSettings {
 }
 
 /** The recipe's B5 document. */
+export interface BoardSettings {
+  readonly allow_repeated_difficulty: boolean
+}
+
 export interface GameSettings {
   readonly scoring: ScoringSettings
   readonly judging: JudgingSettings
@@ -280,6 +284,8 @@ export interface GameSettings {
   readonly reveal: RevealSettings
   /** Stage's authored-copy language (`stage.language`). Live, never frozen. */
   readonly language: StageLanguage
+  /** What the board may select (`board.allow_repeated_difficulty`, P12.7). Game-affecting: frozen at Play start. */
+  readonly board: BoardSettings
 }
 
 export type OverrideAfterLock = 'allow' | 'refuse_until_reveal'
