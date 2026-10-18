@@ -859,6 +859,15 @@ export function createFakeHost(): FakeHost {
       return recipeId === null ? fake.plays : fake.plays.filter((p) => p.recipeId === recipeId)
     },
     play_events: () => [],
+    // `build_snapshot`'s second line: a board can become illegal from outside
+    // the recipe, and Load is where the host says so (§2.31, §2.32). The fake
+    // builds no Play — a shell test that needs one seeds `playState` itself.
+    play_load: (a) => {
+      const r = recipes.get(a.recipeId as string)
+      if (!r) refuse('catalog', `recipe ${a.recipeId} not found`)
+      checkBoard(r)
+      return null
+    },
     get_state: () => fake.playState,
     // The recipe leaves Control: the host emits `null`, and so does this.
     play_unload: (a) => {

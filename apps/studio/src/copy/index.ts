@@ -74,6 +74,10 @@ export const CHROME = {
    */
   elsewhere: (n: number) => (n === 1 ? '1 item needs attention elsewhere' : `${n} items need attention elsewhere`),
   elsewhereGo: 'Show',
+  /** A Game section an addressed notice renders in (P12.8). */
+  elsewhereGame: (section: string) => `Game ▸ ${section}`,
+  /** Beside a Game rail item whose section holds an unresolved error (P12.8). */
+  needsAttention: 'needs attention',
   /** Where an inline notice's `targetPath` lives, for that line. */
   elsewhereAt: {
     'audio.cues': 'Settings ▸ Audio',

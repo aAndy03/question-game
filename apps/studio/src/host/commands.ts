@@ -28,6 +28,13 @@ import { invalidateSettings } from './queries'
 export interface RunOptions {
   /** Where an inline refusal should land, when the host does not say. */
   readonly targetPath?: string | null
+  /**
+   * Open the notice collector when the host refuses. For a command whose
+   * reason usually renders somewhere else — `play_load` refused for a Board
+   * problem, pressed from the Roster (P12.8) — so the click is answered where
+   * it was made.
+   */
+  readonly openCollectorOnRefusal?: boolean
 }
 
 export interface Run {
@@ -62,12 +69,18 @@ function writesSettings(name: Command): boolean {
 
 export function useHostCommand(): Run {
   const pushError = useNoticeStore((s) => s.pushError)
+  const dismissUnder = useNoticeStore((s) => s.dismissUnder)
+  const setCollectorOpen = useNoticeStore((s) => s.setCollectorOpen)
   const client = useQueryClient()
   const attempt = useCallback(
     async (name: Command, args?: Record<string, unknown>, options?: RunOptions): Promise<{ ok: boolean; value: unknown }> => {
       try {
         const value = await command(name, args)
         if (writesSettings(name)) invalidateSettings(client)
+        // A write the host accepted answers what it refused about that record
+        // before; the refusal no longer stands (P12.8).
+        const answered = answeredBy(name, args)
+        if (answered !== null) dismissUnder(answered)
         return { ok: true, value }
       } catch (caught) {
         if (isHostError(caught)) {
@@ -75,10 +88,11 @@ export function useHostCommand(): Run {
         } else {
           pushError('unknown', String(caught), options?.targetPath ?? null)
         }
+        if (options?.openCollectorOnRefusal) setCollectorOpen(true)
         return { ok: false, value: null }
       }
     },
-    [pushError, client],
+    [pushError, dismissUnder, setCollectorOpen, client],
   )
   return useMemo(() => {
     const run = async <T,>(name: Command, args?: Record<string, unknown>, options?: RunOptions): Promise<T | null> =>
@@ -99,4 +113,34 @@ export function useHostCommand(): Run {
 export function targetPathOf(message: string): string | null {
   const match = /^((?:team|domain|question|operator|recipe|asset|audio|shortcuts|import)(?:\.[^\s:]+)?):/.exec(message)
   return match?.[1] ?? null
+}
+
+/**
+ * The notices a command the host **accepted** has answered, as a path prefix.
+ *
+ * A board write the host took is a board it found legal — every recipe write
+ * runs the board rules (§2.31, §2.32) — so the Board's refusals no longer
+ * stand. A Load the host took is a recipe it could build a Play from, so
+ * nothing addressed to that recipe stands. Anything else answers nothing.
+ */
+export function answeredBy(name: Command, args?: Record<string, unknown>): string | null {
+  const id = (value: unknown) => (typeof value === 'string' ? value : null)
+  switch (name) {
+    case 'play_load': {
+      const recipe = id(args?.recipeId)
+      return recipe === null ? null : `recipe.${recipe}.`
+    }
+    case 'recipe_set_membership':
+    case 'recipe_set_settings':
+    case 'recipe_set_overlay': {
+      const recipe = id(args?.id)
+      return recipe === null ? null : `recipe.${recipe}.board.`
+    }
+    case 'recipe_upsert': {
+      const recipe = id((args?.recipe as { id?: unknown } | undefined)?.id)
+      return recipe === null ? null : `recipe.${recipe}.board.`
+    }
+    default:
+      return null
+  }
 }

@@ -223,6 +223,26 @@ notice: `code` selects copy in `copy/notices.ts`, `severity` defaults to
 or row that caused it, otherwise to the collector. Success does not toast:
 the row updates because the event came back. There is no Toast in P7.
 
+**An addressed refusal is still heard from anywhere** (P12.8). Inline is where
+a refusal is *fixed*, not the only place it is *seen* — an operator pressed
+*Load into Control* on Game ▸ Roster, the host refused it for a Board problem,
+and the only trace was on a section they were not looking at.
+
+- The **status bar** shows the newest *error* whatever its surface
+  (`latestForStatusBar`), and the collector's *needs attention elsewhere* line
+  names the place — `Game ▸ Board`, from `gameSectionOf(path)`, which reads a
+  `recipe.<id>.<section>…` path at any depth — with *Show* to go there.
+- A refusal of `play_load` **opens the collector** where the click was
+  (`run.ok(…, { openCollectorOnRefusal: true })`).
+- The Game **rail** marks a section that holds an unresolved error (a danger
+  dot, and *needs attention* in its accessible name).
+- **The same refusal again replaces the open one** (code, path, message), so
+  pressing Load five times is one notice, not five.
+- **A write the host accepts answers the refusals it covers**
+  (`answeredBy`): a board write clears `recipe.<id>.board.…`, a Load clears
+  everything under `recipe.<id>.`.
+- Still a notice, never a toast: a toast disappears and cannot carry *Show*.
+
 ## 4. Component catalog
 
 Naming: one component, one file, one test. A prop that names a variant uses the

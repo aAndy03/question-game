@@ -1,9 +1,9 @@
 import { AlertDialog, Drawer } from '@heroui/react'
 import { Button, Text } from '@/atoms'
 import { EmptyState, InlineNotice } from '@/molecules'
-import { inlineNotices, surfaceOf, useNoticeStore, type OpenNotice } from '@/chrome/notices'
+import { gameSectionOf, inlineNotices, surfaceOf, useNoticeStore, type OpenNotice } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
-import { CHROME, CONFIRM, SCREENS_TAB, noticeAction, noticeTitle } from '@/copy'
+import { CHROME, CONFIRM, GAME, SCREENS_TAB, noticeAction, noticeTitle } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 
 /**
@@ -63,10 +63,10 @@ export function NoticeCollector() {
         dismiss(notice.id)
         return
       case 'open_section': {
-        // `recipe.<id>.roster` / `recipe.<id>.board` → that Game section.
-        const match = /^recipe\.([^.]+)\.(roster|board)$/.exec(notice.targetPath ?? '')
+        // `recipe.<id>.<section>…` → that Game section.
+        const at = gameSectionOf(notice.targetPath)
         setOpen(false)
-        if (match?.[1] && (match[2] === 'roster' || match[2] === 'board')) await go({ tab: 'games', id: match[1], section: match[2] })
+        if (at) await go({ tab: 'games', id: at.recipeId, section: at.section })
         dismiss(notice.id)
         return
       }
@@ -94,9 +94,9 @@ export function NoticeCollector() {
   const goTo = async (notice: OpenNotice) => {
     const path = notice.targetPath ?? ''
     setOpen(false)
-    const section = /^recipe\.([^.]+)\.(roster|board)$/.exec(path)
-    if (section?.[1] && (section[2] === 'roster' || section[2] === 'board')) {
-      await go({ tab: 'games', id: section[1], section: section[2] })
+    const at = gameSectionOf(path)
+    if (at) {
+      await go({ tab: 'games', id: at.recipeId, section: at.section })
       return
     }
     if (path.startsWith('stage.') || path.startsWith('stats.')) {
@@ -122,8 +122,10 @@ export function NoticeCollector() {
   return (
     <>
       <Drawer.Backdrop isOpen={open} onOpenChange={setOpen}>
-        <Drawer.Content placement="right" className="w-[26rem] max-w-[90vw]">
-          <Drawer.Dialog aria-label={CHROME.notices}>
+        {/* The width is the panel's: since HeroUI 3.2.6 `Content` is a full-viewport
+            flex track that places `Dialog`, so a width on it pins the panel left. */}
+        <Drawer.Content placement="right">
+          <Drawer.Dialog aria-label={CHROME.notices} className="w-[26rem] max-w-[90vw]">
             <Drawer.CloseTrigger />
             <Drawer.Header>
               <Drawer.Heading>{CHROME.notices}</Drawer.Heading>
@@ -227,5 +229,7 @@ function placeOf(notice: OpenNotice): string {
   const path = notice.targetPath ?? ''
   const exact = CHROME.elsewhereAt[path as keyof typeof CHROME.elsewhereAt]
   if (exact) return exact
+  const at = gameSectionOf(path)
+  if (at) return CHROME.elsewhereGame(GAME.sections[at.section])
   return path.startsWith('recipe.') ? CHROME.elsewhereAt.recipe : path
 }

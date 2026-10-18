@@ -78,3 +78,15 @@ describe('the notice collector', () => {
     expect(screen.queryByText('No notices yet')).toBeNull()
   })
 })
+
+describe('the collector drawer (P12.8)', () => {
+  // HeroUI 3.2.6 made `Drawer.Content` a full-viewport track that places the
+  // dialog; a width on it pinned the right-hand panel to the left edge.
+  it('sizes the panel, not the track', async () => {
+    open([notice()])
+    await screen.findByText('1 item needs attention elsewhere')
+    const dialog = document.querySelector('.drawer__dialog')
+    expect(dialog?.className).toContain('w-[26rem]')
+    expect(document.querySelector('.drawer__content')?.className).not.toContain('w-[26rem]')
+  })
+})

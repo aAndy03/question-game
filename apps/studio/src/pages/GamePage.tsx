@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Button, MeaningChip, Panel, Skeleton, Text, TextField } from '@/atoms'
+import { Button, MeaningChip, Panel, Skeleton, StatusDot, Text, TextField } from '@/atoms'
 import { EmptyState, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
 import { BoardSection, PlaysSection, RosterSection, RulesPreviewPanel, RulesSection, useArchive } from '@/organisms'
 import { RecordPageLayout } from '@/templates'
 import { useNavStore, type GameSection } from '@/chrome/nav'
-import { GAME, LIST, TABS } from '@/copy'
+import { gameSectionOf, useNoticeStore } from '@/chrome/notices'
+import { CHROME, GAME, LIST, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import { isPlayOpen, usePlayState } from '@/host/playState'
@@ -32,6 +33,15 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
   const archive = useArchive()
   const [name, setName] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  // Sections holding a refusal that still stands, so the rail can say where to
+  // look from whichever section the operator is on (P12.8).
+  const notices = useNoticeStore((s) => s.notices)
+  const attention = new Set(
+    notices.flatMap((n) => {
+      const at = n.severity === 'error' ? gameSectionOf(n.targetPath) : null
+      return at?.recipeId === id ? [at.section] : []
+    }),
+  )
 
   if (recipe.isLoading && !recipe.data) {
     return (
@@ -63,8 +73,10 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
   }
   const load = async () => {
     setLoading(true)
-    // `play_load` answers `()`, so the verdict is the only signal here.
-    const ok = await run.ok('play_load', { recipeId: r.id, playId: `play-${Date.now()}` })
+    // `play_load` answers `()`, so the verdict is the only signal here. A
+    // refusal usually renders on another section (a Board problem, pressed
+    // from the Roster), so it opens the collector where the click was (P12.8).
+    const ok = await run.ok('play_load', { recipeId: r.id, playId: `play-${Date.now()}` }, { openCollectorOnRefusal: true })
     setLoading(false)
     if (ok) {
       toast.success(`${r.name} is in Control`, 'Stage is open on the primary display.')
@@ -82,15 +94,17 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
               key={s}
               type="button"
               aria-current={section === s ? 'page' : undefined}
+              aria-label={attention.has(s) ? `${GAME.sections[s]} — ${CHROME.needsAttention}` : undefined}
               onClick={() => replace({ tab: 'games', id: r.id, section: s })}
               className={[
-                'h-9 rounded-[calc(var(--radius)/1.5)] px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]',
+                'flex h-9 items-center justify-between gap-2 rounded-[calc(var(--radius)/1.5)] px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]',
                 section === s ? 'bg-[var(--accent)]/12 text-[var(--accent)]' : 'hover:bg-[var(--surface-secondary)]',
               ].join(' ')}
             >
               <Text variant="studio-label" tone="inherit">
                 {GAME.sections[s]}
               </Text>
+              {attention.has(s) ? <StatusDot tone="danger" /> : null}
             </button>
           ))}
         </nav>

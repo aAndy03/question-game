@@ -19,6 +19,7 @@
 
 import { create } from 'zustand'
 import type { Notice } from '@questiongame/contract'
+import type { GameSection } from './nav'
 
 export const MAX_ACTIONS = 3
 export const MAX_FRAMES = 3
@@ -40,8 +41,17 @@ interface NoticeState {
   readonly notices: readonly OpenNotice[]
   readonly collectorOpen: boolean
   push(notice: Notice): number
+  /**
+   * A refused command. The same refusal again (code, path and message) is the
+   * same problem: it replaces the open one rather than stacking a copy (P12.8).
+   */
   pushError(code: string, message: string, targetPath?: string | null): number
   dismiss(id: number): void
+  /**
+   * Drop every **error** addressed under `prefix` — what a successful write to
+   * that record does, so a fixed problem stops being reported (P12.8).
+   */
+  dismissUnder(prefix: string): void
   /**
    * Replace every notice whose `detail.source` is `source` with `notices`,
    * stamping the source on each. Other notices keep their ids and order.
@@ -70,6 +80,10 @@ export const useNoticeStore = create<NoticeState>((set, get) => ({
   },
 
   pushError(code, message, targetPath = null) {
+    const same = get().notices.find(
+      (n) => n.severity === 'error' && n.code === code && n.targetPath === targetPath && n.detail.message === message,
+    )
+    if (same) set((s) => ({ notices: s.notices.filter((n) => n.id !== same.id) }))
     return get().push({
       code,
       severity: 'error',
@@ -81,6 +95,12 @@ export const useNoticeStore = create<NoticeState>((set, get) => ({
 
   dismiss(id) {
     set((s) => ({ notices: s.notices.filter((n) => n.id !== id) }))
+  },
+
+  dismissUnder(prefix) {
+    set((s) => ({
+      notices: s.notices.filter((n) => !(n.severity === 'error' && n.targetPath !== null && n.targetPath.startsWith(prefix))),
+    }))
   },
 
   replaceSource(source, notices) {
@@ -134,9 +154,14 @@ export function surfaceOf(notice: Notice): NoticeSurface {
   return 'collector'
 }
 
-/** The most recent notice that is not inline — what the status bar shows. */
+/**
+ * What the status bar shows: the newest **error**, wherever it renders — a
+ * refused Load addressed to the Board is still the thing the operator needs to
+ * hear about from the Roster (P12.8) — else the newest notice that is not
+ * inline.
+ */
 export function latestForStatusBar(notices: readonly OpenNotice[]): OpenNotice | null {
-  return notices.find((n) => surfaceOf(n) !== 'inline') ?? null
+  return notices.find((n) => n.severity === 'error') ?? notices.find((n) => surfaceOf(n) !== 'inline') ?? null
 }
 
 /**
@@ -154,4 +179,15 @@ export function inlineNotices(notices: readonly OpenNotice[]): OpenNotice[] {
 /** Notices addressed to a field or row, by path prefix. */
 export function noticesAt(notices: readonly OpenNotice[], path: string): OpenNotice[] {
   return notices.filter((n) => n.targetPath !== null && n.targetPath.startsWith(path))
+}
+
+/**
+ * The Game section a `recipe.<id>.<section>…` path is addressed to, at any
+ * depth — a Board refusal is `recipe.<id>.board.<domain>.difficulty.<n>`.
+ * What the collector's *Show* and the Game rail both read (P12.8).
+ */
+export function gameSectionOf(path: string | null): { recipeId: string; section: GameSection } | null {
+  const match = /^recipe\.([^.]+)\.(roster|board|rules|plays)(?:\.|$)/.exec(path ?? '')
+  if (!match?.[1] || !match[2]) return null
+  return { recipeId: match[1], section: match[2] as GameSection }
 }

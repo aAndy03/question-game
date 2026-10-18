@@ -1716,6 +1716,13 @@ The first maintenance release. Operators take it by installing over 1.0.1; nothi
 - ☑ Off on a board that holds repeats: refused, naming the clash; the rev does not move.
 - ☑ Game ▸ Board has the switch; with it on nothing is dimmed for its difficulty and *Add domain* ticks every complete question. The Rules preview raises no duplicate warning.
 
+### P12.8 — A refused Load says why, from anywhere  ☑
+
+- ☑ Load pressed on Roster for a Board problem opens the collector: *1 item needs attention elsewhere · Game ▸ Board · Show*, and *Show* lands on Board (it used to land on Settings: the path match required the section to end the path).
+- ☑ The status bar shows the error; the Game rail marks Board until it is fixed.
+- ☑ The same refusal pressed again is one notice; a write the host accepts clears what it answered.
+- ☑ The collector drawer is on the right again (HeroUI 3.2.6 regression from P12.5).
+
 ---
 
 ## Explicitly not in v1
