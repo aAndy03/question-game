@@ -2,7 +2,7 @@
 #
 # Push a tag named after the version to release it:
 #
-#   git tag v1.0.1 && git push origin v1.0.1
+#   git tag v1.0.2 && git push origin v1.0.2
 #
 # The tag must match the version in Cargo.toml, crates/app/tauri.conf.json and
 # package.json (crates/app/tests/bundle.rs holds those three together). The
@@ -107,6 +107,10 @@ jobs:
 
             - **Windows 10 / 11:** `questiongame_…_x64-setup.exe`
             - **macOS 13 or later (Apple Silicon and Intel):** `questiongame_…_universal.dmg`
+
+            ### Updating from an earlier version
+
+            **Install over the version you have — do not uninstall first.** Run the new installer (Windows) or drag the new app over the old one in Applications (macOS). Your teams, questions and games stay where they are, and questiongame copies them to a backup before it changes anything. Uninstalling first risks ticking *Delete the application data*, which removes your library. The first time it opens, questiongame shows what's new.
 
             ### These installers are not signed
 

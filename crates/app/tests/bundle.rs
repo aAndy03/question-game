@@ -30,7 +30,7 @@ fn workspace_version() -> String {
 #[test]
 fn one_version_in_three_files() {
     let version = workspace_version();
-    assert_eq!(version, "1.0.1");
+    assert_eq!(version, "1.0.2");
     assert_eq!(env!("CARGO_PKG_VERSION"), version);
     assert_eq!(json("tauri.conf.json")["version"], version.as_str());
     assert_eq!(json("../../package.json")["version"], version.as_str());

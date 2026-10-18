@@ -96,7 +96,7 @@ describe('Settings', () => {
     await act(async () => {
       await useNavStore.getState().go({ tab: 'settings', inner: 'about' })
     })
-    expect(await screen.findByText(SETTINGS.about.version('1.0.1', 'dev'))).toBeTruthy()
+    expect(await screen.findByText(SETTINGS.about.version('1.0.2', 'dev'))).toBeTruthy()
     expect(screen.getByText(SETTINGS.about.gplSummary)).toBeTruthy()
     expect(screen.getByText(SETTINGS.about.gsapPermission)).toBeTruthy()
     await waitFor(() => expect(screen.getAllByText(SETTINGS.about.notGenerated).length).toBe(2))

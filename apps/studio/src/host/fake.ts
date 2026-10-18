@@ -718,7 +718,7 @@ export function createFakeHost(): FakeHost {
       return null
     },
     // The app itself (P12.2), refusing in the host's order.
-    app_info: () => ({ version: '1.0.1', build: 'dev', identifier: 'org.questiongame.app' }),
+    app_info: () => ({ version: '1.0.2', build: 'dev', identifier: 'org.questiongame.app' }),
     app_quit: () => {
       fake.quits += 1
       return null

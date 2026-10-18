@@ -3218,7 +3218,7 @@ dependencies = [
 
 [[package]]
 name = "questiongame-app"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "fs4 1.1.0",
  "questiongame-host",
@@ -3242,7 +3242,7 @@ dependencies = [
 
 [[package]]
 name = "questiongame-host"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "argon2",
  "proptest",
