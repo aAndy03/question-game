@@ -69,6 +69,7 @@ pub fn open_studio(app: &AppHandle) -> AppResult<WebviewWindow> {
             .title(studio_title(tauri::is_dev()))
             .inner_size(1440.0, 920.0)
             .min_inner_size(1100.0, 720.0),
+        app,
     )
     .build()?)
 }
@@ -107,7 +108,14 @@ const WRY_DEFAULT_BROWSER_ARGS: &str =
 /// `QUESTIONGAME_DEBUG_PORT` overrides the port (default 9222).
 fn debuggable<'a>(
     builder: WebviewWindowBuilder<'a, tauri::Wry, AppHandle>,
+    app: &AppHandle,
 ) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
+    // The e2e build is driven by msedgedriver, which launches WebView2 on a
+    // debugging port of its own and waits for it (P12.15); a second port
+    // asked for here is one more thing for it to lose.
+    if app.config().identifier == crate::identity::E2E_IDENTIFIER {
+        return builder;
+    }
     #[cfg(all(windows, debug_assertions))]
     {
         let port = std::env::var("QUESTIONGAME_DEBUG_PORT").unwrap_or_else(|_| "9222".into());
@@ -148,6 +156,7 @@ pub fn ensure_stage(app: &AppHandle, on: Option<&MonitorKey>) -> AppResult<Webvi
             .fullscreen(true)
             // Nobody clicks Stage; a focus steal mid-question is a lost lock.
             .focused(false),
+        app,
     )
     .build()?;
     // Built fullscreen on primary and then moved, rather than positioned at
@@ -193,6 +202,7 @@ pub fn reconcile_mirrors(app: &AppHandle, wanted: &[MonitorKey]) -> AppResult<()
                     // Nobody clicks a mirror either, and a focus steal
                     // mid-question is a lost lock.
                     .focused(false),
+                app,
             )
             .build()?,
         };
@@ -250,6 +260,7 @@ pub fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool) -
             .title("questiongame Statistics")
             .inner_size(1280.0, 800.0)
             .focused(false),
+        app,
     );
     if let Some(origin) = origin {
         builder = builder.position(f64::from(origin.x), f64::from(origin.y));

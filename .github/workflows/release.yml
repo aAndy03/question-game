@@ -92,6 +92,15 @@ jobs:
         run: npm run e2e
         env:
           E2E_SKIP_BUILD: '1'
+      # A session that never starts leaves no screenshot; the app's own log
+      # says whether it booted, refused, or panicked.
+      - name: Collect the e2e app's logs
+        if: failure()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force e2e/.artifacts | Out-Null
+          Copy-Item "$env:APPDATA\org.questiongame.e2e\questiongame.log" e2e/.artifacts -ErrorAction SilentlyContinue
+          Copy-Item "$env:APPDATA\org.questiongame.e2e\perf" e2e/.artifacts -Recurse -ErrorAction SilentlyContinue
       - name: Keep what a failed step looked like
         if: failure()
         uses: actions/upload-artifact@v7
