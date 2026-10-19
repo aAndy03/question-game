@@ -27,3 +27,6 @@ skills-lock.json
 # os
 Thumbs.db
 .DS_Store
+
+# The e2e suite's failure screenshots and page sources (P12.14).
+e2e/.artifacts/

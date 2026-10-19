@@ -1809,6 +1809,7 @@ app_crate:
       "guard::stats_may_call": {kind: fn, sig: "fn stats_may_call(command: &str) -> bool"}
     crates/app/src/identity.rs:
       "identity::build_label": {doc: "What the performance log and Settings ▸ About call this build.", kind: fn, sig: "fn build_label(is_dev: bool) -> &'static str"}
+      "identity::build_label_for": {doc: "[`build_label`], naming the end-to-end build for what it is.", kind: fn, sig: "fn build_label_for(is_dev: bool, identifier: &str) -> &'static str"}
       "identity::check": {doc: "`is_dev` is `tauri::is_dev()`: the frontend comes from `devUrl` rather than being embedded — Tauri's own line between the two builds.", kind: fn, sig: "fn check(is_dev: bool, identifier: &str) -> Result<(), String>"}
     crates/app/src/lib.rs:
       run: {doc: "Build and run the desktop app.", kind: fn, sig: "fn run()"}

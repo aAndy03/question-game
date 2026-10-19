@@ -1753,9 +1753,15 @@ The first maintenance release. Operators take it by installing over 1.0.1; nothi
 - ☑ `mismatches:` is empty; its first run found the contract's `STAGE_COMMANDS` missing `client_log` and `perf_report`, now fixed.
 - ☑ `tools/codemap` (syn) is dev-only: the licence audit still walks 560 cargo packages and refuses none.
 
+### P12.14 — The end-to-end suite  ☑
+
+- ☑ WebdriverIO + `tauri-driver` drive the real app under `org.questiongame.e2e`; the installed and dev libraries are untouched (checked by hash).
+- ☑ Four specs pass in ~20 s: first run, a show onto Stage, a refused Load from the Roster, an update's backup and *What's new*.
+- ☑ CI runs the suite on Windows before the release builds; a failure uploads screenshots and page sources.
+- ☐ Still manual: several displays, the installer upgrade itself, macOS.
+
 ### Next
 
-- ☐ An end-to-end suite on the real binary (WebdriverIO + `tauri-driver`, Windows CI): smoke, a full Play, the upgrade from the previous release, Load refusals, the update check offline.
 - ☐ A **questiongame Beta** channel: a separate app (`org.questiongame.beta`, its own data folder, installed beside stable), `main` as the beta line with `release/1.0` for stable fixes, `-beta.N` tags published as pre-releases, a channel-aware update check.
 
 ---

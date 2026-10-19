@@ -15,7 +15,7 @@ export default defineConfig({
         test: {
           name: 'scripts',
           environment: 'node',
-          include: ['scripts/**/*.test.ts'],
+          include: ['scripts/**/*.test.ts', 'e2e/support/**/*.test.ts'],
         },
       },
       {

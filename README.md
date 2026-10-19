@@ -218,7 +218,15 @@ npm run typecheck      # tsc --build across all project references
 npm run lint           # eslint — this is where the architecture rules live
 npm run lint:host      # clippy over the host crate
 npm run lint:app       # clippy over the Tauri crate
+npm run map:check      # codemap.yaml matches the code (npm run map regenerates it)
+npm run e2e            # the real app, driven through WebDriver (Windows; see below)
 ```
+
+The end-to-end suite needs two tools once: `cargo install tauri-driver --locked`,
+and `cargo install --git https://github.com/chippers/msedgedriver-tool` followed
+by running `msedgedriver-tool` in `~/.cargo/bin`, which fetches the driver that
+matches your WebView2. It runs its own build of the app (`org.questiongame.e2e`),
+so it never touches your installed library or your dev library.
 
 `npm run lint` is not cosmetic. `eslint.config.js` enforces the atomic-design
 dependency direction, the rule that only organisms and pages may touch

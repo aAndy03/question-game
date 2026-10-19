@@ -92,7 +92,7 @@ pub fn app_info(window: WebviewWindow, app: AppHandle) -> AppResult<AppInfo> {
     guard::allow(window.label(), "app_info")?;
     Ok(AppInfo {
         version: app.package_info().version.to_string(),
-        build: crate::identity::build_label(tauri::is_dev()),
+        build: crate::identity::build_label_for(tauri::is_dev(), &app.config().identifier),
         identifier: app.config().identifier.clone(),
     })
 }

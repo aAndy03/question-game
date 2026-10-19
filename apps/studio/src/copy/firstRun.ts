@@ -17,7 +17,7 @@ export const FIRST_RUN = {
 
   paths: {
     title: 'Where things live',
-    body: 'Studio keeps everything on this computer. Nothing leaves it.',
+    body: 'Studio keeps everything on this computer. The one thing it asks the internet is whether a newer version exists, and Settings ▸ About turns that off.',
   },
   operator: {
     title: 'Who runs the studio?',

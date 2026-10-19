@@ -29,7 +29,7 @@
     "build": "npm run notices && npm run build --workspaces --if-present",
     "notices": "vite-node scripts/notices.ts",
     "release:check": "vite-node scripts/release-check.ts",
-    "typecheck": "tsc --build --force",
+    "typecheck": "tsc --build --force && tsc -p e2e",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:host": "cargo test --manifest-path crates/host/Cargo.toml",
@@ -50,7 +50,9 @@
     "map": "vite-node scripts/codemap.ts",
     "map:check": "vite-node scripts/codemap.ts --check",
     "test:tools": "cargo test -p codemap",
-    "lint:tools": "cargo clippy -p codemap --all-targets -- -D warnings"
+    "lint:tools": "cargo clippy -p codemap --all-targets -- -D warnings",
+    "e2e:build": "tauri build --debug --no-bundle --config crates/app/tauri.e2e.conf.json",
+    "e2e": "wdio run e2e/wdio.conf.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -62,6 +64,11 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "@wdio/cli": "^9.32.0",
+    "@wdio/globals": "^9.31.3",
+    "@wdio/local-runner": "^9.32.0",
+    "@wdio/mocha-framework": "^9.32.0",
+    "@wdio/spec-reporter": "^9.32.0",
     "eslint": "^10.13.0",
     "globals": "^17.13.0",
     "jsdom": "^29.1.1",

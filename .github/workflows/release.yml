@@ -64,9 +64,44 @@ jobs:
       - name: codemap.yaml is current
         run: npm run map:check
 
+  # The real app, driven through WebDriver (P12.14). Windows only: there is no
+  # WebDriver for macOS's WKWebView. It drives the e2e build, whose identity
+  # (org.questiongame.e2e) has a data folder of its own.
+  e2e:
+    name: End-to-end (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: e2e
+      - run: npm ci
+      - name: tauri-driver and the WebView2 driver
+        shell: bash
+        run: |
+          cargo install tauri-driver --locked
+          cargo install --git https://github.com/chippers/msedgedriver-tool
+          cd "$HOME/.cargo/bin" && ./msedgedriver-tool.exe
+      - run: npm run e2e:build
+      - name: Run the suite
+        run: npm run e2e
+        env:
+          E2E_SKIP_BUILD: '1'
+      - name: Keep what a failed step looked like
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-failures
+          path: e2e/.artifacts/
+
   build:
     name: Build (${{ matrix.name }})
-    needs: test
+    needs: [test, e2e]
     strategy:
       fail-fast: false
       matrix:
