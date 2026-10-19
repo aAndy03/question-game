@@ -205,7 +205,7 @@ export function groupOf(command: Command): CommandGroup | null {
  * `overlay_ack_complete` carries **every** `AnimKey`, not only overlay ones:
  * one door for the whole `anim-complete` handshake (spec §11.G).
  */
-export const STAGE_COMMANDS = ['overlay_ack_complete', 'stage_ready', 'stage_report'] as const
+export const STAGE_COMMANDS = ['overlay_ack_complete', 'stage_ready', 'stage_report', 'client_log', 'perf_report'] as const
 export type StageCommand = (typeof STAGE_COMMANDS)[number]
 
 export function isStageCommand(command: string): command is StageCommand {

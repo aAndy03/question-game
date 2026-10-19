@@ -192,12 +192,14 @@ describe('commands and events', () => {
   })
 
   it('lets Stage report on itself and nothing else', () => {
-    // Stage is a projection, not a controller (spec §5.7). Both of these are
-    // Stage reporting its own state — a finished timeline, and "I have mounted,
-    // and this is my contract version". Neither carries an opinion about the
-    // Play. The host enforces the same list in `crates/app/src/guard.rs`,
-    // because Tauri does not gate app-defined commands behind capabilities.
-    expect(STAGE_COMMANDS).toEqual(['overlay_ack_complete', 'stage_ready', 'stage_report'])
+    // Stage is a projection, not a controller (spec §5.7). Every one of these is
+    // Stage reporting on itself — a finished timeline, "I have mounted, and this
+    // is my contract version", its health, its log lines, its second's numbers.
+    // None carries an opinion about the Play. The host enforces the same list in
+    // `crates/app/src/guard.rs`, because Tauri does not gate app-defined commands
+    // behind capabilities; `codemap.yaml`'s `mismatches` is what caught the two
+    // lists drifting (P12.13).
+    expect(STAGE_COMMANDS).toEqual(['overlay_ack_complete', 'stage_ready', 'stage_report', 'client_log', 'perf_report'])
     for (const command of STAGE_COMMANDS) {
       expect(COMMANDS).toContain(command)
     }

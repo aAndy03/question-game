@@ -59,6 +59,10 @@ jobs:
       - run: npm run test:host
       - run: npm run test:app
       - run: npm run lint:app
+      - run: npm run test:tools
+      - run: npm run lint:tools
+      - name: codemap.yaml is current
+        run: npm run map:check
 
   build:
     name: Build (${{ matrix.name }})

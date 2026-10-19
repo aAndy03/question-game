@@ -1,0 +1,22 @@
+# Dev-only tooling for `npm run map` (codemap.yaml). Nothing ships from here:
+# no workspace member depends on it, and the licence audit walks from
+# `questiongame-app`, so these parser crates never reach an installer.
+[package]
+name = "codemap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "codemap"
+path = "src/main.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+syn = { version = "2", features = ["full", "visit", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"

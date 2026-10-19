@@ -34,7 +34,7 @@
     "test:watch": "vitest",
     "test:host": "cargo test --manifest-path crates/host/Cargo.toml",
     "test:app": "cargo test -p questiongame-app",
-    "test:all": "npm run test && npm run test:host && npm run test:app",
+    "test:all": "npm run test && npm run test:host && npm run test:app && npm run test:tools",
     "lint": "eslint .",
     "lint:host": "cargo clippy --manifest-path crates/host/Cargo.toml --all-targets -- -D warnings",
     "lint:app": "cargo clippy -p questiongame-app --all-targets -- -D warnings",
@@ -45,8 +45,12 @@
     "studio:icons": "vite-node scripts/studio-icons.ts",
     "audio:placeholders": "vite-node scripts/audio-placeholders.ts",
     "js-stack": "node scripts/js-stack.mjs",
-    "release": "npm run typecheck && npm run lint && npm run test:all && tauri build",
-    "leak-probe": "node scripts/leak-probe.mjs"
+    "release": "npm run typecheck && npm run lint && npm run test:all && npm run map:check && tauri build",
+    "leak-probe": "node scripts/leak-probe.mjs",
+    "map": "vite-node scripts/codemap.ts",
+    "map:check": "vite-node scripts/codemap.ts --check",
+    "test:tools": "cargo test -p codemap",
+    "lint:tools": "cargo clippy -p codemap --all-targets -- -D warnings"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

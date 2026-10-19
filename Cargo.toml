@@ -6,7 +6,7 @@
 # it depends on `questiongame-host`, never the other way round.
 [workspace]
 resolver = "3"
-members = ["crates/host", "crates/app"]
+members = ["crates/host", "crates/app", "tools/codemap"]
 
 [workspace.package]
 version = "1.0.2"
