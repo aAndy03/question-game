@@ -2514,7 +2514,7 @@ build:
         name: "End-to-end (Windows)"
         needs: []
         runs: ["npm ci", "npm run e2e:build", "npm run e2e"]
-        runs_on: windows-latest
+        runs_on: windows-2022
       test:
         name: Test
         needs: []
