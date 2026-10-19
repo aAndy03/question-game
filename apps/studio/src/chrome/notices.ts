@@ -52,6 +52,8 @@ interface NoticeState {
    * that record does, so a fixed problem stops being reported (P12.8).
    */
   dismissUnder(prefix: string): void
+  /** Drop every **error** the predicate picks (P12.12). */
+  dismissWhere(pick: (notice: OpenNotice) => boolean): void
   /**
    * Replace every notice whose `detail.source` is `source` with `notices`,
    * stamping the source on each. Other notices keep their ids and order.
@@ -101,6 +103,10 @@ export const useNoticeStore = create<NoticeState>((set, get) => ({
     set((s) => ({
       notices: s.notices.filter((n) => !(n.severity === 'error' && n.targetPath !== null && n.targetPath.startsWith(prefix))),
     }))
+  },
+
+  dismissWhere(pick) {
+    set((s) => ({ notices: s.notices.filter((n) => !(n.severity === 'error' && pick(n))) }))
   },
 
   replaceSource(source, notices) {

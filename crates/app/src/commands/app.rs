@@ -100,13 +100,29 @@ pub fn app_info(window: WebviewWindow, app: AppHandle) -> AppResult<AppInfo> {
 /// Is there a newer release? (P12.9). The app's one network call, made here
 /// and never from a webview; Studio asks once per session when no Play is
 /// loaded, and again from Settings ▸ About. Studio only (`guard`).
-#[tauri::command(async)]
-pub fn update_check(window: WebviewWindow) -> AppResult<crate::update::UpdateStatus> {
+///
+/// The request blocks for up to five seconds, so it runs on the blocking
+/// pool rather than an async worker the other commands need (P12.12). A
+/// failure is logged — offline and an unreadable trust store read the same in
+/// Studio, which says nothing about either, so the log is where they differ.
+#[tauri::command]
+pub async fn update_check(window: WebviewWindow) -> AppResult<crate::update::UpdateStatus> {
     guard::allow(window.label(), "update_check")?;
-    let status = crate::update::check(crate::update::fetch_latest, env!("CARGO_PKG_VERSION"))
-        .map_err(AppError::Network)?;
-    tracing::info!(latest = status.latest.as_deref().unwrap_or("-"), newer = status.newer, "update check");
-    Ok(status)
+    let answer = tauri::async_runtime::spawn_blocking(|| {
+        crate::update::check(crate::update::fetch_latest, env!("CARGO_PKG_VERSION"))
+    })
+    .await
+    .map_err(|e| AppError::Network(e.to_string()))?;
+    match answer {
+        Ok(status) => {
+            tracing::info!(latest = status.latest.as_deref().unwrap_or("-"), newer = status.newer, "update check");
+            Ok(status)
+        }
+        Err(reason) => {
+            tracing::warn!(%reason, "update check failed");
+            Err(AppError::Network(reason))
+        }
+    }
 }
 
 /// Open a release's page in the browser. Studio passes a **version**, never a
@@ -140,8 +156,10 @@ pub fn whats_new_get(window: WebviewWindow, state: State<'_, AppState>) -> AppRe
     guard::allow(window.label(), "whats_new_get")?;
     let current = env!("CARGO_PKG_VERSION");
     let host = state.lock();
-    let existed = host.open_report.as_ref().is_some_and(|r| r.existed);
-    let since = match crate::whats_new::since(host.catalog.meta_get(META_LAST_SEEN)?, existed) {
+    let since = match crate::whats_new::since(
+        host.catalog.meta_get(META_LAST_SEEN)?,
+        host.open_report.as_ref(),
+    ) {
         crate::whats_new::Since::Show(version) => Some(version),
         crate::whats_new::Since::StampSilently => {
             host.catalog.meta_set(META_LAST_SEEN, current)?;

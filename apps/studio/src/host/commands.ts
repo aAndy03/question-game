@@ -21,9 +21,10 @@
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Command } from '@questiongame/contract'
-import { useNoticeStore } from '@/chrome/notices'
+import { useNoticeStore, type OpenNotice } from '@/chrome/notices'
 import { command, isHostError } from './host'
 import { invalidateSettings } from './queries'
+import type { RulesPreview } from './types'
 
 export interface RunOptions {
   /** Where an inline refusal should land, when the host does not say. */
@@ -81,6 +82,8 @@ export function useHostCommand(): Run {
         // before; the refusal no longer stands (P12.8).
         const answered = answeredBy(name, args)
         if (answered !== null) dismissUnder(answered)
+        // A Board refusal can be answered from the library too (P12.12).
+        answerFromLibrary(name, args)
         return { ok: true, value }
       } catch (caught) {
         if (isHostError(caught)) {
@@ -142,5 +145,56 @@ export function answeredBy(name: Command, args?: Record<string, unknown>): strin
     }
     default:
       return null
+  }
+}
+
+/** A Board refusal a library edit can fix: a shared difficulty, an incomplete question. */
+const BOARD_RULE = /^recipe\.([^.]+)\.board\.[^.]+\.(?:difficulty|question)\./
+/** A Board refusal for a row the board names that is archived or gone. */
+const BOARD_ROW = /^recipe\.[^.]+\.board\.(domain|question)\.([^.]+)$/
+
+const isBoardRuleFor = (recipeId: string) => (n: OpenNotice) => BOARD_RULE.exec(n.targetPath ?? '')?.[1] === recipeId
+
+/**
+ * Refusals a successful **library** write may have answered (P12.12).
+ *
+ * Re-grading the twin in Questions, finishing an incomplete question or
+ * restoring the archived row a board names fixes the board from outside the
+ * recipe. A restore answers its own notice exactly. An edit is checked
+ * rather than assumed: the host's `rules_preview` says whether the board
+ * still shares a difficulty or holds an incomplete question, and only a board
+ * it clears loses its notice — a false all-clear would be the worse bug.
+ */
+function answerFromLibrary(name: Command, args?: Record<string, unknown>): void {
+  const kind = args?.kind
+  if ((name === 'catalog_restore' || name === 'catalog_restore_many') && (kind === 'question' || kind === 'domain')) {
+    const ids = new Set<unknown>(name === 'catalog_restore' ? [args?.id] : ((args?.ids as unknown[] | undefined) ?? []))
+    useNoticeStore.getState().dismissWhere((n) => {
+      const row = BOARD_ROW.exec(n.targetPath ?? '')
+      return row !== null && row[1] === kind && ids.has(row[2])
+    })
+  }
+  const edit =
+    name === 'catalog_upsert_many' ||
+    name === 'catalog_restore' ||
+    name === 'catalog_restore_many' ||
+    (name === 'catalog_upsert' && ['question', 'domain'].includes((args?.item as { kind?: string } | undefined)?.kind ?? ''))
+  if (!edit) return
+  const recipes = new Set(
+    useNoticeStore
+      .getState()
+      .notices.filter((n) => n.severity === 'error')
+      .flatMap((n) => BOARD_RULE.exec(n.targetPath ?? '')?.[1] ?? []),
+  )
+  for (const recipeId of recipes) {
+    void (async () => {
+      try {
+        const preview = await command<RulesPreview>('rules_preview', { recipeId })
+        const stands = preview.warnings.some((w) => w.code === 'duplicateDifficulty' || w.code === 'incompleteQuestions')
+        if (!stands) useNoticeStore.getState().dismissWhere(isBoardRuleFor(recipeId))
+      } catch {
+        // No answer is no all-clear: the notice stays.
+      }
+    })()
   }
 }

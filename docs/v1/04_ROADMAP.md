@@ -1738,6 +1738,14 @@ The first maintenance release. Operators take it by installing over 1.0.1; nothi
 - ☑ Never over a loaded game; it waits for the game to be unloaded.
 - ☑ Settings ▸ About ▸ *What's new* reopens this release's notes.
 
+### P12.12 — What the 1.0.2 review deferred  ☑
+
+- ☑ A library 1.0.2 created is never shown 1.0.1's notes, even if its first boot closed before Studio asked (only *existed and unstamped* means 1.0.1).
+- ☑ A Board refusal fixed from the library clears: a restore clears the one naming that row; a re-grade clears only once `rules_preview` no longer reports the problem, and an edit that fixed nothing leaves it.
+- ☑ `update_check` runs its request on the blocking pool and logs a failure.
+- ☑ The 1.0.2 → 1.0.1 → 1.0.2 round trip (no second copy) is documented.
+- ☑ CI's `checkout`, `setup-node` and `upload-artifact` on v7 (Node 24); `tauri-action@v0` already was.
+
 ---
 
 ## Explicitly not in v1

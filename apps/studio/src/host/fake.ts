@@ -225,6 +225,11 @@ export const DEFAULT_GAME_SETTINGS: GameSettings = {
   board: { allow_repeated_difficulty: false },
 }
 
+/** One board rule a recipe breaks, as `checkBoard` refuses it and `rules_preview` warns of it. */
+type BoardProblem =
+  | { readonly kind: 'incomplete'; readonly message: string }
+  | { readonly kind: 'duplicate'; readonly difficulty: number; readonly message: string }
+
 function refuse(code: string, message: string): never {
   throw { code, message } satisfies HostError
 }
@@ -365,8 +370,10 @@ export function createFakeHost(): FakeHost {
    * its effective body, and one question per difficulty per domain. `pending`
    * is the catalog row an `original` edit is about to write. A fake that never
    * refuses is exactly the fake a shell passes against and the app rejects.
+   * `rules_preview` reports the same problems as warnings (P12.12).
    */
-  const checkBoard = (recipe: Recipe, pending?: Question) => {
+  const boardProblems = (recipe: Recipe, pending?: Question): BoardProblem[] => {
+    const out: BoardProblem[] = []
     // A recipe written before P12.7 has no `board` key; the host reads it as off.
     const allowRepeats = (recipe.settings.board as BoardSettings | undefined)?.allow_repeated_difficulty === true
     for (const board of recipe.board) {
@@ -377,21 +384,21 @@ export function createFakeHost(): FakeHost {
         if (!question) continue
         const body = effectiveBody(question, recipe.overlays.questions[qid])
         if (bodyGaps(body).length > 0) {
-          refuse(
-            'catalog',
-            `recipe.${recipe.id}.board.${board.domainId}.question.${qid}: this question is incomplete; finish it in the library or take it off the board`,
-          )
+          out.push({ kind: 'incomplete', message: `recipe.${recipe.id}.board.${board.domainId}.question.${qid}: this question is incomplete; finish it in the library or take it off the board` })
+          continue
         }
         if (body.difficulty === null || allowRepeats) continue
         if (claimed.has(body.difficulty)) {
-          refuse(
-            'catalog',
-            `recipe.${recipe.id}.board.${board.domainId}.difficulty.${body.difficulty}: two questions in this domain share a difficulty; turn on Allow repeated difficulties in Board, or keep one`,
-          )
+          out.push({ kind: 'duplicate', difficulty: body.difficulty, message: `recipe.${recipe.id}.board.${board.domainId}.difficulty.${body.difficulty}: two questions in this domain share a difficulty; turn on Allow repeated difficulties in Board, or keep one` })
         }
         claimed.set(body.difficulty, qid)
       }
     }
+    return out
+  }
+  const checkBoard = (recipe: Recipe, pending?: Question) => {
+    const first = boardProblems(recipe, pending)[0]
+    if (first) refuse('catalog', first.message)
   }
 
   const bumpRecipe = (recipe: Recipe): Recipe => {
@@ -737,7 +744,21 @@ export function createFakeHost(): FakeHost {
     // A canned document, not a second fold — see `fake/preview.ts`. It does
     // not vary with the settings, so shell work can lay the panel out but
     // cannot check the arithmetic; that is `crates/host`'s job and its tests.
-    rules_preview: () => FAKE_PREVIEW,
+    rules_preview: (a) => {
+      const recipe = typeof a.recipeId === 'string' ? recipes.get(a.recipeId) : undefined
+      if (!recipe) return FAKE_PREVIEW
+      const problems = boardProblems(recipe)
+      const incomplete = problems.filter((p) => p.kind === 'incomplete').length
+      const duplicate = problems.find((p) => p.kind === 'duplicate')
+      return {
+        ...FAKE_PREVIEW,
+        warnings: [
+          ...FAKE_PREVIEW.warnings,
+          ...(duplicate?.kind === 'duplicate' ? [{ code: 'duplicateDifficulty' as const, difficulty: duplicate.difficulty, questions: 2 }] : []),
+          ...(incomplete > 0 ? [{ code: 'incompleteQuestions' as const, questions: incomplete }] : []),
+        ],
+      }
+    },
     paths_get: () => fake.paths,
     paths_reveal: () => null,
     health_get: () => fake.health,

@@ -241,6 +241,10 @@ and the only trace was on a section they were not looking at.
 - **A write the host accepts answers the refusals it covers**
   (`answeredBy`): a board write clears `recipe.<id>.board.…`, a Load clears
   everything under `recipe.<id>.`.
+- **So can a library write** (P12.12, `answerFromLibrary`): restoring the row a
+  refusal names clears it exactly; re-grading or finishing a question asks
+  `rules_preview` and clears the recipe's Board refusals only once the host no
+  longer reports a shared difficulty or an incomplete question.
 - Still a notice, never a toast: a toast disappears and cannot carry *Show*.
 
 ## 4. Component catalog
