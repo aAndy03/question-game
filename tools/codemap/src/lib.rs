@@ -19,6 +19,9 @@ use syn::{
     Visibility,
 };
 
+mod surfaces;
+pub use surfaces::{CargoInfo, CrateInfo, WindowInfo};
+
 // ------------------------------------------------------------------ output
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -114,6 +117,9 @@ pub struct RustMap {
     pub settings_structs: Vec<StructInfo>,
     pub migrations: Vec<String>,
     pub meta_keys: Vec<MetaConst>,
+    pub identity: BTreeMap<String, String>,
+    pub windows: Vec<WindowInfo>,
+    pub cargo: CargoInfo,
 }
 
 // --------------------------------------------------------------- text helpers
@@ -209,7 +215,7 @@ pub fn first_sentence(text: &str) -> String {
     }
 }
 
-fn is_cfg_test(attrs: &[Attribute]) -> bool {
+pub(crate) fn is_cfg_test(attrs: &[Attribute]) -> bool {
     attrs.iter().any(|attr| {
         if !attr.path().is_ident("cfg") {
             return false;
@@ -237,7 +243,7 @@ fn is_pub(vis: &Visibility) -> bool {
     matches!(vis, Visibility::Public(_))
 }
 
-fn str_lit(expr: &Expr) -> Option<String> {
+pub(crate) fn str_lit(expr: &Expr) -> Option<String> {
     match expr {
         Expr::Lit(ExprLit {
             lit: Lit::Str(s), ..
@@ -706,7 +712,7 @@ pub fn commands_in(file: &syn::File, rel_path: &str) -> Vec<CommandInfo> {
 
 // ------------------------------------------------------------------ guard
 
-fn str_consts(file: &syn::File) -> (BTreeMap<String, String>, BTreeMap<String, Vec<String>>) {
+pub(crate) fn str_consts(file: &syn::File) -> (BTreeMap<String, String>, BTreeMap<String, Vec<String>>) {
     let mut strings = BTreeMap::new();
     let mut arrays = BTreeMap::new();
     for item in &file.items {
@@ -806,7 +812,7 @@ struct EmitVisitor<'a> {
     out: Vec<EmitInfo>,
 }
 
-fn describe_init(expr: &Expr) -> String {
+pub(crate) fn describe_init(expr: &Expr) -> String {
     match expr {
         Expr::MethodCall(m) => format!("{}()", m.method),
         Expr::Call(c) => format!("{}()", text(&c.func)),
@@ -1140,6 +1146,13 @@ pub fn extract(repo: &Path) -> Result<RustMap, String> {
         map.meta_keys.extend(meta_consts(&file.ast, &file.rel));
     }
     map.meta_keys.sort_by(|a, b| a.name.cmp(&b.name));
+    if let Some(identity) = find(&app, "crates/app/src/identity.rs") {
+        map.identity = surfaces::identity_consts(&identity.ast);
+    }
+    if let Some(windows) = find(&app, "crates/app/src/windows.rs") {
+        map.windows = surfaces::windows_in(&windows.ast, &map.guard.labels);
+    }
+    map.cargo = surfaces::cargo_info(repo)?;
     Ok(map)
 }
 

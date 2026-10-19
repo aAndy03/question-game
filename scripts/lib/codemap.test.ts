@@ -162,6 +162,9 @@ describe('buildMap', () => {
     settingsStructs: [],
     migrations: [],
     metaKeys: [],
+    identity: {},
+    windows: [],
+    cargo: { members: [], crates: [] },
   }
   const contract = readContract([
     {

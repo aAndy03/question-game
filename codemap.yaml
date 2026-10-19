@@ -1898,4 +1898,673 @@ app_crate:
     - whats_new
     - windows
   plugins: ["tauri_plugin_single_instance::init"]
+stage:
+  copy:
+    contract_text_keys:
+      - chooseDomainTitle
+      - domainLabel
+      - finalLeaderboardTitle
+      - idleEyebrow
+      - idleStatus
+      - idleTagline
+      - scoreboardTitle
+      - sessionValue
+      - teamDetailLabel
+      - teamOrderTitle
+      - teamPointsLabel
+    file: apps/stage/src/copy/tables.ts
+    keys:
+      - bonusLabel
+      - championJoiner
+      - clockClose
+      - clockOpen
+      - currentTag
+      - delimiter
+      - difficultyBands
+      - difficultyDisplay
+      - difficultyLabel
+      - domainLabel
+      - exhaustedTag
+      - idleEyebrow
+      - idleStatus
+      - idleTagline
+      - leaderTag
+      - multipleAnswersWord
+      - nowPlayingLabel
+      - outcomeWord
+      - placeDigits
+      - placePrefix
+      - playClockLabel
+      - playClockValue
+      - pointsUnit
+      - questionLabel
+      - resultLabel
+      - roundAdvanceLabel
+      - screenTitle
+      - selectedTag
+      - sequenceDigits
+      - sequencePrefix
+      - sessionLabel
+      - sessionValue
+      - teamDetailLabel
+      - teamPointsLabel
+      - thousandsSeparator
+      - timerLabel
+      - timerUrgentSeconds
+      - timerValue
+      - verdict
+    languages: [en, ro]
+    title_override_keys: [chooseDomainTitle, finalLeaderboardTitle, scoreboardTitle, teamOrderTitle]
+  events_listened:
+    play-state: [apps/stage/src/host/host.ts]
+    play-tick: [apps/stage/src/host/host.ts]
+  host_commands:
+    overlay_ack_complete: [apps/stage/src/host/host.ts]
+    perf_report: [apps/stage/src/perf.ts]
+    stage_ready: [apps/stage/src/host/host.ts]
+    stage_report: [apps/stage/src/host/host.ts]
+  query_flags:
+    decor: [apps/stage/src/App.tsx]
+    fixture: [apps/stage/src/App.tsx]
+    hold: [apps/stage/src/host/host.ts]
+    mirror: [apps/stage/src/host/host.ts]
+    viewer: [apps/stage/src/host/host.ts]
+packages:
+  design-stage:
+    css_properties:
+      packages/design-stage/stage.css:
+        "--accent": ea19a815
+        "--accent-foreground": "49994087"
+        "--background": "378eeb00"
+        "--border": "49994087"
+        "--danger": "8ce03b95"
+        "--danger-foreground": "49994087"
+        "--field-radius": f1228688
+        "--font-sans": "28a4fea9"
+        "--foreground": "49994087"
+        "--muted": d7e7e978
+        "--radius": f1228688
+        "--separator": "825ae7eb"
+        "--success": "47cca5b6"
+        "--success-foreground": "49994087"
+        "--surface": "378eeb00"
+        "--surface-foreground": "49994087"
+        "--surface-secondary": "378eeb00"
+        "--surface-secondary-foreground": "49994087"
+        "--warning": bd5d623c
+        "--warning-foreground": "49994087"
+      packages/design-stage/tokens/colors.css:
+        "--accent-yellow": "5ba24674"
+        "--border-default": "49994087"
+        "--border-subtle": "74c37ee2"
+        "--correct": "4181ce54"
+        "--correct-dim": "02490048"
+        "--gray-200": "6bdde209"
+        "--gray-500": "8ab43dba"
+        "--incorrect": dbdc45f4
+        "--info-blue": "186b5bee"
+        "--ink": "7ff8f706"
+        "--ink-black": "42968b42"
+        "--leader-gold": "1ae4d610"
+        "--paper": "8341e8b0"
+        "--state-accent": "5edbfb9a"
+        "--state-correct": edc0ef1c
+        "--state-incorrect": f65113e3
+        "--state-info": "04f25596"
+        "--state-leader": d0322bc2
+        "--surface": "378eeb00"
+        "--text-heading": "99f74fbf"
+        "--text-inverse": "378eeb00"
+        "--text-muted": d50e3409
+        "--text-primary": "49994087"
+      packages/design-stage/tokens/layout.css:
+        "--decor-opacity-commentary": "356a192b"
+        "--decor-opacity-texture-max": ff0e46b0
+        "--decor-opacity-texture-min": "5b08b72a"
+        "--stage-answer-card-height": "06c74cd6"
+        "--stage-content-column": e780c0dc
+        "--stage-content-column-wide": fef89f17
+        "--stage-decor-column-max": "18d1fe5a"
+        "--stage-decor-column-min": d416710b
+        "--stage-gap-loose": "808e3133"
+        "--stage-gap-tight": b29b5333
+        "--stage-height": af8defc0
+        "--stage-letterbox": "49994087"
+        "--stage-padding": "808e3133"
+        "--stage-place-card-gap": "3056f7e5"
+        "--stage-place-card-height": "2f7ce03f"
+        "--stage-question-column": "2bccf7fc"
+        "--stage-score-row-height": af291d84
+        "--stage-side-panel-height": c1f491af
+        "--stage-side-panel-width": "0bf2d0b4"
+        "--stage-width": "6121d127"
+        "--stage-zone-gap": "6e8c5a87"
+      packages/design-stage/tokens/spacing.css:
+        "--border-heavy": "7a328ebc"
+        "--border-thick": a0179b92
+        "--border-thin": "9e0741c0"
+        "--radius-md": "9bc5fefa"
+        "--radius-none": "6107ce08"
+        "--radius-sm": "5e0d704b"
+        "--space-1": "9bc5fefa"
+        "--space-2": "09390078"
+        "--space-3": "4678bd4d"
+        "--space-4": b29b5333
+        "--space-5": "3056f7e5"
+        "--space-6": "6e8c5a87"
+        "--space-7": "3263fd41"
+        "--space-8": "808e3133"
+      packages/design-stage/tokens/theme.css:
+        "--color-accent": bd5d623c
+        "--color-border-default": ad67c981
+        "--color-border-subtle": "825ae7eb"
+        "--color-correct": "47cca5b6"
+        "--color-incorrect": "8ce03b95"
+        "--color-info": ea19a815
+        "--color-ink": "49994087"
+        "--color-ink-black": "99f74fbf"
+        "--color-leader": fc1a422b
+        "--color-muted": d7e7e978
+        "--color-paper": "378eeb00"
+        "--font-display": "28a4fea9"
+        "--font-mono": "1e473869"
+        "--font-sans": "28a4fea9"
+        "--font-weight-bold": "70759ac2"
+        "--font-weight-medium": "1edc002c"
+        "--font-weight-regular": b47e8763
+        "--radius-md": d50c223e
+        "--radius-none": f1228688
+        "--radius-sm": "1113aeaa"
+        "--spacing": "9bc5fefa"
+        "--spacing-1": "7ce66943"
+        "--spacing-2": f5816dec
+        "--spacing-3": "4b67ceb9"
+        "--spacing-4": ff49192f
+        "--spacing-5": "54288c71"
+        "--spacing-6": "46199a01"
+        "--spacing-7": "3a40a381"
+        "--spacing-8": "5dcd395b"
+        "--spacing-stage-gap-loose": "0fd75a9e"
+        "--spacing-stage-gap-tight": "60505a68"
+        "--spacing-stage-padding": "0b903370"
+        "--spacing-stage-zone-gap": c66d9458
+        "--text-body": b1a14e3b
+        "--text-body--line-height": aae7f85b
+        "--text-caption": b5b91e74
+        "--text-caption--line-height": e7489b0a
+        "--text-display-1": "5e2d2c17"
+        "--text-display-1--line-height": fd8ccaf9
+        "--text-display-2": "9ffbe0cf"
+        "--text-display-2--line-height": fd8ccaf9
+        "--text-display-3": a1949257
+        "--text-display-3--line-height": "06285499"
+        "--text-display-4": ebb3efdd
+        "--text-display-4--line-height": "06285499"
+        "--text-giant": "0f855974"
+        "--text-giant--line-height": fd8ccaf9
+        "--text-heading-1": c0af569a
+        "--text-heading-1--line-height": "06285499"
+        "--text-heading-2": badba63a
+        "--text-heading-2--line-height": "06285499"
+        "--text-heading-3": "1beaa584"
+        "--text-heading-3--line-height": "06285499"
+        "--text-heading-4": ddd7ca51
+        "--text-heading-4--line-height": "06285499"
+        "--text-label": c9018047
+        "--text-label--line-height": e7489b0a
+        "--text-mega": "8077cd41"
+        "--text-mega--line-height": fd8ccaf9
+        "--text-micro": df1b67d1
+        "--text-micro--line-height": e7489b0a
+        "--tracking-tight-1": "62e22711"
+        "--tracking-tight-2": c0f38ff7
+        "--tracking-tight-3": d3e5ec5d
+        "--tracking-tight-4": "3bd21057"
+        "--tracking-wide-1": e8b0a59a
+        "--tracking-wide-2": c83ad7cb
+      packages/design-stage/tokens/typography.css:
+        "--case-hud": "171c1e65"
+        "--case-name": "117ec720"
+        "--case-prose": "71f8e797"
+        "--font-display": "4fb15fd2"
+        "--font-mono": "338f2c0b"
+        "--leading-body": aa8f289e
+        "--leading-display": "33493e5f"
+        "--leading-heading": "4491f8b5"
+        "--leading-hud": "8114b9da"
+        "--text-body": "4678bd4d"
+        "--text-caption": "09390078"
+        "--text-display-1": d46ba646
+        "--text-display-2": "332d7daf"
+        "--text-display-3": "3263fd41"
+        "--text-display-4": "384de318"
+        "--text-giant": c9a0c387
+        "--text-heading-1": "808e3133"
+        "--text-heading-2": "3056f7e5"
+        "--text-heading-3": "21f02b51"
+        "--text-heading-4": b29b5333
+        "--text-label": d6522538
+        "--text-mega": "8c95cbb0"
+        "--text-micro": "933cc733"
+        "--tracking-normal": "6107ce08"
+        "--tracking-tight-1": "3851f853"
+        "--tracking-tight-2": "856e0ae6"
+        "--tracking-tight-3": c1a395e0
+        "--tracking-tight-4": bdb5d2f5
+        "--tracking-wide-1": a0179b92
+        "--tracking-wide-2": "5e0d704b"
+        "--weight-bold": d8e4bbea
+        "--weight-medium": f83a383c
+        "--weight-regular": ab7f7b95
+    exports:
+      ".": "./src/index.ts"
+      "./assets/*": "./assets/*"
+      "./audio/*": "./audio/*"
+      "./audio/manifest": "./audio/manifest.ts"
+      "./stage.css": "./stage.css"
+      "./tokens/*": "./tokens/*"
+    files:
+      - assets/arrow-right.svg
+      - "assets/decorative_domain_screen/!.svg"
+      - assets/decorative_domain_screen/C.svg
+      - assets/decorative_domain_screen/E.svg
+      - assets/decorative_domain_screen/H.svg
+      - assets/decorative_domain_screen/O-1.svg
+      - assets/decorative_domain_screen/O.svg
+      - assets/decorative_domain_screen/S.svg
+      - assets/decorative_idle_screen/1.svg
+      - assets/decorative_idle_screen/2.svg
+      - assets/decorative_idle_screen/3.svg
+      - assets/decorative_idle_screen/4.svg
+      - assets/decorative_idle_screen/5.svg
+      - assets/decorative_idle_screen/question.svg
+      - "assets/decorative_plus_minus/+.svg"
+      - "assets/decorative_plus_minus/-.svg"
+      - "assets/decorative_up_down_scoreboard/Rectangle 1.svg"
+      - assets/decorative_up_down_scoreboard/Union-1.svg
+      - assets/decorative_up_down_scoreboard/Union.svg
+      - assets/deocrative_turn_order/A.svg
+      - assets/deocrative_turn_order/D.svg
+      - assets/deocrative_turn_order/E.svg
+      - assets/deocrative_turn_order/R.svg
+      - assets/deocrative_turn_order/Y.svg
+      - assets/deocrative_turn_order/_.svg
+      - assets/devorative_leaderboard_screen/E.svg
+      - assets/devorative_leaderboard_screen/I-1.svg
+      - assets/devorative_leaderboard_screen/I.svg
+      - assets/devorative_leaderboard_screen/N-1.svg
+      - assets/devorative_leaderboard_screen/N.svg
+      - assets/devorative_leaderboard_screen/R.svg
+      - assets/devorative_leaderboard_screen/W.svg
+      - assets/hulls.json
+      - assets/wordmark.svg
+      - audio/README.md
+      - audio/correct.wav
+      - audio/lock.wav
+      - audio/manifest.ts
+      - audio/overlay_start.wav
+      - audio/play_start.wav
+      - audio/timer_expired.wav
+      - audio/timer_pause.wav
+      - audio/timer_start.wav
+      - audio/wrong.wav
+      - fonts/OFL.txt
+      - fonts/fonts.css
+      - fonts/spacegrotesk-v22-V8mDoQDjQSkFtoMM3T6r8E7mPb54C-s0.woff2
+      - fonts/spacegrotesk-v22-V8mDoQDjQSkFtoMM3T6r8E7mPb94C-s0.woff2
+      - fonts/spacegrotesk-v22-V8mDoQDjQSkFtoMM3T6r8E7mPbF4Cw.woff2
+      - fonts/spacemono-v17-i7dMIFZifjKcF5UAWdDRaPpZUFWaHg.woff2
+      - fonts/spacemono-v17-i7dMIFZifjKcF5UAWdDRaPpZUFqaHjyV.woff2
+      - fonts/spacemono-v17-i7dMIFZifjKcF5UAWdDRaPpZUFuaHjyV.woff2
+      - fonts/spacemono-v17-i7dPIFZifjKcF5UAWdDRYE58RWq7.woff2
+      - fonts/spacemono-v17-i7dPIFZifjKcF5UAWdDRYE98RWq7.woff2
+      - fonts/spacemono-v17-i7dPIFZifjKcF5UAWdDRYEF8RQ.woff2
+      - package.json
+      - src/index.test.ts
+      - src/index.ts
+      - stage.css
+      - tokens/colors.css
+      - tokens/layout.css
+      - tokens/spacing.css
+      - tokens/theme.css
+      - tokens/typography.css
+      - tsconfig.json
+  design-studio:
+    css_properties:
+      packages/design-studio/globals.css:
+        "--accent": "78133a9c"
+        "--accent-foreground": "613bc3b4"
+        "--background": "758cecf3"
+        "--border": "2e31c153"
+        "--danger": e82ee952
+        "--danger-foreground": "613bc3b4"
+        "--default": "8b60fb26"
+        "--default-foreground": "64b57381"
+        "--field-background": "3be44653"
+        "--field-border": b580d915
+        "--field-foreground": decc5ea3
+        "--field-placeholder": e53972b3
+        "--field-radius": "823f1262"
+        "--focus": "78133a9c"
+        "--font-sans": a7ab6c4f
+        "--foreground": decc5ea3
+        "--muted": e53972b3
+        "--overlay": "0fa8d006"
+        "--overlay-foreground": decc5ea3
+        "--radius": "823f1262"
+        "--scrollbar": f1787600
+        "--segment": "450ecece"
+        "--segment-foreground": decc5ea3
+        "--separator": cd7ee8f0
+        "--success": "82d37101"
+        "--success-foreground": fe271d68
+        "--surface": "3be44653"
+        "--surface-foreground": decc5ea3
+        "--surface-secondary": bd9bc656
+        "--surface-secondary-foreground": decc5ea3
+        "--surface-tertiary": bdfd15fb
+        "--surface-tertiary-foreground": decc5ea3
+        "--warning": "31ab89a3"
+        "--warning-foreground": f7f2ffe8
+      packages/design-studio/studio.css:
+        "--field-background": c7b10c4f
+        "--field-border": "5628777f"
+        "--field-border-width": "9e0741c0"
+        "--font-geist": "7f0352bf"
+      packages/design-studio/tokens/theme.css:
+        "--border-width": "9e0741c0"
+        "--cursor-disabled": "6fa686cf"
+        "--cursor-interactive": b35bb38d
+        "--disabled-opacity": "1b390cd5"
+        "--duration-base": c8fb32f0
+        "--duration-fast": "1cedbc90"
+        "--duration-instant": "4e5a9f06"
+        "--duration-slow": "98cd16ce"
+        "--ease-decelerate": "758cd0b4"
+        "--ease-standard": "4e0e8ab1"
+        "--field-border-width": "6107ce08"
+        "--field-radius": b58cfade
+        "--panel-gap-comfortable": "96f49cd4"
+        "--panel-gap-compact": cbe0aa5e
+        "--panel-gap-dense": "8e212147"
+        "--panel-min-height": a7755383
+        "--panel-min-width": "32ca7262"
+        "--panel-padding-comfortable": "7d82c8f0"
+        "--panel-padding-compact": cbe0aa5e
+        "--panel-padding-dense": "8e212147"
+        "--ring-offset-width": a0179b92
+        "--spacing": "6fe5ac0f"
+        "--text-studio-body": "5cce30aa"
+        "--text-studio-body--line-height": f652aba7
+        "--text-studio-caption": "89a92516"
+        "--text-studio-caption--line-height": "2b87cb80"
+        "--text-studio-display": "58652f69"
+        "--text-studio-display--line-height": "859fbe35"
+        "--text-studio-heading": "4af84aaa"
+        "--text-studio-heading--line-height": "8b6ec5fd"
+        "--text-studio-label": "89a92516"
+        "--text-studio-label--line-height": f652aba7
+        "--text-studio-mono": "89a92516"
+        "--text-studio-mono--line-height": f652aba7
+        "--text-studio-title": cd45e4b0
+        "--text-studio-title--line-height": "8b6ec5fd"
+    exports:
+      ".": "./src/index.ts"
+      "./globals.css": "./globals.css"
+      "./mosaic.css": "./mosaic.css"
+      "./studio.css": "./studio.css"
+      "./tokens/*": "./tokens/*"
+    files: [globals.css, mosaic.css, package.json, src/index.ts, studio.css, tokens/theme.css, tsconfig.json]
+  text:
+    api:
+      packages/text/src/index.ts:
+        TEXT_VARIANTS: {kind: const, sig: "#2ab06e01"}
+        TextProps: {kind: interface, sig: "{ variant, transition?, as?, children? }"}
+        TextTransition: {doc: "The Text module — optimized_first_spec.md §2.29.", kind: type, sig: "'none' | 'swap' | 'count'"}
+        TextVariant: {doc: "Stage variants map to the questiongame type scale; Studio variants to HeroUI.", kind: type, sig: "| 'stage-mega' | 'stage-display' | 'stage-number' | 'stage-question' | 'stage-name' | 'stage-heading' | 'stage-hud' | 'stage-code' | 'stage-caption' | 'stage-eyebrow' | 'stage-tagline' | 'stage-bra... #db52adab"}
+        VariantTokens: {doc: "Everything a variant resolves to.", kind: interface, sig: "{ size, family, weight, tracking, leading, casing }"}
+        variantTokens: {doc: "Resolve a variant to its tokens.", kind: function, sig: "(variant: TextVariant): VariantTokens"}
+      packages/text/src/studio.tsx:
+        StudioTransition: {kind: function, sig: "({ transition, children }: StudioTransitionProps)"}
+        StudioTransitionProps: {kind: interface, sig: "{ transition, children }"}
+    exports:
+      ".": "./src/index.ts"
+      "./studio": "./src/studio.tsx"
+    files: [package.json, src/index.test.ts, src/index.ts, src/studio.tsx, tsconfig.json]
+    transitions: [count, none, swap]
+    variants:
+      - stage-answer
+      - stage-brand
+      - stage-caption
+      - stage-card-figure
+      - stage-card-name
+      - stage-champion
+      - stage-code
+      - stage-code-quiet
+      - stage-display
+      - stage-eyebrow
+      - stage-figure
+      - stage-heading
+      - stage-hero
+      - stage-hud
+      - stage-hud-large
+      - stage-letter
+      - stage-mega
+      - stage-meta-label
+      - stage-meta-value
+      - stage-name
+      - stage-number
+      - stage-partner
+      - stage-place-label
+      - stage-question
+      - stage-row-name
+      - stage-row-number
+      - stage-tagline
+      - stage-team-tag
+      - stage-title
+      - studio-body
+      - studio-caption
+      - studio-display
+      - studio-heading
+      - studio-label
+      - studio-mono
+      - studio-title
+windows_and_permissions:
+  capabilities:
+    audience:
+      file: crates/app/capabilities/audience.json
+      permissions: ["core:event:allow-listen", "core:event:allow-unlisten"]
+      windows: [stage, "stage-*"]
+    operator:
+      file: crates/app/capabilities/operator.json
+      permissions: ["core:default"]
+      windows: [main]
+    statistics:
+      file: crates/app/capabilities/statistics.json
+      permissions: ["core:event:allow-listen", "core:event:allow-unlisten"]
+      windows: [stats]
+  windows:
+    main: studio/index.html
+    stage: stage/index.html
+    "stage-N (mirror)": "stage/index.html?mirror"
+    stats: "studio/index.html?stats"
+config:
+  files:
+    crates/app/tauri.conf.json:
+      "$schema": "https://schema.tauri.app/config/2"
+      app.security.csp: "default-src 'self'; img-src 'self' asset... #28d5e5c4"
+      app.windows: []
+      build.beforeBuildCommand: "npm run build && npm run release:check"
+      build.beforeDevCommand: "npm run dev:webviews"
+      build.devUrl: "http://localhost:5181"
+      build.frontendDist: "../../dist"
+      bundle.active: true
+      bundle.category: Education
+      bundle.copyright: "© 2026 aAndy03 and the questiongame contributors — GPL-3.0-or-later"
+      bundle.icon: [icons/32x32.png, icons/128x128.png, "icons/128x128@2x.png", icons/icon.icns, icons/icon.ico]
+      bundle.licenseFile: "../../LICENSE"
+      bundle.longDescription: "questiongame runs a quiz show from one c... #bd1ade72"
+      bundle.publisher: aAndy03
+      bundle.shortDescription: "An offline quiz show: an operator studio and a fullscreen audience stage."
+      bundle.targets: [nsis]
+      bundle.windows.nsis.installMode: currentUser
+      identifier: org.questiongame.desktop
+      productName: questiongame
+      version: "1.0.2"
+    crates/app/tauri.dev.conf.json:
+      identifier: org.questiongame.app
+    crates/app/tauri.e2e.conf.json:
+      identifier: org.questiongame.e2e
+    crates/app/tauri.macos.conf.json:
+      bundle.macOS.minimumSystemVersion: "13.0"
+      bundle.macOS.signingIdentity: "-"
+      bundle.targets: [app, dmg]
+  identity_consts:
+    DEV_IDENTIFIER: org.questiongame.app
+    E2E_IDENTIFIER: org.questiongame.e2e
+    RELEASE_IDENTIFIER: org.questiongame.desktop
+build:
+  cargo_members: [crates/app, crates/host, tools/codemap]
+  crates:
+    codemap:
+      dependencies:
+        proc-macro2: "1"
+        quote: "1"
+        serde: "workspace = 1; features [derive]"
+        serde_json: "workspace = 1"
+        syn: "2; features [full, visit, extra-traits]"
+        toml: "1"
+      features: {}
+      path: tools/codemap
+    questiongame-app:
+      dependencies:
+        "[cfg(windows)] windows": "0.61; features [Win32_Foundation, Win32_Devices_Display, Win32_Graphics_Gdi]"
+        fs4: "workspace = 1.1; features [sync]; no default features"
+        questiongame-host: "path ../host"
+        rfd: "workspace = 0.17"
+        rustls: "workspace = 0.23; features [ring, std, tls12]; no default features"
+        rustls-native-certs: "workspace = 0.8"
+        semver: "workspace = 1"
+        serde: "workspace = 1; features [derive]"
+        serde_json: "workspace = 1"
+        sysinfo: "workspace = 0.39; features [system]; no default features"
+        tauri: "workspace = 2"
+        "tauri-build (build)": "workspace = 2"
+        tauri-plugin-single-instance: "workspace = 2"
+        thiserror: "workspace = 2"
+        tokio: "workspace = 1; features [rt-multi-thread, time, sync, macros]"
+        tracing: "workspace = 0.1"
+        tracing-subscriber: "workspace = 0.3; features [env-filter]"
+        ureq: "workspace = 3; features [rustls-no-provider]; no default features"
+      features: {}
+      path: crates/app
+    questiongame-host:
+      dependencies:
+        argon2: "workspace = 0.6"
+        "proptest (dev)": "workspace = 1"
+        rusqlite: "workspace = 0.40; features [bundled]"
+        serde: "workspace = 1; features [derive]"
+        serde_json: "workspace = 1"
+        tantivy: "workspace = 0.27"
+        thiserror: "workspace = 2"
+        tracing: "workspace = 0.1"
+        uuid: "workspace = 1; features [v4, serde]"
+      features: {}
+      path: crates/host
+  npm_scripts:
+    "audio:placeholders": "vite-node scripts/audio-placeholders.ts"
+    build: "npm run notices && npm run build --workspaces --if-present"
+    "decor:hulls": "vite-node scripts/decor-hulls.ts"
+    "dev:app": "tauri dev --config crates/app/tauri.dev.conf.json"
+    "dev:stage": "npm run dev -w @questiongame/stage"
+    "dev:studio": "npm run dev -w @questiongame/studio"
+    "dev:webviews": "node scripts/dev-webviews.mjs"
+    e2e: "wdio run e2e/wdio.conf.ts"
+    "e2e:build": "tauri build --debug --no-bundle --config crates/app/tauri.e2e.conf.json"
+    fixtures: "vite-node scripts/emit-fixtures.ts"
+    js-stack: "node scripts/js-stack.mjs"
+    leak-probe: "node scripts/leak-probe.mjs"
+    lint: "eslint ."
+    "lint:app": "cargo clippy -p questiongame-app --all-targets -- -D warnings"
+    "lint:host": "cargo clippy --manifest-path crates/host/Cargo.toml --all-targets -- -D warnings"
+    "lint:tools": "cargo clippy -p codemap --all-targets -- -D warnings"
+    map: "vite-node scripts/codemap.ts"
+    "map:check": "vite-node scripts/codemap.ts --check"
+    notices: "vite-node scripts/notices.ts"
+    release: "npm run typecheck && npm run lint && npm run test:all && npm run map:check && tauri build"
+    "release:check": "vite-node scripts/release-check.ts"
+    "studio:icons": "vite-node scripts/studio-icons.ts"
+    tauri: tauri
+    test: "vitest run"
+    "test:all": "npm run test && npm run test:host && npm run test:app && npm run test:tools"
+    "test:app": "cargo test -p questiongame-app"
+    "test:host": "cargo test --manifest-path crates/host/Cargo.toml"
+    "test:tools": "cargo test -p codemap"
+    "test:watch": vitest
+    typecheck: "tsc --build --force && tsc -p e2e"
+  npm_workspaces: ["apps/*", "packages/*"]
+  workflows:
+    ".github/workflows/release.yml":
+      build:
+        name: "Build (${{ matrix.name }})"
+        needs: [test, e2e]
+        runs: ["npm ci"]
+        runs_on: "${{ matrix.os }}"
+      e2e:
+        name: "End-to-end (Windows)"
+        needs: []
+        runs: ["npm ci", "npm run e2e:build", "npm run e2e"]
+        runs_on: windows-latest
+      test:
+        name: Test
+        needs: []
+        runs:
+          - "npm ci"
+          - "npm run typecheck"
+          - "npm run lint"
+          - "npm test"
+          - "npm run test:host"
+          - "npm run test:app"
+          - "npm run lint:app"
+          - "npm run test:tools"
+          - "npm run lint:tools"
+          - "npm run map:check"
+        runs_on: windows-latest
+e2e:
+  seeds:
+    first-run.e2e.ts: "null"
+    load-refusal.e2e.ts: "['--broken-board']"
+    show.e2e.ts: "[]"
+    upgrade.e2e.ts: "[]"
+  specs:
+    e2e/specs/first-run.e2e.ts: ["first run > sets up an operator and the Demo"]
+    e2e/specs/load-refusal.e2e.ts: ["a refused Load > says why from the Roster and leads to the Board"]
+    e2e/specs/show.e2e.ts: ["a show > loads a game, opens Stage, and puts the first question on air"]
+    e2e/specs/upgrade.e2e.ts: ["an update > backs the library up, keeps it, and shows what is new"]
+fixtures:
+  - choose-domain
+  - current-team
+  - final-leaderboard-full
+  - final-leaderboard-partial
+  - final-leaderboard-six
+  - idle
+  - operator-pace
+  - overlay-handoff
+  - overlay-multiple-answers
+  - overlay-outcome-correct
+  - overlay-outcome-incorrect
+  - overlay-over-question
+  - paused
+  - question-issued
+  - question-locked
+  - question-options-partial
+  - question-outcome-correct
+  - question-outcome-incorrect
+  - question-outcome-partial
+  - question-stem-revealed
+  - question-timer-expired-open
+  - rehearsal-solo
+  - scoreboard
+  - scoreboard-tie
+  - team-order
 mismatches: []

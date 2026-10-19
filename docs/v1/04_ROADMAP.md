@@ -1760,6 +1760,11 @@ The first maintenance release. Operators take it by installing over 1.0.1; nothi
 - ☑ CI runs the suite on Windows before the release builds; a failure uploads screenshots and page sources.
 - ☐ Still manual: several displays, the installer upgrade itself, macOS.
 
+### P12.15 — The map covers the whole tree  ☑
+
+- ☑ `codemap.yaml` adds `stage`, `packages`, `windows_and_permissions`, `config`, `build`, `e2e` and `fixtures` (2570 lines); `mismatches:` empty, and each new cross-check has a test that makes it fire.
+- ☑ `CLAUDE.md` is an index (28 KB, was 127 KB); the as-built rules live in `docs/as-built/`, one file per area.
+
 ### Next
 
 - ☐ A **questiongame Beta** channel: a separate app (`org.questiongame.beta`, its own data folder, installed beside stable), `main` as the beta line with `release/1.0` for stable fixes, `-beta.N` tags published as pre-releases, a channel-aware update check.

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-Shipped: **1.0.2**, phases P0–P12.14. The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: a **questiongame Beta** channel (roadmap ▸ Next).
+Shipped: **1.0.2**; main is at P12.15. The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: a **questiongame Beta** channel (roadmap ▸ Next).
 
 ## As built — read the area's file before changing it
 

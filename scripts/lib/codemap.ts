@@ -105,11 +105,11 @@ export function firstSentence(text: string): string {
   return cut.length > 200 ? `${cut.slice(0, 197)}...` : cut
 }
 
-function hash(text: string): string {
+export function hash(text: string): string {
   return createHash('sha1').update(text).digest('hex').slice(0, 8)
 }
 
-function collapse(text: string): string {
+export function collapse(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
 }
 
@@ -204,9 +204,13 @@ export interface Contract {
   stageEvents: string[]
   stageCommands: string[]
   version: number | null
+  /** `TEXT_KEYS` in text.ts. */
+  textKeys: string[]
+  /** `STAGE_LANGUAGES` in play-state.ts. */
+  languages: string[]
 }
 
-function parseTs(file: SourceText): ts.SourceFile {
+export function parseTs(file: SourceText): ts.SourceFile {
   return ts.createSourceFile(file.path, file.text, ts.ScriptTarget.Latest, true, file.path.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
 }
 
@@ -241,7 +245,7 @@ function literalValue(expr: ts.Expression): string | null {
   return null
 }
 
-function unwrap(expr: ts.Expression): ts.Expression {
+export function unwrap(expr: ts.Expression): ts.Expression {
   let e = expr
   while (ts.isAsExpression(e) || ts.isParenthesizedExpression(e) || ts.isSatisfiesExpression(e)) e = e.expression
   return e
@@ -269,7 +273,7 @@ function functionSignature(fn: ts.FunctionDeclaration, source: ts.SourceFile): s
   return `(${params})${ret}`
 }
 
-function exportsOf(file: SourceText): Record<string, ContractItem> {
+export function exportsOf(file: SourceText): Record<string, ContractItem> {
   const source = parseTs(file)
   const out: Record<string, ContractItem> = {}
   const put = (name: string, item: ContractItem): void => {
@@ -306,14 +310,14 @@ function exportsOf(file: SourceText): Record<string, ContractItem> {
   return out
 }
 
-function stringArray(expr: ts.Expression | undefined): string[] {
+export function stringArray(expr: ts.Expression | undefined): string[] {
   if (!expr) return []
   const e = unwrap(expr)
   if (!ts.isArrayLiteralExpression(e)) return []
   return e.elements.filter(ts.isStringLiteralLike).map((x) => x.text)
 }
 
-function topConst(source: ts.SourceFile, name: string): ts.Expression | undefined {
+export function topConst(source: ts.SourceFile, name: string): ts.Expression | undefined {
   for (const stmt of source.statements) {
     if (!ts.isVariableStatement(stmt)) continue
     for (const decl of stmt.declarationList.declarations) {
@@ -325,7 +329,7 @@ function topConst(source: ts.SourceFile, name: string): ts.Expression | undefine
 
 /** The contract package: every exported name, plus the command and event lists. */
 export function readContract(files: readonly SourceText[]): Contract {
-  const out: Contract = { files: {}, commandGroups: {}, events: [], stageEvents: [], stageCommands: [], version: null }
+  const out: Contract = { files: {}, commandGroups: {}, events: [], stageEvents: [], stageCommands: [], version: null, textKeys: [], languages: [] }
   for (const file of files) {
     out.files[file.path] = exportsOf(file)
     const source = parseTs(file)
@@ -341,6 +345,8 @@ export function readContract(files: readonly SourceText[]): Contract {
         }
       }
     }
+    if (file.path.endsWith('/text.ts')) out.textKeys = stringArray(topConst(source, 'TEXT_KEYS'))
+    if (file.path.endsWith('/play-state.ts')) out.languages = stringArray(topConst(source, 'STAGE_LANGUAGES'))
     const version = topConst(source, 'CONTRACT_VERSION')
     if (version && ts.isNumericLiteral(unwrap(version))) out.version = Number(unwrap(version).getText())
   }
@@ -420,10 +426,13 @@ export interface RustMap {
   settingsStructs: { name: string; serde: string | null; fields: { name: string; type: string; serdeDefault: boolean }[] }[]
   migrations: string[]
   metaKeys: { name: string; value: string; file: string }[]
+  identity: Record<string, string>
+  windows: { label: string; url: string }[]
+  cargo: { members: string[]; crates: { name: string; path: string; features: Record<string, string[]>; dependencies: Record<string, string> }[] }
 }
 
-const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
-const uniqSorted = (xs: Iterable<string>): string[] => [...new Set(xs)].sort(cmp)
+export const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+export const uniqSorted = (xs: Iterable<string>): string[] => [...new Set(xs)].sort(cmp)
 
 function callersOf(name: string, guard: RustMap['guard']): string[] {
   const out = ['main']
@@ -451,8 +460,14 @@ function describe(group: Record<string, ContractItem>): Record<string, Flow> {
   return Object.fromEntries(Object.entries(group).map(([name, item]) => [name, flow({ kind: item.kind, sig: item.sig, doc: item.doc })]))
 }
 
-export function buildMap(rust: RustMap, contract: Contract, studio: StudioCalls): Record<string, unknown> {
-  const mismatches: string[] = []
+export interface Surfaces {
+  /** Extra top-level sections, in order. */
+  sections: Record<string, unknown>
+  mismatches: string[]
+}
+
+export function buildMap(rust: RustMap, contract: Contract, studio: StudioCalls, surfaces?: Surfaces): Record<string, unknown> {
+  const mismatches: string[] = [...(surfaces?.mismatches ?? [])]
   const rustNames = rust.commands.map((c) => c.name)
   const contractNames = Object.values(contract.commandGroups).flat()
 
@@ -550,6 +565,7 @@ export function buildMap(rust: RustMap, contract: Contract, studio: StudioCalls)
         'questiongame_app',
       ),
     },
+    ...(surfaces?.sections ?? {}),
     mismatches: uniqSorted(mismatches),
   }
 }
