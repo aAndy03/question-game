@@ -107,6 +107,7 @@ jobs:
         with:
           name: e2e-failures
           path: e2e/.artifacts/
+          include-hidden-files: true
 
   build:
     name: Build (${{ matrix.name }})

@@ -30,7 +30,8 @@ function run(command: string, args: readonly string[]): void {
   // WebdriverIO sets NODE_ENV for its own process; a Vite build that inherits
   // it compiles the webviews' dev-only code in, and the release check then
   // refuses the build. The app under test is built as a release is.
-  const { NODE_ENV: _ignored, ...env } = process.env
+  const env = { ...process.env }
+  delete env.NODE_ENV
   const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', shell: true, env })
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} exited ${result.status}`)
 }
