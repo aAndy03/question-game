@@ -88,6 +88,14 @@ id_type!(
     OperatorId
 );
 id_type!(
+    /// One library among several in the same file (Beta 2.0).
+    WorkspaceId
+);
+id_type!(
+    /// A named group of workspaces in the switcher.
+    WorkspaceGroupId
+);
+id_type!(
     /// One appended fact. `<play id>:<seq>` — deterministic, so a replay
     /// rebuilds the same log rather than a fresh set of uuids.
     EventId

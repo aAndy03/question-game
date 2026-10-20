@@ -116,6 +116,22 @@ pub enum CatalogError {
     #[error("could not back up the library to {}: {reason}. Nothing was changed; the previous version can still open it.", dir.display())]
     BackupFailed { dir: std::path::PathBuf, reason: String },
 
+    /// An id that belongs to a row local to another workspace. A save cannot
+    /// reach across: only copy and move change where a row lives.
+    #[error("{kind} {id} belongs to another workspace")]
+    WrongWorkspace { kind: CatalogKind, id: String },
+
+    /// No active workspace to open the library in. Every library has one from
+    /// migration 4 on, and the last active one cannot be archived, so this is
+    /// a damaged file, not an operator mistake.
+    #[error("the library has no active workspace")]
+    NoWorkspace,
+
+    /// A reference rule between workspaces and the shared library: a shared
+    /// domain holds only shared questions; a game uses its own and shared rows.
+    #[error("{rule}: {detail}")]
+    ScopeRule { rule: &'static str, detail: String },
+
     #[error(transparent)]
     Sqlite(#[from] rusqlite::Error),
 

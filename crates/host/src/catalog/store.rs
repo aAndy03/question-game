@@ -49,7 +49,62 @@ fn stamps(row: &Row<'_>) -> rusqlite::Result<Stamps> {
         created_at: read_u64(row, "created_at")?,
         updated_at: read_u64(row, "updated_at")?,
         archived_at: read_opt_u64(row, "archived_at")?,
+        shared: false,
+        family_id: None,
     })
+}
+
+/// A library row is **in view** when it lives in the current workspace or in
+/// the shared library (Beta 2.0). The current workspace is the one row of the
+/// `current_ws` TEMP table on this connection ([`super::db::bind_workspace`]),
+/// so the scope cannot be forgotten by a caller: every statement below that
+/// reads or writes a library row names it.
+pub(super) const IN_VIEW: &str =
+    "(workspace_id IS NULL OR workspace_id = (SELECT id FROM temp.current_ws))";
+/// A game is never shared: it is in view only in its own workspace.
+pub(super) const IN_WORKSPACE: &str = "workspace_id = (SELECT id FROM temp.current_ws)";
+
+fn in_view(alias: &str) -> String {
+    format!(
+        "({alias}.workspace_id IS NULL OR {alias}.workspace_id = (SELECT id FROM temp.current_ws))"
+    )
+}
+
+/// [`stamps`] for a library row, which also says where it lives.
+fn library_stamps(row: &Row<'_>) -> rusqlite::Result<Stamps> {
+    Ok(Stamps {
+        shared: row.get::<_, Option<String>>("workspace_id")?.is_none(),
+        family_id: row.get("family_id")?,
+        ..stamps(row)?
+    })
+}
+
+/// A save may not reach a row local to another workspace: to this workspace
+/// that row does not exist, and its id is not free either. Only copy and move
+/// change where a row lives.
+fn ensure_in_view(conn: &Connection, kind: CatalogKind, id: &str) -> CatalogResult<()> {
+    let scope = if kind == CatalogKind::Recipe {
+        IN_WORKSPACE
+    } else {
+        IN_VIEW
+    };
+    let sql = format!("SELECT {scope} FROM {} WHERE id = ?1", kind.table());
+    match conn
+        .query_row(&sql, params![id], |row| row.get::<_, bool>(0))
+        .optional()?
+    {
+        Some(false) => Err(CatalogError::WrongWorkspace {
+            kind,
+            id: id.to_owned(),
+        }),
+        _ => Ok(()),
+    }
+}
+
+/// Where a **new** row lands: the shared library, or the current workspace.
+/// `ON CONFLICT` never touches the column, so an existing row stays put.
+fn land(param: usize) -> String {
+    format!("CASE WHEN ?{param} THEN NULL ELSE (SELECT id FROM temp.current_ws) END")
 }
 
 /// `created_at` is kept from the stored row; `updated_at` moves to now. This is
@@ -80,7 +135,7 @@ fn carried_created_at(
 /// the snapshot's teams, so a team that scored nothing is still in there. A
 /// Play that was loaded and never started is not one anybody played.
 const TEAM_COLUMNS: &str = "t.id, t.name, t.short_code, t.color, t.logo_asset_id, t.notes,
-     t.origin, t.created_at, t.updated_at, t.archived_at,
+     t.origin, t.created_at, t.updated_at, t.archived_at, t.workspace_id, t.family_id,
      (SELECT COUNT(*) FROM plays p
        WHERE p.started_at_ms IS NOT NULL
          AND EXISTS (SELECT 1 FROM json_each(p.scores_json) j WHERE j.key = t.id))
@@ -101,7 +156,7 @@ pub(super) fn team_row(row: &Row<'_>) -> rusqlite::Result<Team> {
             .map(AssetId::new),
         notes: row.get("notes")?,
         origin: origin(row)?,
-        stamps: stamps(row)?,
+        stamps: library_stamps(row)?,
         play_count: row.get::<_, i64>("play_count")? as u32,
         last_play_at: read_opt_u64(row, "last_play_at")?,
     })
@@ -109,7 +164,10 @@ pub(super) fn team_row(row: &Row<'_>) -> rusqlite::Result<Team> {
 
 pub(super) fn team_get(conn: &Connection, id: &TeamId) -> CatalogResult<Team> {
     conn.query_row(
-        &format!("SELECT {TEAM_COLUMNS} FROM teams t WHERE t.id = ?1"),
+        &format!(
+            "SELECT {TEAM_COLUMNS} FROM teams t WHERE t.id = ?1 AND {}",
+            in_view("t")
+        ),
         params![id.as_str()],
         team_row,
     )
@@ -119,8 +177,9 @@ pub(super) fn team_get(conn: &Connection, id: &TeamId) -> CatalogResult<Team> {
 
 pub(super) fn team_list(conn: &Connection, scope: ArchiveScope) -> CatalogResult<Vec<Team>> {
     let sql = format!(
-        "SELECT {TEAM_COLUMNS} FROM teams t WHERE {} ORDER BY t.name, t.id",
-        scope.sql()
+        "SELECT {TEAM_COLUMNS} FROM teams t WHERE {} AND {} ORDER BY t.name, t.id",
+        scope.sql(),
+        in_view("t")
     );
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map([], team_row)?;
@@ -128,22 +187,27 @@ pub(super) fn team_list(conn: &Connection, scope: ArchiveScope) -> CatalogResult
 }
 
 pub(super) fn team_upsert(tx: &Transaction<'_>, team: &Team, now_ms: u64) -> CatalogResult<()> {
+    ensure_in_view(tx, CatalogKind::Team, team.id.as_str())?;
     let created_at = carried_created_at(tx, "teams", team.id.as_str(), now_ms)?;
     tx.execute(
-        "INSERT INTO teams (id, name, short_code, color, logo_asset_id, notes, origin,
-                            created_at, updated_at, archived_at, play_count, last_play_at)
+        &format!(
+            "INSERT INTO teams (id, name, short_code, color, logo_asset_id, notes, origin,
+                            created_at, updated_at, archived_at, play_count, last_play_at,
+                            workspace_id)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
                  COALESCE((SELECT archived_at FROM teams WHERE id = ?1), NULL),
                  -- Dead columns, kept because they are NOT NULL and dropping a
                  -- column is not a forward-only migration worth writing. The
                  -- count read back is `TEAM_COLUMNS`, never these.
                  COALESCE((SELECT play_count FROM teams WHERE id = ?1), 0),
-                 (SELECT last_play_at FROM teams WHERE id = ?1))
+                 (SELECT last_play_at FROM teams WHERE id = ?1), {land})
          ON CONFLICT(id) DO UPDATE SET
              name = excluded.name, short_code = excluded.short_code,
              color = excluded.color, logo_asset_id = excluded.logo_asset_id,
              notes = excluded.notes, origin = excluded.origin,
              updated_at = excluded.updated_at",
+            land = land(10)
+        ),
         params![
             team.id.as_str(),
             team.name,
@@ -154,8 +218,10 @@ pub(super) fn team_upsert(tx: &Transaction<'_>, team: &Team, now_ms: u64) -> Cat
             team.origin.as_str(),
             ms(created_at),
             ms(now_ms),
+            team.stamps.shared,
         ],
     )?;
+    asset_rule(tx, "teams", "logo_asset_id", team.id.as_str())?;
     Ok(())
 }
 
@@ -169,7 +235,7 @@ fn domain_row(row: &Row<'_>) -> rusqlite::Result<Domain> {
         description: row.get("description")?,
         questions: Vec::new(),
         origin: origin(row)?,
-        stamps: stamps(row)?,
+        stamps: library_stamps(row)?,
     })
 }
 
@@ -190,7 +256,7 @@ fn domain_members(conn: &Connection, id: &DomainId) -> CatalogResult<Vec<DomainM
 pub(super) fn domain_get(conn: &Connection, id: &DomainId) -> CatalogResult<Domain> {
     let mut domain = conn
         .query_row(
-            "SELECT * FROM domains WHERE id = ?1",
+            &format!("SELECT * FROM domains WHERE id = ?1 AND {IN_VIEW}"),
             params![id.as_str()],
             domain_row,
         )
@@ -202,7 +268,7 @@ pub(super) fn domain_get(conn: &Connection, id: &DomainId) -> CatalogResult<Doma
 
 pub(super) fn domain_list(conn: &Connection, scope: ArchiveScope) -> CatalogResult<Vec<Domain>> {
     let sql = format!(
-        "SELECT * FROM domains WHERE {} ORDER BY name, id",
+        "SELECT * FROM domains WHERE {} AND {IN_VIEW} ORDER BY name, id",
         scope.sql()
     );
     let mut stmt = conn.prepare(&sql)?;
@@ -220,16 +286,20 @@ pub(super) fn domain_upsert(
     domain: &Domain,
     now_ms: u64,
 ) -> CatalogResult<()> {
+    ensure_in_view(tx, CatalogKind::Domain, domain.id.as_str())?;
     let created_at = carried_created_at(tx, "domains", domain.id.as_str(), now_ms)?;
     tx.execute(
-        "INSERT INTO domains (id, name, code, description, origin,
-                              created_at, updated_at, archived_at)
+        &format!(
+            "INSERT INTO domains (id, name, code, description, origin,
+                              created_at, updated_at, archived_at, workspace_id)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
-                 (SELECT archived_at FROM domains WHERE id = ?1))
+                 (SELECT archived_at FROM domains WHERE id = ?1), {land})
          ON CONFLICT(id) DO UPDATE SET
              name = excluded.name, code = excluded.code,
              description = excluded.description, origin = excluded.origin,
              updated_at = excluded.updated_at",
+            land = land(8)
+        ),
         params![
             domain.id.as_str(),
             domain.name,
@@ -238,6 +308,7 @@ pub(super) fn domain_upsert(
             domain.origin.as_str(),
             ms(created_at),
             ms(now_ms),
+            domain.stamps.shared,
         ],
     )?;
     tx.execute(
@@ -254,7 +325,58 @@ pub(super) fn domain_upsert(
             ],
         )?;
     }
+    domain_rule(tx, domain.id.as_str())?;
     Ok(())
+}
+
+/// A shared domain holds only shared questions; a domain in a workspace holds
+/// that workspace's questions and shared ones. Checked after the write, inside
+/// its transaction, so the stored row — not the caller's `shared` flag — is
+/// what is judged.
+pub(super) fn domain_rule(conn: &Connection, domain: &str) -> CatalogResult<()> {
+    let offender: Option<(String, bool)> = conn
+        .query_row(
+            "SELECT q.id, d.workspace_id IS NULL FROM domain_questions dq
+               JOIN domains d ON d.id = dq.domain_id
+               JOIN questions q ON q.id = dq.question_id
+             WHERE dq.domain_id = ?1 AND q.workspace_id IS NOT NULL
+               AND (d.workspace_id IS NULL OR q.workspace_id <> d.workspace_id)
+             LIMIT 1",
+            params![domain],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    match offender {
+        None => Ok(()),
+        Some((question, true)) => Err(CatalogError::ScopeRule {
+            rule: "a shared domain holds only shared questions",
+            detail: format!("domain {domain}, question {question}"),
+        }),
+        Some((question, false)) => Err(CatalogError::ScopeRule {
+            rule: "a domain holds its own workspace's questions and shared ones",
+            detail: format!("domain {domain}, question {question}"),
+        }),
+    }
+}
+
+/// A shared team or question has a shared asset, or none: a workspace's logo
+/// on a row every workspace sees would be a file only one of them can manage.
+fn asset_rule(conn: &Connection, table: &str, column: &str, id: &str) -> CatalogResult<()> {
+    let sql = format!(
+        "SELECT a.id FROM {table} r JOIN assets a ON a.id = r.{column}
+         WHERE r.id = ?1 AND a.workspace_id IS NOT NULL
+           AND (r.workspace_id IS NULL OR a.workspace_id <> r.workspace_id)"
+    );
+    let offender: Option<String> = conn
+        .query_row(&sql, params![id], |row| row.get(0))
+        .optional()?;
+    match offender {
+        None => Ok(()),
+        Some(asset) => Err(CatalogError::ScopeRule {
+            rule: "a row uses its own workspace's assets and shared ones",
+            detail: format!("{id}, asset {asset}"),
+        }),
+    }
 }
 
 // ------------------------------------------------------------------- questions
@@ -277,7 +399,7 @@ fn question_row(row: &Row<'_>) -> rusqlite::Result<Question> {
         },
         explanation: row.get("explanation")?,
         origin: origin(row)?,
-        stamps: stamps(row)?,
+        stamps: library_stamps(row)?,
     })
 }
 
@@ -299,7 +421,7 @@ fn question_options(conn: &Connection, id: &QuestionId) -> CatalogResult<Vec<Que
 pub(super) fn question_get(conn: &Connection, id: &QuestionId) -> CatalogResult<Question> {
     let mut question = conn
         .query_row(
-            "SELECT * FROM questions WHERE id = ?1",
+            &format!("SELECT * FROM questions WHERE id = ?1 AND {IN_VIEW}"),
             params![id.as_str()],
             question_row,
         )
@@ -314,7 +436,7 @@ pub(super) fn question_list(
     scope: ArchiveScope,
 ) -> CatalogResult<Vec<Question>> {
     let sql = format!(
-        "SELECT * FROM questions WHERE {} ORDER BY difficulty, id",
+        "SELECT * FROM questions WHERE {} AND {IN_VIEW} ORDER BY difficulty, id",
         scope.sql()
     );
     let mut stmt = conn.prepare(&sql)?;
@@ -332,16 +454,20 @@ pub(super) fn question_upsert(
     question: &Question,
     now_ms: u64,
 ) -> CatalogResult<()> {
+    ensure_in_view(tx, CatalogKind::Question, question.id.as_str())?;
     let created_at = carried_created_at(tx, "questions", question.id.as_str(), now_ms)?;
     tx.execute(
-        "INSERT INTO questions (id, stem, media_asset_id, difficulty, explanation, origin,
-                                created_at, updated_at, archived_at)
+        &format!(
+            "INSERT INTO questions (id, stem, media_asset_id, difficulty, explanation, origin,
+                                created_at, updated_at, archived_at, workspace_id)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
-                 (SELECT archived_at FROM questions WHERE id = ?1))
+                 (SELECT archived_at FROM questions WHERE id = ?1), {land})
          ON CONFLICT(id) DO UPDATE SET
              stem = excluded.stem, media_asset_id = excluded.media_asset_id,
              difficulty = excluded.difficulty, explanation = excluded.explanation,
              origin = excluded.origin, updated_at = excluded.updated_at",
+            land = land(9)
+        ),
         params![
             question.id.as_str(),
             question.stem,
@@ -351,8 +477,10 @@ pub(super) fn question_upsert(
             question.origin.as_str(),
             ms(created_at),
             ms(now_ms),
+            question.stamps.shared,
         ],
     )?;
+    asset_rule(tx, "questions", "media_asset_id", question.id.as_str())?;
     tx.execute(
         "DELETE FROM question_options WHERE question_id = ?1",
         params![question.id.as_str()],
@@ -459,13 +587,15 @@ fn asset_row(row: &Row<'_>) -> rusqlite::Result<Asset> {
             created_at: read_u64(row, "created_at")?,
             updated_at: read_u64(row, "created_at")?,
             archived_at: read_opt_u64(row, "archived_at")?,
+            shared: row.get::<_, Option<String>>("workspace_id")?.is_none(),
+            family_id: row.get("family_id")?,
         },
     })
 }
 
 pub(super) fn asset_get(conn: &Connection, id: &AssetId) -> CatalogResult<Asset> {
     conn.query_row(
-        "SELECT * FROM assets WHERE id = ?1",
+        &format!("SELECT * FROM assets WHERE id = ?1 AND {IN_VIEW}"),
         params![id.as_str()],
         asset_row,
     )
@@ -474,7 +604,10 @@ pub(super) fn asset_get(conn: &Connection, id: &AssetId) -> CatalogResult<Asset>
 }
 
 pub(super) fn asset_list(conn: &Connection, scope: ArchiveScope) -> CatalogResult<Vec<Asset>> {
-    let sql = format!("SELECT * FROM assets WHERE {} ORDER BY id", scope.sql());
+    let sql = format!(
+        "SELECT * FROM assets WHERE {} AND {IN_VIEW} ORDER BY id",
+        scope.sql()
+    );
     let mut stmt = conn.prepare(&sql)?;
     Ok(stmt
         .query_map([], asset_row)?
@@ -482,12 +615,22 @@ pub(super) fn asset_list(conn: &Connection, scope: ArchiveScope) -> CatalogResul
 }
 
 pub(super) fn asset_upsert(tx: &Transaction<'_>, asset: &Asset, now_ms: u64) -> CatalogResult<()> {
+    ensure_in_view(tx, CatalogKind::Asset, asset.id.as_str())?;
     let created_at = carried_created_at(tx, "assets", asset.id.as_str(), now_ms)?;
     tx.execute(
-        "INSERT INTO assets (id, path, kind, created_at, archived_at)
-         VALUES (?1, ?2, ?3, ?4, (SELECT archived_at FROM assets WHERE id = ?1))
+        &format!(
+            "INSERT INTO assets (id, path, kind, created_at, archived_at, workspace_id)
+         VALUES (?1, ?2, ?3, ?4, (SELECT archived_at FROM assets WHERE id = ?1), {land})
          ON CONFLICT(id) DO UPDATE SET path = excluded.path, kind = excluded.kind",
-        params![asset.id.as_str(), asset.path, asset.kind, ms(created_at)],
+            land = land(5)
+        ),
+        params![
+            asset.id.as_str(),
+            asset.path,
+            asset.kind,
+            ms(created_at),
+            asset.stamps.shared,
+        ],
     )?;
     Ok(())
 }
@@ -554,7 +697,7 @@ fn recipe_children(conn: &Connection, recipe: &mut Recipe) -> CatalogResult<()> 
 pub(super) fn recipe_get(conn: &Connection, id: &RecipeId) -> CatalogResult<Recipe> {
     let mut recipe = conn
         .query_row(
-            "SELECT * FROM recipes WHERE id = ?1",
+            &format!("SELECT * FROM recipes WHERE id = ?1 AND {IN_WORKSPACE}"),
             params![id.as_str()],
             |row| Ok(recipe_row(row)),
         )
@@ -567,7 +710,7 @@ pub(super) fn recipe_get(conn: &Connection, id: &RecipeId) -> CatalogResult<Reci
 
 pub(super) fn recipe_list(conn: &Connection, scope: ArchiveScope) -> CatalogResult<Vec<Recipe>> {
     let sql = format!(
-        "SELECT * FROM recipes WHERE {} ORDER BY name, id",
+        "SELECT * FROM recipes WHERE {} AND {IN_WORKSPACE} ORDER BY name, id",
         scope.sql()
     );
     let mut stmt = conn.prepare(&sql)?;
@@ -590,6 +733,7 @@ pub(super) fn recipe_upsert(
     now_ms: u64,
 ) -> CatalogResult<u32> {
     let id = recipe.id.as_str();
+    ensure_in_view(tx, CatalogKind::Recipe, id)?;
     let created_at = carried_created_at(tx, "recipes", id, now_ms)?;
     let rev: i64 = tx
         .query_row(
@@ -603,9 +747,10 @@ pub(super) fn recipe_upsert(
 
     tx.execute(
         "INSERT INTO recipes (id, name, folder, tags_json, settings_json, layout_json, rev,
-                              origin, created_at, updated_at, archived_at)
+                              origin, created_at, updated_at, archived_at, workspace_id)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
-                 (SELECT archived_at FROM recipes WHERE id = ?1))
+                 (SELECT archived_at FROM recipes WHERE id = ?1),
+                 (SELECT id FROM temp.current_ws))
          ON CONFLICT(id) DO UPDATE SET
              name = excluded.name, folder = excluded.folder, tags_json = excluded.tags_json,
              settings_json = excluded.settings_json, layout_json = excluded.layout_json,
@@ -659,7 +804,47 @@ pub(super) fn recipe_upsert(
     }
 
     overlays_replace(tx, &recipe.id, &recipe.overlays)?;
+    recipe_rule(tx, id)?;
     Ok(rev as u32)
+}
+
+/// A game uses its own workspace's teams, domains and questions and shared
+/// ones — never a row local to another workspace.
+pub(super) fn recipe_rule(conn: &Connection, recipe: &str) -> CatalogResult<()> {
+    let checks: [(&str, &str, &str); 3] = [
+        (
+            "team",
+            "recipe_teams",
+            "SELECT x.team_id FROM recipe_teams x JOIN teams t ON t.id = x.team_id",
+        ),
+        (
+            "domain",
+            "recipe_domains",
+            "SELECT x.domain_id FROM recipe_domains x JOIN domains t ON t.id = x.domain_id",
+        ),
+        (
+            "question",
+            "recipe_questions",
+            "SELECT x.question_id FROM recipe_questions x JOIN questions t ON t.id = x.question_id",
+        ),
+    ];
+    for (noun, _, select) in checks {
+        let sql = format!(
+            "{select} JOIN recipes r ON r.id = x.recipe_id
+             WHERE x.recipe_id = ?1 AND t.workspace_id IS NOT NULL
+               AND t.workspace_id IS NOT r.workspace_id LIMIT 1"
+        );
+        let offender: Option<String> = conn
+            .query_row(&sql, params![recipe], |row| row.get(0))
+            .optional()?;
+        if let Some(id) = offender {
+            return Err(CatalogError::ScopeRule {
+                rule: "a game uses its own workspace's rows and shared ones",
+                detail: format!("game {recipe}, {noun} {id}"),
+            });
+        }
+    }
+    Ok(())
 }
 
 // -------------------------------------------------------------------- overlays
@@ -813,7 +998,15 @@ pub(super) fn set_archived(
     id: &str,
     at_ms: Option<u64>,
 ) -> CatalogResult<()> {
-    let sql = format!("UPDATE {} SET archived_at = ?1 WHERE id = ?2", kind.table());
+    let scope = match kind {
+        CatalogKind::Operator => "1",
+        CatalogKind::Recipe => IN_WORKSPACE,
+        _ => IN_VIEW,
+    };
+    let sql = format!(
+        "UPDATE {} SET archived_at = ?1 WHERE id = ?2 AND {scope}",
+        kind.table()
+    );
     let changed = conn.execute(&sql, params![opt_ms(at_ms), id])?;
     if changed == 0 {
         return Err(CatalogError::not_found(kind, id));
@@ -1022,18 +1215,32 @@ fn play_record_row(row: &Row<'_>) -> CatalogResult<super::model::PlayRecord> {
     })
 }
 
+/// The Plays of the current workspace's games — or of every workspace's, with
+/// `all_workspaces` (Statistics' *All workspaces*). A Play reaches its
+/// workspace through its game; the log itself carries no workspace.
 pub(super) fn play_list(
     conn: &Connection,
     recipe: Option<&RecipeId>,
+    all_workspaces: bool,
 ) -> CatalogResult<Vec<super::model::PlayRecord>> {
-    let (sql, params): (&str, Vec<String>) = match recipe {
+    let scope = if all_workspaces {
+        "1".to_owned()
+    } else {
+        format!("recipe_id IN (SELECT id FROM recipes WHERE {IN_WORKSPACE})")
+    };
+    let (sql, params): (String, Vec<String>) = match recipe {
         Some(id) => (
-            "SELECT * FROM plays WHERE recipe_id = ?1 ORDER BY started_at_ms, id",
+            format!(
+                "SELECT * FROM plays WHERE recipe_id = ?1 AND {scope} ORDER BY started_at_ms, id"
+            ),
             vec![id.as_str().to_owned()],
         ),
-        None => ("SELECT * FROM plays ORDER BY started_at_ms, id", Vec::new()),
+        None => (
+            format!("SELECT * FROM plays WHERE {scope} ORDER BY started_at_ms, id"),
+            Vec::new(),
+        ),
     };
-    let mut stmt = conn.prepare(sql)?;
+    let mut stmt = conn.prepare(&sql)?;
     let rows = stmt
         .query_map(rusqlite::params_from_iter(params), |row| {
             Ok(play_record_row(row))
@@ -1102,4 +1309,131 @@ pub(super) fn other_open_play_of(
             |row| Ok(PlayId::new(row.get::<_, String>(0)?)),
         )
         .optional()?)
+}
+
+// ------------------------------------------------------------------ workspaces
+
+fn workspace_row(row: &Row<'_>) -> CatalogResult<super::workspace::Workspace> {
+    Ok(super::workspace::Workspace {
+        id: crate::ids::WorkspaceId::new(row.get::<_, String>("id")?),
+        name: row.get("name")?,
+        group_id: row
+            .get::<_, Option<String>>("group_id")?
+            .map(crate::ids::WorkspaceGroupId::new),
+        sort_key: row.get("sort_key")?,
+        settings: row
+            .get::<_, Option<String>>("settings_json")?
+            .map(|json| serde_json::from_str(&json))
+            .transpose()?,
+        created_at: read_u64(row, "created_at")?,
+        updated_at: read_u64(row, "updated_at")?,
+        archived_at: read_opt_u64(row, "archived_at")?,
+    })
+}
+
+pub(super) fn workspace_list(conn: &Connection) -> CatalogResult<Vec<super::workspace::Workspace>> {
+    let mut stmt = conn.prepare("SELECT * FROM workspaces ORDER BY sort_key, created_at, id")?;
+    let rows = stmt
+        .query_map([], |row| Ok(workspace_row(row)))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    rows.into_iter().collect()
+}
+
+pub(super) fn workspace_get(
+    conn: &Connection,
+    id: &crate::ids::WorkspaceId,
+) -> CatalogResult<Option<super::workspace::Workspace>> {
+    conn.query_row(
+        "SELECT * FROM workspaces WHERE id = ?1",
+        params![id.as_str()],
+        |row| Ok(workspace_row(row)),
+    )
+    .optional()?
+    .transpose()
+}
+
+pub(super) fn workspace_insert(
+    conn: &Connection,
+    workspace: &super::workspace::Workspace,
+) -> CatalogResult<()> {
+    conn.execute(
+        "INSERT INTO workspaces (id, name, group_id, sort_key, settings_json,
+                                 created_at, updated_at, archived_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            workspace.id.as_str(),
+            workspace.name,
+            workspace.group_id.as_ref().map(|g| g.as_str()),
+            workspace.sort_key,
+            workspace
+                .settings
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()?,
+            ms(workspace.created_at),
+            ms(workspace.updated_at),
+            opt_ms(workspace.archived_at),
+        ],
+    )?;
+    Ok(())
+}
+
+/// Every column the operator can change, written back as one row.
+pub(super) fn workspace_update(
+    conn: &Connection,
+    workspace: &super::workspace::Workspace,
+) -> CatalogResult<()> {
+    conn.execute(
+        "UPDATE workspaces SET name = ?2, group_id = ?3, sort_key = ?4, settings_json = ?5,
+                               updated_at = ?6, archived_at = ?7
+         WHERE id = ?1",
+        params![
+            workspace.id.as_str(),
+            workspace.name,
+            workspace.group_id.as_ref().map(|g| g.as_str()),
+            workspace.sort_key,
+            workspace
+                .settings
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()?,
+            ms(workspace.updated_at),
+            opt_ms(workspace.archived_at),
+        ],
+    )?;
+    Ok(())
+}
+
+pub(super) fn workspace_next_sort_key(conn: &Connection) -> CatalogResult<i64> {
+    Ok(conn.query_row(
+        "SELECT COALESCE(MAX(sort_key), -1) + 1 FROM workspaces",
+        [],
+        |row| row.get(0),
+    )?)
+}
+
+/// The workspace the connection is bound to.
+pub(super) fn current_workspace(conn: &Connection) -> CatalogResult<crate::ids::WorkspaceId> {
+    Ok(crate::ids::WorkspaceId::new(conn.query_row(
+        "SELECT id FROM temp.current_ws",
+        [],
+        |row| row.get::<_, String>(0),
+    )?))
+}
+
+pub(super) fn group_list(
+    conn: &Connection,
+) -> CatalogResult<Vec<super::workspace::WorkspaceGroup>> {
+    let mut stmt =
+        conn.prepare("SELECT * FROM workspace_groups ORDER BY sort_key, created_at, id")?;
+    let rows = stmt.query_map([], |row| {
+        Ok(super::workspace::WorkspaceGroup {
+            id: crate::ids::WorkspaceGroupId::new(row.get::<_, String>("id")?),
+            name: row.get("name")?,
+            sort_key: row.get("sort_key")?,
+            created_at: read_u64(row, "created_at")?,
+            updated_at: read_u64(row, "updated_at")?,
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }

@@ -86,6 +86,16 @@ pub struct Stamps {
     pub updated_at: u64,
     /// `Some` means archived — soft, restorable, never a delete (§4.1).
     pub archived_at: Option<u64>,
+    /// In the shared library rather than a workspace (Beta 2.0). Read from
+    /// the row; on a save it only decides where a **new** row lands — an
+    /// existing row moves only through copy, move or share. Always `false`
+    /// for operators and games.
+    #[serde(default)]
+    pub shared: bool,
+    /// The family of copies this row belongs to, `None` when it was never
+    /// copied. Set by the host only; a save never changes it.
+    #[serde(default)]
+    pub family_id: Option<i64>,
 }
 
 impl Stamps {
@@ -675,6 +685,22 @@ impl CatalogItem {
             CatalogItem::Asset(asset) => vec![&asset.path, &asset.kind],
         };
         parts.join(" ")
+    }
+
+    /// The row's stamps, whatever its kind.
+    pub fn stamps(&self) -> &Stamps {
+        match self {
+            CatalogItem::Team(team) => &team.stamps,
+            CatalogItem::Domain(domain) => &domain.stamps,
+            CatalogItem::Question(question) => &question.stamps,
+            CatalogItem::Operator(operator) => &operator.stamps,
+            CatalogItem::Asset(asset) => &asset.stamps,
+        }
+    }
+
+    /// In the shared library rather than a workspace (Beta 2.0).
+    pub fn is_shared(&self) -> bool {
+        self.stamps().shared
     }
 
     pub(crate) fn is_archived(&self) -> bool {

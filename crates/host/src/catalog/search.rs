@@ -160,7 +160,11 @@ impl SearchIndex {
     /// Throw the index away and start again — what a rebuild from the catalog
     /// begins with.
     pub(super) fn clear(&self) -> CatalogResult<()> {
-        let writer = self.writer();
+        let mut writer = self.writer();
+        // `delete_all_documents` drops committed segments only; a document
+        // still in the indexing buffer would survive it. A workspace switch
+        // rebuilds right after a write, so commit first.
+        writer.commit()?;
         writer.delete_all_documents()?;
         self.dirty.store(true, Ordering::Release);
         Ok(())

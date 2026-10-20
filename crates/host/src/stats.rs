@@ -306,6 +306,9 @@ pub struct StatsFilter {
     pub max_difficulty: Option<u8>,
     /// A one-team Play is legal (§4.3) and skews an average; off by default.
     pub include_rehearsal: bool,
+    /// Every workspace's Plays, not only the current one's (Beta 2.0). Off
+    /// by default: Statistics, like every view, is scoped to the workspace.
+    pub all_workspaces: bool,
 }
 
 impl StatsFilter {

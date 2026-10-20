@@ -19,7 +19,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::flags::GameSettings;
-use crate::ids::{DomainId, QuestionId, RecipeId, TeamId};
+use crate::ids::{DomainId, QuestionId, RecipeId, TeamId, WorkspaceId};
 use crate::settings::Language;
 
 use super::error::{CatalogError, CatalogKind, CatalogResult};
@@ -280,25 +280,56 @@ const ROMANIAN: Document = Document {
 /// Questions go in before domains, and both before the recipe, because the
 /// membership rows reference them and a batch is one transaction.
 pub fn demo_document(demo: Demo, settings: GameSettings) -> (Vec<CatalogItem>, Recipe) {
+    demo_document_in(demo, settings, &WorkspaceId::from(FIRST_WORKSPACE))
+}
+
+/// The workspace every library starts in. Its Demo keeps the ids the Demo has
+/// always had, so a migrated library still recognises its own sample.
+const FIRST_WORKSPACE: &str = "ws-1";
+
+/// [`demo_document`] for one workspace (Beta 2.0). Another workspace's Demo is
+/// its own rows — `seed-<workspace>-team-red` — so loading the Demo in a
+/// second workspace never reaches the first one's.
+pub fn demo_document_in(
+    demo: Demo,
+    settings: GameSettings,
+    workspace: &WorkspaceId,
+) -> (Vec<CatalogItem>, Recipe) {
+    let scope = if workspace.as_str() == FIRST_WORKSPACE {
+        String::new()
+    } else {
+        format!("{workspace}-")
+    };
     match demo {
-        Demo::En => build(&ENGLISH, settings),
+        Demo::En => build(&ENGLISH, settings, &scope),
         Demo::Ro => build(
             &ROMANIAN,
             GameSettings {
                 language: Language::Ro,
                 ..settings
             },
+            &scope,
         ),
     }
 }
 
-fn build(doc: &Document, settings: GameSettings) -> (Vec<CatalogItem>, Recipe) {
+/// `seed-` + `scope` + the rest: the scope goes right after the marker every
+/// seed id starts with.
+fn scoped(id: &str, scope: &str) -> String {
+    match id.strip_prefix("seed-") {
+        Some(rest) => format!("seed-{scope}{rest}"),
+        None => id.to_owned(),
+    }
+}
+
+fn build(doc: &Document, settings: GameSettings, scope: &str) -> (Vec<CatalogItem>, Recipe) {
     let mut items: Vec<CatalogItem> = Vec::new();
+    let prefix = scoped(doc.prefix, scope);
 
     let team_ids: Vec<TeamId> = doc
         .teams
         .iter()
-        .map(|(key, ..)| TeamId::new(format!("{}team-{key}", doc.prefix)))
+        .map(|(key, ..)| TeamId::new(format!("{prefix}team-{key}")))
         .collect();
     for ((_, name, code, color), id) in doc.teams.iter().zip(&team_ids) {
         let mut team = Team::new(id.clone(), *name, *code);
@@ -309,9 +340,9 @@ fn build(doc: &Document, settings: GameSettings) -> (Vec<CatalogItem>, Recipe) {
 
     let mut board: Vec<BoardDomain> = Vec::new();
     for (key, name, code, questions) in doc.domains {
-        let domain_id = DomainId::new(format!("{}dom-{key}", doc.prefix));
+        let domain_id = DomainId::new(format!("{prefix}dom-{key}"));
         let question_ids: Vec<QuestionId> = (1..=questions.len())
-            .map(|n| QuestionId::new(format!("{}q-{key}-{n}", doc.prefix)))
+            .map(|n| QuestionId::new(format!("{prefix}q-{key}-{n}")))
             .collect();
 
         for ((stem, options), (id, difficulty)) in questions
@@ -350,7 +381,7 @@ fn build(doc: &Document, settings: GameSettings) -> (Vec<CatalogItem>, Recipe) {
         });
     }
 
-    let mut recipe = Recipe::new(doc.recipe_id, doc.name, settings);
+    let mut recipe = Recipe::new(scoped(doc.recipe_id, scope), doc.name, settings);
     recipe.teams = team_ids;
     recipe.board = board;
     recipe.origin = Origin::Seed;
@@ -437,7 +468,7 @@ impl CatalogService {
         settings: GameSettings,
         now_ms: u64,
     ) -> CatalogResult<SeedResult> {
-        let (items, recipe) = demo_document(demo, settings);
+        let (items, recipe) = demo_document_in(demo, settings, &self.current_workspace());
         let mut to_write: Vec<CatalogItem> = Vec::new();
         let mut to_restore: Vec<(CatalogKind, String)> = Vec::new();
         let mut inserted = 0;
@@ -512,7 +543,7 @@ impl CatalogService {
     /// seed would write, because a recipe whose settings drifted from them is
     /// an edit.
     pub fn seed_status(&self, demo: Demo, settings: GameSettings) -> CatalogResult<SeedStatus> {
-        let (items, recipe) = demo_document(demo, settings);
+        let (items, recipe) = demo_document_in(demo, settings, &self.current_workspace());
         let mut status = SeedStatus {
             present: 0,
             missing: 0,

@@ -30,6 +30,13 @@ pub const META_LAST_SEEN: &str = "app.last_seen_version";
 /// What an unstamped library was last opened by.
 pub const UNSTAMPED_VERSION: &str = "1.0.1";
 
+/// The label of the copy taken before the workspaces migration (Beta 2.0).
+/// It is the one copy that matters most, so it sits outside the rotation:
+/// [`prune`] never deletes it.
+pub const PRE_WORKSPACES_LABEL: &str = "pre-workspaces";
+/// Every pinned copy's file name starts with this.
+pub const PRE_WORKSPACES_PREFIX: &str = "questiongame-pre-workspaces-";
+
 const PREFIX: &str = "questiongame-";
 const SUFFIX: &str = ".sqlite3";
 
@@ -105,6 +112,9 @@ pub(super) fn prune(dir: &Path, keep: usize, taken: &Path) {
         .filter_map(|entry| entry.ok())
         .filter_map(|entry| {
             let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with(PRE_WORKSPACES_PREFIX) {
+                return None;
+            }
             let stamp = stamp_of(&name)?.to_string();
             Some((stamp, entry.path()))
         })

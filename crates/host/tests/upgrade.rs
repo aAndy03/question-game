@@ -7,9 +7,11 @@
 use std::path::{Path, PathBuf};
 
 use questiongame_host::catalog::{
-    CatalogError, CatalogItem, CatalogKind, CatalogLocation, CatalogService, META_LAST_OPENED,
-    OpenOptions, Team,
+    ArchiveScope, CatalogError, CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo,
+    META_CURRENT_WORKSPACE, META_LAST_OPENED, OpenOptions, PRE_WORKSPACES_PREFIX, SeedMode, Team,
 };
+use questiongame_host::flags::{FlagService, GameSettings};
+use questiongame_host::{MatchService, PlayId, RecipeId};
 
 /// A folder that goes away when the test does.
 struct TempDir(PathBuf);
@@ -310,4 +312,215 @@ fn a_compact_copy_of_garbage_is_an_error_and_leaves_nothing() {
     let to = dir.0.join("copy.sqlite3");
     assert!(compact_copy(&from, &to).is_err());
     assert!(!to.exists());
+}
+
+// ------------------------------------------------------------- workspaces (4)
+
+/// A 1.0.2 library — schema 3, stamped `1.0.2` — holding the English Demo
+/// and, with `open_play`, a Play left running when the app closed.
+fn library_1_0_2(dir: &TempDir, open_play: bool) {
+    let newer = dir.0.join("newer.sqlite3");
+    {
+        let service = CatalogService::open(CatalogLocation::file(&newer)).unwrap();
+        service
+            .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), 1_000)
+            .unwrap();
+        if open_play {
+            let mut flags = FlagService::default();
+            flags.load_recipe(GameSettings::default()).unwrap();
+            let snapshot = service
+                .build_snapshot(
+                    &RecipeId::from("seed-recipe-demo"),
+                    PlayId::from("play-1"),
+                    flags.freeze().unwrap(),
+                )
+                .unwrap();
+            let mut play = MatchService::new();
+            play.play_load(snapshot, 0).unwrap();
+            play.play_start(0).unwrap();
+            service.play_persist(play.get_state().unwrap()).unwrap();
+        }
+    }
+    questiongame_host::catalog::db::write_older_schema(&newer, &dir.library(), 3).unwrap();
+    let conn = rusqlite::Connection::open(dir.library()).unwrap();
+    conn.execute(
+        "INSERT INTO globals (key, value_json) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json",
+        [META_LAST_OPENED, "\"1.0.2\""],
+    )
+    .unwrap();
+}
+
+fn count(conn: &rusqlite::Connection, sql: &str) -> i64 {
+    conn.query_row(sql, [], |row| row.get(0)).unwrap()
+}
+
+#[test]
+fn migration_4_puts_every_row_into_one_unnamed_workspace() {
+    let dir = TempDir::new("ws-migrate");
+    library_1_0_2(&dir, false);
+    let before: Vec<i64> = {
+        let conn = rusqlite::Connection::open(dir.library()).unwrap();
+        [
+            "teams",
+            "domains",
+            "questions",
+            "question_options",
+            "domain_questions",
+            "recipes",
+            "recipe_questions",
+        ]
+        .iter()
+        .map(|t| count(&conn, &format!("SELECT count(*) FROM {t}")))
+        .collect()
+    };
+    assert!(
+        before.iter().all(|n| *n > 0),
+        "the fixture has rows: {before:?}"
+    );
+
+    let (service, _) = CatalogService::open_file(
+        &dir.library(),
+        &options(&dir, "2.0.0-beta.1", "20261021-120000"),
+    )
+    .unwrap();
+    let (workspaces, groups) = service.workspace_list().unwrap();
+    assert_eq!(workspaces.len(), 1);
+    assert!(groups.is_empty());
+    assert_eq!(workspaces[0].name, None, "the operator names it");
+    assert_eq!(service.current_workspace(), workspaces[0].id);
+    assert_eq!(
+        service.meta_get(META_CURRENT_WORKSPACE).unwrap().as_deref(),
+        Some(workspaces[0].id.as_str())
+    );
+    assert_eq!(
+        service
+            .catalog_list(CatalogKind::Team, ArchiveScope::All)
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(
+        service
+            .catalog_list(CatalogKind::Question, ArchiveScope::All)
+            .unwrap()
+            .iter()
+            .all(|q| !q.is_shared()),
+        "nothing is shared after the migration"
+    );
+    drop(service);
+
+    let conn = rusqlite::Connection::open(dir.library()).unwrap();
+    let after: Vec<i64> = [
+        "teams",
+        "domains",
+        "questions",
+        "question_options",
+        "domain_questions",
+        "recipes",
+        "recipe_questions",
+    ]
+    .iter()
+    .map(|t| count(&conn, &format!("SELECT count(*) FROM {t}")))
+    .collect();
+    assert_eq!(before, after, "every row survives");
+    for table in ["teams", "domains", "questions", "recipes"] {
+        assert_eq!(
+            count(
+                &conn,
+                &format!("SELECT count(*) FROM {table} WHERE workspace_id IS NOT 'ws-1'")
+            ),
+            0,
+            "{table}"
+        );
+    }
+    assert_eq!(
+        count(&conn, "SELECT count(*) FROM pragma_foreign_key_check"),
+        0
+    );
+}
+
+#[test]
+fn the_pre_workspaces_backup_is_pinned_and_never_pruned() {
+    let dir = TempDir::new("ws-pinned");
+    library_1_0_2(&dir, false);
+    let (service, report) = CatalogService::open_file(
+        &dir.library(),
+        &options(&dir, "2.0.0-beta.1", "20261021-120000"),
+    )
+    .unwrap();
+    drop(service);
+    let pinned = report.backup.expect("a copy before the migration");
+    let name = pinned.file_name().unwrap().to_string_lossy().into_owned();
+    assert!(name.starts_with(PRE_WORKSPACES_PREFIX), "{name}");
+    let version: u32 = rusqlite::Connection::open(&pinned)
+        .unwrap()
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 3, "the copy is the library before the step");
+
+    // Seven later upgrades: the rotation keeps five, the pinned copy stays.
+    for n in 2..9 {
+        let (service, report) = CatalogService::open_file(
+            &dir.library(),
+            &options(
+                &dir,
+                &format!("2.0.0-beta.{n}"),
+                &format!("2026102{n}-120000"),
+            ),
+        )
+        .unwrap();
+        drop(service);
+        assert!(report.backup.is_some());
+    }
+    let names = backups_in(&dir.backups());
+    assert!(names.contains(&name), "{names:?}");
+    assert_eq!(
+        names
+            .iter()
+            .filter(|n| !n.starts_with(PRE_WORKSPACES_PREFIX))
+            .count(),
+        5,
+        "{names:?}"
+    );
+}
+
+#[test]
+fn migration_keeps_an_open_play_resumable() {
+    let dir = TempDir::new("ws-open-play");
+    library_1_0_2(&dir, true);
+    let (service, _) = CatalogService::open_file(
+        &dir.library(),
+        &options(&dir, "2.0.0-beta.1", "20261021-120000"),
+    )
+    .unwrap();
+    let play = service
+        .resume_open_play()
+        .unwrap()
+        .expect("the Play was open");
+    let mut match_service = MatchService::new();
+    match_service.adopt(play).expect("its game is in view");
+    assert!(
+        service
+            .recipe_get(&RecipeId::from("seed-recipe-demo"))
+            .is_ok()
+    );
+}
+
+#[test]
+fn a_library_from_a_newer_build_is_still_refused() {
+    let dir = TempDir::new("ws-future");
+    {
+        let service = CatalogService::open(CatalogLocation::file(dir.library())).unwrap();
+        drop(service);
+        let conn = rusqlite::Connection::open(dir.library()).unwrap();
+        conn.execute_batch("PRAGMA user_version = 5").unwrap();
+    }
+    assert!(matches!(
+        CatalogService::open_file(
+            &dir.library(),
+            &options(&dir, "2.0.0-beta.1", "20261021-120000")
+        ),
+        Err(CatalogError::SchemaTooNew { found: 5, known: 4 })
+    ));
 }

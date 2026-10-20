@@ -9,6 +9,7 @@
 //! snapshot  the §4.3 copy: catalog bodies with overlays applied
 //! search    Tantivy, inside the service — there is no `SearchService`
 //! seed      the two shipped Demos, and Restore sample game (§12.1, P11.17)
+//! workspace several libraries in one file, and the shared one (Beta 2.0)
 //! store     every SQL statement in the project
 //! db        the connection, the pragmas, the forward-only migrations
 //! error     the reject table for stored data
@@ -31,11 +32,15 @@ pub mod seed;
 pub mod service;
 mod snapshot;
 mod store;
+pub mod workspace;
 
 pub use crate::flags::GameSettings;
-pub use backup::{META_LAST_OPENED, META_LAST_SEEN, OpenOptions, OpenReport, UNSTAMPED_VERSION, compact_copy};
+pub use backup::{
+    META_LAST_OPENED, META_LAST_SEEN, OpenOptions, OpenReport, PRE_WORKSPACES_LABEL,
+    PRE_WORKSPACES_PREFIX, UNSTAMPED_VERSION, compact_copy,
+};
 pub use complete::QuestionGap;
-pub use db::CatalogLocation;
+pub use db::{CatalogLocation, META_CURRENT_WORKSPACE};
 pub use error::{CatalogError, CatalogKind, CatalogResult};
 pub use import::{ImportCounts, ImportReport, ImportRow, RowStatus};
 pub use model::{
@@ -48,3 +53,4 @@ pub use seed::{Demo, SeedMode, SeedResult, SeedStatus};
 pub use service::{
     CatalogChange, CatalogService, ChangeOp, OverlayTarget, RecipeChange, WipedPlays,
 };
+pub use workspace::{WORKSPACE_NAME_MAX, Workspace, WorkspaceGroup};
