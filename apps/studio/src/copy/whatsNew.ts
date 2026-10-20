@@ -49,6 +49,10 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
           title: 'A page at a time',
           body: 'Long lists show 100 rows a page, or 50, 250 or all of them. Open a question and come back: you are on the same page, with the same filters.',
         },
+        {
+          title: 'Archive or restore many at once',
+          body: 'Show Active, Archived or All. Select a page, or every matching row on every page, and archive or restore them together — Studio says how many are on this page and how many in all. Search now finds every match, however many there are.',
+        },
       ],
       ro: [
         {
@@ -57,7 +61,7 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
         },
         {
           title: 'Alegi ordinea',
-          body: 'Poți ordona orice listă după nume, dificultate, jocuri, data modificării și altele. În vizualizarea tabel, apasă pe titlul unei coloane ca să ordonezi după ea, și încă o dată ca să inversezi ordinea.',
+          body: 'Poți ordona orice listă după nume, dificultate, partide jucate, data modificării și altele. În vizualizarea tabel, apasă pe titlul unei coloane ca să ordonezi după ea, și încă o dată ca să inversezi ordinea.',
         },
         {
           title: 'Le vezi pe domenii sau pe dificultate',
@@ -65,7 +69,11 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
         },
         {
           title: 'O pagină odată',
-          body: 'Listele lungi arată 100 de rânduri pe pagină, sau 50, 250 ori pe toate. Deschizi o întrebare și te întorci: ești pe aceeași pagină, cu aceleași filtre.',
+          body: 'Listele lungi arată 100 de rânduri pe pagină — sau 50, 250 sau toate. Deschizi o întrebare și te întorci: ești pe aceeași pagină, cu aceleași filtre.',
+        },
+        {
+          title: 'Arhivezi sau restaurezi mai multe deodată',
+          body: 'Alege Active, Archived sau All. Selectează o pagină sau toate rândurile potrivite din toate paginile și arhivează-le ori restaurează-le împreună — Studio îți spune câte sunt pe pagina aceasta și câte în total. Căutarea găsește acum toate potrivirile, oricâte ar fi.',
         },
       ],
     },

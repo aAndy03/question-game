@@ -166,3 +166,48 @@ describe('BulkBar (B-02, B-07–B-10, B-16)', () => {
     }
   })
 })
+
+describe('deferred fixes', () => {
+  const range = { id: 'difficulty', label: 'Difficulty', kind: 'range' as const, bounds: { min: 1, max: 100 } }
+  const choice = { id: 'answer', label: 'Answer', kind: 'choice' as const, options: [{ value: 'single', label: 'Single' }] }
+
+  it('reports a range as typed — the hook puts it right (see useListView)', async () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<FilterMenu filters={[range]} values={{ difficulty: { min: 20, max: 80 } }} changed="any" onChange={onChange} onChanged={vi.fn()} activeCount={1} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Filters · 1' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Filters' })
+    const [from, to] = within(dialog).getAllByRole('textbox')
+    fireEvent.change(from!, { target: { value: '90' } })
+    fireEvent.blur(from!)
+    expect(onChange).toHaveBeenLastCalledWith('difficulty', { min: 90, max: 80 })
+    rerender(<FilterMenu filters={[range]} values={{ difficulty: { min: 1, max: 80 } }} changed="any" onChange={onChange} onChanged={vi.fn()} activeCount={1} />)
+    fireEvent.change(to!, { target: { value: '' } })
+    fireEvent.blur(to!)
+    expect(onChange).toHaveBeenLastCalledWith('difficulty', { min: 1, max: 100 })
+  })
+
+  it('reports a choice, All as off, and the Changed window', async () => {
+    const onChange = vi.fn()
+    const onChanged = vi.fn()
+    render(<FilterMenu filters={[choice]} values={{ answer: 'single' }} changed="any" onChange={onChange} onChanged={onChanged} activeCount={1} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Filters · 1' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Filters' })
+    fireEvent.click(within(dialog).getAllByRole('radio', { name: 'All' })[0]!)
+    expect(onChange).toHaveBeenCalledWith('answer', null)
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Last 7 days' }))
+    expect(onChanged).toHaveBeenCalledWith('7d')
+  })
+
+  it('labels the field and the order apart', async () => {
+    render(<SortMenu sorts={[{ id: 'name', label: 'Name' }]} value={{ id: 'name', desc: false }} onField={vi.fn()} onDirection={vi.fn()} showMatch={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sort: Name' }))
+    expect(await screen.findByText('Sort by')).toBeTruthy()
+    expect(screen.getByText('Order')).toBeTruthy()
+  })
+
+  it('has exactly the two actions to disable while a batch runs', () => {
+    render(<BulkBar count={2} onPage={2} archive={{ count: 1, run: vi.fn() }} restore={{ count: 1, run: vi.fn() }} onClear={vi.fn()} isPending />)
+    const actions = screen.getAllByRole('button').filter((x) => /Archive|Restore/.test(x.textContent ?? ''))
+    expect(actions).toHaveLength(2)
+  })
+})

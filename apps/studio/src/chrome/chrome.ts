@@ -57,9 +57,11 @@ export interface ListState {
   readonly search: string
   readonly page: number
   readonly collapsed: readonly string[]
+  /** The operator picked a sort while this search was on: Best match gives way. */
+  readonly pickedSort: boolean
 }
 
-export const EMPTY_LIST_STATE: ListState = { filters: {}, changed: 'any', search: '', page: 1, collapsed: [] }
+export const EMPTY_LIST_STATE: ListState = { filters: {}, changed: 'any', search: '', page: 1, collapsed: [], pickedSort: false }
 const NO_LIST_PREFS: ListPrefs = {}
 
 /**
@@ -68,7 +70,7 @@ const NO_LIST_PREFS: ListPrefs = {}
  * state, so the banned-key walk in `chrome.test.ts` skips them and nothing else.
  */
 export function isListViewKey(path: string): boolean {
-  return /^prefs.[^.]+.lists(.|$)/.test(path) || /^listState(.|$)/.test(path)
+  return /^prefs\.[^.]+\.lists(\.|$)/.test(path) || /^listState(\.|$)/.test(path)
 }
 
 export const DEFAULT_PREFS: OperatorPrefs = {

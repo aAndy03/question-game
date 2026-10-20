@@ -163,6 +163,7 @@ export function SortMenu({ sorts, value, onField, onDirection, showMatch }: Sort
           }}
         >
           <Dropdown.Section>
+            <Header>{LIST.sortBy}</Header>
             {fields.map((s) => (
               <Dropdown.Item key={s.id} id={s.id} textValue={s.label}>
                 <Dropdown.ItemIndicator />
@@ -172,7 +173,7 @@ export function SortMenu({ sorts, value, onField, onDirection, showMatch }: Sort
           </Dropdown.Section>
           {value.id === 'match' ? null : (
             <Dropdown.Section>
-              <Header>{LIST.sort}</Header>
+              <Header>{LIST.order}</Header>
               <Dropdown.Item id="asc" textValue={LIST.ascending}>
                 <Dropdown.ItemIndicator />
                 <Label>{LIST.ascending}</Label>

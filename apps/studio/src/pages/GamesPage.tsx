@@ -85,7 +85,10 @@ export function GamesPage() {
               {LIST.new(GAME.one)}
             </Button>
           }
-          toolbar={<ListToolbar view={lv} what={GAME.many} layout={view.games} onLayout={(v) => setView('games', v)} status={scope} onStatus={(v) => setScope('games', v)} />}
+          toolbar={<ListToolbar view={lv} what={GAME.many} layout={view.games} onLayout={(v) => setView('games', v)} status={scope} onStatus={(v) => {
+                setScope('games', v)
+                lv.resetPage()
+              }} />}
         />
       }
     >

@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useChromeStore, useListPrefs, useListState, type ListState } from '@/chrome/chrome'
 import { LIST } from '@/copy'
-import { isActive, listView, type Changed, type FilterValue, type ListItem, type ListPage, type ListSpec, type ListViewState, type PageSize } from './listView'
+import { isActive, listView, normalizeRange, type Changed, type FilterValue, type ListItem, type ListPage, type ListSpec, type ListViewState, type PageSize } from './listView'
 
 export interface ListViewApi<T, V = unknown> {
   readonly page: ListPage<T, V>
@@ -39,6 +39,8 @@ export interface ListViewApi<T, V = unknown> {
   sortBy(id: string): void
   setGroup(group: string | null): void
   setPage(page: number): void
+  /** The scope changed (Status, the domain pane): page 1, nothing selected. */
+  resetPage(): void
   setPageSize(size: PageSize): void
   toggleCollapsed(groupKey: string): void
   readonly selection: {
@@ -47,6 +49,8 @@ export interface ListViewApi<T, V = unknown> {
     readonly onPage: number
     toggle(id: string): void
     selectPage(): void
+    /** The header checkbox off: this page only, not what is selected elsewhere. */
+    deselectPage(): void
     selectAll(): void
     clear(): void
   }
@@ -77,12 +81,12 @@ export function useListView<T, V>(
   const setListPrefs = useChromeStore((s) => s.setListPrefs)
   const setListState = useChromeStore((s) => s.setListState)
   const [selected, setSelected] = useState<ReadonlySet<string>>(NO_IDS)
-  // A sort the operator picked while this search was on: Best match gives way.
-  const [pickedWhileSearching, setPicked] = useState(false)
 
   const searching = session.search.trim().length > 0
   const remembered = prefs.sort ?? spec.defaults.sort
-  const sort = searching && hits !== null && !pickedWhileSearching ? { id: 'match', desc: true } : remembered
+  // A sort the operator picked while this search was on (kept for the session,
+  // so a remount does not hand the list back to Best match): Best match gives way.
+  const sort = searching && hits !== null && !session.pickedSort ? { id: 'match', desc: true } : remembered
   const group = prefs.group === undefined ? spec.defaults.group : prefs.group
   const pageSize = prefs.pageSize ?? spec.defaults.pageSize
   const collapsed = useMemo(() => new Set(session.collapsed), [session.collapsed])
@@ -115,7 +119,15 @@ export function useListView<T, V>(
     },
     [setListState, tab],
   )
-  const setFilter = useCallback((id: string, value: FilterValue | null) => narrow({ filters: { ...session.filters, [id]: value } }), [narrow, session.filters])
+  const setFilter = useCallback(
+    (id: string, value: FilterValue | null) => {
+      // A range the operator meant: the right way round, and off once it spans the scale.
+      const def = spec.filters.find((f) => f.id === id)
+      const next = def?.kind === 'range' && value !== null && typeof value === 'object' && 'min' in value ? normalizeRange(value, def.bounds ?? value) : value
+      narrow({ filters: { ...session.filters, [id]: next } })
+    },
+    [narrow, session.filters, spec.filters],
+  )
   const setChanged = useCallback((changed: Changed) => narrow({ changed }), [narrow])
   const clearFilters = useCallback(() => narrow({ filters: {}, changed: 'any' }), [narrow])
   // One function for the life of the list: the search field re-reports its
@@ -125,18 +137,21 @@ export function useListView<T, V>(
   const setSearch = useCallback(
     (search: string) => {
       // The same text is not a new search, and must not cost the operator their page.
-      if (search === (useChromeStore.getState().listState[tab]?.search ?? '')) return
-      if (search.trim().length === 0) setPicked(false)
-      narrow({ search })
+      // A trailing space is not a new search either.
+      if (search.trim() === (useChromeStore.getState().listState[tab]?.search ?? '').trim()) return
+      narrow(search.trim().length === 0 ? { search, pickedSort: false } : { search })
     },
     [narrow, tab],
   )
   const setSort = useCallback(
     (next: { id: string; desc: boolean }) => {
-      if (next.id === 'match') return
-      if (searching) setPicked(true)
+      // Best match is never remembered: picking it gives the search its own order back.
+      if (next.id === 'match') {
+        setListState(tab, { page: 1, pickedSort: false })
+        return
+      }
       setListPrefs(tab, { sort: next })
-      setListState(tab, { page: 1 })
+      setListState(tab, searching ? { page: 1, pickedSort: true } : { page: 1 })
     },
     [searching, setListPrefs, setListState, tab],
   )
@@ -163,6 +178,16 @@ export function useListView<T, V>(
     [setListPrefs, setListState, tab],
   )
   const setPage = useCallback((n: number) => setListState(tab, { page: n }), [setListState, tab])
+  const resetPage = useCallback(() => {
+    setSelected(NO_IDS)
+    setListState(tab, { page: 1 })
+  }, [setListState, tab])
+  // The stored page follows the clamp: a list that shrank under the operator
+  // keeps them where they now are, so rows coming back do not jump them forward.
+  const loaded = items !== undefined
+  useEffect(() => {
+    if (loaded && page.page !== session.page) setListState(tab, { page: page.page })
+  }, [loaded, page.page, session.page, setListState, tab])
   const toggleCollapsed = useCallback(
     (key: string) => {
       // A collapsed group leaves the view, so the in-view selection drops it —
@@ -209,6 +234,11 @@ export function useListView<T, V>(
           return next
         }),
       selectPage: () => setSelected((s) => new Set([...s, ...page.pageIds])),
+      deselectPage: () =>
+        setSelected((s) => {
+          const here = new Set(page.pageIds)
+          return new Set([...s].filter((id) => !here.has(id)))
+        }),
       selectAll: () => setSelected(new Set(page.selectableIds)),
       clear: () => setSelected(NO_IDS),
     }
@@ -241,6 +271,7 @@ export function useListView<T, V>(
     sortBy,
     setGroup,
     setPage,
+    resetPage,
     setPageSize,
     toggleCollapsed,
     selection,

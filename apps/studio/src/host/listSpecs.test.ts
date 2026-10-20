@@ -123,3 +123,9 @@ describe('the Operators tab (T-17, T-18)', () => {
     expect(o({ sort: { id: 'lastActive', desc: false } })).toEqual(['Bo', 'Ana'])
   })
 })
+
+describe('deferred fixes', () => {
+  it('does not offer domain grouping inside one domain', () => {
+    expect(questionsSpec({ allQuestions: false, domains: [] }).groups.map((g) => g.id)).toEqual(['band', 'answer', 'completeness'])
+  })
+})
