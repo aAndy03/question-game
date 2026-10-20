@@ -23,7 +23,8 @@ export function resetUpdateCheck(): void {
   asked = false
 }
 
-export function useUpdateCheckOnStart(): void {
+/** `enabled` is false while questiongame Beta's welcome is up (P13.1). */
+export function useUpdateCheckOnStart(enabled = true): void {
   const settings = useSettings()
   const loaded = usePlayState((s) => s !== null)
   // "No Play" before the host has answered is "not known yet" (review).
@@ -32,7 +33,7 @@ export function useUpdateCheckOnStart(): void {
   const wanted = settings.data?.globals.updates.check_on_start
 
   useEffect(() => {
-    if (asked || wanted !== true || !known || loaded) return
+    if (asked || !enabled || wanted !== true || !known || loaded) return
     asked = true
     void (async () => {
       try {
@@ -51,5 +52,5 @@ export function useUpdateCheckOnStart(): void {
         // Offline is normal, and nothing is said about it.
       }
     })()
-  }, [wanted, known, loaded, push])
+  }, [enabled, wanted, known, loaded, push])
 }

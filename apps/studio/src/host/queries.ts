@@ -19,6 +19,7 @@ import type { MonitorInfo } from '@questiongame/contract'
 import { command, hasHost } from './host'
 import type {
   AppInfo,
+  BetaWelcome,
   AppPaths,
   ArchiveScope,
   CatalogItem,
@@ -57,6 +58,7 @@ export const keys = {
   /** `paths_get` — fixed for the life of the process. */
   paths: ['paths'] as const,
   appInfo: ['appInfo'] as const,
+  betaWelcome: ['betaWelcome'] as const,
   /** `catalog_seed_status`, per Demo — invalidated by every catalog/recipe change. */
   seedStatus: {
     all: ['seed-status'] as const,
@@ -178,6 +180,19 @@ export function usePlays() {
 }
 
 /** What this build is (Settings ▸ About, P12.3). It never changes while the app runs. */
+/**
+ * questiongame Beta's first-launch welcome (P13.1): whether to show it, and
+ * whether a stable library is there to copy. A stable build always says no.
+ */
+export function useBetaWelcome() {
+  return useQuery({
+    queryKey: keys.betaWelcome,
+    queryFn: () => command<BetaWelcome>('beta_welcome_get'),
+    enabled: enabled(),
+    staleTime: Infinity,
+  })
+}
+
 export function useAppInfo() {
   return useQuery({
     queryKey: keys.appInfo,

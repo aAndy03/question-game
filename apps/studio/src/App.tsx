@@ -5,6 +5,7 @@ import { Text } from '@/atoms'
 import { NoticeCollector, QuitGuard, SidebarNav, StatusBar, TopBar, WhatsNewDialog } from '@/organisms'
 import {
   ControlPage,
+  BetaWelcomePage,
   FirstRunPage,
   GamePage,
   GamesPage,
@@ -29,7 +30,7 @@ import { installDiagnostics, onPageCommit, setDiagnosticRoute } from '@/chrome/d
 import { HostBridge } from '@/host/bridge'
 import { hasHost } from '@/host/host'
 import { isPlayOpen, peekPlayState } from '@/host/playState'
-import { useCatalogList, useSettings } from '@/host/queries'
+import { useBetaWelcome, useCatalogList, useSettings } from '@/host/queries'
 import { useUpdateCheckOnStart } from '@/host/updates'
 import { useWhatsNewOnStart } from '@/host/whatsNew'
 
@@ -106,12 +107,23 @@ function Shell() {
   // First run, latched: see below.
   const inWizard = useRef(false)
   const [wizardDone, setWizardDone] = useState(false)
+  // questiongame Beta's welcome (P13.1), latched like first run: it comes
+  // first, and the copy it offers changes what first run would ask.
+  const betaWelcome = useBetaWelcome()
+  const [welcomeDone, setWelcomeDone] = useState(false)
+  const welcomeUp = !welcomeDone && betaWelcome.data?.show === true
+  // Settled: done, nothing to welcome, the host could not say, or no host to ask.
+  const welcomeSettled =
+    welcomeDone ||
+    (betaWelcome.data !== undefined && !betaWelcome.data.show) ||
+    betaWelcome.isError ||
+    (betaWelcome.data === undefined && betaWelcome.fetchStatus === 'idle')
   const pushNotice = useNoticeStore((s) => s.push)
   const { theme } = usePrefs()
   // "Is there a newer release?" — once per session, never during a game (P12.9).
-  useUpdateCheckOnStart()
+  useUpdateCheckOnStart(welcomeSettled)
   // What changed, once after an update and never over a game (P12.10).
-  useWhatsNewOnStart()
+  useWhatsNewOnStart(welcomeSettled)
 
   // Chrome preferences follow the active operator (host truth).
   useEffect(() => {
@@ -146,6 +158,10 @@ function Shell() {
   // which would otherwise flip this false and drop the operator into the shell
   // before the sample and defaults steps ever rendered. The wizard leaves by
   // its own Finish, which is what `onDone` reports.
+  if (welcomeUp) return <BetaWelcomePage onDone={() => setWelcomeDone(true)} />
+  // Until the host has said, first run must not latch: the welcome comes first.
+  if (!welcomeSettled) return null
+
   const firstRun =
     !wizardDone &&
     (inWizard.current ||

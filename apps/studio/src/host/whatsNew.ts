@@ -27,7 +27,11 @@ export function resetWhatsNew(): void {
   useWhatsNewStore.setState({ open: null })
 }
 
-export function useWhatsNewOnStart(): void {
+/**
+ * `enabled` is false while questiongame Beta's welcome is up (P13.1): a copy
+ * replaces the library, and the notes belong to the one it brings.
+ */
+export function useWhatsNewOnStart(enabled = true): void {
   const loaded = usePlayState((s) => s !== null)
   // "No Play" before the host has answered is "not known yet" (review).
   const known = usePlayStateKnown()
@@ -35,7 +39,7 @@ export function useWhatsNewOnStart(): void {
   const [pending, setPending] = useState<ReturnType<typeof notesAfter> | null>(null)
 
   useEffect(() => {
-    if (asked) return
+    if (asked || !enabled) return
     asked = true
     void (async () => {
       try {
@@ -49,7 +53,7 @@ export function useWhatsNewOnStart(): void {
         // A note we could not fetch is a note we do not show.
       }
     })()
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
     if (pending === null || !known || loaded) return

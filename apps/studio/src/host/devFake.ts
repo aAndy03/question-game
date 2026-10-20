@@ -27,10 +27,13 @@ export function installDevFakeIfAsked(): FakeHost | null {
   const firstRun = params.has('firstrun')
   // `&channel=beta` plays questiongame Beta: the chip, and the welcome on an empty library.
   if (params.get('channel') === 'beta') fake.channel = 'beta'
-  fake.seed(
-    firstRun ? demoLibrary().filter((row) => row.kind !== 'operator') : demoLibrary(),
-    [demoRecipe()],
-  )
+  // A Beta first launch is a truly empty library: that is when its welcome shows.
+  if (!(firstRun && fake.channel === 'beta')) {
+    fake.seed(
+      firstRun ? demoLibrary().filter((row) => row.kind !== 'operator') : demoLibrary(),
+      [demoRecipe()],
+    )
+  }
   if (!firstRun) void fake.invoke('settings_set_global', { setting: { key: 'active_operator_id', value: 'op-andy' } })
   // `&play=<fixture>` also hands Control a Play to draw. The fixture is Stage's
   // half; the operator half is synthesised here and nowhere else.

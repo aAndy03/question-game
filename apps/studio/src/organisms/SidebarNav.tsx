@@ -1,10 +1,12 @@
 import { motion } from 'motion/react'
-import { IconButton, Separator, Text, type IconName } from '@/atoms'
+import { Chip, IconButton, Separator, Text, type IconName } from '@/atoms'
 import { SidebarItem } from '@/molecules'
 import { useChromeStore, usePrefs, type SidebarMode } from '@/chrome/chrome'
 import { useNavStore, useRoute, type Tab } from '@/chrome/nav'
 import { APP, CHROME, TABS } from '@/copy'
 import { usePlayState } from '@/host/playState'
+import { useAppInfo } from '@/host/queries'
+import { BETA_CHIP } from '@/copy/beta'
 
 export const SIDEBAR_WIDTH: Record<SidebarMode, number> = { expanded: 240, rail: 56, hidden: 0 }
 
@@ -33,6 +35,15 @@ export function SidebarNav() {
   const route = useRoute()
   const go = useNavStore((s) => s.go)
   const play = usePlayState()
+  // questiongame Beta says so, always, wherever the sidebar is (P13.1).
+  const beta = useAppInfo().data?.channel === 'beta'
+  const betaChip = beta ? (
+    <span aria-label={BETA_CHIP.name} title={BETA_CHIP.name} className="inline-flex" data-beta-chip>
+      <Chip tone="accent" variant="primary" size="sm">
+        {BETA_CHIP.label}
+      </Chip>
+    </span>
+  ) : null
 
   const mode: SidebarMode = sidebar === 'hidden' && peeking ? 'expanded' : sidebar
   const collapsed = mode === 'rail'
@@ -76,9 +87,12 @@ export function SidebarNav() {
       >
         <div className={['flex h-12 items-center', collapsed ? 'justify-center' : 'justify-between px-3'].join(' ')}>
           {collapsed ? null : (
-            <Text variant="studio-label" tone="default" className="px-1.5">
-              {APP.name}
-            </Text>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Text variant="studio-label" tone="default" className="px-1.5">
+                {APP.name}
+              </Text>
+              {betaChip}
+            </div>
           )}
           <IconButton
             icon={mode === 'expanded' ? 'sidebarExpanded' : 'sidebarRail'}
@@ -87,6 +101,7 @@ export function SidebarNav() {
             onPress={cycle}
           />
         </div>
+        {collapsed && betaChip ? <div className="flex justify-center pb-2">{betaChip}</div> : null}
         <Separator />
         <div className={['flex flex-1 flex-col gap-0.5 overflow-y-auto py-2', collapsed ? 'px-2' : 'px-2'].join(' ')}>
           {collapsed ? null : (

@@ -2306,3 +2306,23 @@ to switch; it opens in the language new games are made in
 - **Adding a release:** put its entry at the top of `WHATS_NEW`, in both
   languages, before tagging it.
 
+
+## 19. questiongame Beta (P13.1)
+
+questiongame Beta is a separate app with a library of its own. Studio says so twice: once, at first launch, and always, in the sidebar.
+
+### 19.1 The welcome
+
+- **When.** `App` renders `BetaWelcomePage` **before** first run, while `beta_welcome_get` answers `show: true` — a Beta build, an empty library (no operator, team, domain, question, asset, recipe or Play, archived ones included), and no `beta.welcome_seen` row. It latches like first run (`welcomeDone`), and until the host has answered `App` renders nothing, so first run cannot latch underneath it. A stable or dev build answers `show: false` and never sees it.
+- **Frame.** `WizardLayout`, as first run: the brand is *questiongame Beta*, the step rail slot holds the language toggle (English · Română, the same `SegmentedField` and default as *What's new*), the body is one `Panel` — heading *A library of its own*, then the one sentence the design fixed — and the footer holds the choices.
+- **Choices.** *Start empty* (`beta_welcome_done`) leads into first run. *Copy my stable library* (`beta_copy_stable_library`) is the primary action when a stable library is there; it brings the stable operator along, so first run does not follow and the shell opens — with *What's new* for the copied library, because the update check and *What's new* wait until the welcome is answered (`useUpdateCheckOnStart(enabled)`, `useWhatsNewOnStart(enabled)`). No stable library: only *Start empty*, as the primary action.
+- **Refusals are inline**, not notices — the shell and its collector are not up yet. Stable running: *Close questiongame first, then copy.* with *Try again* (re-asks `beta_welcome_get`), Copy disabled with that reason. Any other failure names its cause and keeps *Start empty*. A press lands once (a ref, not the busy flag, which React has not re-rendered yet), and `beta.library_not_empty` counts as done — a copy that landed before a crash.
+- After a copy every Studio query is invalidated: it is a different library.
+
+### 19.2 The chip
+
+`SidebarNav` reads `app_info.channel` and, on Beta, shows a `Chip` (`tone="accent"`, `variant="primary"`) reading **Beta** beside the app name — and centred under the toggle in the icon rail — named *questiongame Beta* for assistive tech. Never on Stage, never on stable or dev.
+
+### 19.3 In a browser
+
+`?fake&channel=beta` makes the fake host Beta (the chip); `?fake&firstrun&channel=beta` also starts from a truly empty library, which is when the welcome shows.

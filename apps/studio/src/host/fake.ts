@@ -925,6 +925,8 @@ export function createFakeHost(): FakeHost {
       upsert({ kind: 'operator', item: { id: 'op-stable', displayName: 'Stable operator', pinHash: null, lastActiveAt: null, playsRun: 0, createdAt: 0, updatedAt: 0, archivedAt: null } })
       activeOperatorId = 'op-stable'
       fake.betaWelcomeSeen = true
+      // A stable library 1.0.1 left: What's new starts after it, as the host says.
+      fake.whatsNewSince = '1.0.1'
       return null
     },
     whats_new_seen: () => {

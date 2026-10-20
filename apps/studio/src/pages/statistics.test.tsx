@@ -186,6 +186,10 @@ describe('Statistics', () => {
       'paths_get',
       'catalog_seed_status',
       'play_list',
+      // Studio asks once whether questiongame Beta has a welcome to show, and
+      // the sidebar which build it is, for the Beta chip (P13.1). Neither writes.
+      'beta_welcome_get',
+      'app_info',
     ]
     for (const call of fake.calls) expect(READS, `${call.name} is not a read`).toContain(call.name)
   })
