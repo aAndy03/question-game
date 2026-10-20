@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { WHATS_NEW, WHATS_NEW_LANGUAGES, compareVersions, notesAfter } from './whatsNew'
+import { WHATS_NEW, WHATS_NEW_LANGUAGES, compareVersions, notesAfter, type WhatsNewRelease } from './whatsNew'
+// One ascending list, read by this test and by `crates/app/tests/update.rs`.
+import VERSIONS from '../../../../crates/app/tests/fixtures/versions.json'
 
 /**
  * P12.10. What's new is for operators, not developers: plain words, the same
@@ -49,5 +51,50 @@ describe("What's new", () => {
     expect(compareVersions('1.0.10', '1.0.9')).toBeGreaterThan(0)
     expect(compareVersions('1.0.2', '1.0.2')).toBe(0)
     expect(compareVersions('1.0.1', '1.0.2')).toBeLessThan(0)
+  })
+  it('orders prereleases the way semver does (VER02–VER05)', () => {
+    expect(compareVersions('2.0.0-beta.2', '2.0.0-beta.10')).toBeLessThan(0)
+    expect(compareVersions('2.0.0-beta.10', '2.0.0')).toBeLessThan(0)
+    expect(compareVersions('2.0.0', '1.9.9')).toBeGreaterThan(0)
+    expect(compareVersions('2.0.0-beta.0', '1.0.2')).toBeGreaterThan(0)
+    expect(compareVersions('1.0.2', '1.0.2-beta.9')).toBeGreaterThan(0)
+    expect(compareVersions('1.0.0-alpha', '1.0.0-alpha.1')).toBeLessThan(0)
+    expect(compareVersions('1.0.0-alpha.1', '1.0.0-alpha.beta')).toBeLessThan(0)
+    expect(compareVersions('2.0.0-beta.1', '2.0.0-rc.1')).toBeLessThan(0)
+    expect(compareVersions('1.0.0+build.5', '1.0.0')).toBe(0)
+    // Unreadable input sorts lowest and never throws.
+    for (const bad of ['', 'v1.0.2', '1.0', 'garbage']) {
+      expect(compareVersions(bad, '0.0.1')).toBeLessThan(0)
+      expect(compareVersions(bad, bad)).toBe(0)
+    }
+  })
+
+  it('agrees with the old order on plain versions (VER07)', () => {
+    const old = (a: string, b: string) => {
+      const pa = a.split('.').map(Number)
+      const pb = b.split('.').map(Number)
+      for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pa[i]! - pb[i]!
+      return 0
+    }
+    const vs = ['0.0.0', '0.0.9', '0.0.10', '1.0.1', '1.0.2', '1.2.0', '1.10.0', '2.0.0', '10.0.0']
+    for (const a of vs) for (const b of vs) expect(Math.sign(compareVersions(a, b))).toBe(Math.sign(old(a, b)))
+  })
+
+  it('reads beta releases for a beta, and never a stable entry ahead of it (VER08–VER09)', () => {
+    const entry = (version: string): WhatsNewRelease => ({ version, notes: { en: [], ro: [] } })
+    const list = ['2.0.0', '2.0.0-beta.4', '2.0.0-beta.3', '2.0.0-beta.1', '1.0.2'].map(entry)
+    expect(notesAfter('1.0.2', '2.0.0-beta.3', list).map((r) => r.version)).toEqual(['2.0.0-beta.3', '2.0.0-beta.1'])
+    expect(notesAfter('2.0.0-beta.3', '2.0.0', list).map((r) => r.version)).toEqual(['2.0.0', '2.0.0-beta.4'])
+    expect(notesAfter('1.0.1', '1.1.0', list).map((r) => r.version)).toEqual(['1.0.2'])
+    expect(notesAfter('garbage', '1.0.2', list).map((r) => r.version)).toEqual(['1.0.2'])
+  })
+
+  it('orders the shared fixture ascending, as the host does (VER06)', () => {
+    for (let i = 1; i < VERSIONS.length; i++) expect(compareVersions(VERSIONS[i - 1]!, VERSIONS[i]!)).toBeLessThan(0)
+  })
+
+  it('keeps its own list readable and in order (VER10)', () => {
+    for (const r of WHATS_NEW) expect(r.version).toMatch(/^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/)
+    for (let i = 1; i < WHATS_NEW.length; i++) expect(compareVersions(WHATS_NEW[i - 1]!.version, WHATS_NEW[i]!.version)).toBeGreaterThan(0)
   })
 })

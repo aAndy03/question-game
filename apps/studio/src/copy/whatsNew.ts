@@ -87,20 +87,49 @@ export const WHATS_NEW_COPY: Readonly<
   ro: { title: (version) => `Ce e nou în questiongame ${version}`, close: 'Am înțeles', language: 'Limba' },
 }
 
-/** `1.0.10` after `1.0.9`: compared as numbers, part by part. */
+const SEMVER = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/
+
+/**
+ * SemVer 2.0 precedence: `1.0.10` after `1.0.9`, `2.0.0-beta.2` before
+ * `2.0.0-beta.10`, and a prerelease before its release. Build metadata is
+ * ignored. Something that is not a version sorts below every version and
+ * never throws — a bad entry must not take the window down.
+ */
 export function compareVersions(a: string, b: string): number {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+  const pa = SEMVER.exec(a)
+  const pb = SEMVER.exec(b)
+  if (pa === null || pb === null) return (pa === null ? 0 : 1) - (pb === null ? 0 : 1)
+  for (let i = 1; i <= 3; i++) {
+    const d = Number(pa[i]) - Number(pb[i])
     if (d !== 0) return d
+  }
+  const preA = pa[4]
+  const preB = pb[4]
+  if (preA === undefined || preB === undefined) return (preA === undefined ? 1 : 0) - (preB === undefined ? 1 : 0)
+  const ia = preA.split('.')
+  const ib = preB.split('.')
+  for (let i = 0; i < Math.max(ia.length, ib.length); i++) {
+    const x = ia[i]
+    const y = ib[i]
+    if (x === undefined) return -1
+    if (y === undefined) return 1
+    const nx = /^\d+$/.test(x)
+    const ny = /^\d+$/.test(y)
+    if (nx && ny) {
+      const d = Number(x) - Number(y)
+      if (d !== 0) return d
+    } else if (nx !== ny) {
+      return nx ? -1 : 1
+    } else if (x !== y) {
+      return x < y ? -1 : 1
+    }
   }
   return 0
 }
 
 /** The releases newer than `since` and no newer than `current`, newest first. */
-export function notesAfter(since: string, current: string): WhatsNewRelease[] {
-  return WHATS_NEW.filter((r) => compareVersions(r.version, since) > 0 && compareVersions(r.version, current) <= 0).sort((a, b) =>
-    compareVersions(b.version, a.version),
-  )
+export function notesAfter(since: string, current: string, releases: readonly WhatsNewRelease[] = WHATS_NEW): WhatsNewRelease[] {
+  return releases
+    .filter((r) => compareVersions(r.version, since) > 0 && compareVersions(r.version, current) <= 0)
+    .sort((a, b) => compareVersions(b.version, a.version))
 }
