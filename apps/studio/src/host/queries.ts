@@ -14,7 +14,7 @@
  * because the host said so, not because a component remembered to refetch.
  */
 
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { MonitorInfo } from '@questiongame/contract'
 import { command, hasHost } from './host'
@@ -138,17 +138,26 @@ export function useSearch(query: SearchQuery | null) {
 
 /**
  * A library tab's search hits (stable 1.1): id → score, or `null` while
- * Search is blank or its answer belongs to older text. Asks only once the list
- * has loaded, and for **every** match — the limit is the list's size — so a
- * paged, filtered list never silently loses one past a cap.
+ * Search is blank. Asks only once the list has loaded, and for **every** match
+ * — the limit is the list's size rounded up to a thousand, so a match is never
+ * lost past a cap and adding or archiving a row does not ask again.
+ *
+ * While the answer to new text is on its way, the last answer stands
+ * (review): `null` would mean "no search", and the whole library would flash
+ * up on every keystroke — 1.0.2 kept the previous hits too.
  */
 export function useListHits(kind: CatalogKind, text: string, scope: ArchiveScope, total: number | undefined): ReadonlyMap<string, number> | null {
   const trimmed = text.trim()
-  const search = useSearch(trimmed && total !== undefined ? { text: trimmed, kinds: [kind], scope, limit: Math.max(total, 1) } : null)
-  return useMemo(
+  const limit = Math.max(1000, Math.ceil((total ?? 0) / 1000) * 1000)
+  const search = useSearch(trimmed && total !== undefined ? { text: trimmed, kinds: [kind], scope, limit } : null)
+  const fresh = useMemo(
     () => (trimmed && search.data && !search.isPlaceholderData ? new Map(search.data.map((h) => [h.id, h.score])) : null),
     [trimmed, search.data, search.isPlaceholderData],
   )
+  const last = useRef<ReadonlyMap<string, number> | null>(null)
+  if (!trimmed) last.current = null
+  else if (fresh) last.current = fresh
+  return trimmed ? (fresh ?? last.current) : null
 }
 
 export function useRecipeList(scope: ArchiveScope) {

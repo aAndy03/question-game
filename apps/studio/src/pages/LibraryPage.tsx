@@ -64,7 +64,8 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
           const gaps = questionGaps(q, inActiveDomain.has(q.id))
           const band = q.difficulty === null ? null : difficultyBand(q.difficulty)
           const mode = answerMode(q)
-          const inDomains = (domains.data ?? []).filter((d) => d.questions.some((m) => m.questionId === q.id)).length
+          // Active domains, as the list groups and sorts them — and one lookup, not a scan per question.
+          const inDomains = domainsOf.get(q.id)?.length ?? 0
           const record: RecordView = {
             id: q.id,
             title: q.stem || QUESTION.noStem,
@@ -89,7 +90,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
           }
           return { id: q.id, data: { question: q, gaps, domains: domainsOf.get(q.id) ?? [] }, view: record }
         }),
-    [scoped, inActiveDomain, domainsOf, domains.data, domain],
+    [scoped, inActiveDomain, domainsOf, domain],
   )
   const spec = useMemo(
     () => questionsSpec({ allQuestions: domainId === null, domains: activeDomains.map((d) => ({ id: d.id, name: d.name })) }),
@@ -155,6 +156,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
               allCompleteWhen={{ id: 'completeness', value: 'incomplete' }}
               columns={{
                 title: { sortId: 'text', label: VIEWS.text },
+                lead: 'w-14',
                 meta: domain ? [{ sortId: 'changed', label: VIEWS.changed }] : [{ sortId: 'domains', label: VIEWS.domains }, { sortId: 'changed', label: VIEWS.changed }],
               }}
               emptyAction={

@@ -135,13 +135,15 @@ export function ActiveFilters({ items, onRemove, onClearAll }: ActiveFiltersProp
 export interface SortMenuProps {
   sorts: readonly { readonly id: string; readonly label: string }[]
   value: { readonly id: string; readonly desc: boolean }
-  onChange(sort: { id: string; desc: boolean }): void
+  /** A field picked: the hook gives it its own default direction. */
+  onField(id: string): void
+  onDirection(desc: boolean): void
   /** While Search has text: *Best match* is offered (and chosen by the hook). */
   showMatch: boolean
 }
 
 /** Field, then direction — one menu. */
-export function SortMenu({ sorts, value, onChange, showMatch }: SortMenuProps) {
+export function SortMenu({ sorts, value, onField, onDirection, showMatch }: SortMenuProps) {
   const fields = showMatch ? [{ id: 'match', label: LIST.bestMatch }, ...sorts] : sorts
   const current = fields.find((s) => s.id === value.id)?.label ?? LIST.sort
   return (
@@ -156,8 +158,8 @@ export function SortMenu({ sorts, value, onChange, showMatch }: SortMenuProps) {
           selectedKeys={new Set([value.id, value.desc ? 'desc' : 'asc'])}
           onAction={(key) => {
             const k = String(key)
-            if (k === 'asc' || k === 'desc') onChange({ id: value.id, desc: k === 'desc' })
-            else onChange({ id: k, desc: value.desc })
+            if (k === 'asc' || k === 'desc') onDirection(k === 'desc')
+            else if (k !== value.id) onField(k)
           }}
         >
           <Dropdown.Section>

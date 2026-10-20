@@ -58,15 +58,19 @@ describe('SortMenu and GroupMenu (U-05, U-07)', () => {
   const sorts = [{ id: 'name', label: 'Name' }, { id: 'plays', label: 'Plays' }]
 
   it('names the sort in force and reports a field and a direction', async () => {
-    const onChange = vi.fn()
-    render(<SortMenu sorts={sorts} value={{ id: 'name', desc: false }} onChange={onChange} showMatch={false} />)
+    const onField = vi.fn()
+    const onDirection = vi.fn()
+    render(<SortMenu sorts={sorts} value={{ id: 'name', desc: false }} onField={onField} onDirection={onDirection} showMatch={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Sort: Name' }))
     fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Plays' }))
-    expect(onChange).toHaveBeenCalledWith({ id: 'plays', desc: false })
+    expect(onField).toHaveBeenCalledWith('plays')
+    fireEvent.click(screen.getByRole('button', { name: 'Sort: Name' }))
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Descending' }))
+    expect(onDirection).toHaveBeenCalledWith(true)
   })
 
   it('offers Best match only while searching', async () => {
-    render(<SortMenu sorts={sorts} value={{ id: 'match', desc: true }} onChange={vi.fn()} showMatch />)
+    render(<SortMenu sorts={sorts} value={{ id: 'match', desc: true }} onField={vi.fn()} onDirection={vi.fn()} showMatch />)
     expect(screen.getByRole('button', { name: 'Sort: Best match' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Sort: Best match' }))
     expect(await screen.findByRole('menuitemradio', { name: 'Best match' })).toBeTruthy()

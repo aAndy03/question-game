@@ -282,10 +282,10 @@ someone remembers to add.
 | Molecule | Composition | Props / states | Where |
 | --- | --- | --- | --- |
 | `PageHeader` | crumbs · `Text studio-title` · description · action slot | `title`, `crumbs`, `primaryAction`, `secondaryActions`, `status?` | top of every page |
-| `ListToolbar` | `SearchField` · kind filter · `ViewSwitch` · `ArchiveToggle` · sort · New | all optional; the same order on every list | every record list |
+| `ListToolbar` *(an organism since 1.1)* | `SearchField` · `FilterMenu` · `SortMenu` · `GroupMenu` · `ViewSwitch` · `ArchiveToggle`, then the active-filter chips | `view` (`useListView`), layout, status | every library tab (§20) |
 | `SearchField` | HeroUI `SearchField` + Pacer debounce (200ms) | `kinds`, `scope`, `onHits` | `ListToolbar` |
 | `ViewSwitch` | `ToggleButtonGroup` grid / table | `value`, `onChange` | `ListToolbar` |
-| `ArchiveToggle` | `Tabs variant=secondary` Active / Archived | `scope`, `counts?` | `ListToolbar` |
+| `ArchiveToggle` | `Tabs variant=secondary` Active / Archived (/ All with `withAll`) | `value`, `counts?`, `withAll?` | `ListToolbar` (with All), `DomainPane` |
 | `RecordRow` | `Avatar`/`Swatch` · title · subtitle · chips · meta · actions · checkbox | `layout: grid \| table`; states `rest` `hover` `selected` `archived` `overridden` `drag` | `LibraryList` |
 | `BulkBar` | count · Archive / Restore · Clear | appears when selection > 0; one confirm per batch | `LibraryList` |
 | `EmptyState` | icon · title · body · action | `kind: empty \| noResults \| archivedEmpty \| error` | lists, detail panes |
@@ -317,7 +317,7 @@ someone remembers to add.
 | `StatusBar` | play-state, monitors, notices | opens collector | health (P10 placeholder "—"), displays count, latest notice one-liner, `remaining_ms` while playing |
 | `NoticeCollector` | notices | runs notice actions | HeroUI `Drawer` from the right; `block` severity opens `NoticeDialog` instead |
 | `NoticeDialog` | one `block` notice | its actions | modal, cannot be dismissed by click-away |
-| `LibraryList` | a Query (list or search hits) | selection (local), bulk commands | TanStack Table engine; grid or table renderer; `@tanstack/react-virtual` above 200 rows; `Skeleton` while loading; `EmptyState` variants |
+| `LibraryList` | a `useListView` page | selection (the view's), bulk commands | draws the list view (§20): group headers, sortable header row, page footer; grid or table renderer; `@tanstack/react-virtual` above 200 entries; `Skeleton` while loading; `EmptyState` variants. No TanStack Table since 1.1 |
 | `TeamEditor` `DomainEditor` `QuestionEditor` `OperatorEditor` | one item Query | `catalog_upsert` | TanStack Form; validation mirrors host rules; host refusal lands inline |
 | `TeamDetail` `QuestionDetail` `OperatorDetail` | one item Query, `referenced_by` | archive / restore | read view with `MetaList`, `StatCard`s, chips |
 | `RecipeEditor` | recipe, teams, domains, questions Queries | `recipe_upsert`, `recipe_set_membership`, `recipe_set_settings`, `recipe_set_overlay` | sections Roster · Board · Rules · Plays; frozen when that recipe's Play is `playing\|paused` (banner + all controls disabled with reason) |
@@ -427,16 +427,18 @@ Toasts · dnd-kit roster drag (P8) · Shape manager dialog (P8+) · hotkey chord
 ## 9. As built — departures from the proposal
 
 - **TanStack Table is v8** (`@tanstack/react-table@^8`); v9's API is different and
-  undocumented for this use. **TanStack Form is not installed** — editors use
+  undocumented for this use. *Since 1.1 `LibraryList` does not use it at all — the
+  list-view model sorts, filters, groups and pages (§20).* **TanStack Form is not installed** — editors use
   `useDraft` (one form state, dirty by comparison) and the host's validation.
 - **No `@iconify/react`.** `scripts/studio-icons.ts` generates the Gravity UI
   bodies for the keys in `atoms/icons.ts` into `icons.generated.ts`; `Icon`
   renders inline SVG. Add a key, run `npm run studio:icons`.
 - **Calligraph is imported only by `packages/text/src/studio.tsx`**
   (`@questiongame/text/studio`); the Studio `Text` atom imports that.
-- **`ListToolbar` is not one component.** Its parts (`SearchField`, `ViewSwitch`,
-  `ArchiveToggle`) are composed in each list page in the fixed order; a wrapper
-  would only have forwarded props.
+- **`ListToolbar` is one component since 1.1** (an organism). Before, its parts were
+  composed in each list page and a wrapper would only have forwarded props; once
+  the toolbar carried Filters, Sort and Group, four hand-built copies were how the
+  tabs would drift apart (§20).
 - **`EditorFooter`** (a molecule) is pinned inside the editor's scroll column,
   because an organism may not import a template. `RecordPageLayout` is a padded
   scrolling column with an optional rail.
