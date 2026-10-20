@@ -54,6 +54,8 @@ export interface ListSpec<T> {
   tiebreak(item: T): string
   /** What the shared *Changed* filter reads. */
   changedAt(item: T): number
+  /** Archived rows: what *Restore* applies to under Status All. */
+  isArchived?(item: T): boolean
 }
 
 export interface ListItem<T, V = unknown> {
