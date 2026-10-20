@@ -241,6 +241,10 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::app::update_open_release,
         commands::app::whats_new_get,
         commands::app::whats_new_seen,
+        // questiongame Beta's first launch (P13.1)
+        commands::beta::beta_welcome_get,
+        commands::beta::beta_welcome_done,
+        commands::beta::beta_copy_stable_library,
         // CatalogService
         commands::catalog::catalog_list,
         commands::catalog::catalog_get,

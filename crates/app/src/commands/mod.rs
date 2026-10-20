@@ -31,6 +31,7 @@
 //! all but name.
 
 pub mod app;
+pub mod beta;
 pub mod catalog;
 pub mod flags;
 pub mod play;

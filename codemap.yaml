@@ -46,6 +46,27 @@ commands:
     file: crates/app/src/commands/catalog.rs
     params: ["asset: Asset"]
     returns: "AppResult<CatalogChange>"
+  beta_copy_stable_library:
+    async: true
+    callers: [main]
+    doc: "*Copy my stable library*."
+    file: crates/app/src/commands/beta.rs
+    params: []
+    returns: "AppResult<()>"
+  beta_welcome_done:
+    async: true
+    callers: [main]
+    doc: "*Start empty*: the welcome is done, first run follows."
+    file: crates/app/src/commands/beta.rs
+    params: []
+    returns: "AppResult<()>"
+  beta_welcome_get:
+    async: true
+    callers: [main]
+    doc: "Is there a welcome to show?"
+    file: crates/app/src/commands/beta.rs
+    params: []
+    returns: "AppResult<BetaWelcome>"
   catalog_archive:
     async: true
     callers: [main]
@@ -630,6 +651,9 @@ contract:
       - update_open_release
       - whats_new_get
       - whats_new_seen
+      - beta_welcome_get
+      - beta_welcome_done
+      - beta_copy_stable_library
     catalog:
       - catalog_list
       - catalog_get
@@ -722,7 +746,7 @@ contract:
   files:
     packages/contract/src/commands.ts:
       COMMANDS: {kind: const, sig: "#e3696517"}
-      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, app } #6b2fede5"}
+      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, app } #5306d143"}
       CatalogChange: {doc: "`catalog-changed`.", kind: interface, sig: "{ kind, id, op }"}
       Command: {kind: type, sig: "(typeof COMMAND_GROUPS)[CommandGroup][number]"}
       CommandGroup: {kind: type, sig: "keyof typeof COMMAND_GROUPS"}
@@ -1790,6 +1814,11 @@ app_crate:
     crates/app/src/commands/app.rs:
       "commands::app::uninstaller_beside": {doc: "The NSIS uninstaller, if one sits beside `exe`.", kind: fn, sig: "fn uninstaller_beside(exe: &Path) -> Option<PathBuf>"}
       "commands::app::uninstaller_path": {doc: "[`uninstaller_beside`] the running exe.", kind: fn, sig: "fn uninstaller_path() -> Option<PathBuf>"}
+    crates/app/src/commands/beta.rs:
+      "commands::beta::check_copyable": {doc: "Before the bytes move: Beta, empty, and something to copy.", kind: fn, sig: "fn check_copyable(channel: Channel, host: &Host) -> AppResult<()>"}
+      "commands::beta::is_empty_library": {doc: "Nothing an operator made: no operator, team, domain, question, asset, recipe or Play, archived ones included, and no Play loaded.", kind: fn, sig: "fn is_empty_library(host: &Host) -> AppResult<bool>"}
+      "commands::beta::swap_in": {doc: "Put the compacted `copy` in place of the empty library at `library` and reopen it through the ordinary upgrade path (backed up and stamped).", kind: fn, sig: "fn swap_in(host: &mut Host, library: &Path, copy: &Path, options: &OpenOptions) -> AppResult<()>"}
+      "commands::beta::welcome": {doc: "What `beta_welcome_get` answers.", kind: fn, sig: "fn welcome(channel: Channel, host: &Host, stable: Option<StableLibrary>) -> AppResult<BetaWelcome>"}
     crates/app/src/decor.rs:
       "decor::of": {kind: fn, sig: "fn of(layout: &serde_json::Value) -> StageDecorSettings"}
     crates/app/src/emit.rs:
@@ -1882,6 +1911,7 @@ app_crate:
     - boot
     - commands
     - "commands::app"
+    - "commands::beta"
     - "commands::catalog"
     - "commands::flags"
     - "commands::play"

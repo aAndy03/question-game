@@ -22,6 +22,7 @@ import { DEFAULT_AUDIO, type Command, type EventName, type MonitorInfo, type Pla
 import type { HostError, HostTransport } from './host'
 import type {
   AppInfo,
+  BetaWelcome,
   AppPaths,
   UpdateStatus,
   ArchiveScope,
@@ -106,6 +107,10 @@ export interface FakeHost extends HostTransport {
   whatsNewSince: string | null
   /** What `app_info.channel` answers; `?fake&channel=beta` makes it Beta. */
   channel: AppInfo['channel']
+  /** What a Beta first launch finds where stable keeps its library (P13.1). */
+  betaStable: BetaWelcome['stable']
+  /** `beta.welcome_seen`: set by *Start empty* and by a copy. */
+  betaWelcomeSeen: boolean
   readonly marker: typeof FAKE_HOST_MARKER
   /** The close guard's answers (P12.2): the fake cannot quit, so it counts. */
   quits: number
@@ -901,6 +906,27 @@ export function createFakeHost(): FakeHost {
       return fake.update
     },
     whats_new_get: () => ({ since: fake.whatsNewSince, current: '1.0.2' }),
+    // questiongame Beta's first launch (P13.1), refusing as the host does.
+    beta_welcome_get: () => ({
+      show: fake.channel === 'beta' && !fake.betaWelcomeSeen && library.size === 0 && recipes.size === 0,
+      stable: fake.channel === 'beta' ? fake.betaStable : 'missing',
+    }),
+    beta_welcome_done: () => {
+      if (fake.channel !== 'beta') refuse('beta.not_beta', 'only questiongame Beta copies a stable library')
+      fake.betaWelcomeSeen = true
+      return null
+    },
+    beta_copy_stable_library: () => {
+      if (fake.channel !== 'beta') refuse('beta.not_beta', 'only questiongame Beta copies a stable library')
+      if (library.size > 0 || recipes.size > 0) refuse('beta.library_not_empty', 'this Beta library already holds work; nothing was copied')
+      if (fake.betaStable === 'running') refuse('beta.stable_running', 'questiongame is running; close it first, then copy')
+      if (fake.betaStable === 'missing') refuse('beta.no_stable', 'there is no stable library to copy')
+      for (const item of seedLibrary('en')) upsert(item)
+      upsert({ kind: 'operator', item: { id: 'op-stable', displayName: 'Stable operator', pinHash: null, lastActiveAt: null, playsRun: 0, createdAt: 0, updatedAt: 0, archivedAt: null } })
+      activeOperatorId = 'op-stable'
+      fake.betaWelcomeSeen = true
+      return null
+    },
     whats_new_seen: () => {
       fake.whatsNewSince = '1.0.2'
       return null
@@ -949,6 +975,8 @@ export function createFakeHost(): FakeHost {
     openedReleases: [],
     whatsNewSince: null,
     channel: 'dev',
+    betaStable: 'available',
+    betaWelcomeSeen: false,
     marker: FAKE_HOST_MARKER,
     emit,
     listenerCount(name) {

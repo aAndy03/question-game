@@ -177,6 +177,12 @@ export const COMMAND_GROUPS = {
     'whats_new_get',
     /** The operator closed What's new (P12.10). */
     'whats_new_seen',
+    /** questiongame Beta: is there a first-launch welcome to show, and is a stable library there to copy (P13.1). */
+    'beta_welcome_get',
+    /** questiongame Beta: *Start empty* — the welcome is done (P13.1). */
+    'beta_welcome_done',
+    /** questiongame Beta: copy the stable library, read-only, into an empty Beta library (P13.1). */
+    'beta_copy_stable_library',
   ],
 } as const
 

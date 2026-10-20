@@ -64,7 +64,9 @@ function writesSettings(name: Command): boolean {
     name.startsWith('operator_') ||
     name === 'stage_set_monitor' ||
     name === 'stage_add_mirror' ||
-    name === 'stage_remove_mirror'
+    name === 'stage_remove_mirror' ||
+    // A copied library brings its own operators and settings (P13.1).
+    name === 'beta_copy_stable_library'
   )
 }
 

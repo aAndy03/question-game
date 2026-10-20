@@ -36,6 +36,10 @@ pub enum AppError {
     /// unprompted: only the operator's own *Check for updates* reports it.
     #[error("could not reach GitHub: {0}")]
     Network(String),
+    /// questiongame Beta's first launch said no (P13.1); `code` is what Studio
+    /// maps on (`beta.stable_running`, `beta.no_stable`, …).
+    #[error("{message}")]
+    Beta { code: &'static str, message: String },
 }
 
 impl AppError {
@@ -48,6 +52,7 @@ impl AppError {
             AppError::Window(_) => "window",
             AppError::NotForStage { .. } => "stage_not_allowed",
             AppError::Network(_) => "network",
+            AppError::Beta { code, .. } => code,
         }
     }
 }

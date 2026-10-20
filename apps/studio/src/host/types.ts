@@ -477,6 +477,12 @@ export interface AppInfo {
   readonly channel: 'stable' | 'beta' | 'dev'
 }
 
+/** What `beta_welcome_get` answers (P13.1). */
+export interface BetaWelcome {
+  readonly show: boolean
+  readonly stable: 'available' | 'missing' | 'running'
+}
+
 export interface AppPaths {
   readonly userData: string
   readonly catalog: string
