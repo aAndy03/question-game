@@ -2543,11 +2543,13 @@ build:
 e2e:
   seeds:
     first-run.e2e.ts: "null"
+    library-views.e2e.ts: "['--more-questions', '120']"
     load-refusal.e2e.ts: "['--broken-board']"
     show.e2e.ts: "[]"
     upgrade.e2e.ts: "[]"
   specs:
     e2e/specs/first-run.e2e.ts: ["first run > sets up an operator and the Demo"]
+    e2e/specs/library-views.e2e.ts: ["library views > pages, filters, groups and keeps the operator in place"]
     e2e/specs/load-refusal.e2e.ts: ["a refused Load > says why from the Roster and leads to the Board"]
     e2e/specs/show.e2e.ts: ["a show > loads a game, opens Stage, and puts the first question on air"]
     e2e/specs/upgrade.e2e.ts: ["an update > backs the library up, keeps it, and shows what is new"]

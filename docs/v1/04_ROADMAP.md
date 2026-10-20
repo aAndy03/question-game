@@ -1776,9 +1776,20 @@ Design: `docs/superpowers/specs/2026-10-19-channels-design.md`; plan and test li
 - ☑ `npm run version:stable` / `version:beta` bump the four version files, the lock files and the map, run the checks and commit — never tag, never push.
 - ☑ `release/1.x` is cut here: stable 1.1 starts from it.
 
+### P13.2–P13.4 — Stable 1.1: finding things in the library  ☑
+
+Design: `docs/superpowers/specs/2026-10-20-stable-1.1-library-views-design.md`; plan and test list in `docs/superpowers/plans/`. Built on `release/1.x`, merged forward into `main`.
+
+- ☑ One pure list-view model and one spec per tab: filters (shared and per tab), sort (menu and column titles, Best match while searching), group headers with counts, pages of 50 · 100 · 250 · All.
+- ☑ Sort, group and page size remembered per operator per tab; filters, search and page for the session; the Completeness filter replaced *All · Incomplete*.
+- ☑ Selection across pages, cleared by a filter change; *Archive n · Restore m* under Status *All*.
+- ☑ Search uncapped; Studio's queries no longer pause when the OS reports no network.
+- ☑ *What's new* 1.1.0 in English and Romanian; an e2e spec on the real app.
+- ☐ `npm run version:stable -- minor` and the `v1.1.0` tag, when the maintainer says.
+
 ### Next
 
-- ☐ **P13.1 — questiongame Beta**: its own identity and icon, a read-only copy of the stable library on first launch (or start empty), a Beta mark in Studio, and the e2e suite on both channels.
+- ☐ **Beta 2.0 — workspaces** (release C).
 
 ---
 

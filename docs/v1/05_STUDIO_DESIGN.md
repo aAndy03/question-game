@@ -357,7 +357,8 @@ someone remembers to add.
 `single` / `multiple` (default) · `easy` / `medium` / `hard` (success /
 warning / danger, thresholds ≤33 / ≤66 / else) · `playing` (success) ·
 `frozen` (warning) · `unset` (default — a difficulty not set yet, P11.17).
-Nothing else without adding it here.
+Nothing else without adding it here. *Filter chips* (stable 1.1, §20) are a
+separate family: removable, under the toolbar, "{filter}: {value}" with a ×.
 
 **Empty states.** `empty` ("No teams yet" + New) · `noResults` ("Nothing
 matches" + Clear search) · `archivedEmpty` ("Nothing archived") ·
@@ -368,8 +369,9 @@ P11.17) · `error` (the host message + Retry).
 · Archive / Restore. Destructive last, in `danger` only inside a menu or after
 selection.
 
-**Toolbar order**, everywhere: Search · filter · sort · view switch · archive
-toggle · New (primary, right-aligned).
+**Toolbar order**, everywhere: **Search · Filters · Sort · Group · View ·
+Status** (Active · Archived · All), then New (primary, in the page header). On
+the library tabs this is one organism, `ListToolbar` (stable 1.1, §20).
 
 ## 5. Interaction rules
 
@@ -2305,4 +2307,27 @@ to switch; it opens in the language new games are made in
   new* reopens this release's notes without recording anything.
 - **Adding a release:** put its entry at the top of `WHATS_NEW`, in both
   languages, before tagging it.
+
+## 20. Library views — filters, sort, headers and pages (stable 1.1)
+
+Design: `docs/superpowers/specs/2026-10-20-stable-1.1-library-views-design.md`.
+
+**One model, four specs.** `host/listView.ts` is filter → sort → group → page, pure, over the whole list the host sends; `host/listSpecs.ts` declares what each tab offers; `host/useListView.ts` joins the model to the chrome store and owns the selection; `ListToolbar` and `LibraryList` draw it. A tab adds a filter by adding a `FilterDef` to its spec — nothing else changes.
+
+| Tab | Filters | Sort | Group |
+|---|---|---|---|
+| Questions | difficulty band · difficulty range · answer type · completeness · domain (only under *All questions*) · origin | difficulty · question · domains · changed · created | domain · difficulty band · answer type · completeness |
+| Teams | played | name · plays · last played · changed · created | played |
+| Games | folder · tag · playing now | name · teams · questions · changed · created | folder · status |
+| Operators | has a PIN · active operator | name · plays run · last active · created | — |
+
+Every tab also has **Search** (uncapped: every match), **Status** (Active · Archived · All) and **Changed** (any time · today · last 7 days · last 30 days).
+
+- **Filters** is a button with the count in force; its popover holds the tab's filters and *Changed*. The filters in force show as removable chips under the toolbar, with **Clear all**. AND across filters, OR within a multi-select.
+- **Sort** is field + direction; in table view the column titles sort too (`aria-sort`). While Search has text, *Best match* is chosen; clearing Search gives back the sort before it, and Best match is never remembered.
+- **Group** breaks the list under headers "{label} · {count}" (the count across every page), collapsible for the session. *No domain*, *No folder*, *Not set* come last. A question in several domains appears under each, noted *also in …*; pages count rows, and the footer adds the question count when the two differ.
+- **Pages**: 100 by default (50 · 100 · 250 · All). Footer: "101–200 of 1,234 questions", previous / next, page numbers past three pages (`1 … 4 5 6 … 30`). Back to page 1 on any search, filter, sort, group or size change; never on an edit or an archive.
+- **Remembered** per operator per tab: sort, group, page size. For the session: filters, search, page, collapsed groups — a fresh start shows the whole library.
+- **Selection** holds questions, not rows. A filter or search change clears it; collapsing a group drops that group from it. The table's header checkbox selects the page; the bulk bar offers **Select all {n}** and says "{n} selected ({m} on this page)". Under Status *All* it offers **Archive {n} · Restore {m}**, each touching only the rows it fits.
+- **Empty states**: nothing at all → *empty* (with New) or *archivedEmpty*; nothing matching → *noResults* with **Clear search** and/or **Clear filters**; the Completeness filter alone at *Incomplete* with nothing left → *allComplete*.
 

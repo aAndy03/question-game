@@ -19,6 +19,8 @@ const SEEDS: Readonly<Record<string, readonly string[] | null>> = {
   'show.e2e.ts': [],
   'load-refusal.e2e.ts': ['--broken-board'],
   'upgrade.e2e.ts': [],
+  // Stable 1.1: the Demo and 120 more questions, a list longer than a page.
+  'library-views.e2e.ts': ['--more-questions', '120'],
 }
 
 type Env = Readonly<Record<string, string | undefined>>

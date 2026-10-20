@@ -13,9 +13,11 @@
 //! - `--broken-board` re-grades the Demo's second Geography question to the
 //!   first one's difficulty *in the library*, which the catalog allows and a
 //!   board on which both sit cannot Load (§2.31).
+//! - `--more-questions <n>` adds `n` plain questions in no domain, for the
+//!   specs that need a list longer than a page (stable 1.1).
 
 use questiongame_host::catalog::{
-    CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo, Operator, SeedMode,
+    CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo, Operator, Question, QuestionOption, SeedMode,
 };
 use questiongame_host::flags::{GameSettings, GlobalSettings};
 use questiongame_host::OperatorId;
@@ -25,7 +27,14 @@ const NOW: u64 = 1_790_000_000_000;
 fn main() {
     let mut args = std::env::args().skip(1);
     let path = args.next().expect("usage: e2e_library <path> [--broken-board]");
-    let broken = args.any(|a| a == "--broken-board");
+    let rest: Vec<String> = args.collect();
+    let broken = rest.iter().any(|a| a == "--broken-board");
+    let more: usize = rest
+        .iter()
+        .position(|a| a == "--more-questions")
+        .and_then(|i| rest.get(i + 1))
+        .map(|n| n.parse().expect("--more-questions takes a number"))
+        .unwrap_or(0);
 
     for suffix in ["", "-wal", "-shm"] {
         let _ = std::fs::remove_file(format!("{path}{suffix}"));
@@ -62,6 +71,13 @@ fn main() {
         catalog
             .catalog_upsert(&CatalogItem::Question(second), NOW + 1)
             .expect("a library edit the catalog allows");
+    }
+    for i in 0..more {
+        let mut question = Question::new(format!("e2e-extra-{i:03}"), format!("Extra question {i:03}"), (i % 100) as u8 + 1);
+        question.options = vec![QuestionOption::new(format!("e2e-extra-{i:03}-a"), "Yes", true), QuestionOption::new(format!("e2e-extra-{i:03}-b"), "No", false)];
+        catalog
+            .catalog_upsert(&CatalogItem::Question(Box::new(question)), NOW + 2 + i as u64)
+            .expect("an extra question");
     }
     drop(catalog);
     println!("{path}");
