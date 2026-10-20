@@ -1,4 +1,4 @@
-import { onStudio, press, sees } from '../support/app'
+import { nameWorkspace, onStudio, press, sees } from '../support/app'
 
 /** P13.1 (E2E05). A stable library that will not read is said so, and Start empty still works. */
 describe('questiongame Beta with an unreadable stable library', () => {
@@ -8,6 +8,7 @@ describe('questiongame Beta with an unreadable stable library', () => {
     await press('Copy my stable library')
     await sees('Your stable library could not be copied')
     await press('Start empty')
+    await nameWorkspace()
     await sees('Where things live')
   })
 })

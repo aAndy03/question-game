@@ -2892,6 +2892,7 @@ e2e:
     load-refusal.e2e.ts: "['--broken-board']"
     show.e2e.ts: "[]"
     upgrade.e2e.ts: "[]"
+    workspaces.e2e.ts: "[]"
   specs:
     e2e/specs/beta-copy.e2e.ts: ["questiongame Beta copies the stable library > copies it, opens on it, and leaves the original untouched"]
     e2e/specs/beta-corrupt.e2e.ts: ["questiongame Beta with an unreadable stable library > says the copy failed and still starts empty"]
@@ -2903,6 +2904,7 @@ e2e:
     e2e/specs/load-refusal.e2e.ts: ["a refused Load > says why from the Roster and leads to the Board"]
     e2e/specs/show.e2e.ts: ["a show > loads a game, opens Stage, and puts the first question on air"]
     e2e/specs/upgrade.e2e.ts: ["an update > backs the library up, keeps it, and shows what is new"]
+    e2e/specs/workspaces.e2e.ts: ["workspaces > names, creates, copies, shares, and an edit follows its copy"]
 fixtures:
   - choose-domain
   - current-team

@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { onStudio, press, sees } from '../support/app'
+import { nameWorkspace, onStudio, press, sees } from '../support/app'
 import { stableFixtureDir } from '../support/folders'
 
 /**
@@ -16,6 +16,8 @@ describe('questiongame Beta while questiongame is running', () => {
     await new Promise((r) => setTimeout(r, 1000))
     await press('Try again')
     await press('Copy my stable library')
+    // The copy is a 1.x library: it moves into a workspace that needs a name.
+    await nameWorkspace()
     await sees('What’s new in questiongame', 30_000)
   })
 })

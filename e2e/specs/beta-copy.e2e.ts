@@ -29,7 +29,8 @@ describe('questiongame Beta copies the stable library', () => {
     expect(await browser.getTitle()).toContain('Studio')
 
     const backups = readdirSync(path.join(e2eFolders()[0], 'backups'))
-    expect(backups.some((name) => /^questiongame-1\.0\.1-\d{8}-\d{6}\.sqlite3$/.test(name))).toBe(true)
+    // A 1.x library: the copy before it moved into a workspace is the pinned one.
+    expect(backups.some((name) => /^questiongame-pre-workspaces-\d{8}-\d{6}\.sqlite3$/.test(name))).toBe(true)
     expect(readdirSync(e2eFolders()[0]).some((n) => n.startsWith('stable-copy-'))).toBe(false)
     expect(snapshot(stableFixtureDir())).toEqual(before)
   })

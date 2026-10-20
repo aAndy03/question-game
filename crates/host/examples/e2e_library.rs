@@ -15,6 +15,10 @@
 //!   board on which both sit cannot Load (§2.31).
 //! - `--more-questions <n>` adds `n` plain questions in no domain, for the
 //!   specs that need a list longer than a page (stable 1.1).
+//! - **Schema 3**, as every 1.x build left it (Beta 2.0): built at the head
+//!   schema beside `<path>`, then written to `<path>` with the columns 1.x had
+//!   (`db::write_older_schema`). The first boot migrates it into one unnamed
+//!   workspace and asks for its name, as an upgrading operator sees it.
 
 use questiongame_host::catalog::{
     CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo, Operator, Question, QuestionOption, SeedMode,
@@ -36,10 +40,13 @@ fn main() {
         .map(|n| n.parse().expect("--more-questions takes a number"))
         .unwrap_or(0);
 
-    for suffix in ["", "-wal", "-shm"] {
-        let _ = std::fs::remove_file(format!("{path}{suffix}"));
+    let head = format!("{path}.head");
+    for file in [&path, &head] {
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{file}{suffix}"));
+        }
     }
-    let catalog = CatalogService::open(CatalogLocation::file(&path)).expect("a library");
+    let catalog = CatalogService::open(CatalogLocation::file(&head)).expect("a library");
     catalog
         .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW)
         .expect("the Demo seeds");
@@ -80,5 +87,10 @@ fn main() {
             .expect("an extra question");
     }
     drop(catalog);
+    questiongame_host::catalog::db::write_older_schema(std::path::Path::new(&head), std::path::Path::new(&path), 3)
+        .expect("the library as 1.x left it");
+    for suffix in ["", "-wal", "-shm"] {
+        let _ = std::fs::remove_file(format!("{head}{suffix}"));
+    }
     println!("{path}");
 }

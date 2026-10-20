@@ -30,6 +30,55 @@ export interface WhatsNewRelease {
 
 export const WHATS_NEW: readonly WhatsNewRelease[] = [
   {
+    version: '2.0.0-beta.1',
+    notes: {
+      en: [
+        {
+          title: 'Workspaces',
+          body: 'One questiongame can now hold several libraries — a season, a school, a club — each with its own teams, domains, questions and games. Pick one at the top of the sidebar. Everything you had is in your first workspace: give it a name and carry on.',
+        },
+        {
+          title: 'A shared library',
+          body: 'Make a team, domain or question shared and every workspace sees it. Where on Teams and on Domains & Questions shows this workspace’s rows or the shared ones, and a shared row says Shared.',
+        },
+        {
+          title: 'Copy and move between workspaces',
+          body: 'Copy to… and Move to… take a row, or a whole game, to another workspace with what it needs — a domain brings its questions, a game its teams and board. Before anything happens Studio says what comes along and, if something still uses a row, who.',
+        },
+        {
+          title: 'Edit once, update the copies',
+          body: 'When you save a team, domain or question that has copies in other workspaces, choose Save here only or Also update the copies. A copy the change would break on one of its boards is left alone, and Studio says why.',
+        },
+        {
+          title: 'Groups, duplicates and a clean-up',
+          body: 'Manage workspaces puts them in groups, renames, duplicates (without the Plays) and archives them. An archived workspace can be deleted for good; questiongame takes a backup first, and the one taken before workspaces is always kept.',
+        },
+      ],
+      ro: [
+        {
+          title: 'Spații de lucru',
+          body: 'Un singur questiongame poate ține acum mai multe biblioteci — un sezon, o școală, un club — fiecare cu echipele, domeniile, întrebările și jocurile ei. Alegi una sus, în bara laterală. Tot ce aveai e în primul tău spațiu de lucru: dă-i un nume și continuă.',
+        },
+        {
+          title: 'O bibliotecă comună',
+          body: 'Fă o echipă, un domeniu sau o întrebare comună și o vede fiecare spațiu de lucru. Where, în Teams și în Domains & Questions, arată rândurile acestui spațiu sau pe cele comune, iar un rând comun poartă eticheta Shared.',
+        },
+        {
+          title: 'Copiezi și muți între spații de lucru',
+          body: 'Copy to… și Move to… duc un rând, sau un joc întreg, în alt spațiu de lucru, cu tot ce îi trebuie — un domeniu își ia întrebările, un joc echipele și tabla. Înainte să se întâmple ceva, Studio îți spune ce vine odată cu el și, dacă un rând e încă folosit, de cine.',
+        },
+        {
+          title: 'Modifici o dată, se actualizează și copiile',
+          body: 'Când salvezi o echipă, un domeniu sau o întrebare care are copii în alte spații de lucru, alegi Save here only sau actualizezi și copiile. O copie pe care schimbarea ar strica-o pe una dintre tablele ei rămâne neatinsă, iar Studio îți spune de ce.',
+        },
+        {
+          title: 'Grupuri, duplicate și curățenie',
+          body: 'Manage workspaces le pune în grupuri, le redenumește, le duplică (fără partidele jucate) și le arhivează. Un spațiu arhivat poate fi șters definitiv; questiongame face mai întâi o copie de siguranță, iar cea făcută înainte de spațiile de lucru se păstrează mereu.',
+        },
+      ],
+    },
+  },
+  {
     version: '1.1.0',
     notes: {
       en: [

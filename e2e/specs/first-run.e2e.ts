@@ -1,5 +1,5 @@
 import { browser } from '@wdio/globals'
-import { named, onStudio, press, sees } from '../support/app'
+import { named, nameWorkspace, onStudio, press, sees } from '../support/app'
 
 /**
  * A new install, end to end: an empty library opens on first run, which
@@ -9,6 +9,8 @@ import { named, onStudio, press, sees } from '../support/app'
 describe('first run', () => {
   it('sets up an operator and the Demo', async () => {
     await onStudio()
+    await sees('Create your first workspace', 30_000)
+    await nameWorkspace('Classroom')
     await sees('Where things live', 30_000)
     await press('Next')
 

@@ -68,11 +68,34 @@ export async function stageScreen(): Promise<string | null> {
 }
 
 /**
- * A seeded library is one 1.0.1 left, so this build opens *What's new* over
- * it first (P12.10). A spec about something else closes it, as an operator
- * would; `upgrade.e2e.ts` is the one that asserts on it.
+ * Name the workspace Studio asks about (Beta 2.0): *Name your workspace* on a
+ * library that moved into one, *Create your first workspace* on an empty one.
+ * The field starts empty and nothing suggests a name — that is asserted here,
+ * on every spec that passes through it.
+ */
+export async function nameWorkspace(name = 'E2E library'): Promise<void> {
+  await browser.waitUntil(
+    async () => {
+      const text = await $('body').getText()
+      return text.includes('Name your workspace') || text.includes('Create your first workspace')
+    },
+    { timeout: 30_000, timeoutMsg: 'Studio never asked for the workspace name' },
+  )
+  const field = await named('Workspace name')
+  expect(await field.getValue()).toBe('')
+  expect(await field.getAttribute('placeholder')).toBeNull()
+  await field.setValue(name)
+  await press('Continue')
+}
+
+/**
+ * A seeded library is one 1.x left, so this build first asks for the name of
+ * the workspace it moved into (Beta 2.0), then opens *What's new* over it
+ * (P12.10). A spec about something else does both, as an operator would;
+ * `upgrade.e2e.ts` is the one that asserts on them.
  */
 export async function closeWhatsNew(): Promise<void> {
+  await nameWorkspace()
   await sees('What’s new in questiongame', 30_000)
   await press('Got it')
   await browser.waitUntil(async () => !(await $('body').getText()).includes('What’s new in questiongame'), {

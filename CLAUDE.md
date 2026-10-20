@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-Shipped: **1.0.2**; main is at P13.4 — questiongame Beta (P13.1) and stable 1.1's library views (P13.2–P13.4, also on `release/1.x`, not yet tagged). The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: **Beta 2.0 — workspaces** (roadmap ▸ Next). **Which branch?** Stable fixes on `release/1.x`, merged forward into `main`; Beta work on `main` only — `docs/as-built/release.md` ▸ Channels.
+Shipped: **1.0.2**; main is at P14 — questiongame Beta (P13.1), stable 1.1's library views (P13.2–P13.4, also on `release/1.x`, not yet tagged) and Beta 2.0's workspaces (P14, `main` only, not yet versioned). The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: roadmap ▸ Next. **Which branch?** Stable fixes on `release/1.x`, merged forward into `main`; Beta work on `main` only — `docs/as-built/release.md` ▸ Channels.
 
 ## As built — read the area's file before changing it
 
@@ -12,7 +12,7 @@ Each file holds the rules a later change must not undo, with the incident that t
 
 | Changing… | Read first |
 | --- | --- |
-| a host service — Play, catalog, flags, presentation, monitor, award, board rules, incomplete questions | `docs/as-built/host.md` |
+| a host service — Play, catalog, flags, presentation, monitor, award, board rules, incomplete questions, workspaces | `docs/as-built/host.md` |
 | a command, the lock, logging, the performance log, webview diagnostics (`crates/app`) | `docs/as-built/app-shell.md` |
 | Studio — shell, notices, editors, Control, Screens, Settings, health, Statistics | `docs/as-built/studio.md` |
 | Stage — languages, editable words, fitting the display, the clock, the Viewer, motion | `docs/as-built/stage.md` |
