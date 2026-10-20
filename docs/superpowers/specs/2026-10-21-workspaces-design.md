@@ -1,6 +1,6 @@
 # Beta 2.0: workspaces — design
 
-*2026-10-21. Status: draft for approval. Release C of four (A channels ✓ → B stable 1.1 ✓ → **C Beta 2.0 workspaces** → D groups inside domains, bulk actions, tags). Beta only: built on `main`, never merged into `release/1.x`.*
+*2026-10-21. Status: approved 2026-10-21. Release C of four (A channels ✓ → B stable 1.1 ✓ → **C Beta 2.0 workspaces** → D groups inside domains, bulk actions, tags). Beta only: built on `main`, never merged into `release/1.x`.*
 
 The maintainer's words: workspaces and workspace groups; a local library per workspace plus a shared library; duplicate, copy, move, propagate edits, delete; a switcher at the top of the sidebar; **no prebuilt or suggested workspaces**; and at 2.0 → stable, each 1.x library is backed up and moved into **one workspace the user names, with no name suggested**. Asked what a workspace is *for*, they answered: it doesn't matter — the app offers tools, the operator names a workspace and uses it for whatever they need. Every decision below that is not in those sentences is the designer's call, marked *(call)*.
 
