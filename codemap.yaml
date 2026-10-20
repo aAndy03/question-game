@@ -2509,6 +2509,8 @@ build:
     "test:tools": "cargo test -p codemap"
     "test:watch": vitest
     typecheck: "tsc --build --force && tsc -p e2e"
+    "version:beta": "vite-node scripts/version.ts -- beta"
+    "version:stable": "vite-node scripts/version.ts -- stable"
   npm_workspaces: ["apps/*", "packages/*"]
   workflows:
     ".github/workflows/release.yml":
