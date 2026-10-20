@@ -7,6 +7,8 @@ import {
   ControlPage,
   BetaWelcomePage,
   FirstRunPage,
+  NameWorkspacePage,
+  WorkspacesPage,
   GamePage,
   GamesPage,
   LibraryPage,
@@ -30,7 +32,7 @@ import { installDiagnostics, onPageCommit, setDiagnosticRoute } from '@/chrome/d
 import { HostBridge } from '@/host/bridge'
 import { hasHost } from '@/host/host'
 import { isPlayOpen, peekPlayState } from '@/host/playState'
-import { useBetaWelcome, useCatalogList, useSettings } from '@/host/queries'
+import { useBetaWelcome, useCatalogList, useSettings, useWorkspaces } from '@/host/queries'
 import { useUpdateCheckOnStart } from '@/host/updates'
 import { useWhatsNewOnStart } from '@/host/whatsNew'
 
@@ -108,6 +110,11 @@ function Shell() {
   const settings = useSettings()
   const operators = useCatalogList('operator', 'all')
   const setOperator = useChromeStore((s) => s.setOperator)
+  const setWorkspace = useChromeStore((s) => s.setWorkspace)
+  const workspaces = useWorkspaces()
+  // Naming the workspace, latched like first run: it comes after the welcome
+  // and before first run (Beta 2.0).
+  const [namedDone, setNamedDone] = useState(false)
   const setGuard = useNavStore((s) => s.setGuard)
   // First run, latched: see below.
   const inWizard = useRef(false)
@@ -134,6 +141,11 @@ function Shell() {
   useEffect(() => {
     setOperator(settings.data?.globals.active_operator_id ?? null)
   }, [settings.data?.globals.active_operator_id, setOperator])
+  // …and list views follow the workspace (host truth).
+  const currentWorkspace = workspaces.data?.current
+  useEffect(() => {
+    if (currentWorkspace) setWorkspace(currentWorkspace)
+  }, [currentWorkspace, setWorkspace])
 
   // Screens is blocked while a Play is open (spec §12). The route stays typed;
   // the notice offers the two actions and nothing else.
@@ -166,6 +178,17 @@ function Shell() {
   if (welcomeUp) return <BetaWelcomePage onDone={() => setWelcomeDone(true)} />
   // Until the host has said, first run must not latch: the welcome comes first.
   if (!welcomeSettled) return null
+
+  // The workspace has no name yet — a fresh library, or one that just moved
+  // into its first workspace. Asked before first run and before the shell;
+  // nothing suggests a name.
+  const unnamed =
+    !namedDone && workspaces.data !== undefined && workspaces.data.workspaces.find((w) => w.id === workspaces.data?.current)?.name === null
+  if (unnamed) {
+    if (settings.data === undefined || operators.data === undefined) return null
+    const fresh = settings.data.globals.active_operator_id === null && operators.data.length === 0
+    return <NameWorkspacePage mode={fresh ? 'create' : 'name'} onDone={() => setNamedDone(true)} />
+  }
 
   const firstRun =
     !wizardDone &&
@@ -242,6 +265,8 @@ function Page({ route }: { route: Route }) {
       return <StatisticsPage view={route.view} />
     case 'settings':
       return <SettingsPage inner={route.inner} />
+    case 'workspaces':
+      return <WorkspacesPage />
   }
 }
 

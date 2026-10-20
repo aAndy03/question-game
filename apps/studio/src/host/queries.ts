@@ -39,6 +39,7 @@ import type {
   SettingsView,
   StatsQuery,
   StatsResult,
+  Workspaces,
 } from './types'
 
 export const keys = {
@@ -61,6 +62,8 @@ export const keys = {
   paths: ['paths'] as const,
   appInfo: ['appInfo'] as const,
   betaWelcome: ['betaWelcome'] as const,
+  /** `workspace_list` — replaced whole by every `workspace-changed`. */
+  workspaces: ['workspaces'] as const,
   /** `catalog_seed_status`, per Demo — invalidated by every catalog/recipe change. */
   seedStatus: {
     all: ['seed-status'] as const,
@@ -307,6 +310,49 @@ export function usePlayEvents(playId: string | null) {
     queryFn: () => command<PlayEvent[]>('play_events', { playId }),
     enabled: enabled() && playId !== null,
   })
+}
+
+/** Every workspace, every group, and the one Studio works in (Beta 2.0). */
+export function useWorkspaces() {
+  return useQuery({
+    queryKey: keys.workspaces,
+    queryFn: () => command<Workspaces>('workspace_list'),
+    enabled: enabled(),
+    staleTime: Infinity,
+  })
+}
+
+/**
+ * The keys whose answer depends on the workspace: every library list and
+ * row, search, games, Plays, statistics, the Demo's status, the settings
+ * document (game defaults and the timer are per workspace) and the rules
+ * preview. What does not: monitors, paths, the build, the welcome, and the
+ * workspace list itself.
+ */
+const WORKSPACE_SCOPED: readonly (readonly string[])[] = [
+  keys.catalog.all,
+  ['search'],
+  keys.recipes.all,
+  keys.settings,
+  keys.seedStatus.all,
+  ['import-preview'],
+  ['plays'],
+  ['stats'],
+  ['rulesPreview'],
+]
+
+/**
+ * A `workspace-changed`: the list is replaced, and when Studio now works in
+ * another workspace every workspace-scoped query is **reset** — dropped and,
+ * where something is on screen, fetched again — so no list ever shows the
+ * last workspace's rows under the new one's name.
+ */
+export function receiveWorkspaces(client: QueryClient, next: Workspaces): void {
+  const before = client.getQueryData<Workspaces>(keys.workspaces)
+  client.setQueryData(keys.workspaces, next)
+  if (before && before.current !== next.current) {
+    for (const queryKey of WORKSPACE_SCOPED) void client.resetQueries({ queryKey })
+  }
 }
 
 /** The bridge's half: which keys a host event touches. */

@@ -25,6 +25,7 @@ export const TABS: Readonly<Record<Tab, { label: string; hint: string }>> = {
   screens: { label: 'Screens', hint: 'Stage layout per recipe' },
   statistics: { label: 'Statistics', hint: 'Results and history' },
   settings: { label: 'Settings', hint: 'Displays, defaults, shortcuts' },
+  workspaces: { label: 'Workspaces', hint: 'Libraries in this file' },
 }
 
 export const PLAY_STATUS = {

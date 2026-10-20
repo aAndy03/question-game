@@ -22,6 +22,7 @@ export type Tab =
   | 'screens'
   | 'statistics'
   | 'settings'
+  | 'workspaces'
 
 export type RecordMode = 'view' | 'edit'
 
@@ -47,6 +48,7 @@ export type Route =
   | { readonly tab: 'screens' }
   | { readonly tab: 'statistics'; readonly view?: 'live' | 'all' }
   | { readonly tab: 'settings'; readonly inner?: SettingsInner }
+  | { readonly tab: 'workspaces' }
 
 export type GameSection = 'roster' | 'board' | 'rules' | 'plays'
 export type SettingsInner = 'monitors' | 'settings' | 'shortcuts' | 'about'

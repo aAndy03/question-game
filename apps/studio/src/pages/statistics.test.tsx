@@ -175,6 +175,8 @@ describe('Statistics', () => {
       'client_log',
       'perf_report',
       'stats_query',
+      // The sidebar's workspace switcher (Beta 2.0) reads which workspace this is.
+      'workspace_list',
       'catalog_list',
       'catalog_get',
       'recipe_list',

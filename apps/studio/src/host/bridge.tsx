@@ -8,6 +8,8 @@
  *   play-tick        → `receivePlayTick` — the countdown, ten times a second
  *   catalog-changed  → invalidate that kind's queries
  *   recipe-changed   → invalidate that recipe's queries
+ *   workspace-changed → replace the workspace list; on a switch, reset every
+ *                      workspace-scoped query
  *   monitors-changed → replace the monitors query data, and the windows store
  *   notice           → the notice store
  *   health           → the health store's headline, and the notice store's
@@ -40,7 +42,8 @@ import { useQuitStore } from '@/chrome/quit'
 import { useWindowsStore } from '@/chrome/windows'
 import { command, hasHost, on } from './host'
 import { receivePlayState, receivePlayTick } from './playState'
-import { invalidateForCatalogChange, invalidateForRecipeChange, keys } from './queries'
+import { invalidateForCatalogChange, invalidateForRecipeChange, keys, receiveWorkspaces } from './queries'
+import type { Workspaces } from './types'
 
 export function HostBridge() {
   const client = useQueryClient()
@@ -78,6 +81,7 @@ export function HostBridge() {
     add(on<PlayTick>('play-tick', receivePlayTick))
     add(on<CatalogChange>('catalog-changed', (c) => invalidateForCatalogChange(client, c.kind, c.id)))
     add(on<RecipeChange>('recipe-changed', (c) => invalidateForRecipeChange(client, c.id)))
+    add(on<Workspaces>('workspace-changed', (w) => receiveWorkspaces(client, w)))
     add(
       on<MonitorsChanged>('monitors-changed', (m) => {
         client.setQueryData(keys.monitors, m.monitors)

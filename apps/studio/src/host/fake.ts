@@ -51,10 +51,22 @@ import type {
   SettingsView,
   StatsQuery,
   StatsResult,
+  DeletePreview,
+  DeleteReport,
+  FamilyCopy,
+  PropagationPreview,
+  Refusal,
+  Selection,
+  Touched,
+  TransferOp,
+  TransferReport,
+  Workspace,
+  WorkspaceGroup,
+  Workspaces,
 } from './types'
 import { FAKE_LEDGER, FAKE_PREVIEW } from './fake/preview'
 import { ImportRefused, planImport } from './fake/import'
-import { SEED_RECIPE_IDS, sameBody, seedLibrary, seedRecipe } from './fake/seed'
+import { sameBody, seedLibrary, seedRecipe } from './fake/seed'
 import { bodyGaps, effectiveBody } from './question'
 
 type Handler = (payload: unknown) => void
@@ -117,9 +129,18 @@ export interface FakeHost extends HostTransport {
   closeCancels: number
   /** Set by `app_uninstall`. */
   uninstallerStarted: boolean
+  /** Beta 2.0: the workspaces, their groups, and the one Studio works in. */
+  workspaces: readonly Workspace[]
+  workspaceGroups: readonly WorkspaceGroup[]
+  currentWorkspace: string
+  /** `kind:id` → family number, for the propagation commands. */
+  readonly families: Map<string, number>
 }
 
 const now = () => Date.now()
+
+/** The workspace a row seeded without a home lives in. */
+export const FIRST_WORKSPACE = 'ws-1'
 
 /** Found by `scripts/release-check.ts` if the fake host ever ships (P12.3). */
 export const FAKE_HOST_MARKER = '__QG_FAKE_HOST__'
@@ -256,6 +277,10 @@ export function createFakeHost(): FakeHost {
   const library = new Map<string, CatalogItem>()
   const recipes = new Map<string, Recipe>()
   const calls: FakeHost['calls'] = []
+  /** `kind:id` → the workspace a library row lives in, `null` for shared. */
+  const homes = new Map<string, string | null>()
+  const recipeHomes = new Map<string, string>()
+  const families = new Map<string, number>()
   let activeOperatorId: string | null = null
   let globalsTimer = { enabled: true as boolean | null, duration_ms: 30_000 as number | null }
   let gameDefaults: GameSettings = DEFAULT_GAME_SETTINGS
@@ -297,6 +322,9 @@ export function createFakeHost(): FakeHost {
   const upsert = (item: CatalogItem): CatalogItem => {
     const k = key(item.kind, item.item.id)
     const existing = library.get(k)
+    // A new row lands in this workspace, or shared; an existing one stays put.
+    if (!existing && item.kind !== 'operator') homes.set(k, item.item.shared === true ? null : fake.currentWorkspace)
+    if (existing && item.kind !== 'operator' && !inView(k)) refuse('catalog', `${item.kind} ${item.item.id} belongs to another workspace`)
     const stamped = {
       kind: item.kind,
       item: stamp(item.item as never, existing?.item as never),
@@ -411,6 +439,7 @@ export function createFakeHost(): FakeHost {
 
   const bumpRecipe = (recipe: Recipe): Recipe => {
     const existing = recipes.get(recipe.id)
+    if (!existing) recipeHomes.set(recipe.id, fake.currentWorkspace)
     const next = { ...stamp(recipe, existing), rev: (existing?.rev ?? 0) + 1 }
     recipes.set(recipe.id, next)
     emit('recipe-changed', { id: next.id, rev: next.rev })
@@ -422,12 +451,14 @@ export function createFakeHost(): FakeHost {
       const kind = a.kind as LibraryKind
       const scope = a.scope as ArchiveScope
       if ((kind as string) === 'recipe') refuse('catalog', 'recipes have their own verbs')
-      return [...library.values()].filter((r) => r.kind === kind && inScope(r.item.archivedAt, scope))
+      return [...library.values()]
+        .filter((r) => r.kind === kind && inScope(r.item.archivedAt, scope) && inView(key(r.kind, r.item.id)))
+        .map(asRead)
     },
     catalog_get: (a) => {
       const row = library.get(key(a.kind as string, a.id as string))
-      if (!row) refuse('catalog', `${a.kind} ${a.id} not found`)
-      return row
+      if (!row || !inView(key(row.kind, row.item.id))) refuse('catalog', `${a.kind} ${a.id} not found`)
+      return asRead(row)
     },
     catalog_upsert: (a) => {
       const item = a.item as CatalogItem
@@ -477,7 +508,7 @@ export function createFakeHost(): FakeHost {
       const q = a.query as { text: string; kinds: string[]; scope: ArchiveScope; limit: number }
       const needle = q.text.toLowerCase()
       return [...library.values()]
-        .filter((r) => (q.kinds.length === 0 || q.kinds.includes(r.kind)) && inScope(r.item.archivedAt, q.scope))
+        .filter((r) => (q.kinds.length === 0 || q.kinds.includes(r.kind)) && inScope(r.item.archivedAt, q.scope) && inView(key(r.kind, r.item.id)))
         .filter((r) => JSON.stringify(r.item).toLowerCase().includes(needle))
         .slice(0, q.limit)
         .map((r) => ({ kind: r.kind, id: r.item.id, score: 1 }))
@@ -496,10 +527,10 @@ export function createFakeHost(): FakeHost {
       }
       return null
     },
-    recipe_list: (a) => [...recipes.values()].filter((r) => inScope(r.archivedAt, a.scope as ArchiveScope)),
+    recipe_list: (a) => [...recipes.values()].filter((r) => inScope(r.archivedAt, a.scope as ArchiveScope) && visibleRecipe(r.id)),
     recipe_get: (a) => {
       const r = recipes.get(a.id as string)
-      if (!r) refuse('catalog', `recipe ${a.id} not found`)
+      if (!r || !visibleRecipe(r.id)) refuse('catalog', `recipe ${a.id} not found`)
       return r
     },
     recipe_new: (a) => {
@@ -624,7 +655,7 @@ export function createFakeHost(): FakeHost {
       const mode = a.mode as SeedMode
       let inserted = 0
       let overwritten = 0
-      for (const item of seedLibrary(demo)) {
+      for (const item of scopedSeed(seedLibrary(demo))) {
         const k = key(item.kind, item.item.id)
         const existing = library.get(k)
         if (!existing) {
@@ -642,7 +673,7 @@ export function createFakeHost(): FakeHost {
         }
         emit('catalog-changed', { kind: item.kind, id: item.item.id, op: 'upserted' })
       }
-      const recipe = seedRecipe(demo, gameDefaults)
+      const recipe = scopedSeed(seedRecipe(demo, gameDefaults))
       const existing = recipes.get(recipe.id)
       if (!existing) {
         bumpRecipe(recipe)
@@ -653,7 +684,7 @@ export function createFakeHost(): FakeHost {
       } else if (existing.archivedAt !== null) {
         bumpRecipe({ ...existing, archivedAt: null })
       }
-      return { recipeId: SEED_RECIPE_IDS[demo], inserted, overwritten } satisfies SeedResult
+      return { recipeId: recipe.id, inserted, overwritten } satisfies SeedResult
     },
     catalog_seed_status: (a) => {
       const demo = (a.demo as SeedDemo | undefined) ?? 'en'
@@ -665,8 +696,9 @@ export function createFakeHost(): FakeHost {
           if (!sameBody(stored, shipped)) status.edited += 1
         }
       }
-      for (const item of seedLibrary(demo)) count(library.get(key(item.kind, item.item.id))?.item, item.item)
-      count(recipes.get(SEED_RECIPE_IDS[demo]), seedRecipe(demo, gameDefaults))
+      for (const item of scopedSeed(seedLibrary(demo))) count(library.get(key(item.kind, item.item.id))?.item, item.item)
+      const shipped = scopedSeed(seedRecipe(demo, gameDefaults))
+      count(recipes.get(shipped.id), shipped)
       return status satisfies SeedStatus
     },
     // §2.32 — the host's planner, mirrored (`fake/import.ts`). A preview
@@ -898,7 +930,8 @@ export function createFakeHost(): FakeHost {
     },
     play_list: (a) => {
       const recipeId = (a.recipeId as string | null | undefined) ?? null
-      return recipeId === null ? fake.plays : fake.plays.filter((p) => p.recipeId === recipeId)
+      const mine = fake.plays.filter((p) => visibleRecipe(p.recipeId))
+      return recipeId === null ? mine : mine.filter((p) => p.recipeId === recipeId)
     },
     play_events: () => [],
     update_check: () => {
@@ -957,8 +990,387 @@ export function createFakeHost(): FakeHost {
     },
   }
 
+
+  // ---------------------------------------------------------------- workspaces
+  //
+  // Beta 2.0, kept honest enough for shell work: every row has a home (a
+  // workspace, or `null` for the shared library — a row seeded without one
+  // lives in the first workspace), and every read is *current ∪ shared*. The
+  // closure, reuse and family rules are the host's and are tested there; the
+  // fake copies, moves and shares what was picked and what a domain or a game
+  // obviously needs, and refuses the way the host refuses.
+
+  const homeOf = (k: string): string | null => (homes.has(k) ? (homes.get(k) ?? null) : FIRST_WORKSPACE)
+  const recipeHomeOf = (id: string): string => recipeHomes.get(id) ?? FIRST_WORKSPACE
+  const inView = (k: string) => {
+    // Operators are the app's, not a workspace's.
+    if (k.startsWith('operator:')) return true
+    const home = homeOf(k)
+    return home === null || home === fake.currentWorkspace
+  }
+  const visibleRecipe = (id: string) => recipeHomeOf(id) === fake.currentWorkspace
+  const asRead = (row: CatalogItem): CatalogItem =>
+    ({ kind: row.kind, item: { ...row.item, shared: homeOf(key(row.kind, row.item.id)) === null } }) as CatalogItem
+
+  const workspaceView = (): Workspaces => ({
+    current: fake.currentWorkspace,
+    workspaces: fake.workspaces,
+    groups: fake.workspaceGroups,
+  })
+  const workspacesChanged = () => {
+    const view = workspaceView()
+    emit('workspace-changed', view)
+    return view
+  }
+  const workspaceRow = (id: string): Workspace => {
+    const found = fake.workspaces.find((w) => w.id === id)
+    if (!found) refuse('catalog', `workspace/${id}: no such workspace`)
+    return found
+  }
+  const cleanName = (name: string, path: string, taken: readonly string[]) => {
+    const clean = name.trim()
+    if (!clean) refuse('catalog', `${path}: a name is required`)
+    if ([...clean].length > 60) refuse('catalog', `${path}: a name is at most 60 characters`)
+    if (taken.some((n) => n.trim().toLowerCase() === clean.toLowerCase())) refuse('catalog', `${path}: another workspace has this name`)
+    return clean
+  }
+  const activeNames = (except?: string) =>
+    fake.workspaces.filter((w) => w.archivedAt === null && w.id !== except && w.name !== null).map((w) => w.name as string)
+  const putWorkspace = (next: Workspace) => {
+    fake.workspaces = fake.workspaces.some((w) => w.id === next.id)
+      ? fake.workspaces.map((w) => (w.id === next.id ? next : w))
+      : [...fake.workspaces, next]
+  }
+  const freshId = (prefix: string) => `${prefix}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`
+
+  /** The rows a selection carries: what was picked, a domain's local questions, a game's roster and board. */
+  const closureOf = (sel: Selection, includeShared: boolean) => {
+    const out = new Map<string, { kind: LibraryKind; id: string; picked: boolean }>()
+    const add = (kind: LibraryKind, id: string, picked: boolean) => {
+      const k = key(kind, id)
+      if (!library.has(k) || out.has(k)) return
+      if (homeOf(k) === null && !(includeShared && picked)) return
+      out.set(k, { kind, id, picked })
+      const row = library.get(k)
+      if (row?.kind === 'domain') row.item.questions.forEach((m) => add('question', m.questionId, false))
+    }
+    const games = (sel.recipes ?? []).map((id) => recipes.get(id)).filter((r): r is Recipe => r !== undefined)
+    ;(sel.teams ?? []).forEach((id) => add('team', id, true))
+    ;(sel.domains ?? []).forEach((id) => add('domain', id, true))
+    ;(sel.questions ?? []).forEach((id) => add('question', id, true))
+    for (const game of games) {
+      game.teams.forEach((id) => add('team', id, false))
+      game.board.forEach((b) => {
+        add('domain', b.domainId, false)
+        b.questionIds.forEach((q) => add('question', q, false))
+      })
+    }
+    return { rows: [...out.values()], games }
+  }
+
+  /** Who in this workspace still uses `id` and is not going with it. */
+  const stayingUsers = (kind: LibraryKind, id: string, going: Set<string>, goingGames: Set<string>): string[] => {
+    const users: string[] = []
+    for (const [k, row] of library) {
+      if (going.has(k) || homeOf(k) !== fake.currentWorkspace) continue
+      if (kind === 'question' && row.kind === 'domain' && row.item.questions.some((m) => m.questionId === id)) users.push(`domain ${row.item.name}`)
+    }
+    for (const game of recipes.values()) {
+      if (goingGames.has(game.id) || recipeHomeOf(game.id) !== fake.currentWorkspace) continue
+      const uses =
+        (kind === 'team' && game.teams.includes(id)) ||
+        (kind === 'domain' && game.board.some((b) => b.domainId === id)) ||
+        (kind === 'question' && game.board.some((b) => b.questionIds.includes(id)))
+      if (uses) users.push(`game ${game.name}`)
+    }
+    return users
+  }
+
+  const emptyReport = (): TransferReport => ({ created: [], reused: [], moved: [], refused: [] })
+
+  const transfer = (op: TransferOp, sel: Selection, target: string | null, write: boolean): TransferReport => {
+    const report = emptyReport() as { created: Touched[]; reused: Touched[]; moved: Touched[]; refused: Refusal[] }
+    if (op === 'copy' || op === 'move') {
+      if (target === null) refuse('catalog', 'transfer.target: copy and move need a workspace to go to')
+      if (target === fake.currentWorkspace) refuse('catalog', `workspace/${target}: that is this workspace; use Duplicate for a second copy here`)
+      if (workspaceRow(target).archivedAt !== null) refuse('catalog', `workspace/${target}: an archived workspace takes nothing`)
+    }
+    if ((op === 'make_shared' || op === 'make_local') && (sel.recipes?.length ?? 0) > 0) {
+      refuse('catalog', op === 'make_shared' ? 'a game always lives in one workspace' : 'a game is already local')
+    }
+    if (op === 'make_local') {
+      const picked: { kind: LibraryKind; id: string }[] = [
+        ...(sel.teams ?? []).map((id) => ({ kind: 'team' as const, id })),
+        ...(sel.domains ?? []).map((id) => ({ kind: 'domain' as const, id })),
+        ...(sel.questions ?? []).map((id) => ({ kind: 'question' as const, id })),
+      ].filter((p) => homeOf(key(p.kind, p.id)) === null)
+      for (const p of picked) {
+        for (const [k, row] of library) {
+          const home = homeOf(k)
+          if (home === fake.currentWorkspace) continue
+          if (p.kind === 'question' && row.kind === 'domain' && row.item.questions.some((m) => m.questionId === p.id)) {
+            const where = home === null ? ' (shared)' : ` in workspace ${workspaceRow(home).name ?? home}`
+            report.refused.push({ kind: p.kind, id: p.id, usedBy: `domain ${row.item.name}${where}` })
+          }
+        }
+      }
+      if (report.refused.length === 0 && write) picked.forEach((p) => homes.set(key(p.kind, p.id), fake.currentWorkspace))
+      report.moved.push(...picked.map((p) => ({ kind: p.kind, id: p.id, from: p.id, picked: true })))
+      return finish(report, write)
+    }
+    const { rows, games } = closureOf(sel, op === 'copy')
+    if (op === 'copy') {
+      const ids = new Map(rows.map((r) => [key(r.kind, r.id), freshId(r.kind === 'question' ? 'q' : r.kind === 'domain' ? 'dom' : r.kind)]))
+      const map = (kind: LibraryKind, id: string) => ids.get(key(kind, id)) ?? id
+      for (const r of rows) {
+        report.created.push({ kind: r.kind, id: map(r.kind, r.id), from: r.id, picked: r.picked })
+        if (!write) continue
+        const row = library.get(key(r.kind, r.id)) as CatalogItem
+        const item = { ...row.item, id: map(r.kind, r.id), shared: false } as CatalogItem['item']
+        if (row.kind === 'domain') (item as { questions: unknown }).questions = row.item.questions.map((m) => ({ ...m, questionId: map('question', m.questionId) }))
+        library.set(key(r.kind, map(r.kind, r.id)), { kind: row.kind, item } as CatalogItem)
+        homes.set(key(r.kind, map(r.kind, r.id)), target)
+      }
+      for (const game of games) {
+        const id = freshId('game')
+        report.created.push({ kind: 'recipe', id, from: game.id, picked: true })
+        if (!write) continue
+        recipes.set(id, {
+          ...game,
+          id,
+          rev: 1,
+          teams: game.teams.map((t) => map('team', t)),
+          board: game.board.map((b) => ({ domainId: map('domain', b.domainId), questionIds: b.questionIds.map((q) => map('question', q)) })),
+        })
+        recipeHomes.set(id, target as string)
+      }
+      return finish(report, write)
+    }
+    // move, make_shared
+    const going = new Set(rows.map((r) => key(r.kind, r.id)))
+    const goingGames = new Set(games.map((g) => g.id))
+    if (op === 'move') {
+      for (const r of rows) {
+        for (const usedBy of stayingUsers(r.kind, r.id, going, goingGames)) report.refused.push({ kind: r.kind, id: r.id, usedBy })
+      }
+    }
+    report.moved.push(...rows.map((r) => ({ kind: r.kind, id: r.id, from: r.id, picked: r.picked })))
+    report.moved.push(...games.map((g) => ({ kind: 'recipe' as const, id: g.id, from: g.id, picked: true })))
+    if (report.refused.length === 0 && write) {
+      rows.forEach((r) => homes.set(key(r.kind, r.id), op === 'move' ? target : null))
+      games.forEach((g) => recipeHomes.set(g.id, target as string))
+    }
+    return finish(report, write)
+  }
+
+  const finish = (report: TransferReport, write: boolean): TransferReport => {
+    if (!write) return report
+    const first = report.refused[0]
+    if (first) refuse('catalog', `${first.kind} ${first.id} is still used by ${[...new Set(report.refused.map((r) => r.usedBy))].join(', ')}`)
+    for (const t of [...report.created, ...report.moved]) emit('catalog-changed', { kind: t.kind, id: t.id, op: 'upserted' })
+    return report
+  }
+
+  /** The other members of a row's family, as the host names them. */
+  const familyCopies = (item: CatalogItem): FamilyCopy[] => {
+    const family = families.get(key(item.kind, item.item.id))
+    if (family === undefined) return []
+    return [...families.entries()]
+      .filter(([k, f]) => f === family && k !== key(item.kind, item.item.id) && library.has(k))
+      .map(([k]) => {
+        const home = homeOf(k)
+        const row = library.get(k) as CatalogItem
+        return { id: row.item.id, workspace: home, workspaceName: home ? (workspaceRow(home).name ?? null) : null, archived: row.item.archivedAt !== null }
+      })
+  }
+
+  Object.assign(commands, {
+    workspace_list: () => workspaceView(),
+    workspace_create: (a: Record<string, unknown>) => {
+      const name = cleanName(a.name as string, 'workspace/new/name', activeNames())
+      const created: Workspace = {
+        id: freshId('ws'),
+        name,
+        groupId: (a.groupId as string | null | undefined) ?? null,
+        sortKey: fake.workspaces.length,
+        settings: null,
+        createdAt: now(),
+        updatedAt: now(),
+        archivedAt: null,
+      }
+      putWorkspace(created)
+      workspacesChanged()
+      return created
+    },
+    workspace_rename: (a: Record<string, unknown>) => {
+      const row = workspaceRow(a.id as string)
+      putWorkspace({ ...row, name: cleanName(a.name as string, `workspace/${row.id}/name`, activeNames(row.id)), updatedAt: now() })
+      workspacesChanged()
+      return null
+    },
+    workspace_set_group: (a: Record<string, unknown>) => {
+      const row = workspaceRow(a.id as string)
+      putWorkspace({ ...row, groupId: (a.groupId as string | null | undefined) ?? null, sortKey: a.sortKey as number, updatedAt: now() })
+      workspacesChanged()
+      return null
+    },
+    workspace_duplicate: (a: Record<string, unknown>) => {
+      const source = workspaceRow(a.id as string)
+      const name = cleanName(a.name as string, 'workspace/new/name', activeNames())
+      const copy: Workspace = { ...source, id: freshId('ws'), name, sortKey: fake.workspaces.length, createdAt: now(), updatedAt: now(), archivedAt: null }
+      putWorkspace(copy)
+      const ids = new Map<string, string>()
+      for (const [k, row] of [...library]) {
+        if (homeOf(k) !== source.id) continue
+        const id = freshId(row.kind === 'question' ? 'q' : row.kind === 'domain' ? 'dom' : row.kind)
+        ids.set(k, id)
+      }
+      const map = (kind: string, id: string) => ids.get(key(kind, id)) ?? id
+      for (const [k, row] of [...library]) {
+        const id = ids.get(k)
+        if (!id) continue
+        const item = { ...row.item, id } as CatalogItem['item']
+        if (row.kind === 'domain') (item as { questions: unknown }).questions = row.item.questions.map((m) => ({ ...m, questionId: map('question', m.questionId) }))
+        library.set(key(row.kind, id), { kind: row.kind, item } as CatalogItem)
+        homes.set(key(row.kind, id), copy.id)
+      }
+      for (const game of [...recipes.values()]) {
+        if (recipeHomeOf(game.id) !== source.id) continue
+        const id = freshId('game')
+        recipes.set(id, {
+          ...game,
+          id,
+          rev: 1,
+          teams: game.teams.map((t) => map('team', t)),
+          board: game.board.map((b) => ({ domainId: map('domain', b.domainId), questionIds: b.questionIds.map((q) => map('question', q)) })),
+        })
+        recipeHomes.set(id, copy.id)
+      }
+      workspacesChanged()
+      return copy
+    },
+    workspace_archive: (a: Record<string, unknown>) => {
+      const row = workspaceRow(a.id as string)
+      if (row.id === fake.currentWorkspace) refuse('catalog', `workspace/${row.id}: open another workspace before archiving this one`)
+      putWorkspace({ ...row, archivedAt: now(), updatedAt: now() })
+      workspacesChanged()
+      return null
+    },
+    workspace_restore: (a: Record<string, unknown>) => {
+      const row = workspaceRow(a.id as string)
+      if (row.name !== null) cleanName(row.name, `workspace/${row.id}/name`, activeNames(row.id))
+      putWorkspace({ ...row, archivedAt: null, updatedAt: now() })
+      workspacesChanged()
+      return null
+    },
+    workspace_delete_preview: (a: Record<string, unknown>) => {
+      const id = workspaceRow(a.id as string).id
+      const games = [...recipes.keys()].filter((g) => recipeHomeOf(g) === id)
+      return {
+        rows: [...library.keys()].filter((k) => homeOf(k) === id && !k.startsWith('operator:')).length,
+        games: games.length,
+        plays: fake.plays.filter((p) => games.includes(p.recipeId)).length,
+      } satisfies DeletePreview
+    },
+    workspace_delete: (a: Record<string, unknown>) => {
+      const row = workspaceRow(a.id as string)
+      if (playOpen()) refuse('match', 'a Play is open')
+      verifyActivePin(a.pin as string | null | undefined)
+      if (row.archivedAt === null) refuse('catalog', `workspace/${row.id}: only an archived workspace can be deleted`)
+      const counts = commands.workspace_delete_preview?.({ id: row.id }) as DeletePreview
+      for (const k of [...library.keys()]) if (homeOf(k) === row.id && !k.startsWith('operator:')) library.delete(k)
+      const games = [...recipes.keys()].filter((g) => recipeHomeOf(g) === row.id)
+      games.forEach((g) => recipes.delete(g))
+      fake.plays = fake.plays.filter((p) => !games.includes(p.recipeId))
+      fake.workspaces = fake.workspaces.filter((w) => w.id !== row.id)
+      workspacesChanged()
+      return { ...counts, backup: `${fake.paths.backups}\\questiongame-pre-delete.sqlite3` } satisfies DeleteReport
+    },
+    workspace_switch: (a: Record<string, unknown>) => {
+      const row = workspaceRow(a.id as string)
+      if (playOpen()) refuse('match', 'a Play is open')
+      if (row.archivedAt !== null) refuse('catalog', `workspace/${row.id}: an archived workspace cannot be opened`)
+      fake.currentWorkspace = row.id
+      return workspacesChanged()
+    },
+    workspace_group_create: (a: Record<string, unknown>) => {
+      const name = cleanName(a.name as string, 'workspace-group/new/name', fake.workspaceGroups.map((g) => g.name))
+      const group: WorkspaceGroup = { id: freshId('wsg'), name, sortKey: fake.workspaceGroups.length, createdAt: now(), updatedAt: now() }
+      fake.workspaceGroups = [...fake.workspaceGroups, group]
+      workspacesChanged()
+      return group
+    },
+    workspace_group_rename: (a: Record<string, unknown>) => {
+      const id = a.id as string
+      const name = cleanName(a.name as string, `workspace-group/${id}/name`, fake.workspaceGroups.filter((g) => g.id !== id).map((g) => g.name))
+      fake.workspaceGroups = fake.workspaceGroups.map((g) => (g.id === id ? { ...g, name, updatedAt: now() } : g))
+      workspacesChanged()
+      return null
+    },
+    workspace_group_reorder: (a: Record<string, unknown>) => {
+      const order = a.order as string[]
+      const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length)
+      fake.workspaceGroups = [...fake.workspaceGroups].sort((x, y) => rank(x.id) - rank(y.id)).map((g, i) => ({ ...g, sortKey: i }))
+      workspacesChanged()
+      return null
+    },
+    workspace_group_delete: (a: Record<string, unknown>) => {
+      const id = a.id as string
+      fake.workspaceGroups = fake.workspaceGroups.filter((g) => g.id !== id)
+      fake.workspaces = fake.workspaces.map((w) => (w.groupId === id ? { ...w, groupId: null } : w))
+      workspacesChanged()
+      return null
+    },
+    transfer_preview: (a: Record<string, unknown>) => transfer(a.op as TransferOp, a.selection as Selection, (a.target as string | null | undefined) ?? null, false),
+    catalog_copy_to: (a: Record<string, unknown>) => transfer('copy', a.selection as Selection, a.target as string, true),
+    catalog_move_to: (a: Record<string, unknown>) => {
+      const sel = a.selection as Selection
+      if (fake.playState && sel.recipes?.includes(fake.playState.operator.recipeId)) refuse('match', 'a Play is open')
+      return transfer('move', sel, a.target as string, true)
+    },
+    catalog_make_shared: (a: Record<string, unknown>) => transfer('make_shared', a.selection as Selection, null, true),
+    catalog_make_local: (a: Record<string, unknown>) => transfer('make_local', a.selection as Selection, null, true),
+    catalog_propagation_preview: (a: Record<string, unknown>) =>
+      ({ update: familyCopies(a.item as CatalogItem), skipped: [] }) satisfies PropagationPreview,
+    catalog_upsert_propagating: (a: Record<string, unknown>) => {
+      const item = a.item as CatalogItem
+      validate(item)
+      const copies = familyCopies(item)
+      upsert(item)
+      emit('catalog-changed', { kind: item.kind, id: item.item.id, op: 'upserted' })
+      for (const copy of copies) {
+        const k = key(item.kind, copy.id)
+        const stored = library.get(k) as CatalogItem
+        // The body only: never the id, the stamps or where the row lives.
+        const body: Record<string, unknown> = { ...(item.item as unknown as Record<string, unknown>) }
+        for (const own of ['id', 'createdAt', 'updatedAt', 'archivedAt', 'shared', 'familyId']) delete body[own]
+        if (stored.kind === 'domain') delete body.questions
+        library.set(k, { kind: stored.kind, item: { ...stored.item, ...body, updatedAt: now() } } as CatalogItem)
+        emit('catalog-changed', { kind: item.kind, id: copy.id, op: 'upserted' })
+      }
+      return { update: copies, skipped: [] } satisfies PropagationPreview
+    },
+    catalog_unfollow: (a: Record<string, unknown>) => {
+      families.delete(key(a.kind as string, a.id as string))
+      emit('catalog-changed', { kind: a.kind, id: a.id, op: 'upserted' })
+      return null
+    },
+  })
+
+  /** Another workspace's Demo is its own rows, as on the host: `seed-<ws>-…`. */
+  function scopedSeed<T>(value: T): T {
+    if (fake.currentWorkspace === FIRST_WORKSPACE) return value
+    return JSON.parse(JSON.stringify(value).replaceAll('"seed-', `"seed-${fake.currentWorkspace}-`)) as T
+  }
+
   const fake: FakeHost = {
     calls,
+    workspaces: [
+      { id: FIRST_WORKSPACE, name: 'My library', groupId: null, sortKey: 0, settings: null, createdAt: 0, updatedAt: 0, archivedAt: null },
+    ],
+    workspaceGroups: [],
+    currentWorkspace: FIRST_WORKSPACE,
+    families,
     library,
     recipes,
     plays: [],

@@ -45,6 +45,15 @@ export interface Stamps {
   readonly updatedAt: number
   /** Set means archived — soft, restorable, never a delete (§4.1). */
   readonly archivedAt: number | null
+  /**
+   * In the shared library rather than this workspace (Beta 2.0). Read from
+   * the row; on a save it only decides where a **new** row lands — an
+   * existing row moves through copy, move or share. Always false for
+   * operators and games.
+   */
+  readonly shared?: boolean
+  /** The family of copies this row belongs to; host-owned, never sent back changed. */
+  readonly familyId?: number | null
 }
 
 export interface Team extends Stamps {
@@ -477,6 +486,91 @@ export interface AppInfo {
   readonly channel: 'stable' | 'beta' | 'dev'
 }
 
+// ---------------------------------------------------------------- workspaces
+
+/** One library among several in the file (Beta 2.0). `name` is null until the operator names it. */
+export interface Workspace {
+  readonly id: string
+  readonly name: string | null
+  readonly groupId: string | null
+  readonly sortKey: number
+  readonly settings: unknown
+  readonly createdAt: number
+  readonly updatedAt: number
+  readonly archivedAt: number | null
+}
+
+export interface WorkspaceGroup {
+  readonly id: string
+  readonly name: string
+  readonly sortKey: number
+  readonly createdAt: number
+  readonly updatedAt: number
+}
+
+/** What `workspace_list` answers and `workspace-changed` carries. */
+export interface Workspaces {
+  readonly current: string
+  readonly workspaces: readonly Workspace[]
+  readonly groups: readonly WorkspaceGroup[]
+}
+
+/** *Delete permanently*'s counts, asked before it runs. */
+export interface DeletePreview {
+  readonly rows: number
+  readonly games: number
+  readonly plays: number
+}
+
+export interface DeleteReport extends DeletePreview {
+  readonly backup: string
+}
+
+/** What a transfer acts on, by kind. */
+export interface Selection {
+  readonly teams?: readonly string[]
+  readonly domains?: readonly string[]
+  readonly questions?: readonly string[]
+  readonly recipes?: readonly string[]
+}
+
+export type TransferOp = 'copy' | 'move' | 'make_shared' | 'make_local'
+
+/** One row a transfer touched: where it ends up, where it came from, whether it was picked. */
+export interface Touched {
+  readonly kind: CatalogKind
+  readonly id: string
+  readonly from: string
+  readonly picked: boolean
+}
+
+export interface Refusal {
+  readonly kind: CatalogKind
+  readonly id: string
+  /** `game Demo`, `domain Science in workspace Club`. */
+  readonly usedBy: string
+}
+
+export interface TransferReport {
+  readonly created: readonly Touched[]
+  readonly reused: readonly Touched[]
+  readonly moved: readonly Touched[]
+  readonly refused: readonly Refusal[]
+}
+
+export interface FamilyCopy {
+  readonly id: string
+  /** null — the shared library. */
+  readonly workspace: string | null
+  readonly workspaceName: string | null
+  readonly archived: boolean
+}
+
+export interface PropagationPreview {
+  readonly update: readonly FamilyCopy[]
+  readonly skipped: readonly { readonly copy: FamilyCopy; readonly reason: string }[]
+}
+
 /** What `beta_welcome_get` answers (P13.1). */
 export interface BetaWelcome {
   readonly show: boolean
@@ -557,6 +651,8 @@ export interface StatsFilter {
   readonly maxDifficulty?: number | null
   /** A one-team Play is legal and skews an average; off unless asked for. */
   readonly includeRehearsal?: boolean
+  /** Every workspace's Plays, not only this one's (Beta 2.0). */
+  readonly allWorkspaces?: boolean
 }
 
 export interface StatsQuery {

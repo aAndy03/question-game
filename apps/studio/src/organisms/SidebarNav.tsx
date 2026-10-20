@@ -7,6 +7,7 @@ import { APP, CHROME, TABS } from '@/copy'
 import { usePlayState } from '@/host/playState'
 import { useAppInfo } from '@/host/queries'
 import { BETA_CHIP } from '@/copy/beta'
+import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 
 export const SIDEBAR_WIDTH: Record<SidebarMode, number> = { expanded: 240, rail: 56, hidden: 0 }
 
@@ -102,6 +103,11 @@ export function SidebarNav() {
           />
         </div>
         {collapsed && betaChip ? <div className="flex justify-center pb-2">{betaChip}</div> : null}
+        <Separator />
+        {/* Above Library: every tab below it is this workspace's (Beta 2.0). */}
+        <div className="px-2 py-2">
+          <WorkspaceSwitcher collapsed={collapsed} />
+        </div>
         <Separator />
         <div className={['flex flex-1 flex-col gap-0.5 overflow-y-auto py-2', collapsed ? 'px-2' : 'px-2'].join(' ')}>
           {collapsed ? null : (

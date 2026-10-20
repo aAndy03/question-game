@@ -41,7 +41,15 @@ export interface OperatorPrefs {
    * a document 1.0.2 wrote; every field absent means the tab's own default.
    */
   readonly lists?: Readonly<Partial<Record<LibraryTab, ListPrefs>>>
+  /**
+   * The same, for every workspace but the first (Beta 2.0): `lists` is the
+   * first workspace's, so a document 1.x wrote reads as the migrated one's.
+   */
+  readonly workspaceLists?: Readonly<Record<string, Readonly<Partial<Record<LibraryTab, ListPrefs>>>>>
 }
+
+/** The workspace a 1.x library migrates into — whose list views `lists` holds. */
+export const FIRST_WORKSPACE_ID = 'ws-1'
 
 /** A library tab's remembered view: per operator, persisted. */
 export interface ListPrefs {
@@ -70,7 +78,7 @@ const NO_LIST_PREFS: ListPrefs = {}
  * state, so the banned-key walk in `chrome.test.ts` skips them and nothing else.
  */
 export function isListViewKey(path: string): boolean {
-  return /^prefs\.[^.]+\.lists(\.|$)/.test(path) || /^listState(\.|$)/.test(path)
+  return /^prefs\.[^.]+\.(lists|workspaceLists)(\.|$)/.test(path) || /^listState(\.|$)/.test(path)
 }
 
 export const DEFAULT_PREFS: OperatorPrefs = {
@@ -83,6 +91,8 @@ export const DEFAULT_PREFS: OperatorPrefs = {
 interface ChromeState {
   /** Whose preferences are in force. `''` before any operator exists. */
   readonly operatorId: string
+  /** Which workspace's list views are in force (host truth, told by the shell). */
+  readonly workspaceId: string
   readonly prefs: Readonly<Record<string, OperatorPrefs>>
   /** Session-only: not persisted. */
   readonly archiveScope: Readonly<Partial<Record<Tab, ArchiveScope>>>
@@ -92,6 +102,8 @@ interface ChromeState {
   readonly peeking: boolean
 
   setOperator(id: string | null): void
+  /** Another workspace: its own list views, and a fresh session view. */
+  setWorkspace(id: string): void
   setSidebar(mode: SidebarMode): void
   cycleSidebar(): void
   setTheme(theme: ThemeChoice): void
@@ -116,6 +128,7 @@ export const useChromeStore = create<ChromeState>()(
 
       return {
         operatorId: '',
+        workspaceId: FIRST_WORKSPACE_ID,
         prefs: {},
         archiveScope: {},
         listState: {},
@@ -123,6 +136,11 @@ export const useChromeStore = create<ChromeState>()(
 
         setOperator(id) {
           set({ operatorId: id ?? '' })
+        },
+        setWorkspace(id) {
+          // A filter names rows of the workspace it was set in; another
+          // workspace starts its session view clean.
+          if (get().workspaceId !== id) set({ workspaceId: id, listState: {} })
         },
         setSidebar(sidebar) {
           update({ sidebar })
@@ -145,8 +163,11 @@ export const useChromeStore = create<ChromeState>()(
           set((s) => ({ archiveScope: { ...s.archiveScope, [tab]: scope } }))
         },
         setListPrefs(tab, patch) {
-          const lists = current(get()).lists ?? {}
-          update({ lists: { ...lists, [tab]: { ...lists[tab], ...patch } } })
+          const s = get()
+          const lists = listsOf(current(s), s.workspaceId)
+          const next = { ...lists, [tab]: { ...lists[tab], ...patch } }
+          if (s.workspaceId === FIRST_WORKSPACE_ID) update({ lists: next })
+          else update({ workspaceLists: { ...current(s).workspaceLists, [s.workspaceId]: next } })
         },
         setListState(tab, patch) {
           set((s) => {
@@ -183,9 +204,14 @@ export function useSettingsInner(): SettingsInner {
   return useChromeStore((s) => s.prefs[s.operatorId]?.settingsInner ?? DEFAULT_PREFS.settingsInner)
 }
 
-/** A tab's remembered sort, group and page size — one object until it changes. */
+/** One workspace's list views in an operator's document. */
+function listsOf(prefs: OperatorPrefs | undefined, workspaceId: string): Readonly<Partial<Record<LibraryTab, ListPrefs>>> {
+  return (workspaceId === FIRST_WORKSPACE_ID ? prefs?.lists : prefs?.workspaceLists?.[workspaceId]) ?? {}
+}
+
+/** A tab's remembered sort, group and page size, in this workspace — one object until it changes. */
 export function useListPrefs(tab: LibraryTab): ListPrefs {
-  return useChromeStore((s) => s.prefs[s.operatorId]?.lists?.[tab] ?? NO_LIST_PREFS)
+  return useChromeStore((s) => listsOf(s.prefs[s.operatorId], s.workspaceId)[tab] ?? NO_LIST_PREFS)
 }
 
 /** A tab's session view — one object until it changes. */

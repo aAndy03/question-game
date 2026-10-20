@@ -19,6 +19,12 @@ export const ICONS = {
   screens: 'layout-cells',
   statistics: 'chart-column',
   settings: 'gear',
+  workspaces: 'briefcase',
+
+  // workspaces (Beta 2.0)
+  shared: 'globe',
+  transfer: 'arrow-right-arrow-left',
+  unlink: 'link-slash',
 
   // chrome
   sidebarExpanded: 'layout-side-content-left',

@@ -4,6 +4,7 @@
  */
 
 export { SidebarNav, SIDEBAR_WIDTH } from './SidebarNav'
+export { WorkspaceSwitcher, groupedWorkspaces, workspaceName, type WorkspaceSwitcherProps } from './WorkspaceSwitcher'
 export { TopBar } from './TopBar'
 export { StatusBar } from './StatusBar'
 export { NoticeCollector } from './NoticeCollector'
