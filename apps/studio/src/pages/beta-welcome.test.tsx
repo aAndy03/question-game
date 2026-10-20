@@ -54,6 +54,28 @@ describe('questiongame Beta’s first launch (WEL06, WEL10, WEL16)', () => {
     expect(screen.queryByText(BETA_WELCOME.en.body)).toBeNull()
   })
 
+  it('a welcome the host cannot answer, or that the browser holds back offline, never blanks Studio (review)', async () => {
+    const { onlineManager } = await import('@tanstack/react-query')
+    onlineManager.setOnline(false)
+    try {
+      fake.channel = 'dev'
+      render(<App />)
+      expect(await screen.findAllByText(FIRST_RUN.paths.title)).not.toHaveLength(0)
+    } finally {
+      onlineManager.setOnline(true)
+    }
+  })
+
+  it('a refused welcome question falls through to Studio (review)', async () => {
+    const real = fake.invoke.bind(fake)
+    setHostTransport({
+      invoke: (name, args) => (name === 'beta_welcome_get' ? Promise.reject({ code: 'window', message: 'no' }) : real(name, args)),
+      listen: (name, handler) => fake.listen(name, handler),
+    })
+    render(<App />)
+    expect(await screen.findAllByText(FIRST_RUN.paths.title, {}, { timeout: 5000 })).not.toHaveLength(0)
+  })
+
   it('never appears on stable, which goes to first run as before', async () => {
     fake.channel = 'dev'
     render(<App />)

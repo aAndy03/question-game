@@ -45,7 +45,12 @@ import { useWhatsNewOnStart } from '@/host/whatsNew'
 function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
-      queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false },
+      // `always`: every query is a call into this app's own host, never the
+      // network. TanStack's default `online` pauses queries whenever the OS
+      // reports no connection — on an offline-first app, that is a Studio that
+      // draws nothing on a show machine with its network unplugged (review, P13.1).
+      queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false, networkMode: 'always' },
+      mutations: { networkMode: 'always' },
     },
   })
 }

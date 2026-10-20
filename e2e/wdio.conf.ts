@@ -39,7 +39,11 @@ function snapshotRealFolders(): Record<string, string[]> {
   const out: Record<string, string[]> = {}
   for (const id of ['org.questiongame.desktop', 'org.questiongame.app']) {
     const dir = path.join(process.env.APPDATA ?? '', id)
-    if (existsSync(dir)) out[id] = readdirSync(dir).filter((n) => !volatile.test(n)).sort()
+    if (!existsSync(dir)) continue
+    out[id] = readdirSync(dir).filter((n) => !volatile.test(n)).sort()
+    // A copy written to the wrong folder would land in `backups/` first.
+    const backups = path.join(dir, 'backups')
+    if (existsSync(backups)) out[`${id}/backups`] = readdirSync(backups).sort()
   }
   return out
 }
@@ -86,11 +90,14 @@ export const config: WebdriverIO.Config = {
     // before the run. Read only; the files a running app rewrites are left out.
     const after = snapshotRealFolders()
     if (JSON.stringify(after) !== JSON.stringify(realFolders)) {
-      throw new Error(`a real data folder changed during the e2e run:\n${JSON.stringify(realFolders)}\n${JSON.stringify(after)}`)
+      // An error thrown here is logged and the run still exits 0; exiting is
+      // what makes the guard a failure rather than a remark (review).
+      console.error(`a real data folder changed during the e2e run:\n${JSON.stringify(realFolders)}\n${JSON.stringify(after)}`)
+      process.exit(1)
     }
   },
 
-  beforeSession(_config, _capabilities, specs) {
+  async beforeSession(_config, _capabilities, specs) {
     // The folders of `org.questiongame.e2e` and nothing else; `resetE2eFolders`
     // refuses any other name.
     resetE2eFolders()
@@ -108,7 +115,16 @@ export const config: WebdriverIO.Config = {
       }
       if (setup.stable === 'garbage') writeFileSync(path.join(fixture, 'questiongame.sqlite3'), Buffer.alloc(8192, 0x5a))
       if (setup.stable === 'running') {
-        holder = spawn(path.join(root, 'target', 'debug', 'examples', 'hold_lock.exe'), [fixture], { stdio: 'ignore' })
+        // The app must find the lock already held: wait for the holder to say so.
+        const child = spawn(path.join(root, 'target', 'debug', 'examples', 'hold_lock.exe'), [fixture], { stdio: ['ignore', 'pipe', 'inherit'] })
+        holder = child
+        await new Promise<void>((ok, no) => {
+          child.stdout?.on('data', (chunk: Buffer) => {
+            if (chunk.toString().includes('held')) ok()
+          })
+          child.once('exit', (code) => no(new Error(`hold_lock exited ${code} before holding the lock`)))
+          setTimeout(() => no(new Error('hold_lock did not hold the lock within 10 s')), 10_000)
+        })
       }
     }
     const nativeDriver = path.join(cargoBin, 'msedgedriver.exe')
@@ -128,11 +144,18 @@ export const config: WebdriverIO.Config = {
     writeFileSync(path.join(dir, `${name}.html`), await browser.getPageSource())
   },
 
-  afterSession() {
+  async afterSession() {
     driver?.kill()
     driver = null
-    holder?.kill()
+    // Gone before the next session deletes the fixture: on Windows a dying
+    // process can still hold a handle on it (review).
+    const child = holder
     holder = null
+    if (child !== null && child.exitCode === null) {
+      const exited = new Promise((ok) => child.once('exit', ok))
+      child.kill()
+      await exited
+    }
   },
 }
 
