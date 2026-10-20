@@ -159,6 +159,23 @@ export const COMMAND_GROUPS = {
      * opens it on its own: a remembered display says *where*, this says *now*. */
     'stats_window',
   ],
+  /** Groups inside a domain, tags on questions, bulk edits (Beta, P15) — organising only. */
+  organise: [
+    /** One edit for every selected question: tag, untag, group, add to / remove from a domain, set difficulty. `preview` writes nothing. */
+    'catalog_bulk_edit',
+    /** Every tag in view, with how many questions carry it and how many are shared. */
+    'tag_list',
+    /** Manage tags ▸ Rename (to an existing tag merges). */
+    'tag_rename',
+    /** Manage tags ▸ Delete, from every question in view. */
+    'tag_delete',
+    /** A group in a domain, named by the operator. */
+    'domain_group_create',
+    'domain_group_rename',
+    'domain_group_reorder',
+    /** The group goes; its questions stay in the domain, ungrouped. */
+    'domain_group_delete',
+  ],
   /** Workspaces (Beta 2.0): several libraries in one file and a shared one. The scope is the host's. */
   workspace: [
     /** Every workspace (archived ones flagged), every group, and which one Studio works in. */

@@ -34,6 +34,7 @@ pub mod app;
 pub mod beta;
 pub mod catalog;
 pub mod flags;
+pub mod groups;
 pub mod play;
 pub mod presentation;
 pub mod stats;

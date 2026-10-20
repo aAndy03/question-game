@@ -245,6 +245,15 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::beta::beta_welcome_get,
         commands::beta::beta_welcome_done,
         commands::beta::beta_copy_stable_library,
+        // Groups, tags, bulk edits (Beta, P15)
+        commands::groups::catalog_bulk_edit,
+        commands::groups::tag_list,
+        commands::groups::tag_rename,
+        commands::groups::tag_delete,
+        commands::groups::domain_group_create,
+        commands::groups::domain_group_rename,
+        commands::groups::domain_group_reorder,
+        commands::groups::domain_group_delete,
         // Workspaces (Beta 2.0)
         commands::workspace::workspace_list,
         commands::workspace::workspace_create,

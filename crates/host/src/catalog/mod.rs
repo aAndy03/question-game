@@ -22,6 +22,7 @@
 //! service for the same reason; there is no `SearchService`.
 
 pub mod backup;
+pub mod bulk;
 pub mod complete;
 pub mod db;
 pub mod error;
@@ -56,6 +57,7 @@ pub use seed::{Demo, SeedMode, SeedResult, SeedStatus};
 pub use service::{
     CatalogChange, CatalogService, ChangeOp, OverlayTarget, RecipeChange, WipedPlays,
 };
+pub use bulk::{BulkEdit, BulkReport};
 pub use groups::{TAG_MAX, TAGS_PER_QUESTION, TagCount, tag_key};
 pub use family::{FamilyCopy, PropagationPreview, SkippedCopy};
 pub use transfer::{Refusal, Selection, Touched, TransferOp, TransferReport};

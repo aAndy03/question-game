@@ -79,6 +79,13 @@ commands:
     file: crates/app/src/commands/catalog.rs
     params: ["kind: CatalogKind", "ids: Vec<String>"]
     returns: "AppResult<Vec<CatalogChange>>"
+  catalog_bulk_edit:
+    async: true
+    callers: [main]
+    doc: "One edit for every selected question; `preview` writes nothing."
+    file: crates/app/src/commands/groups.rs
+    params: ["ids: Vec<QuestionId>", "edit: BulkEdit", "preview: bool"]
+    returns: "AppResult<BulkReport>"
   catalog_copy_to:
     async: true
     callers: [main]
@@ -208,6 +215,30 @@ commands:
     doc: "A webview reporting on itself into the host's log."
     file: crates/app/src/commands/flags.rs
     params: ["level: String", "message: String", "detail: Option<String>"]
+    returns: "AppResult<()>"
+  domain_group_create:
+    async: true
+    callers: [main]
+    file: crates/app/src/commands/groups.rs
+    params: ["domain_id: DomainId", "name: String"]
+    returns: "AppResult<DomainGroup>"
+  domain_group_delete:
+    async: true
+    callers: [main]
+    file: crates/app/src/commands/groups.rs
+    params: ["id: DomainGroupId", "domain_id: DomainId"]
+    returns: "AppResult<()>"
+  domain_group_rename:
+    async: true
+    callers: [main]
+    file: crates/app/src/commands/groups.rs
+    params: ["id: DomainGroupId", "domain_id: DomainId", "name: String"]
+    returns: "AppResult<()>"
+  domain_group_reorder:
+    async: true
+    callers: [main]
+    file: crates/app/src/commands/groups.rs
+    params: ["domain_id: DomainId", "order: Vec<DomainGroupId>"]
     returns: "AppResult<()>"
   get_state:
     async: true
@@ -582,6 +613,25 @@ commands:
     file: crates/app/src/commands/stats.rs
     params: ["open: bool"]
     returns: "AppResult<()>"
+  tag_delete:
+    async: true
+    callers: [main]
+    file: crates/app/src/commands/groups.rs
+    params: ["tag: String", "preview: bool"]
+    returns: "AppResult<BulkReport>"
+  tag_list:
+    async: true
+    callers: [main]
+    doc: "Every tag in view, with how many questions carry it and how many are shared."
+    file: crates/app/src/commands/groups.rs
+    params: []
+    returns: "AppResult<Vec<TagCount>>"
+  tag_rename:
+    async: true
+    callers: [main]
+    file: crates/app/src/commands/groups.rs
+    params: ["from: String", "to: String", "preview: bool"]
+    returns: "AppResult<BulkReport>"
   transfer_preview:
     async: true
     callers: [main]
@@ -862,6 +912,15 @@ contract:
       - redo_turn
       - play_events
       - play_list
+    organise:
+      - catalog_bulk_edit
+      - tag_list
+      - tag_rename
+      - tag_delete
+      - domain_group_create
+      - domain_group_rename
+      - domain_group_reorder
+      - domain_group_delete
     presentation:
       - show_screen
       - reveal_stem
@@ -914,7 +973,7 @@ contract:
   files:
     packages/contract/src/commands.ts:
       COMMANDS: {kind: const, sig: "#e3696517"}
-      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, workspace, app } #29e30a8a"}
+      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, organise, workspace, app } #0edfb83e"}
       CatalogChange: {doc: "`catalog-changed`.", kind: interface, sig: "{ kind, id, op }"}
       Command: {kind: type, sig: "(typeof COMMAND_GROUPS)[CommandGroup][number]"}
       CommandGroup: {kind: type, sig: "keyof typeof COMMAND_GROUPS"}
@@ -1337,6 +1396,12 @@ host_api:
     "catalog::backup::PRE_WORKSPACES_PREFIX": {doc: "Every pinned copy's file name starts with this.", kind: const, sig: "const PRE_WORKSPACES_PREFIX: &str = \"questiongame-pre-workspaces-\""}
     "catalog::backup::UNSTAMPED_VERSION": {doc: "What an unstamped library was last opened by.", kind: const, sig: "const UNSTAMPED_VERSION: &str = \"1.0.1\""}
     "catalog::backup::compact_copy": {doc: "A compact copy of the library at `from`, written to `to` (P13.1): how questiongame Beta takes the stable library.", kind: fn, sig: "fn compact_copy(from: &Path, to: &Path) -> CatalogResult<()>"}
+  crates/host/src/catalog/bulk.rs:
+    "catalog::bulk::BulkEdit": {doc: "One edit for every selected question.", kind: enum, sig: "enum BulkEdit { Tag { tag: String } | Untag { tag: String } | Group { domain_id: DomainId, group_id: Option<DomainGroupId> } | AddToDomain { domain_id: DomainId } | RemoveFromDomain { domain_id: DomainId } | SetDifficulty { difficulty: Option<u8> } }"}
+    "catalog::bulk::BulkReport": {doc: "What a bulk edit did — or, previewed, would do.", kind: struct, sig: "struct BulkReport { changed: Vec<QuestionId>, unchanged: Vec<QuestionId>, shared: usize }"}
+    "catalog::bulk::CatalogService::catalog_bulk_edit": {doc: "Apply `edit` to every question in `ids`.", kind: method, sig: "fn catalog_bulk_edit(&self, ids: &[QuestionId], edit: &BulkEdit, write: bool, now_ms: u64) -> CatalogResult<BulkReport>"}
+    "catalog::bulk::CatalogService::tag_delete": {doc: "*Manage tags* ▸ Delete: the tag leaves every question in view.", kind: method, sig: "fn tag_delete(&self, tag: &str, write: bool, now_ms: u64) -> CatalogResult<BulkReport>"}
+    "catalog::bulk::CatalogService::tag_rename": {doc: "*Manage tags* ▸ Rename: every question in view carrying `from` carries `to` instead.", kind: method, sig: "fn tag_rename(&self, from: &str, to: &str, write: bool, now_ms: u64) -> CatalogResult<BulkReport>"}
   crates/host/src/catalog/complete.rs:
     "catalog::complete::QuestionGap": {doc: "One reason a question cannot go on air yet, in the order the operator reads them.", kind: enum, sig: "enum QuestionGap { Stem | Options | Correct | Difficulty | Domain }"}
     "catalog::complete::body_gaps": {doc: "The four gaps a body can have on its own — everything but the domain.", kind: fn, sig: "fn body_gaps(stem: &str, options: &[QuestionOption], difficulty: Option<u8>) -> Vec<QuestionGap>"}
@@ -1389,6 +1454,7 @@ host_api:
     "catalog::import::suggest_code": {doc: "The code a new domain gets — the rule the Domain form applies (`apps/studio/src/host/domain.ts`), so an imported domain looks like one typed in by hand: three ASCII capitals, padded with `X`, and a...", kind: fn, sig: "fn suggest_code(name: &str) -> String"}
   crates/host/src/catalog/mod.rs:
     "catalog::backup": {kind: mod, sig: "mod backup"}
+    "catalog::bulk": {kind: mod, sig: "mod bulk"}
     "catalog::complete": {kind: mod, sig: "mod complete"}
     "catalog::db": {kind: mod, sig: "mod db"}
     "catalog::error": {kind: mod, sig: "mod error"}
@@ -2240,6 +2306,7 @@ app_crate:
     - "commands::beta"
     - "commands::catalog"
     - "commands::flags"
+    - "commands::groups"
     - "commands::play"
     - "commands::presentation"
     - "commands::stats"

@@ -1874,3 +1874,88 @@ pub(super) fn tag_counts(conn: &Connection) -> CatalogResult<Vec<super::groups::
     })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
+
+/// The questions in view carrying `key`, with whether each is shared.
+fn tagged_in_view(conn: &Connection, key: &str) -> CatalogResult<Vec<(String, bool)>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT q.id, q.workspace_id IS NULL FROM question_tags qt JOIN questions q ON q.id = qt.question_id
+          WHERE qt.tag_key = ?1 AND {} ORDER BY q.id",
+        in_view("q")
+    ))?;
+    let rows = stmt.query_map(params![key], |row| Ok((row.get(0)?, row.get(1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+fn touched(tx: &Transaction<'_>, ids: &[(String, bool)], now_ms: u64) -> CatalogResult<super::bulk::BulkReport> {
+    for (id, _) in ids {
+        tx.execute("UPDATE questions SET updated_at = ?1 WHERE id = ?2", params![ms(now_ms), id])?;
+    }
+    Ok(super::bulk::BulkReport {
+        changed: ids.iter().map(|(id, _)| QuestionId::new(id.clone())).collect(),
+        unchanged: Vec::new(),
+        shared: ids.iter().filter(|(_, shared)| *shared).count(),
+    })
+}
+
+/// *Manage tags* ▸ Rename over the questions in view. A merge into a tag a
+/// question already carries leaves one; a rename never adds a tag, so it can
+/// never pass the cap.
+pub(super) fn tag_rename(
+    tx: &Transaction<'_>,
+    from_key: &str,
+    to: &str,
+    to_key: &str,
+    now_ms: u64,
+) -> CatalogResult<super::bulk::BulkReport> {
+    let carriers = tagged_in_view(tx, from_key)?;
+    // Merging into a tag that exists keeps the spelling it already has.
+    let spelling = if to_key == from_key {
+        to.to_owned()
+    } else {
+        tagged_spelling(tx, to_key)?.unwrap_or_else(|| to.to_owned())
+    };
+    for (id, _) in &carriers {
+        let has_target: bool = to_key != from_key
+            && tx
+                .query_row(
+                    "SELECT 1 FROM question_tags WHERE question_id = ?1 AND tag_key = ?2",
+                    params![id, to_key],
+                    |_| Ok(()),
+                )
+                .optional()?
+                .is_some();
+        if has_target {
+            tx.execute("DELETE FROM question_tags WHERE question_id = ?1 AND tag_key = ?2", params![id, from_key])?;
+        } else {
+            tx.execute(
+                "UPDATE question_tags SET tag = ?1, tag_key = ?2 WHERE question_id = ?3 AND tag_key = ?4",
+                params![spelling, to_key, id, from_key],
+            )?;
+        }
+    }
+    if to_key != from_key {
+        // Every question in view that already carried the target shows the one spelling.
+        tx.execute(
+            &format!(
+                "UPDATE question_tags SET tag = ?1 WHERE tag_key = ?2
+                   AND question_id IN (SELECT id FROM questions q WHERE {})",
+                in_view("q")
+            ),
+            params![spelling, to_key],
+        )?;
+    }
+    touched(tx, &carriers, now_ms)
+}
+
+fn tagged_spelling(conn: &Connection, key: &str) -> CatalogResult<Option<String>> {
+    tag_spelling(conn, key, "")
+}
+
+/// *Manage tags* ▸ Delete over the questions in view.
+pub(super) fn tag_delete(tx: &Transaction<'_>, key: &str, now_ms: u64) -> CatalogResult<super::bulk::BulkReport> {
+    let carriers = tagged_in_view(tx, key)?;
+    for (id, _) in &carriers {
+        tx.execute("DELETE FROM question_tags WHERE question_id = ?1 AND tag_key = ?2", params![id, key])?;
+    }
+    touched(tx, &carriers, now_ms)
+}
