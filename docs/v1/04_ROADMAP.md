@@ -1796,9 +1796,18 @@ Design: `docs/superpowers/specs/2026-10-20-stable-1.1-library-views-design.md`; 
 - ☑ *What's new* 1.1.0 in English and Romanian; an e2e spec on the real app.
 - ☐ `npm run version:stable -- minor` and the `v1.1.0` tag, when the maintainer says.
 
+### P14 — Beta 2.0: workspaces  ◐
+
+Design: `docs/superpowers/specs/2026-10-21-workspaces-design.md`; plan and Sonnet's test list in `docs/superpowers/plans/`. On `main` only.
+
+- ☑ **P14.0** — migration 4 (one unnamed workspace, pinned backup), the host scope *current ∪ shared*, reference rules, per-workspace Demo and defaults; create, rename, group, duplicate, archive, restore, delete permanently, switch, and the groups, as commands.
+- ☐ **P14.1** — copy, move, make shared / local; families and propagation.
+- ☐ **P14.2** — Studio: the switcher, naming, Manage workspaces, Where, transfers, propagation.
+- ☐ **P14.3** — the e2e spec, docs, *What's new* 2.0.0-beta.1.
+
 ### Next
 
-- ☐ **Beta 2.0 — workspaces** (release C).
+- ☐ Finish **P14**; `npm run version:beta -- --start 2.0.0` when the maintainer says.
 
 ---
 

@@ -456,6 +456,17 @@ pub struct GlobalSettings {
     pub updates: UpdateSettings,
 }
 
+/// What each workspace keeps for itself of the all-games document (Beta 2.0):
+/// the defaults a new game copies and the timer at the bottom of the §2.18
+/// cascade. Everything else — Control behaviour, shortcuts, features, the
+/// active operator, updates — is the app's, and global.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDefaults {
+    pub timer: TimerLevel,
+    pub game_defaults: GameSettings,
+}
+
 /// The update notice (P12.9). The app never installs anything; it asks GitHub
 /// once per session whether a newer release exists, and says so.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -838,6 +849,23 @@ impl FlagService {
     /// last put them; only the recipe document goes.
     pub fn unload_recipe(&mut self) {
         self.current_game = None;
+    }
+
+    /// The current workspace's half of the globals document.
+    pub fn workspace_defaults(&self) -> WorkspaceDefaults {
+        WorkspaceDefaults {
+            timer: self.globals.timer,
+            game_defaults: self.globals.game_defaults.clone(),
+        }
+    }
+
+    /// Work with another workspace's defaults: a switch. Validated like any
+    /// document read back from disk.
+    pub fn adopt_workspace_defaults(&mut self, defaults: WorkspaceDefaults) -> MatchResult<()> {
+        validate(&defaults.game_defaults)?;
+        self.globals.timer = defaults.timer;
+        self.globals.game_defaults = defaults.game_defaults;
+        Ok(())
     }
 
     /// A fresh recipe's document — the globals seed, copied (§12).

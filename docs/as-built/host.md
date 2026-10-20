@@ -83,6 +83,22 @@ The §4.2 document and the only flag reader. It holds the globals, the recipe in
 - **An operator's `plays_run` is derived, not stored.** It is `COUNT(*)` over `plays` rows with a `started_at_ms` and that operator's `operator_id`, which the log supplies (`play_load` appends `OperatorSwitched`, `restart` carries it over). The `operators.plays_run` column is still in the schema and nothing reads it — it was a counter no command ever incremented, so every operator had run 0 Plays.
 - Tests: `CatalogLocation::Memory` is the adapter, and `tests/catalog_service.rs` runs the same bodies against memory *and* a real file.
 
+## Workspaces (P14, Beta 2.0)
+
+Design: `docs/superpowers/specs/2026-10-21-workspaces-design.md`; plan and test list (with the builder's rulings) in `docs/superpowers/plans/2026-10-21-workspaces*.md`.
+
+- **One file, a `workspace_id` per library row.** Migration 4 adds `workspaces`, `workspace_groups`, `workspace_id` on teams, domains, questions, assets and recipes (`NULL` = the shared library; a game is never shared) and an integer `family_id` for copies. Every existing row moves into one **unnamed** `ws-1`; an empty library gets the same unnamed workspace, so every library has one and Studio asks for its name. Nothing ever suggests a name.
+- **The scope lives on the writer connection**: a TEMP table `current_ws` with one row, set at open (`db::bind_workspace`, from the open Play's game, else `workspace.current`, else the first active workspace) and by `workspace_switch`. Every statement in `store.rs` that touches a library row names `IN_VIEW` (current ∪ shared) or `IN_WORKSPACE` (games). Do not pass the workspace as a parameter instead — a forgotten parameter is a leak; a missing TEMP table is a loud SQL error.
+- **A save never moves a row.** A new row lands in the current workspace, or shared when its `shared` flag says so; `ON CONFLICT` never touches `workspace_id` or `family_id`. An id local to another workspace is `NotFound` to a read and `WrongWorkspace` to a write — its id is not free.
+- **Reference rules are checked inside the write's transaction**, against the stored rows: a shared domain holds only shared questions, a local domain its own and shared ones, a game its own workspace's and shared rows, a shared team or question a shared asset (`ScopeRule`).
+- **Plays reach a workspace through their game**; `play_list` and `stats_query` are the current workspace's unless `allWorkspaces`.
+- **Each workspace's Demo is its own rows**: `ws-1` keeps the ids the Demo always had (`seed-team-red`), another workspace gets `seed-<ws>-team-red`.
+- **Search rebuilds on a switch** (the index holds only rows in view). `SearchIndex::clear` commits before `delete_all_documents`: Tantivy drops committed segments only, so a document still in the buffer survived a clear.
+- **The pre-workspaces backup is pinned**: when step 4 is pending the copy is `questiongame-pre-workspaces-<stamp>.sqlite3`, and `backup::prune` skips that prefix.
+- **Game defaults and the timer are per workspace** (`WorkspaceDefaults` in `workspaces.settings_json`); the rest of the settings document stays global. A workspace with none yet takes what the app had (the settings document at the first boot, the previous workspace after a switch).
+- **Delete permanently** takes only an archived workspace, after a backup, in one transaction; it removes rows, games, Plays and their logs, never a shared row and never an asset file. The current workspace cannot be archived.
+- Tests: `tests/workspaces.rs` (scope, rules, verbs, a property test over generated workspaces) and the migration tests in `tests/upgrade.rs` (`db::write_older_schema` builds a real 1.0.2 file from a head library).
+
 ## One arithmetic, and rules the operator can see (P11.12)
 
 The design is `docs/v1/05_STUDIO_DESIGN.md` §14. What a later phase must not undo:

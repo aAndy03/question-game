@@ -42,8 +42,7 @@ use serde::{Deserialize, Serialize};
 use crate::event::Event;
 use crate::flags::{GameSettings, GlobalSettings};
 use crate::ids::{
-    AssetId, DomainId, OperatorId, PlayId, QuestionId, RecipeId, TeamId, WorkspaceGroupId,
-    WorkspaceId,
+    AssetId, DomainId, OperatorId, PlayId, QuestionId, RecipeId, TeamId,
 };
 use crate::play::Play;
 use crate::preview::{PreviewBoard, PreviewDomain, PreviewQuestion};
@@ -62,7 +61,6 @@ use super::model::{
 use super::search::{SearchHit, SearchIndex, SearchQuery};
 use super::snapshot::{self, Bodies};
 use super::store;
-use super::workspace::{self, Workspace, WorkspaceGroup};
 
 /// The `op` of `catalog-changed { kind, id, op }` (§11.A).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -211,122 +209,8 @@ impl CatalogService {
     /// A poisoned lock means some other call panicked mid-statement. The
     /// database is still consistent — every write is a transaction — so the
     /// app recovers rather than bricking on the next click.
-    fn conn(&self) -> MutexGuard<'_, Connection> {
+    pub(super) fn conn(&self) -> MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    // ---------------------------------------------------------- the workspaces
-
-    /// Every workspace, archived ones included (flagged), and every group.
-    pub fn workspace_list(&self) -> CatalogResult<(Vec<Workspace>, Vec<WorkspaceGroup>)> {
-        let conn = self.conn();
-        Ok((store::workspace_list(&conn)?, store::group_list(&conn)?))
-    }
-
-    /// The workspace every read and write is scoped to. Every library has one
-    /// from migration 4 on, and the current one cannot be archived.
-    pub fn current_workspace(&self) -> WorkspaceId {
-        store::current_workspace(&self.conn())
-            .expect("the writer connection is bound to a workspace at open")
-    }
-
-    /// A workspace the operator named. Names are typed, trimmed, at most 60
-    /// characters and unique among active workspaces, ignoring case.
-    pub fn workspace_create(
-        &self,
-        name: &str,
-        group: Option<&WorkspaceGroupId>,
-        now_ms: u64,
-    ) -> CatalogResult<Workspace> {
-        let conn = self.conn();
-        let name = self.free_name(&conn, name, None)?;
-        if let Some(group) = group
-            && !store::group_list(&conn)?.iter().any(|g| &g.id == group)
-        {
-            return Err(CatalogError::invalid(
-                format!("workspace-group/{group}"),
-                "no such group",
-            ));
-        }
-        let workspace = Workspace {
-            id: WorkspaceId::new(workspace::fresh_id("ws")),
-            name: Some(name),
-            group_id: group.cloned(),
-            sort_key: store::workspace_next_sort_key(&conn)?,
-            settings: None,
-            created_at: now_ms,
-            updated_at: now_ms,
-            archived_at: None,
-        };
-        store::workspace_insert(&conn, &workspace)?;
-        Ok(workspace)
-    }
-
-    /// Rename a workspace — and name the one a library starts in.
-    pub fn workspace_rename(&self, id: &WorkspaceId, name: &str, now_ms: u64) -> CatalogResult<()> {
-        let conn = self.conn();
-        let mut workspace = Self::workspace_row(&conn, id)?;
-        workspace.name = Some(self.free_name(&conn, name, Some(id))?);
-        workspace.updated_at = now_ms;
-        store::workspace_update(&conn, &workspace)
-    }
-
-    /// Work in another workspace. Only an active one; the app refuses this
-    /// while a game is loaded in Control, since the Play is scoped to the
-    /// workspace its game lives in. The search index is rebuilt for the new
-    /// scope (a few dozen milliseconds for thousands of rows).
-    pub fn workspace_switch(&self, id: &WorkspaceId) -> CatalogResult<()> {
-        {
-            let conn = self.conn();
-            let workspace = Self::workspace_row(&conn, id)?;
-            if workspace.is_archived() {
-                return Err(CatalogError::invalid(
-                    format!("workspace/{id}"),
-                    "an archived workspace cannot be opened",
-                ));
-            }
-            db::bind_workspace(&conn, id.as_str())?;
-            store::global_set(
-                &conn,
-                db::META_CURRENT_WORKSPACE,
-                &serde_json::to_string(id.as_str())?,
-            )?;
-        }
-        self.rebuild_search_index()?;
-        Ok(())
-    }
-
-    fn workspace_row(conn: &Connection, id: &WorkspaceId) -> CatalogResult<Workspace> {
-        store::workspace_get(conn, id)?
-            .ok_or_else(|| CatalogError::invalid(format!("workspace/{id}"), "no such workspace"))
-    }
-
-    /// A cleaned name no other active workspace has.
-    fn free_name(
-        &self,
-        conn: &Connection,
-        name: &str,
-        except: Option<&WorkspaceId>,
-    ) -> CatalogResult<String> {
-        let path = match except {
-            Some(id) => format!("workspace/{id}/name"),
-            None => "workspace/new/name".to_owned(),
-        };
-        let name = workspace::clean_name(name, &path)?;
-        let taken = store::workspace_list(conn)?.into_iter().any(|w| {
-            !w.is_archived()
-                && Some(&w.id) != except
-                && w.name
-                    .as_deref()
-                    .is_some_and(|n| workspace::same_name(n, &name))
-        });
-        if taken {
-            return Err(CatalogError::invalid(
-                path,
-                "another workspace has this name",
-            ));
-        }
-        Ok(name)
     }
 
     // ------------------------------------------------------------- the library

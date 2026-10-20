@@ -158,6 +158,14 @@ pub fn catalog_changed_many(app: &AppHandle, changes: &[CatalogChange]) {
     }
 }
 
+/// The workspaces changed — one was made, renamed, archived, or Studio now
+/// works in another. After a switch every library view is another library,
+/// so Studio drops every workspace-keyed query off this one event.
+pub fn workspace_changed(app: &AppHandle, list: &crate::commands::workspace::Workspaces) {
+    let _ = app.emit_to(MAIN, "workspace-changed", list);
+    let _ = app.emit_to(STATS, "workspace-changed", list);
+}
+
 pub fn recipe_changed(app: &AppHandle, change: &RecipeChange) {
     let _ = app.emit_to(MAIN, "recipe-changed", change);
     let _ = app.emit_to(STATS, "recipe-changed", change);

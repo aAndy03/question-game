@@ -53,4 +53,4 @@ pub use seed::{Demo, SeedMode, SeedResult, SeedStatus};
 pub use service::{
     CatalogChange, CatalogService, ChangeOp, OverlayTarget, RecipeChange, WipedPlays,
 };
-pub use workspace::{WORKSPACE_NAME_MAX, Workspace, WorkspaceGroup};
+pub use workspace::{DeleteReport, WORKSPACE_NAME_MAX, Workspace, WorkspaceGroup};

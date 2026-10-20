@@ -159,6 +159,33 @@ export const COMMAND_GROUPS = {
      * opens it on its own: a remembered display says *where*, this says *now*. */
     'stats_window',
   ],
+  /** Workspaces (Beta 2.0): several libraries in one file and a shared one. The scope is the host's. */
+  workspace: [
+    /** Every workspace (archived ones flagged), every group, and which one Studio works in. */
+    'workspace_list',
+    /** A workspace the operator named; no name is ever suggested. */
+    'workspace_create',
+    /** Rename one — and name the one a library starts in. */
+    'workspace_rename',
+    /** Into a group, or none, at a place in it. */
+    'workspace_set_group',
+    /** A copy of every local row and game, no Plays; each copy joins its original's family. */
+    'workspace_duplicate',
+    /** Out of the switcher, rows kept. Not the current one. */
+    'workspace_archive',
+    'workspace_restore',
+    /** What *Delete permanently* would remove: rows, games, Plays. */
+    'workspace_delete_preview',
+    /** An archived workspace, permanently. Pin-gated, refused while a game is loaded, backed up first. */
+    'workspace_delete',
+    /** Work in another workspace. Refused while a game is loaded. */
+    'workspace_switch',
+    'workspace_group_create',
+    'workspace_group_rename',
+    'workspace_group_reorder',
+    /** The group goes; its workspaces stay, ungrouped. */
+    'workspace_group_delete',
+  ],
   /** The app itself (P12): the close guard's answers and the uninstaller. */
   app: [
     /** Studio's answer to `close-requested`: quit now. */
@@ -228,6 +255,7 @@ export function isStageCommand(command: string): command is StageCommand {
  */
 export const EVENTS = [
   'catalog-changed',
+  'workspace-changed',
   'recipe-changed',
   'play-state',
   /** The countdown, and only the countdown. See {@link PlayTick}. */

@@ -108,6 +108,8 @@ pub fn settings_set_global(
 
     let globals = host.flags.globals().clone();
     host.catalog.settings_store(&globals)?;
+    // Game defaults and the timer are the current workspace's (Beta 2.0).
+    super::workspace::save_workspace_defaults(&host, now)?;
 
     // `reveal.*` and `overlay_animations.enabled` are in the Stage emission.
     emit::play_state(&app, &mut host, now, true);

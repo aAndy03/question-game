@@ -1437,3 +1437,114 @@ pub(super) fn group_list(
     })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
+
+pub(super) fn group_insert(
+    conn: &Connection,
+    group: &super::workspace::WorkspaceGroup,
+) -> CatalogResult<()> {
+    conn.execute(
+        "INSERT INTO workspace_groups (id, name, sort_key, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(id) DO UPDATE SET
+             name = excluded.name, sort_key = excluded.sort_key, updated_at = excluded.updated_at",
+        params![
+            group.id.as_str(),
+            group.name,
+            group.sort_key,
+            ms(group.created_at),
+            ms(group.updated_at),
+        ],
+    )?;
+    Ok(())
+}
+
+/// The group goes; its workspaces become ungrouped (`ON DELETE SET NULL`).
+pub(super) fn group_delete(conn: &Connection, id: &crate::ids::WorkspaceGroupId) -> CatalogResult<usize> {
+    Ok(conn.execute("DELETE FROM workspace_groups WHERE id = ?1", params![id.as_str()])?)
+}
+
+// -------------------------------------------------------------------- families
+
+/// A family number no row has yet.
+pub(super) fn next_family(conn: &Connection) -> CatalogResult<i64> {
+    Ok(conn.query_row(
+        "SELECT COALESCE(MAX(f), 0) + 1 FROM (
+             SELECT MAX(family_id) AS f FROM teams UNION ALL
+             SELECT MAX(family_id) FROM domains UNION ALL
+             SELECT MAX(family_id) FROM questions UNION ALL
+             SELECT MAX(family_id) FROM assets UNION ALL
+             SELECT MAX(family_id) FROM recipes)",
+        [],
+        |row| row.get(0),
+    )?)
+}
+
+/// A row's family, wherever the row lives.
+pub(super) fn family_of(conn: &Connection, kind: CatalogKind, id: &str) -> CatalogResult<Option<i64>> {
+    let sql = format!("SELECT family_id FROM {} WHERE id = ?1", kind.table());
+    Ok(conn
+        .query_row(&sql, params![id], |row| row.get::<_, Option<i64>>(0))
+        .optional()?
+        .flatten())
+}
+
+pub(super) fn set_family(
+    conn: &Connection,
+    kind: CatalogKind,
+    id: &str,
+    family: Option<i64>,
+) -> CatalogResult<()> {
+    let sql = format!("UPDATE {} SET family_id = ?1 WHERE id = ?2", kind.table());
+    conn.execute(&sql, params![family, id])?;
+    Ok(())
+}
+
+// ------------------------------------------------------- deleting a workspace
+
+/// What *Delete permanently* would remove: library rows, games, Plays.
+pub(super) fn workspace_counts(
+    conn: &Connection,
+    id: &crate::ids::WorkspaceId,
+) -> CatalogResult<(usize, usize, usize)> {
+    let rows: i64 = conn.query_row(
+        "SELECT (SELECT count(*) FROM teams WHERE workspace_id = ?1)
+              + (SELECT count(*) FROM domains WHERE workspace_id = ?1)
+              + (SELECT count(*) FROM questions WHERE workspace_id = ?1)
+              + (SELECT count(*) FROM assets WHERE workspace_id = ?1)",
+        params![id.as_str()],
+        |row| row.get(0),
+    )?;
+    let games: i64 = conn.query_row(
+        "SELECT count(*) FROM recipes WHERE workspace_id = ?1",
+        params![id.as_str()],
+        |row| row.get(0),
+    )?;
+    let plays: i64 = conn.query_row(
+        "SELECT count(*) FROM plays WHERE recipe_id IN (SELECT id FROM recipes WHERE workspace_id = ?1)",
+        params![id.as_str()],
+        |row| row.get(0),
+    )?;
+    Ok((rows as usize, games as usize, plays as usize))
+}
+
+/// The one place library rows are deleted: a whole archived workspace, its
+/// games, their Plays and logs, inside the caller's transaction. Shared rows
+/// are never touched — a workspace does not own them. Asset **files** are not
+/// touched either; only rows go.
+pub(super) fn workspace_purge(tx: &Transaction<'_>, id: &crate::ids::WorkspaceId) -> CatalogResult<()> {
+    let id = id.as_str();
+    tx.execute(
+        "DELETE FROM events WHERE play_id IN (SELECT p.id FROM plays p
+             JOIN recipes r ON r.id = p.recipe_id WHERE r.workspace_id = ?1)",
+        params![id],
+    )?;
+    tx.execute(
+        "DELETE FROM plays WHERE recipe_id IN (SELECT id FROM recipes WHERE workspace_id = ?1)",
+        params![id],
+    )?;
+    for table in ["recipes", "domains", "questions", "teams", "assets"] {
+        tx.execute(&format!("DELETE FROM {table} WHERE workspace_id = ?1"), params![id])?;
+    }
+    tx.execute("DELETE FROM workspaces WHERE id = ?1", params![id])?;
+    Ok(())
+}

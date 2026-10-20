@@ -106,7 +106,13 @@ impl Host {
             play.adopt(resumed)?;
         }
 
-        let flags = FlagService::new(globals);
+        let mut flags = FlagService::new(globals);
+        // Game defaults and the timer are per workspace (Beta 2.0).
+        let current = catalog.current_workspace();
+        match catalog.workspace_defaults(&current)? {
+            Some(defaults) => flags.adopt_workspace_defaults(defaults)?,
+            None => catalog.workspace_set_defaults(&current, &flags.workspace_defaults(), now_ms())?,
+        }
         play.set_live_settings(flags.live());
         let mut health = HealthState::default();
         health.inputs.search_ok = true;

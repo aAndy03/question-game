@@ -37,6 +37,7 @@ pub mod flags;
 pub mod play;
 pub mod presentation;
 pub mod stats;
+pub mod workspace;
 
 use tauri::{AppHandle, State, WebviewWindow};
 
