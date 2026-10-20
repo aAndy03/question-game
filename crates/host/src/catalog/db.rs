@@ -424,7 +424,10 @@ pub(crate) fn open_guarded(
         let new_build = report.previous_version.as_deref() != Some(options.app_version.as_str());
         // The copy before workspaces is pinned outside the rotation, so later
         // upgrades cannot push it out; it stands in for the usual copy.
-        let pre_workspaces = applied < WORKSPACES_STEP;
+        // One pinned copy: a boot that failed after taking it would otherwise
+        // pin another full copy on every launch, and prune never removes them
+        // (review). Later attempts take an ordinary, rotated copy.
+        let pre_workspaces = applied < WORKSPACES_STEP && !backup::has_pinned(&options.backup_dir);
         if migrating || new_build {
             let label = if pre_workspaces {
                 backup::PRE_WORKSPACES_LABEL

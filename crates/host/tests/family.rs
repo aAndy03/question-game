@@ -165,3 +165,85 @@ fn a_row_never_copied_has_no_one_to_update() {
     let preview = catalog.propagation_preview(&question("alone", 10).into()).unwrap();
     assert!(preview.update.is_empty() && preview.skipped.is_empty());
 }
+
+// ------------------------------------------------------- review (Opus, P14)
+
+use questiongame_host::catalog::{Asset, Team, TransferOp};
+use questiongame_host::{AssetId, TeamId};
+
+fn asset(id: &str) -> CatalogItem {
+    CatalogItem::Asset(Box::new(Asset::new(id, format!("media/{id}.png"), "image")))
+}
+
+#[test]
+fn a_changed_asset_follows_to_the_copy_as_the_copys_own() {
+    let (catalog, a, b) = setup();
+    catalog.catalog_upsert(&asset("a1"), NOW).unwrap();
+    catalog.catalog_upsert(&asset("a2"), NOW).unwrap();
+    let mut q = question("qm", 30);
+    q.media_asset_id = Some(AssetId::from("a1"));
+    catalog.catalog_upsert(&q.clone().into(), NOW).unwrap();
+    catalog.catalog_copy_to(&Selection { questions: vec![QuestionId::from("qm")], ..Selection::default() }, &b, NOW).unwrap();
+    // a2 has its own copy in B too.
+    let mut holder = question("holder", 40);
+    holder.media_asset_id = Some(AssetId::from("a2"));
+    catalog.catalog_upsert(&holder.into(), NOW).unwrap();
+    catalog.catalog_copy_to(&Selection { questions: vec![QuestionId::from("holder")], ..Selection::default() }, &b, NOW).unwrap();
+
+    q.media_asset_id = Some(AssetId::from("a2"));
+    catalog.catalog_upsert_propagating(&q.into(), NOW).unwrap();
+
+    catalog.workspace_switch(&b).unwrap();
+    let in_b: Vec<Question> = catalog
+        .catalog_list(CatalogKind::Question, ArchiveScope::All)
+        .unwrap()
+        .into_iter()
+        .filter_map(|i| match i { CatalogItem::Question(q) => Some(*q), _ => None })
+        .collect();
+    let copy = in_b.iter().find(|q| q.stem == "Question qm").unwrap();
+    let holder_copy = in_b.iter().find(|q| q.stem == "Question holder").unwrap();
+    assert_eq!(copy.media_asset_id, holder_copy.media_asset_id, "a2's copy in B, not a1's");
+    let _ = a;
+}
+
+#[test]
+fn a_shared_copy_keeps_its_own_asset_and_the_preview_matches_the_save() {
+    let (catalog, a, b) = setup();
+    catalog.catalog_upsert(&asset("logo"), NOW).unwrap();
+    let mut t = Team::new("t1", "Lions", "LIO");
+    t.logo_asset_id = Some(AssetId::from("logo"));
+    catalog.catalog_upsert(&CatalogItem::Team(Box::new(t.clone())), NOW).unwrap();
+    catalog.catalog_copy_to(&Selection { teams: vec![TeamId::from("t1")], ..Selection::default() }, &b, NOW).unwrap();
+    catalog.workspace_switch(&b).unwrap();
+    let copy = only(&catalog, CatalogKind::Team);
+    catalog.catalog_make_shared(&Selection { teams: vec![TeamId::from(copy.as_str())], ..Selection::default() }, NOW).unwrap();
+    catalog.workspace_switch(&a).unwrap();
+
+    t.name = "Lions FC".into();
+    let preview = catalog.propagation_preview(&CatalogItem::Team(Box::new(t.clone()))).unwrap();
+    assert_eq!(preview.update.len(), 1);
+    catalog.catalog_upsert_propagating(&CatalogItem::Team(Box::new(t)), NOW).expect("the save the preview promised");
+    let CatalogItem::Team(shared) = catalog.catalog_get(CatalogKind::Team, &copy).unwrap() else { panic!() };
+    assert_eq!(shared.name, "Lions FC");
+    let _ = TransferOp::Copy;
+}
+
+#[test]
+fn a_shared_copy_on_another_workspaces_board_is_skipped_when_it_would_break_it() {
+    let (catalog, a, b) = setup();
+    // Share q1's copy and q2's copy in B, and put both on B's board.
+    catalog.workspace_switch(&b).unwrap();
+    let d = get_domain(&catalog, &only(&catalog, CatalogKind::Domain));
+    let ids: Vec<QuestionId> = d.questions.iter().map(|m| m.question_id.clone()).collect();
+    let mut game = Recipe::new("gb", "B's game", GameSettings::default());
+    game.board = vec![BoardDomain { domain_id: d.id.clone(), question_ids: ids.clone() }];
+    catalog.recipe_upsert(&game, NOW).unwrap();
+    catalog.catalog_make_shared(&Selection { questions: vec![ids[0].clone()], ..Selection::default() }, NOW).unwrap();
+    catalog.workspace_switch(&a).unwrap();
+
+    let mut edited = question("q1", 20);
+    edited.stem = "Now twenty".into();
+    let preview = catalog.propagation_preview(&edited.into()).unwrap();
+    assert!(preview.update.is_empty(), "{preview:?}");
+    assert_eq!(preview.skipped.len(), 1);
+}

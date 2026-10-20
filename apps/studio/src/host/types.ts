@@ -555,6 +555,8 @@ export interface TransferReport {
   readonly created: readonly Touched[]
   readonly reused: readonly Touched[]
   readonly moved: readonly Touched[]
+  /** Picked rows left as they are: shared, so a move cannot take them, or already shared. */
+  readonly unchanged?: readonly Touched[]
   readonly refused: readonly Refusal[]
 }
 

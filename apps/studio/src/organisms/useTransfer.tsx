@@ -143,6 +143,11 @@ export function useTransfer(): TransferController {
                   {TRANSFER.reused(preview.reused.length)}
                 </Text>
               ) : null}
+              {preview && (preview.unchanged?.length ?? 0) > 0 ? (
+                <Text as="p" variant="studio-body" tone="muted">
+                  {TRANSFER.unchanged(preview.unchanged?.length ?? 0)}
+                </Text>
+              ) : null}
               <div role="status" aria-live="polite">
                 {refusedLines.length > 0 ? (
                   <div className="flex flex-col gap-1">

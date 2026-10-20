@@ -1494,7 +1494,7 @@ host_api:
     "catalog::transfer::Selection::is_empty": {kind: method, sig: "fn is_empty(&self) -> bool"}
     "catalog::transfer::Touched": {doc: "One row a transfer touched: its kind, its id where it ends up, and the id it came from (the same id for a move or a share).", kind: struct, sig: "struct Touched { kind: CatalogKind, id: String, from: String, picked: bool }"}
     "catalog::transfer::TransferOp": {kind: enum, sig: "enum TransferOp { Copy | Move | MakeShared | MakeLocal }"}
-    "catalog::transfer::TransferReport": {doc: "What a transfer did, or — from [`CatalogService::transfer_preview`] — would do.", kind: struct, sig: "struct TransferReport { created: Vec<Touched>, reused: Vec<Touched>, moved: Vec<Touched>, refused: Vec<Refusal> }"}
+    "catalog::transfer::TransferReport": {doc: "What a transfer did, or — from [`CatalogService::transfer_preview`] — would do.", kind: struct, sig: "struct TransferReport { created: Vec<Touched>, reused: Vec<Touched>, moved: Vec<Touched>, unchanged: Vec<Touched>, refused: Vec<Refusal> }"}
   crates/host/src/catalog/workspace.rs:
     "catalog::workspace::CatalogService::current_workspace": {doc: "The workspace every read and write is scoped to.", kind: method, sig: "fn current_workspace(&self) -> WorkspaceId"}
     "catalog::workspace::CatalogService::group_create": {kind: method, sig: "fn group_create(&self, name: &str, now_ms: u64) -> CatalogResult<WorkspaceGroup>"}
@@ -1982,6 +1982,10 @@ studio_calls:
       - apps/studio/src/organisms/LibraryActions.tsx
       - apps/studio/src/pages/GamesPage.tsx
     catalog_seed_status: [apps/studio/src/host/queries.ts]
+    catalog_unfollow:
+      - apps/studio/src/organisms/DomainPane.tsx
+      - apps/studio/src/pages/LibraryPage.tsx
+      - apps/studio/src/pages/TeamsPage.tsx
     catalog_upsert:
       - apps/studio/src/organisms/FirstRunFlow.tsx
       - apps/studio/src/organisms/OperatorEditor.tsx
@@ -2082,7 +2086,7 @@ studio_calls:
     workspace_list: [apps/studio/src/host/queries.ts]
     workspace_rename: [apps/studio/src/pages/NameWorkspacePage.tsx, apps/studio/src/pages/WorkspacesPage.tsx]
     workspace_set_group: [apps/studio/src/pages/WorkspacesPage.tsx]
-    workspace_switch: [apps/studio/src/organisms/WorkspaceSwitcher.tsx, apps/studio/src/pages/WorkspacesPage.tsx]
+    workspace_switch: [apps/studio/src/organisms/useSwitchWorkspace.ts]
   dynamic_call_files:
     - apps/studio/src/chrome/diagnostics.ts
     - apps/studio/src/host/commands.ts

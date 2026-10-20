@@ -95,6 +95,9 @@ pub struct TransferReport {
     pub created: Vec<Touched>,
     pub reused: Vec<Touched>,
     pub moved: Vec<Touched>,
+    /// Picked rows left as they are: a shared row a move cannot take, or one
+    /// already shared — named, so the operator is not told it moved.
+    pub unchanged: Vec<Touched>,
     pub refused: Vec<Refusal>,
 }
 
@@ -296,7 +299,7 @@ fn copy(
     target: &WorkspaceId,
     now_ms: u64,
 ) -> CatalogResult<TransferReport> {
-    let rows = closure(tx, selection, true)?;
+    let mut rows = closure(tx, selection, true)?;
     let mut report = TransferReport::default();
     let mut next_family = store::next_family(tx)?;
     // source id → id in the target, per kind
@@ -343,6 +346,39 @@ fn copy(
                 report.reused.retain(|t| !(t.kind == CatalogKind::Domain && t.id == existing));
             }
         }
+    }
+    // A question that came along only as a member of a domain that is now
+    // reused has nowhere to live in the target: the reused domain does not
+    // hold it. Leave it (and an asset only it needed) behind (review).
+    let reused_domains: BTreeSet<String> =
+        report.reused.iter().filter(|t| t.kind == CatalogKind::Domain).map(|t| t.from.clone()).collect();
+    if !reused_domains.is_empty() {
+        let mut needed: BTreeSet<String> = rows
+            .picked
+            .iter()
+            .filter(|(k, _)| *k == CatalogKind::Question)
+            .map(|(_, id)| id.clone())
+            .collect();
+        for recipe in rows.recipes.values() {
+            for board in &recipe.board {
+                needed.extend(board.question_ids.iter().map(|q| q.to_string()));
+            }
+        }
+        for (id, domain) in &rows.domains {
+            if !reused_domains.contains(id) {
+                needed.extend(domain.questions.iter().map(|m| m.question_id.to_string()));
+            }
+        }
+        rows.questions.retain(|id, _| needed.contains(id));
+        let mut assets: BTreeSet<String> = BTreeSet::new();
+        assets.extend(rows.teams.values().filter_map(|t| t.logo_asset_id.as_ref().map(|a| a.to_string())));
+        assets.extend(rows.questions.values().filter_map(|q| q.media_asset_id.as_ref().map(|a| a.to_string())));
+        rows.assets.retain(|id, _| assets.contains(id));
+        report.reused.retain(|t| match t.kind {
+            CatalogKind::Question => rows.questions.contains_key(&t.from),
+            CatalogKind::Asset => rows.assets.contains_key(&t.from),
+            _ => true,
+        });
     }
     let new_id = |kind: CatalogKind| match kind {
         CatalogKind::Asset => fresh_id("asset"),
@@ -466,6 +502,13 @@ fn relocate(
             rule: "a game always lives in one workspace",
             detail: format!("game {recipe}"),
         });
+    }
+    // Picked rows already shared: a move cannot take them (they are already
+    // everywhere) and a share has nothing to do. Said, not swallowed (review).
+    for (kind, id) in &rows.picked {
+        if !rows.contains(*kind, id) && store::home_of(tx, *kind, id)? == Some(None) {
+            report.unchanged.push(Touched { kind: *kind, id: id.clone(), from: id.clone(), picked: true });
+        }
     }
     // What stays behind and still uses something that would go.
     let staying_users = store::local_users(tx, current)?;

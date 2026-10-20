@@ -86,6 +86,7 @@ export const TRANSFER = {
   picked: (n: number) => `${n} picked`,
   comesAlong: (n: number) => `${n} more ${n === 1 ? 'row comes' : 'rows come'} along, so nothing points at a row the workspace cannot see`,
   reused: (n: number) => `${n} already ${n === 1 ? 'has a copy' : 'have copies'} there and ${n === 1 ? 'is' : 'are'} reused`,
+  unchanged: (n: number) => `${n} already shared, left as ${n === 1 ? 'it is' : 'they are'}`,
   refused: 'Cannot go — still used by:',
   copyInstead: 'Copy instead',
   sharedBody: 'Every workspace will see these rows. A domain brings its questions; a team or question brings its asset.',

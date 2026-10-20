@@ -108,10 +108,9 @@ fn propagate(
     db::bind_workspace(tx, current.as_str())?;
     upsert(tx, item, now_ms)?;
     for copy in &plan.update {
-        let home = copy.workspace.as_ref().unwrap_or(current);
-        db::bind_workspace(tx, home.as_str())?;
+        db::bind_workspace(tx, copy.workspace.as_ref().unwrap_or(current).as_str())?;
         let stored = get(tx, item.kind(), &copy.id)?;
-        upsert(tx, &with_body(tx, &stored, item, home)?, now_ms)?;
+        upsert(tx, &with_body(tx, &stored, item, copy.workspace.as_ref())?, now_ms)?;
     }
     Ok(plan)
 }
@@ -163,10 +162,9 @@ fn preview(
             workspace_name,
             archived,
         };
-        let home = copy.workspace.clone().unwrap_or_else(|| current.clone());
-        db::bind_workspace(conn, home.as_str())?;
+        db::bind_workspace(conn, copy.workspace.as_ref().unwrap_or(current).as_str())?;
         let stored = get(conn, item.kind(), &copy.id)?;
-        let updated = with_body(conn, &stored, item, &home)?;
+        let updated = with_body(conn, &stored, item, copy.workspace.as_ref())?;
         match breaks(conn, &updated)? {
             Some(reason) => out.skipped.push(SkippedCopy { copy, reason }),
             None => out.update.push(copy),
@@ -175,29 +173,33 @@ fn preview(
     Ok(out)
 }
 
-/// `stored` with `source`'s body. An asset is carried as its copy in `home`
-/// (same family), or as itself when shared; a local asset with no copy there
-/// leaves the copy's own asset alone.
+/// `stored` with `source`'s body. An asset is carried as itself when it is
+/// shared, and otherwise as its copy in the copy's workspace (same family) —
+/// never onto a shared copy, which may hold only a shared asset; with no copy
+/// to carry, the copy keeps its own. Where the source's asset lives is read
+/// whatever the connection is bound to (review: bound to the copy's home, the
+/// source's local asset was out of view and nothing was ever carried).
 fn with_body(
     conn: &Connection,
     stored: &CatalogItem,
     source: &CatalogItem,
-    home: &WorkspaceId,
+    home: Option<&WorkspaceId>,
 ) -> CatalogResult<CatalogItem> {
     let asset = |from: &Option<AssetId>, kept: &Option<AssetId>| -> CatalogResult<Option<AssetId>> {
         let Some(from) = from else { return Ok(None) };
-        let Ok(found) = store::asset_get(conn, from) else {
-            return Ok(kept.clone());
-        };
-        if found.stamps.shared {
-            return Ok(Some(from.clone()));
+        match store::home_of(conn, CatalogKind::Asset, from.as_str())? {
+            None => Ok(kept.clone()),
+            Some(None) => Ok(Some(from.clone())),
+            Some(Some(_)) => {
+                let Some(home) = home else { return Ok(kept.clone()) };
+                Ok(match store::family_of(conn, CatalogKind::Asset, from.as_str())? {
+                    Some(family) => store::family_member_in(conn, CatalogKind::Asset, family, home)?
+                        .map(AssetId::new)
+                        .or_else(|| kept.clone()),
+                    None => kept.clone(),
+                })
+            }
         }
-        Ok(match store::family_of(conn, CatalogKind::Asset, from.as_str())? {
-            Some(family) => store::family_member_in(conn, CatalogKind::Asset, family, home)?
-                .map(AssetId::new)
-                .or_else(|| kept.clone()),
-            None => kept.clone(),
-        })
     };
     Ok(match (stored, source) {
         (CatalogItem::Team(stored), CatalogItem::Team(source)) => {
@@ -230,12 +232,19 @@ fn with_body(
     })
 }
 
-/// Would this version of a copy break a board where it lives?
+/// Would this version of a copy break a board that holds it? Each game is
+/// read in its own workspace: a shared copy sits on boards everywhere, and a
+/// game is in view only in its own (review). The binding is left on the last
+/// game's workspace; every caller binds again before it reads.
 fn breaks(conn: &Connection, updated: &CatalogItem) -> CatalogResult<Option<String>> {
     let CatalogItem::Question(question) = updated else {
         return Ok(None);
     };
     for recipe_id in store::recipes_with_question(conn, question.id.as_str())? {
+        let Some(Some(home)) = store::home_of(conn, CatalogKind::Recipe, recipe_id.as_str())? else {
+            continue;
+        };
+        db::bind_workspace(conn, &home)?;
         let Ok(recipe) = store::recipe_get(conn, &recipe_id) else {
             continue;
         };

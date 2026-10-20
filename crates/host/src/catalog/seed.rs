@@ -455,6 +455,31 @@ fn stored_recipe(service: &CatalogService, id: &RecipeId) -> CatalogResult<Store
 // --------------------------------------------------------------- the service
 
 impl CatalogService {
+    /// This workspace's Demo. The first workspace keeps the Demo's old ids —
+    /// unless they now live elsewhere (the Demo was moved to another
+    /// workspace), and then it takes its own, as any other workspace does.
+    fn demo_here(&self, demo: Demo, settings: GameSettings) -> CatalogResult<(Vec<CatalogItem>, Recipe)> {
+        let current = self.current_workspace();
+        let document = demo_document_in(demo, settings.clone(), &current);
+        if current.as_str() != FIRST_WORKSPACE {
+            return Ok(document);
+        }
+        let conn = self.conn();
+        let elsewhere = |kind: CatalogKind, id: &str| -> CatalogResult<bool> {
+            Ok(matches!(super::store::home_of(&conn, kind, id)?, Some(Some(home)) if home != current.as_str()))
+        };
+        let moved = elsewhere(CatalogKind::Recipe, document.1.id.as_str())?
+            || document.0.iter().map(|i| elsewhere(i.kind(), &i.id())).collect::<CatalogResult<Vec<_>>>()?.into_iter().any(|m| m);
+        drop(conn);
+        if !moved {
+            return Ok(document);
+        }
+        Ok(match demo {
+            Demo::En => build(&ENGLISH, settings, &format!("{current}-")),
+            Demo::Ro => build(&ROMANIAN, GameSettings { language: Language::Ro, ..settings }, &format!("{current}-")),
+        })
+    }
+
     /// `catalog_seed_demo` (§12.1) — one Demo. Writes go through
     /// `catalog_upsert_many` and `recipe_upsert`, so the batch is one
     /// transaction and the same validation every operator edit gets.
@@ -468,7 +493,7 @@ impl CatalogService {
         settings: GameSettings,
         now_ms: u64,
     ) -> CatalogResult<SeedResult> {
-        let (items, recipe) = demo_document_in(demo, settings, &self.current_workspace());
+        let (items, recipe) = self.demo_here(demo, settings)?;
         let mut to_write: Vec<CatalogItem> = Vec::new();
         let mut to_restore: Vec<(CatalogKind, String)> = Vec::new();
         let mut inserted = 0;
@@ -543,7 +568,7 @@ impl CatalogService {
     /// seed would write, because a recipe whose settings drifted from them is
     /// an edit.
     pub fn seed_status(&self, demo: Demo, settings: GameSettings) -> CatalogResult<SeedStatus> {
-        let (items, recipe) = demo_document_in(demo, settings, &self.current_workspace());
+        let (items, recipe) = self.demo_here(demo, settings)?;
         let mut status = SeedStatus {
             present: 0,
             missing: 0,

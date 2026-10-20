@@ -524,3 +524,17 @@ fn a_library_from_a_newer_build_is_still_refused() {
         Err(CatalogError::SchemaTooNew { found: 5, known: 4 })
     ));
 }
+
+#[test]
+fn a_second_failed_boot_does_not_pin_a_second_copy() {
+    let dir = TempDir::new("ws-pinned-once");
+    library_1_0_2(&dir, false);
+    std::fs::create_dir_all(dir.backups()).unwrap();
+    // A copy pinned by an earlier boot that did not get past the migration.
+    std::fs::copy(dir.library(), dir.backups().join(format!("{PRE_WORKSPACES_PREFIX}20261020-120000.sqlite3"))).unwrap();
+    let (service, report) = CatalogService::open_file(&dir.library(), &options(&dir, "2.0.0-beta.1", "20261021-120000")).unwrap();
+    drop(service);
+    let names = backups_in(&dir.backups());
+    assert_eq!(names.iter().filter(|n| n.starts_with(PRE_WORKSPACES_PREFIX)).count(), 1, "{names:?}");
+    assert!(report.backup.is_some(), "still no copy, no change: {names:?}");
+}

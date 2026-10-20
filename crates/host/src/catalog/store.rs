@@ -1261,14 +1261,18 @@ pub(super) fn open_play_id(conn: &Connection) -> CatalogResult<Option<PlayId>> {
         .optional()?)
 }
 
-/// Every closed Play — completed, abandoned or restarted — with the recipe it
-/// ran, oldest first. A `loaded`, `playing` or `paused` row is not in the list:
+/// Every closed Play of this workspace's games — completed, abandoned or
+/// restarted — with the recipe it ran, oldest first. *Wipe Plays* is the
+/// workspace's, like every other view of Plays (review, Beta 2.0). A `loaded`, `playing` or `paused` row is not in the list:
 /// the operator may be about to sit down at it.
 pub(super) fn closed_plays(conn: &Connection) -> CatalogResult<Vec<(PlayId, RecipeId)>> {
     let mut stmt = conn.prepare(
-        "SELECT id, recipe_id FROM plays
-         WHERE status IN ('completed', 'abandoned', 'restarted')
-         ORDER BY started_at_ms, id",
+        &format!(
+            "SELECT id, recipe_id FROM plays
+             WHERE status IN ('completed', 'abandoned', 'restarted')
+               AND recipe_id IN (SELECT id FROM recipes WHERE {IN_WORKSPACE})
+             ORDER BY started_at_ms, id"
+        ),
     )?;
     Ok(stmt
         .query_map([], |row| {
@@ -1722,4 +1726,13 @@ pub(super) fn recipes_with_question(conn: &Connection, question: &str) -> Catalo
         Ok(RecipeId::new(row.get::<_, String>(0)?))
     })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// Where a row lives, whatever the current workspace: `None` — no such row;
+/// `Some(None)` — shared; `Some(Some(ws))` — that workspace.
+pub(super) fn home_of(conn: &Connection, kind: CatalogKind, id: &str) -> CatalogResult<Option<Option<String>>> {
+    let sql = format!("SELECT workspace_id FROM {} WHERE id = ?1", kind.table());
+    Ok(conn
+        .query_row(&sql, params![id], |row| row.get::<_, Option<String>>(0))
+        .optional()?)
 }

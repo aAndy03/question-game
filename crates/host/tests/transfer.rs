@@ -283,3 +283,31 @@ fn the_demo_can_be_copied_whole_into_another_workspace() {
     catalog.workspace_switch(&b).unwrap();
     assert_eq!(catalog.recipe_list(ArchiveScope::All).unwrap().len(), 1);
 }
+
+// ------------------------------------------------------- review (Opus, P14)
+
+#[test]
+fn a_reused_domain_does_not_leave_its_new_questions_behind_in_no_domain() {
+    let (catalog, _a, b) = setup();
+    let game = Selection { recipes: vec![RecipeId::from("g1")], ..Selection::default() };
+    catalog.catalog_copy_to(&game, &b, NOW).unwrap();
+    catalog.catalog_upsert(&question("q3", 40, false), NOW).unwrap();
+    let CatalogItem::Domain(mut d1) = get(&catalog, CatalogKind::Domain, "d1") else { panic!() };
+    d1.questions.push(DomainMember { question_id: QuestionId::from("q3"), sort_key: 9 });
+    catalog.catalog_upsert(&CatalogItem::Domain(d1), NOW).unwrap();
+
+    let again = catalog.catalog_copy_to(&game, &b, NOW).unwrap();
+    assert!(again.reused.iter().any(|t| t.kind == CatalogKind::Domain), "{again:?}");
+    assert!(!again.created.iter().any(|t| t.from == "q3"), "q3 would land in no domain: {again:?}");
+}
+
+#[test]
+fn a_picked_shared_row_a_move_cannot_take_is_reported_unchanged() {
+    let (catalog, _a, b) = setup();
+    catalog.catalog_upsert(&domain("ds", &["qs"], true), NOW).unwrap();
+    let report = catalog.catalog_move_to(&domains(&["ds"]), &b, NOW).unwrap();
+    assert!(report.moved.is_empty());
+    assert_eq!(report.unchanged.len(), 1, "{report:?}");
+    let shared = catalog.catalog_make_shared(&domains(&["ds"]), NOW).unwrap();
+    assert_eq!(shared.unchanged.len(), 1, "already shared");
+}

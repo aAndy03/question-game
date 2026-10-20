@@ -129,6 +129,17 @@ pub(super) fn prune(dir: &Path, keep: usize, taken: &Path) {
     }
 }
 
+/// Whether a pinned pre-workspaces copy is already there.
+pub(super) fn has_pinned(dir: &Path) -> bool {
+    std::fs::read_dir(dir)
+        .map(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .any(|e| e.file_name().to_string_lossy().starts_with(PRE_WORKSPACES_PREFIX))
+        })
+        .unwrap_or(false)
+}
+
 /// The `yyyymmdd-hhmmss` of a backup's file name, which is what orders them.
 fn stamp_of(name: &str) -> Option<&str> {
     let rest = name.strip_prefix(PREFIX)?.strip_suffix(SUFFIX)?;

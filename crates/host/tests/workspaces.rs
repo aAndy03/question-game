@@ -479,3 +479,50 @@ fn a_workspace_keeps_its_own_defaults() {
     flags.adopt_workspace_defaults(defaults.clone()).unwrap();
     assert_eq!(flags.workspace_defaults(), defaults);
 }
+
+// ------------------------------------------------------- review (Opus, P14)
+
+#[test]
+fn wipe_plays_removes_only_this_workspaces_closed_plays() {
+    use questiongame_host::flags::FlagService;
+    use questiongame_host::{MatchService, PlayId, RecipeId};
+
+    let (catalog, a, b) = two();
+    let close_one = |catalog: &CatalogService, play: &str| {
+        let recipe = catalog.recipe_list(ArchiveScope::All).unwrap().remove(0);
+        let mut flags = FlagService::default();
+        flags.load_recipe(GameSettings::default()).unwrap();
+        let snapshot = catalog.build_snapshot(&recipe.id, PlayId::from(play), flags.freeze().unwrap()).unwrap();
+        let mut service = MatchService::new();
+        service.play_load(snapshot, 0).unwrap();
+        service.play_start(0).unwrap();
+        service.abandon(10).unwrap();
+        catalog.play_persist(service.get_state().unwrap()).unwrap();
+    };
+    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    close_one(&catalog, "play-a");
+    catalog.workspace_switch(&b.as_str().into()).unwrap();
+    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    close_one(&catalog, "play-b");
+
+    assert_eq!(catalog.wipe_plays().unwrap().removed, 1);
+    assert!(catalog.play_list(None).unwrap().is_empty());
+    catalog.workspace_switch(&a.as_str().into()).unwrap();
+    assert_eq!(catalog.play_list(None).unwrap().len(), 1, "A's Play is A's to wipe");
+    let _ = RecipeId::from("unused");
+}
+
+#[test]
+fn restore_sample_game_works_after_the_first_demo_moved_away() {
+    use questiongame_host::RecipeId;
+    use questiongame_host::catalog::Selection;
+    let (catalog, _a, b) = two();
+    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    catalog
+        .catalog_move_to(&Selection { recipes: vec![RecipeId::from("seed-recipe-demo")], ..Selection::default() }, &b.as_str().into(), NOW)
+        .unwrap();
+    let again = catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    assert!(again.inserted > 0);
+    assert_eq!(catalog.recipe_list(ArchiveScope::All).unwrap().len(), 1);
+    assert!(catalog.seed_status(Demo::En, GameSettings::default()).unwrap().missing == 0);
+}
