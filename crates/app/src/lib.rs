@@ -260,6 +260,11 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::workspace::workspace_group_rename,
         commands::workspace::workspace_group_reorder,
         commands::workspace::workspace_group_delete,
+        commands::workspace::transfer_preview,
+        commands::workspace::catalog_copy_to,
+        commands::workspace::catalog_move_to,
+        commands::workspace::catalog_make_shared,
+        commands::workspace::catalog_make_local,
         // CatalogService
         commands::catalog::catalog_list,
         commands::catalog::catalog_get,

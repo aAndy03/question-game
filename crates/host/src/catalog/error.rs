@@ -132,6 +132,15 @@ pub enum CatalogError {
     #[error("{rule}: {detail}")]
     ScopeRule { rule: &'static str, detail: String },
 
+    /// A move or *Make local* that would strand a row something else still
+    /// uses — named, so the operator can choose *Copy instead*.
+    #[error("{kind} {id} is still used by {used_by}")]
+    StillUsed {
+        kind: CatalogKind,
+        id: String,
+        used_by: String,
+    },
+
     #[error(transparent)]
     Sqlite(#[from] rusqlite::Error),
 

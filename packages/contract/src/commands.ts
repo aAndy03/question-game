@@ -185,6 +185,16 @@ export const COMMAND_GROUPS = {
     'workspace_group_reorder',
     /** The group goes; its workspaces stay, ungrouped. */
     'workspace_group_delete',
+    /** What a copy, move or share would do: what comes along, what is reused, what refuses. Writes nothing. */
+    'transfer_preview',
+    /** New rows in another workspace, with what they need; a needed row with an active copy there is reused. */
+    'catalog_copy_to',
+    /** The same rows into another workspace, with what they need; refused while something staying uses one. */
+    'catalog_move_to',
+    /** This workspace's rows into the shared library, with a domain's questions and a row's asset. */
+    'catalog_make_shared',
+    /** Shared rows into this workspace; refused while another workspace uses one. */
+    'catalog_make_local',
   ],
   /** The app itself (P12): the close guard's answers and the uninstaller. */
   app: [

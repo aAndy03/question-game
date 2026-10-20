@@ -1548,3 +1548,145 @@ pub(super) fn workspace_purge(tx: &Transaction<'_>, id: &crate::ids::WorkspaceId
     tx.execute("DELETE FROM workspaces WHERE id = ?1", params![id])?;
     Ok(())
 }
+
+// ------------------------------------------------------------------ transfers
+
+/// An active row of `family` living in `workspace`, if there is one.
+pub(super) fn family_member_in(
+    conn: &Connection,
+    kind: CatalogKind,
+    family: i64,
+    workspace: &crate::ids::WorkspaceId,
+) -> CatalogResult<Option<String>> {
+    let sql = format!(
+        "SELECT id FROM {} WHERE family_id = ?1 AND workspace_id = ?2 AND archived_at IS NULL
+         ORDER BY created_at, id LIMIT 1",
+        kind.table()
+    );
+    Ok(conn
+        .query_row(&sql, params![family, workspace.as_str()], |row| row.get(0))
+        .optional()?)
+}
+
+/// Where a row lives from now on: a workspace, or the shared library.
+pub(super) fn set_workspace(
+    conn: &Connection,
+    kind: CatalogKind,
+    id: &str,
+    workspace: Option<&str>,
+) -> CatalogResult<()> {
+    let sql = format!("UPDATE {} SET workspace_id = ?1 WHERE id = ?2", kind.table());
+    conn.execute(&sql, params![workspace, id])?;
+    Ok(())
+}
+
+/// One row using another: `user` holds or points at `(kind, id)`.
+pub(super) struct Use {
+    pub kind: CatalogKind,
+    pub id: String,
+    pub user_kind: CatalogKind,
+    pub user_id: String,
+    pub used_by: String,
+}
+
+const USES: [(CatalogKind, CatalogKind, &str); 6] = [
+    (
+        CatalogKind::Question,
+        CatalogKind::Domain,
+        "SELECT x.question_id, u.id, 'domain ' || u.name, u.workspace_id, w.name
+           FROM domain_questions x JOIN domains u ON u.id = x.domain_id
+           JOIN questions r ON r.id = x.question_id LEFT JOIN workspaces w ON w.id = u.workspace_id",
+    ),
+    (
+        CatalogKind::Team,
+        CatalogKind::Recipe,
+        "SELECT x.team_id, u.id, 'game ' || u.name, u.workspace_id, w.name
+           FROM recipe_teams x JOIN recipes u ON u.id = x.recipe_id
+           JOIN teams r ON r.id = x.team_id LEFT JOIN workspaces w ON w.id = u.workspace_id",
+    ),
+    (
+        CatalogKind::Domain,
+        CatalogKind::Recipe,
+        "SELECT x.domain_id, u.id, 'game ' || u.name, u.workspace_id, w.name
+           FROM recipe_domains x JOIN recipes u ON u.id = x.recipe_id
+           JOIN domains r ON r.id = x.domain_id LEFT JOIN workspaces w ON w.id = u.workspace_id",
+    ),
+    (
+        CatalogKind::Question,
+        CatalogKind::Recipe,
+        "SELECT x.question_id, u.id, 'game ' || u.name, u.workspace_id, w.name
+           FROM recipe_questions x JOIN recipes u ON u.id = x.recipe_id
+           JOIN questions r ON r.id = x.question_id LEFT JOIN workspaces w ON w.id = u.workspace_id",
+    ),
+    (
+        CatalogKind::Asset,
+        CatalogKind::Team,
+        "SELECT r.id, u.id, 'team ' || u.name, u.workspace_id, w.name
+           FROM teams u JOIN assets r ON r.id = u.logo_asset_id
+           LEFT JOIN workspaces w ON w.id = u.workspace_id",
+    ),
+    (
+        CatalogKind::Asset,
+        CatalogKind::Question,
+        "SELECT r.id, u.id, 'question ' || substr(u.stem, 1, 40), u.workspace_id, w.name
+           FROM questions u JOIN assets r ON r.id = u.media_asset_id
+           LEFT JOIN workspaces w ON w.id = u.workspace_id",
+    ),
+];
+
+/// Every use, inside `workspace`, of a row local to it: what a move would
+/// break if the used row went and the user stayed.
+pub(super) fn local_users(conn: &Connection, workspace: &crate::ids::WorkspaceId) -> CatalogResult<Vec<Use>> {
+    let mut out = Vec::new();
+    for (kind, user_kind, select) in USES {
+        let sql = format!("{select} WHERE r.workspace_id = ?1 AND u.workspace_id = ?1");
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params![workspace.as_str()], |row| {
+            Ok(Use {
+                kind,
+                id: row.get(0)?,
+                user_kind,
+                user_id: row.get(1)?,
+                used_by: row.get(2)?,
+            })
+        })?;
+        out.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
+    }
+    Ok(out)
+}
+
+/// Who uses `(kind, id)` outside `workspace` — another workspace's rows, or a
+/// shared one. What *Make local* must not strand.
+pub(super) fn users_elsewhere(
+    conn: &Connection,
+    kind: CatalogKind,
+    id: &str,
+    workspace: &crate::ids::WorkspaceId,
+) -> CatalogResult<Vec<Use>> {
+    let mut out = Vec::new();
+    for (used_kind, user_kind, select) in USES {
+        if used_kind != kind {
+            continue;
+        }
+        let sql = format!("{select} WHERE r.id = ?1 AND u.workspace_id IS NOT ?2");
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params![id, workspace.as_str()], |row| {
+            let what: String = row.get(2)?;
+            let home: Option<String> = row.get(3)?;
+            let home_name: Option<String> = row.get(4)?;
+            let used_by = match home {
+                None => format!("{what} (shared)"),
+                Some(home) => format!("{what} in workspace {}", home_name.unwrap_or(home)),
+            };
+            Ok(Use {
+                kind,
+                id: row.get(0)?,
+                user_kind,
+                user_id: row.get(1)?,
+                used_by,
+            })
+        })?;
+        out.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
+    }
+    Ok(out)
+}

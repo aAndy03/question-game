@@ -32,6 +32,7 @@ pub mod seed;
 pub mod service;
 mod snapshot;
 mod store;
+pub mod transfer;
 pub mod workspace;
 
 pub use crate::flags::GameSettings;
@@ -53,4 +54,5 @@ pub use seed::{Demo, SeedMode, SeedResult, SeedStatus};
 pub use service::{
     CatalogChange, CatalogService, ChangeOp, OverlayTarget, RecipeChange, WipedPlays,
 };
+pub use transfer::{Refusal, Selection, Touched, TransferOp, TransferReport};
 pub use workspace::{DeleteReport, WORKSPACE_NAME_MAX, Workspace, WorkspaceGroup};

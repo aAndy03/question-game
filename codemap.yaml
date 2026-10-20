@@ -79,6 +79,12 @@ commands:
     file: crates/app/src/commands/catalog.rs
     params: ["kind: CatalogKind", "ids: Vec<String>"]
     returns: "AppResult<Vec<CatalogChange>>"
+  catalog_copy_to:
+    async: true
+    callers: [main]
+    file: crates/app/src/commands/workspace.rs
+    params: ["selection: Selection", "target: WorkspaceId"]
+    returns: "AppResult<TransferReport>"
   catalog_get:
     async: true
     callers: [main, stats]
@@ -98,6 +104,24 @@ commands:
     file: crates/app/src/commands/catalog.rs
     params: ["kind: CatalogKind", "scope: ArchiveScope"]
     returns: "AppResult<Vec<CatalogItem>>"
+  catalog_make_local:
+    async: true
+    callers: [main]
+    file: crates/app/src/commands/workspace.rs
+    params: ["selection: Selection"]
+    returns: "AppResult<TransferReport>"
+  catalog_make_shared:
+    async: true
+    callers: [main]
+    file: crates/app/src/commands/workspace.rs
+    params: ["selection: Selection"]
+    returns: "AppResult<TransferReport>"
+  catalog_move_to:
+    async: true
+    callers: [main]
+    file: crates/app/src/commands/workspace.rs
+    params: ["selection: Selection", "target: WorkspaceId"]
+    returns: "AppResult<TransferReport>"
   catalog_rebuild_search:
     async: true
     callers: [main]
@@ -537,6 +561,13 @@ commands:
     file: crates/app/src/commands/stats.rs
     params: ["open: bool"]
     returns: "AppResult<()>"
+  transfer_preview:
+    async: true
+    callers: [main]
+    doc: "What a copy, move or share would do — what comes along, what is reused, what refuses — before the operator confirms it."
+    file: crates/app/src/commands/workspace.rs
+    params: ["op: TransferOp", "selection: Selection", "target: Option<WorkspaceId>"]
+    returns: "AppResult<TransferReport>"
   undo_turn:
     async: true
     callers: [main]
@@ -840,6 +871,11 @@ contract:
       - workspace_group_rename
       - workspace_group_reorder
       - workspace_group_delete
+      - transfer_preview
+      - catalog_copy_to
+      - catalog_move_to
+      - catalog_make_shared
+      - catalog_make_local
   events:
     - catalog-changed
     - workspace-changed
@@ -854,7 +890,7 @@ contract:
   files:
     packages/contract/src/commands.ts:
       COMMANDS: {kind: const, sig: "#e3696517"}
-      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, workspace, app } #e828ef5a"}
+      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, workspace, app } #3db004c0"}
       CatalogChange: {doc: "`catalog-changed`.", kind: interface, sig: "{ kind, id, op }"}
       Command: {kind: type, sig: "(typeof COMMAND_GROUPS)[CommandGroup][number]"}
       CommandGroup: {kind: type, sig: "keyof typeof COMMAND_GROUPS"}
@@ -1271,7 +1307,7 @@ host_api:
     "catalog::db::META_CURRENT_WORKSPACE": {doc: "The global that names the workspace in use.", kind: const, sig: "const META_CURRENT_WORKSPACE: &str = \"workspace.current\""}
     "catalog::db::write_older_schema": {doc: "Test support: write `to` as the library `from` would look to a build that knew only the first `steps` migrations — the same rows, the columns that build had.", kind: fn, sig: "fn write_older_schema(from: &Path, to: &Path, steps: u32) -> CatalogResult<()>"}
   crates/host/src/catalog/error.rs:
-    "catalog::error::CatalogError": {kind: enum, sig: "enum CatalogError { NotFound { kind: CatalogKind, id: String } | StillReferenced { kind: CatalogKind, id: String, used_by: &'static str } | Invalid { target_path: String, reason: &'static str } | Import { reason: String } | Settings(MatchError) | PlayAlreadyOpen { recipe: String, play: String } | SchemaTooNew { found: u32, known: u32 } | BackupFailed { dir: std::path::PathBuf, reason: String } | WrongWorkspace { kind: CatalogKind, id: String } | NoWorkspace | ScopeRule { rule: &'static str, detail: String } | Sqlite(rusqlite::Error) | Search(tantivy::TantivyError) | Corrupt(serde_json::Error) }"}
+    "catalog::error::CatalogError": {kind: enum, sig: "enum CatalogError { NotFound { kind: CatalogKind, id: String } | StillReferenced { kind: CatalogKind, id: String, used_by: &'static str } | Invalid { target_path: String, reason: &'static str } | Import { reason: String } | Settings(MatchError) | PlayAlreadyOpen { recipe: String, play: String } | SchemaTooNew { found: u32, known: u32 } | BackupFailed { dir: std::path::PathBuf, reason: String } | WrongWorkspace { kind: CatalogKind, id: String } | NoWorkspace | ScopeRule { rule: &'static str, detail: String } | StillUsed { kind: CatalogKind, id: String, used_by: String } | Sqlite(rusqlite::Error) | Search(tantivy::TantivyError) | Corrupt(serde_json::Error) }"}
     "catalog::error::CatalogKind": {doc: "What the catalog was asked about, and what `catalog-changed { kind, … }` reports (§11.A).", kind: enum, sig: "enum CatalogKind { Team | Domain | Question | Operator | Asset | Recipe }"}
     "catalog::error::CatalogKind::ALL": {kind: const, sig: "const ALL: [CatalogKind; 6] = [CatalogKind::Team, CatalogKind::Domain, CatalogKind::Question, CatalogKind::Operator, ..."}
     "catalog::error::CatalogKind::as_str": {doc: "The tab name, and the `kind` field of `catalog-changed`.", kind: method, sig: "fn as_str(self) -> &'static str"}
@@ -1303,6 +1339,7 @@ host_api:
     "catalog::search": {kind: mod, sig: "mod search"}
     "catalog::seed": {kind: mod, sig: "mod seed"}
     "catalog::service": {kind: mod, sig: "mod service"}
+    "catalog::transfer": {kind: mod, sig: "mod transfer"}
     "catalog::workspace": {kind: mod, sig: "mod workspace"}
   crates/host/src/catalog/model.rs:
     "catalog::model::ArchiveScope": {doc: "Which rows a list or a search should see.", kind: enum, sig: "enum ArchiveScope { Active | Archived | All }"}
@@ -1414,6 +1451,18 @@ host_api:
     "catalog::service::OverlayTarget::id": {doc: "The library row the patch is about — the notice `target_path` (§14) and what the ScopeConfirm dialog names.", kind: method, sig: "fn id(&self) -> String"}
     "catalog::service::RecipeChange": {doc: "`recipe-changed { id, rev }` (§11.B).", kind: struct, sig: "struct RecipeChange { id: RecipeId, rev: u32 }"}
     "catalog::service::WipedPlays": {doc: "What `wipe_plays` removed.", kind: struct, sig: "struct WipedPlays { removed: usize, recipe_ids: Vec<RecipeId> }"}
+  crates/host/src/catalog/transfer.rs:
+    "catalog::transfer::CatalogService::catalog_copy_to": {kind: method, sig: "fn catalog_copy_to(&self, selection: &Selection, target: &WorkspaceId, now_ms: u64) -> CatalogResult<TransferReport>"}
+    "catalog::transfer::CatalogService::catalog_make_local": {kind: method, sig: "fn catalog_make_local(&self, selection: &Selection, now_ms: u64) -> CatalogResult<TransferReport>"}
+    "catalog::transfer::CatalogService::catalog_make_shared": {kind: method, sig: "fn catalog_make_shared(&self, selection: &Selection, now_ms: u64) -> CatalogResult<TransferReport>"}
+    "catalog::transfer::CatalogService::catalog_move_to": {kind: method, sig: "fn catalog_move_to(&self, selection: &Selection, target: &WorkspaceId, now_ms: u64) -> CatalogResult<TransferReport>"}
+    "catalog::transfer::CatalogService::transfer_preview": {doc: "What the operation would do — what comes along, what is reused, what refuses — computed by running it and rolling it back.", kind: method, sig: "fn transfer_preview(&self, op: TransferOp, selection: &Selection, target: Option<&WorkspaceId>) -> CatalogResult<TransferReport>"}
+    "catalog::transfer::Refusal": {doc: "Why a row cannot go: who still uses it.", kind: struct, sig: "struct Refusal { kind: CatalogKind, id: String, used_by: String }"}
+    "catalog::transfer::Selection": {doc: "What the operator picked, by kind.", kind: struct, sig: "struct Selection { teams: Vec<TeamId>, domains: Vec<DomainId>, questions: Vec<QuestionId>, recipes: Vec<RecipeId> }"}
+    "catalog::transfer::Selection::is_empty": {kind: method, sig: "fn is_empty(&self) -> bool"}
+    "catalog::transfer::Touched": {doc: "One row a transfer touched: its kind, its id where it ends up, and the id it came from (the same id for a move or a share).", kind: struct, sig: "struct Touched { kind: CatalogKind, id: String, from: String, picked: bool }"}
+    "catalog::transfer::TransferOp": {kind: enum, sig: "enum TransferOp { Copy | Move | MakeShared | MakeLocal }"}
+    "catalog::transfer::TransferReport": {doc: "What a transfer did, or — from [`CatalogService::transfer_preview`] — would do.", kind: struct, sig: "struct TransferReport { created: Vec<Touched>, reused: Vec<Touched>, moved: Vec<Touched>, refused: Vec<Refusal> }"}
   crates/host/src/catalog/workspace.rs:
     "catalog::workspace::CatalogService::current_workspace": {doc: "The workspace every read and write is scoped to.", kind: method, sig: "fn current_workspace(&self) -> WorkspaceId"}
     "catalog::workspace::CatalogService::group_create": {kind: method, sig: "fn group_create(&self, name: &str, now_ms: u64) -> CatalogResult<WorkspaceGroup>"}

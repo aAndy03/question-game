@@ -8,7 +8,10 @@
 //! clock, the backup folder, and the per-workspace half of the settings
 //! document, which `FlagService` holds in memory.
 
-use questiongame_host::catalog::{DeleteReport, OpenOptions, Workspace, WorkspaceGroup};
+use questiongame_host::catalog::{
+    CatalogChange, ChangeOp, DeleteReport, OpenOptions, Selection, TransferOp, TransferReport, Workspace,
+    WorkspaceGroup,
+};
 use questiongame_host::{WorkspaceGroupId, WorkspaceId};
 use serde::Serialize;
 use tauri::{AppHandle, State, WebviewWindow};
@@ -285,6 +288,103 @@ pub fn workspace_group_delete(
     Ok(())
 }
 
+// ------------------------------------------------------------------ transfers
+
+/// A game in Control cannot leave: its Play is scoped to where it lives.
+fn refuse_moving_the_loaded_game(host: &Host, selection: &Selection) -> AppResult<()> {
+    if let Some(play) = host.play.get_state()
+        && selection.recipes.contains(&play.snapshot().recipe_id)
+    {
+        return Err(questiongame_host::MatchError::PlayOpen.into());
+    }
+    Ok(())
+}
+
+/// Every row a transfer touched, as `catalog-changed`: the rows that left
+/// this workspace and the ones that arrived in the shared library both change
+/// what its lists show.
+fn transferred(app: &AppHandle, report: &TransferReport) {
+    for touched in report.created.iter().chain(&report.moved) {
+        emit::catalog_changed(
+            app,
+            &CatalogChange { kind: touched.kind, id: touched.id.clone(), op: ChangeOp::Upserted },
+        );
+    }
+}
+
+/// What a copy, move or share would do — what comes along, what is reused,
+/// what refuses — before the operator confirms it.
+#[tauri::command(async)]
+pub fn transfer_preview(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    op: TransferOp,
+    selection: Selection,
+    target: Option<WorkspaceId>,
+) -> AppResult<TransferReport> {
+    guard::allow(window.label(), "transfer_preview")?;
+    Ok(state.lock().catalog.transfer_preview(op, &selection, target.as_ref())?)
+}
+
+#[tauri::command(async)]
+pub fn catalog_copy_to(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    selection: Selection,
+    target: WorkspaceId,
+) -> AppResult<TransferReport> {
+    guard::allow(window.label(), "catalog_copy_to")?;
+    let host = state.lock();
+    let report = host.catalog.catalog_copy_to(&selection, &target, now_ms())?;
+    transferred(&app, &report);
+    Ok(report)
+}
+
+#[tauri::command(async)]
+pub fn catalog_move_to(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    selection: Selection,
+    target: WorkspaceId,
+) -> AppResult<TransferReport> {
+    guard::allow(window.label(), "catalog_move_to")?;
+    let host = state.lock();
+    refuse_moving_the_loaded_game(&host, &selection)?;
+    let report = host.catalog.catalog_move_to(&selection, &target, now_ms())?;
+    transferred(&app, &report);
+    Ok(report)
+}
+
+#[tauri::command(async)]
+pub fn catalog_make_shared(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    selection: Selection,
+) -> AppResult<TransferReport> {
+    guard::allow(window.label(), "catalog_make_shared")?;
+    let host = state.lock();
+    let report = host.catalog.catalog_make_shared(&selection, now_ms())?;
+    transferred(&app, &report);
+    Ok(report)
+}
+
+#[tauri::command(async)]
+pub fn catalog_make_local(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    selection: Selection,
+) -> AppResult<TransferReport> {
+    guard::allow(window.label(), "catalog_make_local")?;
+    let host = state.lock();
+    let report = host.catalog.catalog_make_local(&selection, now_ms())?;
+    transferred(&app, &report);
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -331,7 +431,8 @@ mod tests {
             "workspace_list", "workspace_create", "workspace_rename", "workspace_set_group",
             "workspace_duplicate", "workspace_archive", "workspace_restore", "workspace_delete_preview",
             "workspace_delete", "workspace_switch", "workspace_group_create", "workspace_group_rename",
-            "workspace_group_reorder", "workspace_group_delete",
+            "workspace_group_reorder", "workspace_group_delete", "transfer_preview",
+            "catalog_copy_to", "catalog_move_to", "catalog_make_shared", "catalog_make_local",
         ] {
             assert!(!guard::stage_may_call(command), "{command}");
             assert!(!guard::stats_may_call(command), "{command}");
