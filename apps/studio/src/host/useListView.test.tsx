@@ -200,3 +200,36 @@ describe('the chip row and stability (M-68–M-70, U-29)', () => {
     expect(result.current.page).toBe(before)
   })
 })
+
+describe('review fixes', () => {
+  it('keeps one setSearch across a search change, so the field never re-reports old text', () => {
+    const { result } = mount([item('a')])
+    const before = result.current.setSearch
+    act(() => result.current.setSearch('x'))
+    expect(result.current.setSearch).toBe(before)
+  })
+
+  it('never counts or acts on a selected row that has left the view (Important 2)', () => {
+    const items = [item('a'), item('b'), item('c')]
+    const { result, rerender } = mount(items)
+    act(() => result.current.selection.selectAll())
+    // b leaves the view without a filter change: archived from the aside, fixed, moved.
+    rerender({ items: [items[0]!, items[2]!], hits: null })
+    expect([...result.current.selection.ids].sort()).toEqual(['a', 'c'])
+    expect(result.current.bulk.archive).toEqual(['a', 'c'])
+    // and it does not come back selected when it returns
+    rerender({ items, hits: null })
+    expect(result.current.selection.ids.has('b')).toBe(false)
+  })
+
+  it('picks a field in its own default direction (Important 5)', () => {
+    const spec = { ...SPEC, sorts: [...SPEC.sorts, { id: 'changed', label: 'Changed', compare: () => 0, defaultDesc: true }] }
+    const { result } = renderHook(() => useListView(spec, [item('a')], null))
+    act(() => result.current.sortBy('changed'))
+    expect(result.current.state.sort).toEqual({ id: 'changed', desc: true })
+    act(() => result.current.sortBy('changed'))
+    expect(result.current.state.sort).toEqual({ id: 'changed', desc: false })
+    act(() => result.current.sortBy('name'))
+    expect(result.current.state.sort).toEqual({ id: 'name', desc: false })
+  })
+})

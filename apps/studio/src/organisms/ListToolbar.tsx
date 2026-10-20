@@ -38,7 +38,13 @@ export function ListToolbar({ view, what, layout, onLayout, status, onStatus, fi
           activeCount={view.activeFilters.length}
           hint={filterHint}
         />
-        <SortMenu sorts={spec.sorts} value={state.sort} onChange={view.setSort} showMatch={view.searching && state.sort.id === 'match'} />
+        <SortMenu
+          sorts={spec.sorts}
+          value={state.sort}
+          onField={view.sortBy}
+          onDirection={(desc) => view.setSort({ id: state.sort.id, desc })}
+          showMatch={view.searching && state.sort.id === 'match'}
+        />
         <GroupMenu groups={spec.groups} value={state.group} onChange={view.setGroup} />
         <div className="flex-1" />
         <ViewSwitch value={layout} onChange={onLayout} />

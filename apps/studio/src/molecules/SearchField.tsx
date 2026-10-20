@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { SearchField as HeroSearchField } from '@heroui/react'
 import { useDebouncedValue } from '@tanstack/react-pacer'
 import { LIST } from '@/copy'
@@ -20,11 +20,27 @@ export interface SearchFieldProps {
  */
 export function SearchField({ what, onSearch, autoFocus, className, initial = '' }: SearchFieldProps) {
   const [text, setText] = useState(initial)
+  // The text last reported (or last set from outside). Each new text is
+  // reported once; and a search cleared elsewhere — the list's *Clear search* —
+  // empties the box instead of being undone by the old text (review).
+  const last = useRef(initial.trim())
+  const report = useRef(onSearch)
+  report.current = onSearch
   const [debounced] = useDebouncedValue(text, { wait: 200 })
 
   useEffect(() => {
-    onSearch(debounced.trim())
-  }, [debounced, onSearch])
+    const t = debounced.trim()
+    if (t === last.current) return
+    last.current = t
+    report.current(t)
+  }, [debounced])
+
+  useEffect(() => {
+    const t = initial.trim()
+    if (t === last.current) return
+    last.current = t
+    setText(initial)
+  }, [initial])
 
   return (
     <HeroSearchField
@@ -32,6 +48,7 @@ export function SearchField({ what, onSearch, autoFocus, className, initial = ''
       onChange={setText}
       onClear={() => {
         setText('')
+        last.current = ''
         onSearch('')
       }}
       aria-label={LIST.search}

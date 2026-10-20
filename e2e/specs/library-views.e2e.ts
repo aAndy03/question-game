@@ -55,7 +55,11 @@ describe('library views', () => {
     await sees(`1–50 of ${total} questions`)
     await press('Next page')
     await sees(`51–100 of ${total} questions`)
+    // Open a question, then its editor: a full page, so the list really goes
+    // away — beside an open aside it would still be standing (review).
     await (await $('[role="table"]').$('.//*[starts-with(text(),"Extra question")]')).click()
+    await press('Edit')
+    await browser.waitUntil(async () => !(await body()).includes(`of ${total} questions`), { timeoutMsg: 'the list did not leave the screen' })
     await press('Back')
     await sees(`51–100 of ${total} questions`)
   })

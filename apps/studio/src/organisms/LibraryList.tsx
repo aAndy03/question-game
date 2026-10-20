@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { CheckboxField, Skeleton } from '@/atoms'
 import { BulkBar, EmptyState, GroupHeader, PageFooter, RecordRow, type RecordLayout } from '@/molecules'
@@ -46,7 +46,7 @@ export interface LibraryListProps {
   /** The filter (and its value) whose empty result is `allComplete`, not `noResults`. */
   allCompleteWhen?: { readonly id: string; readonly value: string } | undefined
   /** Table header row: the title column and one per meta cell, `null` where a cell does not sort. */
-  columns?: { readonly title: ListColumn; readonly meta: readonly (ListColumn | null)[] } | undefined
+  columns?: { readonly title: ListColumn; readonly meta: readonly (ListColumn | null)[]; readonly lead?: string | undefined } | undefined
   currentId?: string | null | undefined
   onOpen?: ((id: string) => void) | undefined
   actions?: ((row: RecordView) => ReactNode) | undefined
@@ -106,6 +106,11 @@ export function LibraryList({
     overscan: 12,
   })
 
+  // A new page starts at its top, not where the last one was scrolled to.
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [page.page])
+
   const offset = page.from > 0 ? page.from - 1 : 0
   let position = 0
   const draw = (entry: ListEntry<unknown, RecordView>) => {
@@ -164,7 +169,7 @@ export function LibraryList({
     const pageAll = page.pageIds.length > 0 && page.pageIds.every((id) => selection.ids.has(id))
     const pageSome = page.pageIds.some((id) => selection.ids.has(id))
     return (
-      <div role="row" className="flex h-9 items-center gap-3 border-b border-[var(--border)] px-3 text-xs" data-list-header>
+      <div role="row" className="sticky top-0 z-10 flex h-9 items-center gap-3 border-b border-[var(--border)] px-3 text-xs" style={{ background: 'var(--surface)' }} data-list-header>
         {bulk ? (
           <CheckboxField
             label={LIST.selectAll}
@@ -175,6 +180,8 @@ export function LibraryList({
           />
         ) : null}
         <span className="w-7 shrink-0" />
+        {/* The rows' leading mark (an avatar, a difficulty) sits before the title. */}
+        <span data-lead className={`${columns.lead ?? 'w-6'} shrink-0`} />
         <div className="min-w-0 flex-1">
           <SortHeader column={columns.title} view={view} align="left" />
         </div>
@@ -210,7 +217,9 @@ export function LibraryList({
     }
     if (virtual) {
       return (
-        <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+        <div className="rounded-[var(--radius)] border border-[var(--border)]" style={{ background: 'var(--surface)' }}>
+          {header()}
+          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((item) => {
             const entry = entries[item.index]
             if (!entry) return null
@@ -221,6 +230,7 @@ export function LibraryList({
               </div>
             )
           })}
+          </div>
         </div>
       )
     }
@@ -270,10 +280,10 @@ function SortHeader({ column, view, align }: { column: ListColumn; view: ListVie
       <button
         type="button"
         className="rounded px-1 font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
-        onClick={() => view.setSort({ id: column.sortId, desc: on ? !desc : false })}
+        onClick={() => view.sortBy(column.sortId)}
       >
         {column.label}
-        {on ? (desc ? ' ↓' : ' ↑') : ''}
+        <span aria-hidden>{on ? (desc ? ' ↓' : ' ↑') : ''}</span>
       </button>
     </span>
   )

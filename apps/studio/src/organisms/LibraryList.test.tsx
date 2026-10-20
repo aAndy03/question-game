@@ -156,3 +156,26 @@ describe('LibraryList', () => {
     expect(document.querySelector('[data-list-header]')).toBeNull()
   })
 })
+
+describe('review fixes', () => {
+  it('keeps the header row in a virtualised table (Important 4)', () => {
+    render(<Harness items={many(300)} />)
+    act(() => useChromeStore.getState().setListPrefs('teams', { pageSize: 250 }))
+    expect(document.querySelector('[data-list-header]')).not.toBeNull()
+    act(() => useChromeStore.getState().setListPrefs('teams', { pageSize: 'all' }))
+    expect(document.querySelector('[data-list-header]')).not.toBeNull()
+  })
+
+  it('goes back to the top of the list on a new page (Important 8)', () => {
+    render(<Harness items={many(250)} />)
+    const box = document.querySelector('[role="table"]')!.closest('.overflow-y-auto') as HTMLElement
+    box.scrollTop = 900
+    act(() => useChromeStore.getState().setListState('teams', { page: 2 }))
+    expect(box.scrollTop).toBe(0)
+  })
+
+  it('leaves room in the header for the leading mark, so titles line up (Important 7)', () => {
+    render(<Harness items={[item('a')]} />)
+    expect(document.querySelector('[data-list-header] [data-lead]')).not.toBeNull()
+  })
+})

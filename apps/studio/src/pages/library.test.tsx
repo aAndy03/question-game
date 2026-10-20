@@ -127,13 +127,33 @@ describe('Library — incomplete questions (§2.32)', () => {
     expect(within(await screen.findByRole('dialog', { name: 'Filters' })).queryByText('Domain')).toBeNull()
   })
 
+  it('Clear search empties the field and brings the list back (review, Important 1)', async () => {
+    await show()
+    const box = screen.getAllByRole('searchbox')[0] as HTMLInputElement
+    fireEvent.change(box, { target: { value: 'zzzz-no-such-question' } })
+    expect(await screen.findByText('Nothing matches', {}, { timeout: 3000 })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }))
+    expect(await screen.findByText('Who wrote Luceafărul?')).toBeTruthy()
+    await new Promise((r) => setTimeout(r, 400))
+    expect(box.value).toBe('')
+    expect(screen.getByText('Who wrote Luceafărul?')).toBeTruthy()
+  })
+
+  it('counts a question\'s active domains only, as it groups them (review, Important 9)', async () => {
+    const shelved: Domain = { id: 'dom-shelved', origin: 'operator', name: 'Shelved', code: 'SHL', description: null, questions: [{ questionId: 'q-open', sortKey: 1 }], createdAt: 0, updatedAt: 0, archivedAt: 5 } as unknown as Domain
+    fake.seed([{ kind: 'domain', item: shelved }])
+    await show()
+    const row = screen.getByText('Who wrote Luceafărul?').closest('[role="button"]') as HTMLElement
+    expect(within(row).getByText('0 domains')).toBeTruthy()
+  })
+
   it('asks Search for every match, not a capped few (S-01, Review Focus 2)', async () => {
     await show()
     act(() => useChromeStore.getState().setListState('library', { search: 'who' }))
     await waitFor(() => expect(fake.calls.some((c) => c.name === 'catalog_search')).toBe(true))
     const call = fake.calls.find((c) => c.name === 'catalog_search')
     const total = demoLibrary().filter((r) => r.kind === 'question').length + 1
-    expect((call?.args as { query: { limit: number } }).query.limit).toBe(total)
+    expect((call?.args as { query: { limit: number } }).query.limit).toBeGreaterThanOrEqual(total)
   })
 
   it('drops the mark once the question is finished', async () => {

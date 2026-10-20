@@ -17,7 +17,7 @@
  *   selection for the same reason.
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useChromeStore, useListPrefs, useListState, type ListState } from '@/chrome/chrome'
 import { LIST } from '@/copy'
 import { isActive, listView, type Changed, type FilterValue, type ListItem, type ListPage, type ListSpec, type ListViewState, type PageSize } from './listView'
@@ -35,6 +35,8 @@ export interface ListViewApi<T, V = unknown> {
   readonly activeFilters: readonly { readonly id: string; readonly label: string; readonly valueLabel: string }[]
   setSearch(text: string): void
   setSort(sort: { id: string; desc: boolean }): void
+  /** Sort by a field: a new field in its own default direction, the same field flipped. */
+  sortBy(id: string): void
   setGroup(group: string | null): void
   setPage(page: number): void
   setPageSize(size: PageSize): void
@@ -116,16 +118,18 @@ export function useListView<T, V>(
   const setFilter = useCallback((id: string, value: FilterValue | null) => narrow({ filters: { ...session.filters, [id]: value } }), [narrow, session.filters])
   const setChanged = useCallback((changed: Changed) => narrow({ changed }), [narrow])
   const clearFilters = useCallback(() => narrow({ filters: {}, changed: 'any' }), [narrow])
-  const currentSearch = session.search
+  // One function for the life of the list: the search field re-reports its
+  // text whenever this changes identity, and an old text reported after a
+  // clear brings the search straight back (review). The current text is read
+  // from the store, not closed over.
   const setSearch = useCallback(
     (search: string) => {
-      // The search field reports its text when it mounts; the same text is not
-      // a new search, and must not cost the operator their page.
-      if (search === currentSearch) return
+      // The same text is not a new search, and must not cost the operator their page.
+      if (search === (useChromeStore.getState().listState[tab]?.search ?? '')) return
       if (search.trim().length === 0) setPicked(false)
       narrow({ search })
     },
-    [narrow, currentSearch],
+    [narrow, tab],
   )
   const setSort = useCallback(
     (next: { id: string; desc: boolean }) => {
@@ -135,6 +139,14 @@ export function useListView<T, V>(
       setListState(tab, { page: 1 })
     },
     [searching, setListPrefs, setListState, tab],
+  )
+  const sortBy = useCallback(
+    (id: string) => {
+      const on = state.sort.id === id
+      const def = spec.sorts.find((s) => s.id === id)
+      setSort({ id, desc: on ? !state.sort.desc : (def?.defaultDesc ?? false) })
+    },
+    [setSort, spec.sorts, state.sort.id, state.sort.desc],
   )
   const setGroup = useCallback(
     (next: string | null) => {
@@ -153,17 +165,12 @@ export function useListView<T, V>(
   const setPage = useCallback((n: number) => setListState(tab, { page: n }), [setListState, tab])
   const toggleCollapsed = useCallback(
     (key: string) => {
+      // A collapsed group leaves the view, so the in-view selection drops it —
+      // except a question still showing under another, open domain.
       const closing = !collapsed.has(key)
-      if (closing) {
-        const def = spec.groups.find((g) => g.id === group)
-        if (def) {
-          const inGroup = new Set((items ?? NO_ITEMS).filter((i) => def.groupsOf(i.data).some((g) => g.key === key)).map((i) => i.id))
-          setSelected((s) => (s.size === 0 ? s : new Set([...s].filter((id) => !inGroup.has(id)))))
-        }
-      }
       setListState(tab, { collapsed: closing ? [...collapsed, key] : [...collapsed].filter((k) => k !== key) })
     },
-    [collapsed, group, items, setListState, spec.groups, tab],
+    [collapsed, setListState, tab],
   )
 
   const activeFilters = useMemo(() => {
@@ -176,10 +183,24 @@ export function useListView<T, V>(
     return out
   }, [session.filters, session.changed, spec])
 
+  // The selection is always what is selected **and still in view**: a row
+  // that left it — archived from the aside, fixed out of an Incomplete filter,
+  // into a collapsed group, out of the Status — is never counted or acted on
+  // (review), and is dropped so it does not come back selected.
+  const inView = useMemo(() => {
+    if (selected.size === 0) return selected
+    const visible = new Set(page.selectableIds)
+    const kept = [...selected].filter((id) => visible.has(id))
+    return kept.length === selected.size ? selected : new Set(kept)
+  }, [selected, page.selectableIds])
+  useEffect(() => {
+    if (inView !== selected) setSelected(inView)
+  }, [inView, selected])
+
   const selection = useMemo(() => {
-    const onPage = page.pageIds.reduce((n, id) => n + (selected.has(id) ? 1 : 0), 0)
+    const onPage = page.pageIds.reduce((n, id) => n + (inView.has(id) ? 1 : 0), 0)
     return {
-      ids: selected,
+      ids: inView,
       onPage,
       toggle: (id: string) =>
         setSelected((s) => {
@@ -191,20 +212,20 @@ export function useListView<T, V>(
       selectAll: () => setSelected(new Set(page.selectableIds)),
       clear: () => setSelected(NO_IDS),
     }
-  }, [page.pageIds, page.selectableIds, selected])
+  }, [page.pageIds, page.selectableIds, inView])
 
   const bulk = useMemo(() => {
     const archive: string[] = []
     const restore: string[] = []
-    if (selected.size > 0) {
+    if (inView.size > 0) {
       for (const i of items ?? NO_ITEMS) {
-        if (!selected.has(i.id)) continue
+        if (!inView.has(i.id)) continue
         if (spec.isArchived?.(i.data)) restore.push(i.id)
         else archive.push(i.id)
       }
     }
     return { archive, restore }
-  }, [items, selected, spec])
+  }, [items, inView, spec])
 
   return {
     page,
@@ -217,6 +238,7 @@ export function useListView<T, V>(
     activeFilters,
     setSearch,
     setSort,
+    sortBy,
     setGroup,
     setPage,
     setPageSize,
