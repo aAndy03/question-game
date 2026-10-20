@@ -20,6 +20,8 @@ const SEEDS: Readonly<Record<string, readonly string[] | null>> = {
   'show.e2e.ts': [],
   'load-refusal.e2e.ts': ['--broken-board'],
   'upgrade.e2e.ts': [],
+  // Stable 1.1: the Demo and 120 more questions, a list longer than a page.
+  'library-views.e2e.ts': ['--more-questions', '120'],
   // questiongame Beta's first launch (P13.1): its own library starts empty.
   'beta-start-empty.e2e.ts': null,
   'beta-copy.e2e.ts': null,

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { act, render, screen, within } from '@testing-library/react'
 import { App } from '@/App'
 import { useChromeStore } from '@/chrome/chrome'
-import { HOME, useNavStore } from '@/chrome/nav'
+import { HOME, useNavStore, type Route } from '@/chrome/nav'
 import { createFakeHost } from '@/host/fake'
 import { demoLibrary, demoRecipe } from '@/host/devFake'
 import { setHostTransport } from '@/host/host'
@@ -24,7 +24,7 @@ describe.each(['teams', 'games', 'operators'] as const)('the %s tab', (tab) => {
   it('puts Search · Filters · Sort · (Group) · View · Status in that order', async () => {
     render(<App />)
     await act(async () => {
-      await useNavStore.getState().go({ tab })
+      await useNavStore.getState().go({ tab } as Route)
     })
     const bar = (await screen.findAllByRole('searchbox'))[0]!.closest('[data-list-toolbar]') as HTMLElement
     const group = within(bar).queryByRole('button', { name: /^Group: / })

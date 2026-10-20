@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-Shipped: **1.0.2**; main is at P13.1. The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: **stable 1.1** on `release/1.x` (roadmap ▸ Next). **Which branch?** Stable fixes on `release/1.x`, merged forward into `main`; Beta work on `main` only — `docs/as-built/release.md` ▸ Channels.
+Shipped: **1.0.2**; main is at P13.4 — questiongame Beta (P13.1) and stable 1.1's library views (P13.2–P13.4, also on `release/1.x`, not yet tagged). The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: **Beta 2.0 — workspaces** (roadmap ▸ Next). **Which branch?** Stable fixes on `release/1.x`, merged forward into `main`; Beta work on `main` only — `docs/as-built/release.md` ▸ Channels.
 
 ## As built — read the area's file before changing it
 
@@ -188,7 +188,7 @@ When editing that config: flat config **replaces** rule options rather than merg
 
 - **TanStack Query** covers catalog list/get/search and `stats_query` only; invalidate on `catalog-changed` / `recipe-changed`. **Never cache `play-state`** — a stale cached Play is exactly the drift the Play write seam exists to prevent.
 - **Zustand** is chrome only (grid|table preference, mosaic draft, notice-stack open, settings inner-tab). A score, ring, or session field landing in a store means the Play write seam is broken.
-- **TanStack Table/Form** are the headless engines; HeroUI `Table`/`Form` are the styled shells. Never mount two competing form states on one screen.
+- **TanStack Table/Form** are the headless engines; HeroUI `Table`/`Form` are the styled shells. Never mount two competing form states on one screen. **Library lists do not use TanStack Table** since stable 1.1: the list-view model (`host/listView.ts`) sorts, filters, groups and pages — `docs/as-built/studio.md` ▸ Library views.
 - **TanStack Virtual / Pacer** for long lists, the 400ms layout debounce, search debounce, bulk batching. **TanStack Hotkeys** on `main` only, `ignoreInputs: true`, never on Stage; HeroUI `Kbd` only paints keys.
 - **GSAP + `@gsap/react`** (`Physics2DPlugin`, `InertiaPlugin`) is **Stage only** and stays internal to `PresentationService` — no caller should need a timeline name. `motion/react` is **Studio chrome only** and must never animate anything whose truth is in `play-state`.
 - **One `Text` module** owns every readable string: `Text({ as, variant, transition: "none" | "swap" | "count" })`. `variant` resolves to the design tokens; `transition` describes what happens when the content *changes*. Default `none` renders a plain node with no animation runtime. **Calligraph** (Motion-based, for text transitions — not a typography primitive) implements `swap`/`count` in Studio; **GSAP inside the screen timeline** implements them on Stage, so the overlay queue and `anim-complete` stay authoritative. No component imports `calligraph` directly. See `optimized_first_spec.md` §2.29.

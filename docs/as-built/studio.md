@@ -94,3 +94,17 @@ The design is `docs/v1/05_STUDIO_DESIGN.md` §13. Statistics is a **projector**,
 - **The update check and *What's new* wait for it** (`useUpdateCheckOnStart(enabled)`, `useWhatsNewOnStart(enabled)`): a copy replaces the library, and the notes belong to the one it brings. Both still ask once per process.
 - **The welcome calls `command()` directly**, not `useHostCommand`: a refusal is said inline because the shell and its collector are not up, and the page reads the code (`beta.stable_running` → *Try again*; `beta.library_not_empty` → done). After a copy it invalidates every query — a different library.
 - **The chip reads `app_info.channel`**, never `build`: the e2e build playing Beta answers `build: "e2e"` and `channel: "beta"`.
+
+## Library views as built (stable 1.1, P13.2–P13.4)
+
+The design is `05_STUDIO_DESIGN.md` §20. What a later change must not undo:
+
+- **There is one list-view model and it is pure** (`host/listView.ts`): filter, sort, group and page are decided there and nowhere else. `LibraryList` draws a `ListPage`; it does not sort, filter or select. **TanStack Table is gone from `LibraryList`** — its row model was a second sort, its selection a second selection, and its page-index auto-reset was the P11.3 freeze. TanStack Virtual stays, for page size *All* over 200 entries.
+- **Every tab is a `ListSpec`** in `host/listSpecs.ts`; a filter, sort or grouping is one entry there. Text is ordered by one collator (`compareText`: no case, no accents, numbers as numbers); a missing value sorts last both ways (`nullable`); a *No …* group says `last: true`.
+- **`ListToolbar` is the one toolbar** (reversing §9's "not a component"): one component is how the order stays the same on every tab.
+- **The session slice is `listState`**, not `listSession` — `chrome.test.ts` bans any key containing "session". It and `prefs.*.lists` are the only subtrees the banned-key walk skips (`isListViewKey`).
+- **`setListState` writes nothing when nothing changed, and `setSearch` ignores the text it already has.** `SearchField` reports its text when it mounts; before both rules the first build looped (*Maximum update depth exceeded*) and would have sent the operator back to page 1 on every return to the tab.
+- **Search is uncapped**: `useListHits` asks for as many hits as the list has, only once the list has loaded, and ignores TanStack's placeholder data so Best match never orders by an older search.
+- **Studio's queries never pause offline** (`networkMode: 'always'`): every query is a call into the app's own host.
+- `?fake` covers it all; the e2e spec `library-views` runs it on the real app with 120 extra questions (`e2e_library --more-questions`).
+

@@ -85,7 +85,7 @@ export function FilterMenu({ filters, values, changed, onChange, onChanged, acti
       <Button variant="secondary" size="sm" icon="filter">
         {activeCount > 0 ? `${LIST.filters} · ${activeCount}` : LIST.filters}
       </Button>
-      <Popover.Content className="w-80" placement="bottom start">
+      <Popover.Content className="w-96" placement="bottom start">
         <Popover.Dialog aria-label={LIST.filters} className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
           <Popover.Heading>{LIST.filters}</Popover.Heading>
           {hint ? (

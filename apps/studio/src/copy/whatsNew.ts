@@ -30,6 +30,47 @@ export interface WhatsNewRelease {
 
 export const WHATS_NEW: readonly WhatsNewRelease[] = [
   {
+    version: '1.1.0',
+    notes: {
+      en: [
+        {
+          title: 'Find questions faster',
+          body: 'Every list now has Filters. On Domains & Questions, show only the hard ones, only multiple answers, only the incomplete ones, or only some domains — the filters in force sit under the toolbar, and each can be removed with one click.',
+        },
+        {
+          title: 'Choose the order',
+          body: 'Sort any list by name, difficulty, plays, when it changed and more. In table view, click a column’s title to sort by it, and click again to turn the order around.',
+        },
+        {
+          title: 'See them by domain or by difficulty',
+          body: 'Group breaks a list into sections with a title and a count — questions by domain, difficulty or completeness, games by folder or status, teams by whether they have played.',
+        },
+        {
+          title: 'A page at a time',
+          body: 'Long lists show 100 rows a page, or 50, 250 or all of them. Open a question and come back: you are on the same page, with the same filters.',
+        },
+      ],
+      ro: [
+        {
+          title: 'Găsești întrebările mai repede',
+          body: 'Fiecare listă are acum Filters. În Domains & Questions poți afișa doar întrebările grele, doar cele cu mai multe răspunsuri, doar cele neterminate sau doar câteva domenii — filtrele active stau sub bara de unelte și fiecare se scoate cu un clic.',
+        },
+        {
+          title: 'Alegi ordinea',
+          body: 'Poți ordona orice listă după nume, dificultate, jocuri, data modificării și altele. În vizualizarea tabel, apasă pe titlul unei coloane ca să ordonezi după ea, și încă o dată ca să inversezi ordinea.',
+        },
+        {
+          title: 'Le vezi pe domenii sau pe dificultate',
+          body: 'Group împarte o listă în secțiuni cu titlu și număr — întrebările pe domenii, dificultate sau completitudine, jocurile pe dosare sau stare, echipele după dacă au jucat.',
+        },
+        {
+          title: 'O pagină odată',
+          body: 'Listele lungi arată 100 de rânduri pe pagină, sau 50, 250 ori pe toate. Deschizi o întrebare și te întorci: ești pe aceeași pagină, cu aceleași filtre.',
+        },
+      ],
+    },
+  },
+  {
     version: '1.0.2',
     notes: {
       en: [
