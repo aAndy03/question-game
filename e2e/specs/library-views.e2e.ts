@@ -45,7 +45,8 @@ describe('library views', () => {
     await sees(`of ${total} questions`)
     await press('Group: None')
     await pick('Domain')
-    await browser.waitUntil(async () => /No domain · 12\d/.test(await body()), { timeoutMsg: 'no "No domain" header with its count' })
+    // The Demo puts every question in a domain, so the 120 extras are exactly the domain-less ones.
+    await sees('No domain · 120')
 
     // Page size 50, page 2, open a question, come back: still page 2.
     await press('Group: Domain')
@@ -57,7 +58,7 @@ describe('library views', () => {
     await sees(`51–100 of ${total} questions`)
     // Open a question, then its editor: a full page, so the list really goes
     // away — beside an open aside it would still be standing (review).
-    await (await $('[role="table"]').$('.//*[starts-with(text(),"Extra question")]')).click()
+    await (await $('[data-list-body]').$('.//*[starts-with(text(),"Extra question")]')).click()
     await press('Edit')
     await browser.waitUntil(async () => !(await body()).includes(`of ${total} questions`), { timeoutMsg: 'the list did not leave the screen' })
     await press('Back')

@@ -107,6 +107,8 @@ export interface ListPage<T, V = unknown> {
   readonly rowCount: number
   /** Distinct items behind those rows. */
   readonly itemCount: number
+  /** Rows the collapsed groups hold, kept off the pages. */
+  readonly collapsedCount: number
   readonly page: number
   readonly pageCount: number
   readonly from: number
@@ -239,6 +241,7 @@ export function listView<T, V>(items: readonly ListItem<T, V>[], spec: ListSpec<
   })
 
   const distinct = (rows: readonly ListRow<T, V>[]) => [...new Set(rows.map((r) => r.item.id))]
+  const collapsedCount = groups.reduce((n, g) => n + (isCollapsed(g) ? g.rows.length : 0), 0)
   const selectableIds = distinct(visible)
   return {
     entries,
@@ -246,6 +249,7 @@ export function listView<T, V>(items: readonly ListItem<T, V>[], spec: ListSpec<
     pageIds: distinct(visible.slice(start, end)),
     rowCount: visible.length,
     itemCount: selectableIds.length,
+    collapsedCount,
     page,
     pageCount,
     from: visible.length === 0 ? 0 : start + 1,
@@ -257,13 +261,31 @@ const N = (n: number) => n.toLocaleString('en-US')
 
 /** `101–200 of 1,234 questions`, or `… of 1,310 rows · 1,234 questions` when a row repeats. */
 export function footerText(
-  page: Pick<ListPage<unknown>, 'from' | 'to' | 'rowCount' | 'itemCount'>,
+  page: Pick<ListPage<unknown>, 'from' | 'to' | 'rowCount' | 'itemCount'> & { readonly collapsedCount?: number },
   noun: { readonly one: string; readonly many: string },
 ): string {
-  if (page.rowCount === 0) return ''
   const word = (n: number) => (n === 1 ? noun.one : noun.many)
+  if (page.rowCount === 0) {
+    // Every group folded: say what is behind them rather than nothing at all.
+    const hidden = page.collapsedCount ?? 0
+    return hidden > 0 ? `${N(hidden)} ${word(hidden)} in collapsed groups` : ''
+  }
   const range = `${N(page.from)}–${N(page.to)}`
   return page.rowCount === page.itemCount
     ? `${range} of ${N(page.rowCount)} ${word(page.rowCount)}`
     : `${range} of ${N(page.rowCount)} rows · ${N(page.itemCount)} ${word(page.itemCount)}`
+}
+
+/**
+ * A range as the operator meant it: the right way round, and no filter at all
+ * when it spans the whole scale — a range of 1–100 left behind by emptying
+ * both fields would otherwise still hide every question without a difficulty.
+ */
+export function normalizeRange(
+  range: { readonly min: number; readonly max: number },
+  bounds: { readonly min: number; readonly max: number },
+): { min: number; max: number } | null {
+  const min = Math.min(range.min, range.max)
+  const max = Math.max(range.min, range.max)
+  return min <= bounds.min && max >= bounds.max ? null : { min, max }
 }

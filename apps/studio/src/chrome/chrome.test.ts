@@ -205,3 +205,12 @@ describe('notices', () => {
     expect(useNoticeStore.getState().notices[0]?.frames).toHaveLength(1)
   })
 })
+
+describe('isListViewKey (deferred fix)', () => {
+  it('names the two subtrees exactly', () => {
+    expect(isListViewKey('prefs.op.lists')).toBe(true)
+    expect(isListViewKey('prefs.op.listsX.y')).toBe(false)
+    expect(isListViewKey('listStateX')).toBe(false)
+    expect(isListViewKey('prefsXop.lists')).toBe(false)
+  })
+})

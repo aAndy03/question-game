@@ -100,11 +100,17 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
   const incompleteCount = useMemo(() => (items ?? []).filter((i) => i.data.gaps.length > 0).length, [items])
   // Picking a domain in the pane is the domain scope: the Domain filter is not
   // offered there, so its values go rather than linger as a hidden chip.
-  const { setFilter } = lv
+  const { setFilter, resetPage } = lv
   const domainFilterOn = Array.isArray(session.filters.domain) && session.filters.domain.length > 0
   useEffect(() => {
     if (domainId !== null && domainFilterOn) setFilter('domain', null)
   }, [domainId, domainFilterOn, setFilter])
+  // Another domain is another list: start at its top.
+  const [shownDomain, setShownDomain] = useState(domainId)
+  if (shownDomain !== domainId) {
+    setShownDomain(domainId)
+    resetPage()
+  }
 
   const archivedView = scope === 'archived'
   const newRoute = { tab: 'library' as const, mode: 'new' as const, ...(domainId ? { domainId } : {}) }
@@ -137,7 +143,10 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
               layout={view.library}
               onLayout={(v) => setView('library', v)}
               status={scope}
-              onStatus={(v) => setScope('library', v)}
+              onStatus={(v) => {
+                setScope('library', v)
+                lv.resetPage()
+              }}
               filterHint={incompleteCount > 0 ? VIEWS.incompleteHint(incompleteCount) : undefined}
               lead={
                 <Text variant="studio-heading" className="mr-2">

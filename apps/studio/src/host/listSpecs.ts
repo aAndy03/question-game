@@ -98,12 +98,17 @@ export function questionsSpec(opts: { allQuestions: boolean; domains: readonly {
       { id: 'created', label: VIEWS.created, compare: (a, b) => a.question.createdAt - b.question.createdAt, defaultDesc: true },
     ],
     groups: [
-      {
-        id: 'domain',
-        label: VIEWS.domain,
-        groupsOf: (q) =>
-          q.domains.length > 0 ? q.domains.map((d) => ({ key: d.id, label: d.name, order: d.name })) : [{ key: '~none', label: VIEWS.noDomain, order: 0, last: true }],
-      },
+      // Inside one domain, grouping by domain would only show its questions' *other* domains.
+      ...(opts.allQuestions
+        ? [
+            {
+              id: 'domain',
+              label: VIEWS.domain,
+              groupsOf: (q: QuestionItem) =>
+                q.domains.length > 0 ? q.domains.map((d) => ({ key: d.id, label: d.name, order: d.name })) : [{ key: '~none', label: VIEWS.noDomain, order: 0, last: true }],
+            },
+          ]
+        : []),
       {
         id: 'band',
         label: VIEWS.band,

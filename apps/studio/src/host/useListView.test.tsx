@@ -233,3 +233,61 @@ describe('review fixes', () => {
     expect(result.current.state.sort).toEqual({ id: 'name', desc: false })
   })
 })
+
+describe('deferred fixes', () => {
+  it('remembers a sort picked mid-search across a remount, and Best match can be picked again', () => {
+    const items = [item('a'), item('b')]
+    const hits = new Map([['a', 1], ['b', 2]])
+    const first = mount(items, hits)
+    act(() => first.result.current.setSearch('x'))
+    first.rerender({ items, hits })
+    act(() => first.result.current.setSort({ id: 'name', desc: true }))
+    first.unmount()
+    const again = mount(items, hits)
+    expect(again.result.current.state.sort).toEqual({ id: 'name', desc: true })
+    act(() => again.result.current.setSort({ id: 'match', desc: true }))
+    expect(again.result.current.state.sort).toEqual({ id: 'match', desc: true })
+  })
+
+  it('a search with only a trailing space changed is the same search', () => {
+    const { result } = mount(many(250))
+    act(() => result.current.setSearch('rome'))
+    act(() => result.current.setPage(2))
+    act(() => result.current.setSearch('rome '))
+    expect(result.current.page.page).toBe(2)
+  })
+
+  it('keeps the stored page where the list clamps it, so rows coming back do not jump forward', () => {
+    const items = many(250)
+    const { result, rerender } = mount(items)
+    act(() => result.current.setPage(3))
+    rerender({ items: items.slice(0, 150), hits: null })
+    expect(result.current.page.page).toBe(2)
+    rerender({ items, hits: null })
+    expect(result.current.page.page).toBe(2)
+  })
+
+  it('goes back to page 1 when the scope changes (Status, the domain pane)', () => {
+    const { result } = mount(many(250))
+    act(() => result.current.setPage(3))
+    act(() => result.current.resetPage())
+    expect(result.current.page.page).toBe(1)
+  })
+
+  it('puts a range the right way round, and a range spanning the whole scale is no filter', () => {
+    const spec = { ...SPEC, filters: [...SPEC.filters, { id: 'n', label: 'N', kind: 'range' as const, bounds: { min: 1, max: 100 }, test: () => true }] }
+    const { result } = renderHook(() => useListView(spec, [item('a')], null))
+    act(() => result.current.setFilter('n', { min: 90, max: 80 }))
+    expect(result.current.state.filters.n).toEqual({ min: 80, max: 90 })
+    act(() => result.current.setFilter('n', { min: 1, max: 100 }))
+    expect(result.current.state.filters.n).toBeNull()
+  })
+
+  it('deselects only this page from the header checkbox', () => {
+    const { result } = mount(many(250))
+    act(() => result.current.selection.selectAll())
+    act(() => result.current.selection.deselectPage())
+    expect(result.current.selection.ids.size).toBe(150)
+    expect(result.current.selection.onPage).toBe(0)
+  })
+})

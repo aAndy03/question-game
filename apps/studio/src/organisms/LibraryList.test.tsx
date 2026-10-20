@@ -98,11 +98,10 @@ describe('LibraryList', () => {
 
   it('sorts by a column header, flips on a second click, and says so (U-10)', () => {
     render(<Harness items={[item('b', { n: 2 }), item('a', { n: 9 })]} />)
-    const plays = () => screen.getByRole('button', { name: /^Plays/ })
-    fireEvent.click(plays())
-    expect(plays().closest('[role="columnheader"]')?.getAttribute('aria-sort')).toBe('ascending')
-    fireEvent.click(plays())
-    expect(plays().closest('[role="columnheader"]')?.getAttribute('aria-sort')).toBe('descending')
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Plays' }))
+    expect(screen.getByRole('button', { name: 'Sort by Plays, ascending' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by Plays, ascending' }))
+    expect(screen.getByRole('button', { name: 'Sort by Plays, descending' })).toBeTruthy()
     expect(screen.getAllByText(/^[ab]$/).map((b) => b.textContent)).toEqual(['a', 'b'])
   })
 
@@ -168,7 +167,7 @@ describe('review fixes', () => {
 
   it('goes back to the top of the list on a new page (Important 8)', () => {
     render(<Harness items={many(250)} />)
-    const box = document.querySelector('[role="table"]')!.closest('.overflow-y-auto') as HTMLElement
+    const box = document.querySelector('[data-list-body]') as HTMLElement
     box.scrollTop = 900
     act(() => useChromeStore.getState().setListState('teams', { page: 2 }))
     expect(box.scrollTop).toBe(0)
@@ -177,5 +176,25 @@ describe('review fixes', () => {
   it('leaves room in the header for the leading mark, so titles line up (Important 7)', () => {
     render(<Harness items={[item('a')]} />)
     expect(document.querySelector('[data-list-header] [data-lead]')).not.toBeNull()
+  })
+})
+
+describe('deferred fixes', () => {
+  it('unticking the header checkbox keeps what is selected on other pages', () => {
+    render(<Harness items={many(250)} onArchive={vi.fn()} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select all 250' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    expect(screen.getByText('150 selected (0 on this page)')).toBeTruthy()
+  })
+
+  it('makes no table claim it cannot keep: sort buttons say their state, headings stand outside any table', () => {
+    render(<Harness items={[item('a', { n: 1 }), item('b', { n: 2 })]} />)
+    act(() => useChromeStore.getState().setListPrefs('teams', { group: 'tag' }))
+    expect(document.querySelector('[role="table"]')).toBeNull()
+    const plays = screen.getByRole('button', { name: 'Sort by Plays' })
+    expect(plays.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(plays)
+    expect(screen.getByRole('button', { name: 'Sort by Plays, ascending' }).getAttribute('aria-pressed')).toBe('true')
   })
 })

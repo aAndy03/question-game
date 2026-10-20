@@ -59,7 +59,10 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
               {LIST.new(TEAM.one)}
             </Button>
           }
-          toolbar={<ListToolbar view={lv} what={TEAM.many} layout={view.teams} onLayout={(v) => setView('teams', v)} status={scope} onStatus={(v) => setScope('teams', v)} />}
+          toolbar={<ListToolbar view={lv} what={TEAM.many} layout={view.teams} onLayout={(v) => setView('teams', v)} status={scope} onStatus={(v) => {
+                setScope('teams', v)
+                lv.resetPage()
+              }} />}
         />
       }
       aside={currentId ? <TeamDetail id={currentId} compact /> : null}

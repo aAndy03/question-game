@@ -147,6 +147,29 @@ describe('Library — incomplete questions (§2.32)', () => {
     expect(within(row).getByText('0 domains')).toBeTruthy()
   })
 
+  it('goes back to page 1 when Status or the domain pane changes the scope (deferred fix)', async () => {
+    // Every list here is longer than a page, so page 2 stays page 2 unless the
+    // scope change resets it — a shorter list would clamp to 1 on its own.
+    const many = Array.from({ length: 150 }, (_, i) => ({ ...open, id: `q-many-${i}`, stem: `Many ${i}` }))
+    const big: Domain = { id: 'dom-big', origin: 'operator', name: 'Big', code: 'BIG', description: null, questions: many.map((q, i) => ({ questionId: q.id, sortKey: i })), createdAt: 0, updatedAt: 0, archivedAt: null } as unknown as Domain
+    fake.seed([...many.map((item) => ({ kind: 'question' as const, item })), { kind: 'domain', item: big }])
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'library' })
+    })
+    await screen.findByText(/^1–100 of /)
+    act(() => useChromeStore.getState().setListState('library', { page: 2 }))
+    await screen.findByText(/^101–/)
+    fireEvent.click(screen.getAllByRole('tab', { name: 'All' }).at(-1)!)
+    await screen.findByText(/^1–100 of /)
+    act(() => useChromeStore.getState().setListState('library', { page: 2 }))
+    await screen.findByText(/^101–/)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'library', domainId: 'dom-big' })
+    })
+    await screen.findByText(/^1–100 of 150/)
+  })
+
   it('asks Search for every match, not a capped few (S-01, Review Focus 2)', async () => {
     await show()
     act(() => useChromeStore.getState().setListState('library', { search: 'who' }))

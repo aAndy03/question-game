@@ -112,6 +112,15 @@ export function LibraryList({
   }, [page.page])
 
   const offset = page.from > 0 ? page.from - 1 : 0
+  // How many rows precede each entry, once per page, for the virtual branch's numbering.
+  const rowsBefore: number[] = []
+  if (virtual) {
+    let n = 0
+    for (const e of entries) {
+      rowsBefore.push(n)
+      if (e.kind === 'row') n += 1
+    }
+  }
   let position = 0
   const draw = (entry: ListEntry<unknown, RecordView>) => {
     if (entry.kind === 'header') {
@@ -169,14 +178,14 @@ export function LibraryList({
     const pageAll = page.pageIds.length > 0 && page.pageIds.every((id) => selection.ids.has(id))
     const pageSome = page.pageIds.some((id) => selection.ids.has(id))
     return (
-      <div role="row" className="sticky top-0 z-10 flex h-9 items-center gap-3 border-b border-[var(--border)] px-3 text-xs" style={{ background: 'var(--surface)' }} data-list-header>
+      <div className="sticky top-0 z-10 flex h-9 items-center gap-3 border-b border-[var(--border)] px-3 text-xs" style={{ background: 'var(--surface)' }} data-list-header>
         {bulk ? (
           <CheckboxField
             label={LIST.selectAll}
             hideLabel
             isSelected={pageAll}
             isIndeterminate={!pageAll && pageSome}
-            onChange={(on) => (on ? selection.selectPage() : selection.clear())}
+            onChange={(on) => (on ? selection.selectPage() : selection.deselectPage())}
           />
         ) : null}
         <span className="w-7 shrink-0" />
@@ -223,7 +232,7 @@ export function LibraryList({
           {virtualizer.getVirtualItems().map((item) => {
             const entry = entries[item.index]
             if (!entry) return null
-            position = entries.slice(0, item.index).filter((e) => e.kind === 'row').length
+            position = rowsBefore[item.index] ?? 0
             return (
               <div key={entry.kind === 'row' ? entry.row.key : `#${entry.group.key}`} style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${item.start}px)` }}>
                 {draw(entry)}
@@ -243,7 +252,6 @@ export function LibraryList({
     )
   }
 
-  const hasRows = entries.length > 0
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {bulk ? (
@@ -257,7 +265,8 @@ export function LibraryList({
           isPending={bulk.isPending}
         />
       ) : null}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" role={layout === 'table' && hasRows ? 'table' : undefined}>
+      {/* No table role: rows open records and groups have headings, which a table could not hold. */}
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" data-list-body>
         {body()}
       </div>
       <PageFooter
@@ -276,10 +285,12 @@ function SortHeader({ column, view, align }: { column: ListColumn; view: ListVie
   const on = view.state.sort.id === column.sortId
   const desc = on && view.state.sort.desc
   return (
-    <span role="columnheader" aria-sort={on ? (desc ? 'descending' : 'ascending') : 'none'} className={align === 'right' ? 'block text-right' : 'block'}>
+    <span className={align === 'right' ? 'block text-right' : 'block'}>
       <button
         type="button"
-        className="rounded px-1 font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
+        aria-pressed={on}
+        aria-label={LIST.sortByColumn(column.label, on ? (desc ? 'descending' : 'ascending') : null)}
+        className="rounded px-1 font-medium text-[var(--muted)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-[var(--focus)]"
         onClick={() => view.sortBy(column.sortId)}
       >
         {column.label}

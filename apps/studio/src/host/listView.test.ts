@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changedSince, footerText, listView, type FilterValue, type ListItem, type ListSpec, type ListViewState } from './listView'
+import { changedSince, footerText, listView, normalizeRange, type FilterValue, type ListItem, type ListSpec, type ListViewState } from './listView'
 
 /**
  * Stable 1.1: the list-view model every library tab runs through — filter,
@@ -255,5 +255,22 @@ describe('purity and speed (M-71, U-27)', () => {
     }
     times.sort((a, b) => a - b)
     expect(times[2]).toBeLessThan(50)
+  })
+})
+
+describe('deferred fixes', () => {
+  it('says how many rows the collapsed groups hold when nothing else is on screen', () => {
+    const items = many(3).map((t) => thing(t.id, { tags: ['a'] }))
+    const page = listView(items, SPEC, state({ group: 'tag', collapsed: new Set(['a']) }))
+    expect(page.collapsedCount).toBe(3)
+    expect(footerText(page, { one: 'thing', many: 'things' })).toBe('3 things in collapsed groups')
+  })
+
+  it('treats a range that spans the whole bounds as no filter, and a reversed one as its right way round', () => {
+    const r = [thing('lo', { n: 10 }), thing('hi', { n: 90 }), thing('none', { n: null })]
+    expect(ids(r, { filters: { n: { min: 80, max: 20 } } })).toEqual([])
+    expect(normalizeRange({ min: 80, max: 20 }, { min: 1, max: 100 })).toEqual({ min: 20, max: 80 })
+    expect(normalizeRange({ min: 1, max: 100 }, { min: 1, max: 100 })).toBeNull()
+    expect(normalizeRange({ min: 5, max: 100 }, { min: 1, max: 100 })).toEqual({ min: 5, max: 100 })
   })
 })
