@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Button, Text } from '@/atoms'
 import { LIST } from '@/copy'
 
@@ -19,6 +20,8 @@ export interface BulkBarProps {
   selectAll?: BulkAction | undefined
   onClear: () => void
   isPending?: boolean | undefined
+  /** More actions on the selection, after Archive and Restore (Beta 2.0). */
+  extra?: ReactNode
 }
 
 /**
@@ -27,7 +30,7 @@ export interface BulkBarProps {
  * offered, each with the count it applies to and touching only those rows
  * (stable 1.1).
  */
-export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, isPending }: BulkBarProps) {
+export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, isPending, extra }: BulkBarProps) {
   if (count === 0) return null
   return (
     <div
@@ -50,6 +53,7 @@ export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, i
             {LIST.restoreN(restore.count)}
           </Button>
         ) : null}
+        {extra}
         {selectAll && selectAll.count > count ? (
           <Button size="sm" variant="tertiary" onPress={selectAll.run}>
             {LIST.selectAllN(selectAll.count)}

@@ -21,6 +21,7 @@ import { acceptsQuestion, questionGaps } from '@/host/question'
 import { useCatalogItem, useCatalogList } from '@/host/queries'
 import { answerMode, type Domain, type Question, type QuestionOption } from '@/host/types'
 import { useDirtyGuard, useDraft } from './useDraft'
+import { usePropagatingSave } from './usePropagatingSave'
 
 export interface QuestionEditorProps {
   /** Null for a new question. */
@@ -72,6 +73,7 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
   const source = useCatalogItem('question', id)
   const domains = useCatalogList('domain', 'active')
   const run = useHostCommand()
+  const propagating = usePropagatingSave()
   const go = useNavStore((s) => s.go)
   const notices = useNoticeStore((s) => s.notices)
   const dismiss = useNoticeStore((s) => s.dismiss)
@@ -121,7 +123,7 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
       explanation: q.explanation?.trim() ? q.explanation : null,
       options: filled.map((o) => ({ ...o, text: o.text.trim() })),
     }
-    const result = await run('catalog_upsert', { item: { kind: 'question', item } }, { targetPath: path })
+    const result = await propagating.upsert({ kind: 'question', item }, { targetPath: path })
     if (result === null) {
       setSaving(false)
       return false
@@ -173,6 +175,7 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
 
   return (
     <>
+      {propagating.dialog}
       <PageHeader
         title={id ? q.stem.trim() || QUESTION.one : LIST.new(QUESTION.one)}
         isDirty={draft.isDirty}

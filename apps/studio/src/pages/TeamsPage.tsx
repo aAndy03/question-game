@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
 import { Avatar, Button, MeaningChip } from '@/atoms'
 import { ActionMenu, PageHeader } from '@/molecules'
-import { LibraryList, ListToolbar, TeamDetail, useArchive, type RecordView } from '@/organisms'
+import { LibraryList, ListToolbar, TeamDetail, useArchive, useTransfer, type RecordView } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { fmt, LIST, TABS, TEAM, VIEWS } from '@/copy'
+import { TRANSFER } from '@/copy/workspaces'
 import { teamsSpec } from '@/host/listSpecs'
 import type { ListItem } from '@/host/listView'
 import { useCatalogList, useListHits } from '@/host/queries'
@@ -24,6 +25,7 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
   const setView = useChromeStore((s) => s.setView)
   const go = useNavStore((s) => s.go)
   const archive = useArchive()
+  const transfer = useTransfer()
   const list = useCatalogList('team', scope)
   const session = useListState('teams')
   const hits = useListHits('team', session.search, scope, list.data?.length)
@@ -38,7 +40,12 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
           title: t.name,
           subtitle: t.notes ?? undefined,
           leading: <Avatar mark={{ color: t.color, shortCode: t.shortCode, name: t.name }} size="sm" />,
-          chips: isArchived(t) ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null,
+          chips: (
+            <>
+              {t.shared ? <MeaningChip meaning="shared">{TRANSFER.whereShared}</MeaningChip> : null}
+              {isArchived(t) ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null}
+            </>
+          ),
           meta: [fmt.count(t.playCount, TEAM.playOne, TEAM.playMany), fmt.dateShort(t.updatedAt)],
           isArchived: isArchived(t),
         },
@@ -46,6 +53,12 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
     [list.data],
   )
   const lv = useListView(teamsSpec, items, hits)
+  const shared = (id: string) => list.data?.find((t) => t.id === id)?.shared === true
+  /** `true` all shared, `false` none, `undefined` a mix. */
+  const sharedness = (ids: readonly string[]) => {
+    const flags = new Set(ids.map(shared))
+    return flags.size === 1 ? [...flags][0] : undefined
+  }
 
   const archivedView = scope === 'archived'
   return (
@@ -90,11 +103,15 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
             items={[
               { id: 'open', label: LIST.open, icon: 'open' },
               { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: row.isArchived },
+              { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
+              { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', isDisabled: shared(row.id) },
+              shared(row.id) ? { id: 'make_local', label: TRANSFER.makeLocal, icon: 'shared' } : { id: 'make_shared', label: TRANSFER.makeShared, icon: 'shared' },
               row.isArchived
                 ? { id: 'restore', label: LIST.restore, icon: 'restore' }
                 : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true },
             ]}
             onAction={(a) => {
+              if (a === 'copy' || a === 'move' || a === 'make_shared' || a === 'make_local') transfer.open(a, { teams: [row.id] })
               if (a === 'open') void go({ tab: 'teams', id: row.id, mode: 'view' })
               if (a === 'edit') void go({ tab: 'teams', id: row.id, mode: 'edit' })
               if (a === 'archive') archive.archive({ kind: 'team', ids: [row.id], what: TEAM.one })
@@ -105,11 +122,13 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
         bulk={{
           onArchive: (ids) => archive.archive({ kind: 'team', ids, what: TEAM.many }),
           onRestore: (ids) => void archive.restore({ kind: 'team', ids, what: TEAM.many }),
+          extra: (ids) => transfer.menu({ teams: ids }, { shared: sharedness(ids) }),
           isPending: archive.isPending,
         }}
         onRetry={() => void list.refetch()}
       />
       {archive.dialog}
+      {transfer.dialog}
     </LibraryTabLayout>
   )
 }

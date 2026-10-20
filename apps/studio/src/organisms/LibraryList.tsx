@@ -55,6 +55,8 @@ export interface LibraryListProps {
     | {
         onArchive?: ((ids: readonly string[]) => void) | undefined
         onRestore?: ((ids: readonly string[]) => void) | undefined
+        /** More actions on the whole selection (Beta 2.0: copy, move, share). */
+        extra?: ((ids: readonly string[]) => ReactNode) | undefined
         isPending?: boolean | undefined
       }
     | undefined
@@ -261,6 +263,7 @@ export function LibraryList({
           archive={bulk.onArchive ? { count: view.bulk.archive.length, run: () => bulk.onArchive?.(view.bulk.archive) } : undefined}
           restore={bulk.onRestore ? { count: view.bulk.restore.length, run: () => bulk.onRestore?.(view.bulk.restore) } : undefined}
           selectAll={{ count: page.selectableIds.length, run: selection.selectAll }}
+          extra={bulk.extra ? bulk.extra([...selection.ids]) : undefined}
           onClear={selection.clear}
           isPending={bulk.isPending}
         />

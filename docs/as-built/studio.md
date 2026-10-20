@@ -95,6 +95,16 @@ The design is `docs/v1/05_STUDIO_DESIGN.md` §13. Statistics is a **projector**,
 - **The welcome calls `command()` directly**, not `useHostCommand`: a refusal is said inline because the shell and its collector are not up, and the page reads the code (`beta.stable_running` → *Try again*; `beta.library_not_empty` → done). After a copy it invalidates every query — a different library.
 - **The chip reads `app_info.channel`**, never `build`: the e2e build playing Beta answers `build: "e2e"` and `channel: "beta"`.
 
+## Workspaces in Studio (P14.2)
+
+The design is `05_STUDIO_DESIGN.md` §21; the host half is `host.md` ▸ Workspaces.
+
+- **A switch resets, it does not invalidate**: `receiveWorkspaces` (the bridge, on `workspace-changed`) resets every workspace-scoped query — library, search, games, Plays, statistics, the Demo's status, settings, the rules preview — so no list ever shows the last workspace's rows under the new one's name. Monitors, paths, the build and the welcome are kept. Query keys do **not** carry the workspace: the reset is the one place that knows, and a key that forgot the workspace would be the leak the reset exists to make impossible.
+- **The name gate latches like first run** (`App`: `namedDone`) and sits between the welcome and first run; its mode (*create* / *name*) is "no operator and no active one", the same test first run uses.
+- **Operators are global** in the host and in the fake (`inView` lets every `operator:` key through) — a switch that hid them looked like the operator had been signed out.
+- **The fake keeps a home per row** (`homes`, `recipeHomes`; a row seeded without one is the first workspace's) and runs the workspace, transfer and propagation commands with the host's refusals, so a shell test never passes against a fake that cannot say no. `?fake&unnamed` (and `?fake&firstrun`) open on an unnamed workspace.
+- **Where is filtered in Studio, over the host's scope.** The design's builder ruling (F13) put `where` on the host; it stayed a client filter because the host already never returns another workspace's row — the filter only splits *this workspace* from *shared*, and the shared flag is on every row.
+
 ## Library views as built (stable 1.1, P13.2–P13.4)
 
 The design is `05_STUDIO_DESIGN.md` §20. What a later change must not undo:

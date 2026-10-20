@@ -46,6 +46,8 @@ export const CHIP_TONES = {
   disconnected: 'warning',
   // questions (P11.17): a difficulty not set yet
   unset: 'default',
+  // workspaces (Beta 2.0): a row every workspace sees
+  shared: 'accent',
 } as const satisfies Record<string, ChipTone>
 
 export type ChipMeaning = keyof typeof CHIP_TONES

@@ -4,11 +4,11 @@ import { DirtyGuard, EditorFooter, InlineNotice, NavCrumbs, PageHeader } from '@
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
 import { LIST, TABS, TEAM } from '@/copy'
-import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import { useCatalogItem } from '@/host/queries'
 import type { Team } from '@/host/types'
 import { useDirtyGuard, useDraft } from './useDraft'
+import { usePropagatingSave } from './usePropagatingSave'
 
 export interface TeamEditorProps {
   /** Null for a new team. */
@@ -39,7 +39,7 @@ export function TeamEditor({ id }: TeamEditorProps) {
   const source = useCatalogItem('team', id)
   const draft = useDraft<Team>(source.data, emptyTeam())
   const guard = useDirtyGuard(draft)
-  const run = useHostCommand()
+  const propagating = usePropagatingSave()
   const go = useNavStore((s) => s.go)
   const notices = useNoticeStore((s) => s.notices)
   const dismiss = useNoticeStore((s) => s.dismiss)
@@ -58,7 +58,7 @@ export function TeamEditor({ id }: TeamEditorProps) {
       shortCode: draft.value.shortCode.trim() || draft.value.name.trim().slice(0, 5).toUpperCase(),
       notes: draft.value.notes?.trim() ? draft.value.notes : null,
     }
-    const result = await run('catalog_upsert', { item: { kind: 'team', item } }, { targetPath: path })
+    const result = await propagating.upsert({ kind: 'team', item }, { targetPath: path })
     setSaving(false)
     if (result === null) return false
     draft.adopt(item)
@@ -73,6 +73,7 @@ export function TeamEditor({ id }: TeamEditorProps) {
 
   return (
     <>
+      {propagating.dialog}
       <PageHeader
         title={id ? draft.value.name || TEAM.one : LIST.new(TEAM.one)}
         isDirty={draft.isDirty}

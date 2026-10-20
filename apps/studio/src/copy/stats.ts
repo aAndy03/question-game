@@ -57,6 +57,8 @@ export const STATS = {
     anyVerdict: 'Any verdict',
     rehearsals: 'Include rehearsals',
     rehearsalsHint: 'A Play with one team. Legal, and it skews an average.',
+    allWorkspaces: 'All workspaces',
+    allWorkspacesHint: 'Plays of every workspace, archived ones included, not only this one.',
     clear: 'Clear filters',
     groupBy: 'Group by',
     columns: 'Columns',

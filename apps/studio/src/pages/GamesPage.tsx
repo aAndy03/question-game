@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
 import { Button, Icon, MeaningChip } from '@/atoms'
 import { ActionMenu, PageHeader } from '@/molecules'
-import { LibraryList, ListToolbar, useArchive, type RecordView } from '@/organisms'
+import { LibraryList, ListToolbar, useArchive, useTransfer, type RecordView } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { CHROME, fmt, GAME, LIST, TABS, VIEWS } from '@/copy'
+import { TRANSFER } from '@/copy/workspaces'
 import type { SeedResult } from '@/host/types'
 import { useHostCommand } from '@/host/commands'
 import { usePlayState } from '@/host/playState'
@@ -24,6 +25,7 @@ export function GamesPage() {
   const go = useNavStore((s) => s.go)
   const run = useHostCommand()
   const archive = useArchive()
+  const transfer = useTransfer()
   const play = usePlayState()
   const list = useRecipeList(scope)
   const session = useListState('games')
@@ -141,6 +143,8 @@ export function GamesPage() {
             items={[
               { id: 'open', label: LIST.open, icon: 'open' },
               { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
+              { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
+              { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', isDisabled: playingId === row.id },
               row.isArchived
                 ? { id: 'restore', label: LIST.restore, icon: 'restore' }
                 : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true, isDisabled: playingId === row.id },
@@ -148,6 +152,7 @@ export function GamesPage() {
             onAction={(a) => {
               if (a === 'open') void go({ tab: 'games', id: row.id })
               if (a === 'duplicate') void duplicate(row.id)
+              if (a === 'copy' || a === 'move') transfer.open(a, { recipes: [row.id] })
               if (a === 'archive') archive.archive({ kind: 'recipe', ids: [row.id], what: GAME.one })
               if (a === 'restore') void archive.restore({ kind: 'recipe', ids: [row.id], what: GAME.one })
             }}
@@ -156,6 +161,7 @@ export function GamesPage() {
         onRetry={() => void list.refetch()}
       />
       {archive.dialog}
+      {transfer.dialog}
     </LibraryTabLayout>
   )
 }

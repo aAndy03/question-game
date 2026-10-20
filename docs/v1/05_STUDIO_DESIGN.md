@@ -2339,8 +2339,8 @@ Design: `docs/superpowers/specs/2026-10-20-stable-1.1-library-views-design.md`.
 
 | Tab | Filters | Sort | Group |
 |---|---|---|---|
-| Questions | difficulty band · difficulty range · answer type · completeness · domain (only under *All questions*) · origin | difficulty · question · domains · changed · created | domain · difficulty band · answer type · completeness |
-| Teams | played | name · plays · last played · changed · created | played |
+| Questions | difficulty band · difficulty range · answer type · completeness · domain (only under *All questions*) · origin · where (Beta 2.0) | difficulty · question · domains · changed · created | domain · difficulty band · answer type · completeness · where |
+| Teams | played · where (Beta 2.0) | name · plays · last played · changed · created | played · where |
 | Games | folder · tag · playing now | name · teams · questions · changed · created | folder · status |
 | Operators | has a PIN · active operator | name · plays run · last active · created | — |
 
@@ -2356,3 +2356,15 @@ Every tab also has **Search** (uncapped: every match), **Status** (Active · Arc
 - **No table role.** Rows open records and groups carry headings, which a `table` could not hold; the column titles are buttons that say their state (`aria-pressed`, "Sort by Plays, ascending").
 - **Empty states**: nothing at all → *empty* (with New) or *archivedEmpty*; every group folded → "{n} {noun} in collapsed groups"; nothing matching → *noResults* with **Clear search** and/or **Clear filters**; the Completeness filter alone at *Incomplete* with nothing left → *allComplete*.
 
+## 21. Workspaces (Beta 2.0)
+
+Design: `docs/superpowers/specs/2026-10-21-workspaces-design.md`. A workspace is one library of teams, domains, questions and games; the **shared library** is the rows every workspace sees. The scope is the host's: every list Studio draws is already *this workspace ∪ shared*.
+
+- **The switcher** (`organisms/WorkspaceSwitcher`) is the first thing in the sidebar, above *Library*: the current workspace's name, a menu of the others by group (*Ungrouped* last; the current one checked), then *New workspace…* and *Manage workspaces…*. In the rail it is the initials, the name in a tooltip. While a game is loaded in Control it is disabled and says why.
+- **Naming** (`pages/NameWorkspacePage`): a library whose workspace has no name opens on *Name your workspace* (work in it already) or *Create your first workspace* (empty), after the Beta welcome and before first run. One field, *Workspace name*, empty, **no placeholder**, *Continue* disabled until it holds a name. Nothing anywhere suggests one: every name dialog (`molecules/NameDialog`) starts empty or with the name being changed.
+- **Manage workspaces** (`pages/WorkspacesPage`, route `{ tab: 'workspaces' }`): every workspace by group, archived ones flagged, with **Open · Rename · Move to group… · Duplicate… · Archive/Restore · Delete permanently…**. The current workspace cannot be archived; *Delete permanently* is for an archived one only, names the rows, games and Plays it removes, arms on the first press and asks the pin as its last frame (§14). Groups: **Rename · Move up · Move down · Delete** (its workspaces stay, ungrouped), and *New group*.
+- **Where** is a filter and a grouping on Teams and Questions (*This workspace* · *Shared*); a shared row carries the **Shared** chip (`MeaningChip meaning="shared"`), a shared domain the globe in the domain pane.
+- **Copy to… · Move to… · Make shared / Make local** are row actions on teams, domains and questions (games: *Copy to…*, *Move to…*), and one menu, *Copy, move or share…*, in the bulk bar. Every one opens the transfer dialog (`organisms/useTransfer`): the workspace to go to, how many were picked, how many more come along and how many are reused there — then the write. A refusal lists who still uses the row; a refused move offers **Copy instead**. The preview is the host's write rolled back (`transfer_preview`), so the dialog cannot promise what the write will not do.
+- **Edits that follow their copies** (`organisms/usePropagatingSave`): saving a team, domain or question that has copies asks, in the editor's own frame, *Save here only* · *Also update {n} copies ({m} skipped)*, naming where the copies live and why any is skipped. A row never copied saves as before.
+- **Statistics** has *All workspaces* beside *Include rehearsals*; off, it counts this workspace's Plays.
+- **List views are per workspace** (`prefs.<op>.workspaceLists`; `lists` is the first workspace's, so a 1.x document carries over) and another workspace starts with a clean session view.

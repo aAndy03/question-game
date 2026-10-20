@@ -70,6 +70,8 @@ export const WORKSPACE = {
 
 /** Copy, move and share (Beta 2.0, 05_STUDIO_DESIGN.md §21). */
 export const TRANSFER = {
+  /** The bulk bar's menu of the four. */
+  menu: 'Copy, move or share…',
   copyTo: 'Copy to…',
   moveTo: 'Move to…',
   makeShared: 'Make shared',

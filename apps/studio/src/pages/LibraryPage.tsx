@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, MeaningChip, Text } from '@/atoms'
 import { ActionMenu, IncompleteMark, PageHeader } from '@/molecules'
-import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, type RecordView } from '@/organisms'
+import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, type RecordView } from '@/organisms'
 import { SplitLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { DOMAIN, fmt, IMPORT, LIST, QUESTION, TABS, VIEWS } from '@/copy'
+import { TRANSFER } from '@/copy/workspaces'
 import { activeMemberIds, questionGaps } from '@/host/question'
 import { questionsSpec, type QuestionItem } from '@/host/listSpecs'
 import type { ListItem } from '@/host/listView'
@@ -35,6 +36,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
   const go = useNavStore((s) => s.go)
   const replace = useNavStore((s) => s.replace)
   const archive = useArchive()
+  const transfer = useTransfer()
   const [importing, setImporting] = useState(false)
 
   const questions = useCatalogList('question', scope)
@@ -82,6 +84,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
               <>
                 {band ? <MeaningChip meaning={band}>{QUESTION.band[band]}</MeaningChip> : null}
                 {mode === 'multiple' ? <MeaningChip meaning="multiple">{QUESTION.multiple}</MeaningChip> : null}
+                {q.shared ? <MeaningChip meaning="shared">{TRANSFER.whereShared}</MeaningChip> : null}
                 {isArchived(q) ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null}
               </>
             ),
@@ -97,6 +100,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
     [domainId, activeDomains],
   )
   const lv = useListView(spec, items, hits)
+  const sharedQ = (id: string) => questions.data?.find((q) => q.id === id)?.shared === true
   const incompleteCount = useMemo(() => (items ?? []).filter((i) => i.data.gaps.length > 0).length, [items])
   // Picking a domain in the pane is the domain scope: the Domain filter is not
   // offered there, so its values go rather than linger as a hidden chip.
@@ -187,11 +191,15 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                   items={[
                     { id: 'open', label: LIST.open, icon: 'open' },
                     { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: row.isArchived },
+                    { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
+                    { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', isDisabled: sharedQ(row.id) },
+                    sharedQ(row.id) ? { id: 'make_local', label: TRANSFER.makeLocal, icon: 'shared' } : { id: 'make_shared', label: TRANSFER.makeShared, icon: 'shared' },
                     row.isArchived
                       ? { id: 'restore', label: LIST.restore, icon: 'restore' }
                       : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true },
                   ]}
                   onAction={(a) => {
+                    if (a === 'copy' || a === 'move' || a === 'make_shared' || a === 'make_local') transfer.open(a, { questions: [row.id] })
                     const at = domainId ? { domainId } : {}
                     if (a === 'open') void go({ tab: 'library', questionId: row.id, mode: 'view', ...at })
                     if (a === 'edit') void go({ tab: 'library', questionId: row.id, mode: 'edit', ...at })
@@ -203,6 +211,10 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
               bulk={{
                 onArchive: (ids) => archive.archive({ kind: 'question', ids, what: QUESTION.many }),
                 onRestore: (ids) => void archive.restore({ kind: 'question', ids, what: QUESTION.many }),
+                extra: (ids) => {
+                  const flags = new Set(ids.map(sharedQ))
+                  return transfer.menu({ questions: ids }, { shared: flags.size === 1 ? [...flags][0] : undefined })
+                },
                 isPending: archive.isPending,
               }}
               onRetry={() => void questions.refetch()}
@@ -214,6 +226,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
             </aside>
           ) : null}
           {archive.dialog}
+          {transfer.dialog}
           <ImportQuestionsDialog
             isOpen={importing}
             onOpenChange={setImporting}

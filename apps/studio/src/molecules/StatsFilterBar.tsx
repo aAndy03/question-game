@@ -142,6 +142,16 @@ export function StatsFilterBar({
           {STATS.filters.rehearsalsHint}
         </Text>
       </div>
+      <div className="flex flex-col gap-0.5">
+        <CheckboxField
+          label={STATS.filters.allWorkspaces}
+          isSelected={Boolean(filter.allWorkspaces)}
+          onChange={(on) => onFilter({ ...filter, allWorkspaces: on })}
+        />
+        <Text variant="studio-caption" tone="muted">
+          {STATS.filters.allWorkspacesHint}
+        </Text>
+      </div>
     </Panel>
   )
 }

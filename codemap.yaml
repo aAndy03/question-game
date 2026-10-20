@@ -1972,6 +1972,7 @@ studio_calls:
     catalog_get: [apps/studio/src/host/queries.ts]
     catalog_import_questions: [apps/studio/src/host/queries.ts, apps/studio/src/organisms/ImportQuestionsDialog.tsx]
     catalog_list: [apps/studio/src/host/queries.ts]
+    catalog_propagation_preview: [apps/studio/src/organisms/usePropagatingSave.tsx]
     catalog_rebuild_search: [apps/studio/src/organisms/NoticeCollector.tsx]
     catalog_restore: [apps/studio/src/organisms/useArchive.tsx]
     catalog_restore_many: [apps/studio/src/organisms/useArchive.tsx]
@@ -1982,12 +1983,12 @@ studio_calls:
       - apps/studio/src/pages/GamesPage.tsx
     catalog_seed_status: [apps/studio/src/host/queries.ts]
     catalog_upsert:
-      - apps/studio/src/organisms/DomainPane.tsx
       - apps/studio/src/organisms/FirstRunFlow.tsx
       - apps/studio/src/organisms/OperatorEditor.tsx
       - apps/studio/src/organisms/QuestionEditor.tsx
-      - apps/studio/src/organisms/TeamEditor.tsx
+      - apps/studio/src/organisms/usePropagatingSave.tsx
     catalog_upsert_many: [apps/studio/src/organisms/QuestionEditor.tsx]
+    catalog_upsert_propagating: [apps/studio/src/organisms/usePropagatingSave.tsx]
     choose_domain: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useControlHotkeys.ts]
     get_state: [apps/studio/src/host/bridge.tsx]
     give_token: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useControlHotkeys.ts]
@@ -2060,6 +2061,7 @@ studio_calls:
     start_timer: [apps/studio/src/organisms/ActionPanel.tsx]
     stats_query: [apps/studio/src/host/queries.ts]
     stats_window: [apps/studio/src/organisms/ControlTopBar.tsx, apps/studio/src/organisms/MonitorsSettings.tsx]
+    transfer_preview: [apps/studio/src/organisms/useTransfer.tsx]
     undo_turn:
       - apps/studio/src/organisms/ActionPanel.tsx
       - apps/studio/src/organisms/TimelinePanel.tsx
@@ -2069,13 +2071,27 @@ studio_calls:
     whats_new_get: [apps/studio/src/host/whatsNew.ts]
     whats_new_seen: [apps/studio/src/host/whatsNew.ts, apps/studio/src/organisms/WhatsNewDialog.tsx]
     wipe_plays: [apps/studio/src/organisms/DataActions.tsx]
+    workspace_create: [apps/studio/src/organisms/WorkspaceSwitcher.tsx, apps/studio/src/pages/WorkspacesPage.tsx]
+    workspace_delete: [apps/studio/src/pages/WorkspacesPage.tsx]
+    workspace_delete_preview: [apps/studio/src/pages/WorkspacesPage.tsx]
+    workspace_duplicate: [apps/studio/src/pages/WorkspacesPage.tsx]
+    workspace_group_create: [apps/studio/src/pages/WorkspacesPage.tsx]
+    workspace_group_delete: [apps/studio/src/pages/WorkspacesPage.tsx]
+    workspace_group_rename: [apps/studio/src/pages/WorkspacesPage.tsx]
+    workspace_group_reorder: [apps/studio/src/pages/WorkspacesPage.tsx]
+    workspace_list: [apps/studio/src/host/queries.ts]
+    workspace_rename: [apps/studio/src/pages/NameWorkspacePage.tsx, apps/studio/src/pages/WorkspacesPage.tsx]
+    workspace_set_group: [apps/studio/src/pages/WorkspacesPage.tsx]
+    workspace_switch: [apps/studio/src/organisms/WorkspaceSwitcher.tsx, apps/studio/src/pages/WorkspacesPage.tsx]
   dynamic_call_files:
     - apps/studio/src/chrome/diagnostics.ts
     - apps/studio/src/host/commands.ts
     - apps/studio/src/organisms/DataActions.tsx
     - apps/studio/src/organisms/Viewer.tsx
     - apps/studio/src/organisms/useControlHotkeys.ts
+    - apps/studio/src/organisms/useTransfer.tsx
     - apps/studio/src/pages/BetaWelcomePage.tsx
+    - apps/studio/src/pages/WorkspacesPage.tsx
 app_crate:
   functions:
     crates/app/src/boot.rs:
