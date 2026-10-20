@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { DEFAULT_PREFS, useChromeStore } from './chrome'
+import { DEFAULT_PREFS, isListViewKey, useChromeStore } from './chrome'
 import { useHealthStore } from './health'
 import { useNavStore, HOME } from './nav'
 import { useNoticeStore } from './notices'
@@ -21,7 +21,7 @@ function keysDeep(value: unknown, path = ''): string[] {
 
 describe('chrome stores hold chrome only', () => {
   beforeEach(() => {
-    useChromeStore.setState({ operatorId: '', prefs: {}, archiveScope: {} })
+    useChromeStore.setState({ operatorId: '', prefs: {}, archiveScope: {}, listState: {} })
     useNavStore.setState({ route: HOME, back: [], forward: [], guard: null })
     useNoticeStore.setState({ notices: [] })
     useHealthStore.setState({ report: null })
@@ -64,6 +64,67 @@ describe('chrome stores hold chrome only', () => {
     s.setOperator('op-b')
     expect(useChromeStore.getState().prefs['op-b']?.settingsInner).toBeUndefined()
     expect(DEFAULT_PREFS.settingsInner).toBe('monitors')
+  })
+
+  it('walks list views too, and still catches a Play key outside them (P-11, stable 1.1)', () => {
+    const s = useChromeStore.getState()
+    s.setOperator('op-a')
+    for (const tab of ['teams', 'library', 'games', 'operators'] as const) {
+      s.setListPrefs(tab, { sort: { id: 'domains', desc: true }, group: 'domain', pageSize: 'all' })
+      s.setListState(tab, { filters: { domain: ['d1'], team: ['x'] }, search: 'q', page: 3, collapsed: ['domain-1'] })
+    }
+    const state = Object.fromEntries(Object.entries(useChromeStore.getState()).filter(([, v]) => typeof v !== 'function'))
+    for (const key of keysDeep(state)) {
+      if (isListViewKey(key) || /\.view\.[a-z]+$/.test(key)) continue
+      expect(key, `${key} looks like Play state`).not.toMatch(FORBIDDEN)
+    }
+    // The exemption is the list-view subtrees and nothing else.
+    expect(isListViewKey('prefs.op-a.lists.library.sort.id')).toBe(true)
+    expect(isListViewKey('listState.library.filters.domain')).toBe(true)
+    expect(isListViewKey('prefs.op-a.teamScore')).toBe(false)
+    expect(isListViewKey('playSession')).toBe(false)
+  })
+
+  it('keeps sort, group and page size per operator per tab (P-01, P-02, P-03)', () => {
+    const s = useChromeStore.getState()
+    s.setListPrefs('library', { sort: { id: 'text', desc: true } })
+    expect(useChromeStore.getState().prefs['']?.lists?.library?.sort).toEqual({ id: 'text', desc: true })
+    s.setOperator('op-a')
+    s.setListPrefs('library', { sort: { id: 'text', desc: true }, group: 'band', pageSize: 50 })
+    s.setListPrefs('teams', { sort: { id: 'plays', desc: true } })
+    s.setOperator('op-b')
+    expect(useChromeStore.getState().prefs['op-b']?.lists).toBeUndefined()
+    s.setOperator('op-a')
+    const lists = useChromeStore.getState().prefs['op-a']?.lists
+    expect(lists?.library).toEqual({ sort: { id: 'text', desc: true }, group: 'band', pageSize: 50 })
+    expect(lists?.teams?.sort?.id).toBe('plays')
+  })
+
+  it('keeps filters, search, page and collapsed for the session, per tab, across an operator switch (P-07, P-08, P-10)', () => {
+    const s = useChromeStore.getState()
+    s.setOperator('op-a')
+    s.setListState('library', { search: 'rome', page: 3 })
+    s.setListState('teams', { page: 1 })
+    s.setOperator('op-b')
+    expect(useChromeStore.getState().listState.library).toMatchObject({ search: 'rome', page: 3 })
+    expect(useChromeStore.getState().listState.teams?.page).toBe(1)
+    const persisted = useChromeStore.persist.getOptions().partialize?.(useChromeStore.getState()) as Record<string, unknown>
+    expect(Object.keys(persisted).sort()).toEqual(['operatorId', 'prefs'])
+  })
+
+  it('round-trips page size All through JSON (P-05)', () => {
+    const s = useChromeStore.getState()
+    s.setOperator('op-a')
+    s.setListPrefs('library', { pageSize: 'all' })
+    const json = JSON.parse(JSON.stringify(useChromeStore.getState().prefs)) as Record<string, { lists?: { library?: { pageSize?: unknown } } }>
+    expect(json['op-a']?.lists?.library?.pageSize).toBe('all')
+  })
+
+  it('reads a document 1.0.2 wrote, which has no list views (P-04)', () => {
+    useChromeStore.setState({ operatorId: 'old', prefs: { old: { ...DEFAULT_PREFS } } })
+    expect(useChromeStore.getState().prefs.old?.lists).toBeUndefined()
+    expect(() => useChromeStore.getState().setListPrefs('games', { group: 'folder' })).not.toThrow()
+    expect(useChromeStore.getState().prefs.old?.view).toEqual(DEFAULT_PREFS.view)
   })
 
   it('cycles the sidebar through its three states', () => {

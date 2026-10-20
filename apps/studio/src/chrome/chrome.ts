@@ -16,6 +16,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import type { ArchiveScope } from '@/host/types'
+import type { Changed, FilterValue, LibraryTab, PageSize } from '@/host/listView'
 import type { Tab } from './nav'
 import { crumb } from './diagnostics'
 
@@ -35,6 +36,39 @@ export interface OperatorPrefs {
   readonly view: Readonly<Record<ListTab, ViewMode>>
   /** Per operator like the rest; a route's `inner` wins when present. */
   readonly settingsInner: SettingsInner
+  /**
+   * How each library tab is ordered, grouped and paged (stable 1.1). Absent in
+   * a document 1.0.2 wrote; every field absent means the tab's own default.
+   */
+  readonly lists?: Readonly<Partial<Record<LibraryTab, ListPrefs>>>
+}
+
+/** A library tab's remembered view: per operator, persisted. */
+export interface ListPrefs {
+  readonly sort?: { readonly id: string; readonly desc: boolean }
+  readonly group?: string | null
+  readonly pageSize?: PageSize
+}
+
+/** A library tab's view for this session: what a fresh start forgets. */
+export interface ListState {
+  readonly filters: Readonly<Record<string, FilterValue | null>>
+  readonly changed: Changed
+  readonly search: string
+  readonly page: number
+  readonly collapsed: readonly string[]
+}
+
+export const EMPTY_LIST_STATE: ListState = { filters: {}, changed: 'any', search: '', page: 1, collapsed: [] }
+const NO_LIST_PREFS: ListPrefs = {}
+
+/**
+ * The two subtrees that hold list views. Their keys are filter, sort and group
+ * ids — `domain`, `team`… — which name what a *list* is filtered by, not Play
+ * state, so the banned-key walk in `chrome.test.ts` skips them and nothing else.
+ */
+export function isListViewKey(path: string): boolean {
+  return /^prefs.[^.]+.lists(.|$)/.test(path) || /^listState(.|$)/.test(path)
 }
 
 export const DEFAULT_PREFS: OperatorPrefs = {
@@ -56,6 +90,8 @@ interface ChromeState {
    * loop is *filter, open, fix, back, next*.
    */
   readonly libraryFilter: 'all' | 'incomplete'
+  /** Session-only list views per tab (stable 1.1): filters, search, page, collapsed groups. */
+  readonly listState: Readonly<Partial<Record<LibraryTab, ListState>>>
   /** True while the pointer is over the left-edge peek strip (sidebar hidden). */
   readonly peeking: boolean
 
@@ -66,6 +102,8 @@ interface ChromeState {
   setView(tab: ListTab, view: ViewMode): void
   setArchiveScope(tab: Tab, scope: ArchiveScope): void
   setLibraryFilter(filter: 'all' | 'incomplete'): void
+  setListPrefs(tab: LibraryTab, patch: Partial<ListPrefs>): void
+  setListState(tab: LibraryTab, patch: Partial<ListState>): void
   setSettingsInner(inner: SettingsInner): void
   setPeeking(peeking: boolean): void
 }
@@ -86,6 +124,7 @@ export const useChromeStore = create<ChromeState>()(
         prefs: {},
         archiveScope: {},
         libraryFilter: 'all',
+        listState: {},
         peeking: false,
 
         setOperator(id) {
@@ -114,6 +153,13 @@ export const useChromeStore = create<ChromeState>()(
         setLibraryFilter(libraryFilter) {
           set({ libraryFilter })
         },
+        setListPrefs(tab, patch) {
+          const lists = current(get()).lists ?? {}
+          update({ lists: { ...lists, [tab]: { ...lists[tab], ...patch } } })
+        },
+        setListState(tab, patch) {
+          set((s) => ({ listState: { ...s.listState, [tab]: { ...EMPTY_LIST_STATE, ...s.listState[tab], ...patch } } }))
+        },
         setSettingsInner(settingsInner) {
           update({ settingsInner })
         },
@@ -138,6 +184,16 @@ export function usePrefs(): OperatorPrefs {
 /** Older persisted documents predate `settingsInner`; the default fills it. */
 export function useSettingsInner(): SettingsInner {
   return useChromeStore((s) => s.prefs[s.operatorId]?.settingsInner ?? DEFAULT_PREFS.settingsInner)
+}
+
+/** A tab's remembered sort, group and page size — one object until it changes. */
+export function useListPrefs(tab: LibraryTab): ListPrefs {
+  return useChromeStore((s) => s.prefs[s.operatorId]?.lists?.[tab] ?? NO_LIST_PREFS)
+}
+
+/** A tab's session view — one object until it changes. */
+export function useListState(tab: LibraryTab): ListState {
+  return useChromeStore((s) => s.listState[tab] ?? EMPTY_LIST_STATE)
 }
 
 export function useArchiveScope(tab: Tab): ArchiveScope {
