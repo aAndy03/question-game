@@ -93,39 +93,88 @@ pub fn check_copyable(channel: Channel, host: &Host) -> AppResult<()> {
 }
 
 /// Put the compacted `copy` in place of the empty library at `library` and
-/// reopen it through the ordinary upgrade path (backed up and stamped). If the
-/// copy will not open, Beta comes back up on a fresh empty library and the
-/// welcome shows again. The Stage display state is carried over.
+/// reopen it through the ordinary upgrade path (backed up and stamped).
+///
+/// The empty library is **set aside, not deleted**, until the copy has
+/// opened: if the copy will not open, Beta goes back to that very file, on
+/// disk, with its welcome still to come — never onto a library that lives
+/// only in memory and loses a session's work at exit (review). The Stage
+/// display state is carried over on every path, and every failure is
+/// `beta.copy_failed`.
 pub fn swap_in(host: &mut Host, library: &Path, copy: &Path, options: &OpenOptions) -> AppResult<()> {
-    check_copyable(Channel::Beta, host)?;
+    check_copyable(Channel::Beta, host).inspect_err(|_| {
+        let _ = std::fs::remove_file(copy);
+    })?;
+    let failed = |e: &dyn std::fmt::Display| refusal("beta.copy_failed", e.to_string());
     let display = std::mem::replace(&mut host.display, questiongame_host::StageDisplay::new());
     // Drop the connection: on Windows a file that is open cannot be replaced.
     *host = Host::open(CatalogLocation::Memory)?;
-    let result = (|| -> AppResult<Host> {
-        for suffix in ["", "-wal", "-shm"] {
-            let path = PathBuf::from(format!("{}{suffix}", library.display()));
-            if path.exists() {
-                std::fs::remove_file(&path).map_err(|e| refusal("beta.copy_failed", e.to_string()))?;
+    let files = |base: &Path| ["", "-wal", "-shm"].map(|s| PathBuf::from(format!("{}{s}", base.display())));
+    let aside = PathBuf::from(format!("{}.aside", library.display()));
+    let set_aside = || -> AppResult<()> {
+        for (from, to) in files(library).iter().zip(files(&aside).iter()) {
+            if from.exists() {
+                std::fs::rename(from, to).map_err(|e| failed(&e))?;
             }
         }
-        std::fs::rename(copy, library).map_err(|e| refusal("beta.copy_failed", e.to_string()))?;
-        let opened = Host::open_installed(library, options)?;
-        opened.catalog.meta_set(META_BETA_WELCOME_SEEN, "copied")?;
+        Ok(())
+    };
+    let result = set_aside().and_then(|()| {
+        std::fs::rename(copy, library).map_err(|e| failed(&e))?;
+        let opened = Host::open_installed(library, options).map_err(|e| failed(&e))?;
+        opened.catalog.meta_set(META_BETA_WELCOME_SEEN, "copied").map_err(|e| failed(&e))?;
         Ok(opened)
-    })();
-    let (next, outcome) = match result {
-        Ok(opened) => (opened, Ok(())),
+    });
+    let outcome = match result {
+        Ok(opened) => {
+            *host = opened;
+            for path in files(&aside) {
+                let _ = std::fs::remove_file(path);
+            }
+            Ok(())
+        }
         Err(error) => {
             let _ = std::fs::remove_file(copy);
-            for suffix in ["", "-wal", "-shm"] {
-                let _ = std::fs::remove_file(format!("{}{suffix}", library.display()));
+            for path in files(library) {
+                let _ = std::fs::remove_file(path);
             }
-            (Host::open_installed(library, options)?, Err(error))
+            for (from, to) in files(&aside).iter().zip(files(library).iter()) {
+                if from.exists() {
+                    let _ = std::fs::rename(from, to);
+                }
+            }
+            // The library Beta booted on, back where it was. If even that will
+            // not open, the memory host stays and Studio is told — the same
+            // refusal, never silence.
+            if let Ok(back) = Host::open_installed(library, options) {
+                *host = back;
+            }
+            Err(error)
         }
     };
-    *host = next;
     host.display = display;
     outcome
+}
+
+/// One copy at a time (review): two would share the copy file and the temp
+/// folder, and the second would delete the first's work mid-flight.
+pub struct CopyInFlight(());
+
+static COPY_IN_FLIGHT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+impl CopyInFlight {
+    pub fn take() -> AppResult<CopyInFlight> {
+        COPY_IN_FLIGHT
+            .compare_exchange(false, true, std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst)
+            .map(|_| CopyInFlight(()))
+            .map_err(|_| refusal("beta.copy_running", "a copy is already running"))
+    }
+}
+
+impl Drop for CopyInFlight {
+    fn drop(&mut self) {
+        COPY_IN_FLIGHT.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
 }
 
 /// Is there a welcome to show? Studio asks once, before first run.
@@ -166,6 +215,7 @@ pub fn beta_copy_stable_library(
     channel: State<'_, Channel>,
 ) -> AppResult<()> {
     guard::allow(window.label(), "beta_copy_stable_library")?;
+    let _one = CopyInFlight::take()?;
     let channel = *channel;
     check_copyable(channel, &state.lock())?;
     let beta_dir = crate::state::user_data_dir(&app)?;
@@ -320,10 +370,27 @@ mod tests {
         let mut host = dir.host();
         let copy = dir.0.join(COPY_FILE);
         std::fs::write(&copy, vec![0x5au8; 8192]).unwrap();
-        assert!(swap_in(&mut host, &dir.library(), &copy, &dir.options()).is_err());
+        let error = swap_in(&mut host, &dir.library(), &copy, &dir.options()).unwrap_err();
+        // Review M6: the swap's own failures carry the Beta code.
+        assert!(matches!(error, AppError::Beta { code: "beta.copy_failed", .. }), "{error:?}");
         assert!(is_empty_library(&host).unwrap());
         assert!(welcome(Channel::Beta, &host, Some(StableLibrary::Available)).unwrap().show);
-        assert!(host.catalog.catalog_list(CatalogKind::Team, ArchiveScope::All).unwrap().is_empty(), "the host answers");
+        // Review I2: Beta is back on its own library on disk — what it writes
+        // now survives a restart — and nothing was left aside.
+        host.catalog.catalog_upsert(&team("kept"), 9).unwrap();
+        drop(host);
+        assert!(dir.host().catalog.catalog_get(CatalogKind::Team, "kept").is_ok(), "writes after a failed copy reach the disk");
+        let left: Vec<String> = std::fs::read_dir(&dir.0).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+        assert!(!left.iter().any(|n| n.contains("aside") || n == COPY_FILE), "{left:?}");
+    }
+
+    /// Review M1: a second copy while one is running is refused, not raced.
+    #[test]
+    fn one_copy_at_a_time() {
+        let first = CopyInFlight::take().expect("the first copy runs");
+        assert!(matches!(CopyInFlight::take(), Err(AppError::Beta { code: "beta.copy_running", .. })));
+        drop(first);
+        assert!(CopyInFlight::take().is_ok(), "free again once the first is done");
     }
 
     /// CMD03: only Studio may ask.

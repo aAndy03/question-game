@@ -155,10 +155,15 @@ fn library_present(stable_dir: &Path) -> bool {
 }
 
 /// A shared lock on stable's lock file, through a read-only handle. `Ok(None)`
-/// when there is no lock file (stable never ran); `Err` when stable holds it.
+/// only when there is **no** lock file (stable never ran); `Err` when stable
+/// holds it — and when the file is there but cannot be opened (an ACL, a
+/// sharing violation from a backup tool): a check that exists to say "close
+/// questiongame first" must fail closed, not copy a live library (review).
 fn share_lock(stable_dir: &Path) -> Result<Option<File>, ()> {
-    let Ok(file) = File::open(stable_dir.join(LOCK_FILE)) else {
-        return Ok(None);
+    let file = match File::open(stable_dir.join(LOCK_FILE)) {
+        Ok(file) => file,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(()),
     };
     match file.try_lock_shared() {
         Ok(()) => Ok(Some(file)),
@@ -331,6 +336,19 @@ mod tests {
         f.copy().unwrap();
         // SC13: the copy let go of its shared lock.
         hold_exclusive(&f.stable);
+    }
+
+    /// Review I1: a lock file that is there but cannot be opened is not
+    /// "stable never ran" — it fails closed, and nothing is copied.
+    #[test]
+    fn an_unreadable_lock_file_fails_closed() {
+        let f = Folders::new("unreadable-lock");
+        f.library(1);
+        // A folder where the lock file should be: it exists, and File::open on it fails.
+        std::fs::create_dir(f.stable.join(LOCK_FILE)).unwrap();
+        assert_eq!(probe(&f.stable), StableLibrary::Running);
+        assert_eq!(f.copy(), Err(CopyError::Running));
+        assert!(!f.dest().exists());
     }
 
     /// SC10, SC11: a lock file nobody holds, or one another reader shares.
