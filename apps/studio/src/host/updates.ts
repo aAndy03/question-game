@@ -38,12 +38,14 @@ export function useUpdateCheckOnStart(): void {
       try {
         const status = await command<UpdateStatus>('update_check')
         if (!status.newer || status.latest === null) return
+        // A beta hears of a stable release first: it is the one worth moving to.
+        const stable = status.stableNewer
         push({
-          code: 'update.available',
+          code: stable ? 'update.stable_available' : 'update.available',
           severity: 'info',
           targetPath: null,
           actions: ['open_release', 'dismiss'],
-          detail: { version: status.latest },
+          detail: { version: stable ?? status.latest },
         })
       } catch {
         // Offline is normal, and nothing is said about it.

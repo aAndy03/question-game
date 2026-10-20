@@ -423,6 +423,10 @@ export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Read
     title: 'questiongame {version} is available.',
     actions: { open_release: 'Open release page', dismiss: 'Not now' },
   },
+  'update.stable_available': {
+    title: 'questiongame {version} is out.',
+    actions: { open_release: 'Open release page', dismiss: 'Not now' },
+  },
   'stage.monitor_lost': {
     title: 'The Stage display was unplugged. Stage is back on the primary display; the Play continues.',
     actions: { pick_monitor: 'Pick a display', dismiss: 'Dismiss' },

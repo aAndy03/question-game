@@ -16,6 +16,8 @@ use std::time::Duration;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
+use crate::identity::Line;
+
 /// The repository the releases are published to.
 pub const REPOSITORY: &str = "aAndy03/question-game";
 const TIMEOUT: Duration = Duration::from_secs(5);
@@ -35,6 +37,11 @@ pub struct UpdateStatus {
     /// The latest release's page, built from its version.
     pub url: Option<String>,
     pub newer: bool,
+    /// Beta only, and only while Beta runs a prerelease: a **stable** release
+    /// newer than this build — "questiongame 2.0.0 is out". Absent from the
+    /// JSON otherwise, so a stable build answers exactly what 1.0.2 did.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stable_newer: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -58,6 +65,34 @@ pub fn parse_latest(body: &str) -> Option<Release> {
     version.pre.is_empty().then_some(Release { version })
 }
 
+/// Every readable release in a `/releases` body, prereleases kept: a
+/// non-draft entry whose tag is `v<semver>` (or bare semver). What a release
+/// *is* comes from its tag, never from GitHub's `prerelease` flag. A body
+/// that is not a list is no releases.
+pub fn parse_list(body: &str) -> Vec<Release> {
+    let Ok(entries) = serde_json::from_str::<Vec<Latest>>(body) else {
+        return Vec::new();
+    };
+    entries
+        .into_iter()
+        .filter(|e| !e.draft)
+        .filter_map(|e| {
+            let tag = e.tag_name.strip_prefix('v').unwrap_or(&e.tag_name);
+            Version::parse(tag).ok().map(|version| Release { version })
+        })
+        .collect()
+}
+
+/// What each line asks GitHub for. `/releases/latest` never answers a
+/// prerelease, which is exactly what stable wants and exactly what Beta
+/// cannot use.
+pub fn path_for(line: Line) -> &'static str {
+    match line {
+        Line::Stable => "/releases/latest",
+        Line::Beta => "/releases?per_page=20",
+    }
+}
+
 /// Is `latest` newer than the running `current`? Semver order, so 1.0.10 is
 /// newer than 1.0.9. An unreadable `current` answers no.
 pub fn newer(current: &str, latest: &Release) -> bool {
@@ -69,25 +104,46 @@ pub fn release_url(version: &Version) -> String {
     format!("https://github.com/{REPOSITORY}/releases/tag/v{version}")
 }
 
-/// Ask `fetch` for the latest release and compare it with `current`.
+/// Ask `fetch` (given [`path_for`] this line) for the releases and compare
+/// them with `current`. Stable: the latest release. Beta: the newest of the
+/// list by semver, plus [`UpdateStatus::stable_newer`].
 pub fn check(
-    fetch: impl FnOnce() -> Result<String, String>,
+    fetch: impl FnOnce(&str) -> Result<String, String>,
     current: &str,
+    line: Line,
 ) -> Result<UpdateStatus, String> {
-    let body = fetch()?;
-    let release = parse_latest(&body).ok_or_else(|| "no readable latest release".to_string())?;
+    let body = fetch(path_for(line))?;
+    let (release, stable_newer) = match line {
+        Line::Stable => (parse_latest(&body), None),
+        Line::Beta => {
+            let releases = parse_list(&body);
+            let running = Version::parse(current).ok();
+            let stable_newer = running.filter(|v| !v.pre.is_empty()).and_then(|running| {
+                releases
+                    .iter()
+                    .filter(|r| r.version.pre.is_empty() && r.version > running)
+                    .map(|r| &r.version)
+                    .max()
+                    .map(Version::to_string)
+            });
+            (releases.into_iter().max_by(|a, b| a.version.cmp(&b.version)), stable_newer)
+        }
+    };
+    let release = release.ok_or_else(|| "no readable latest release".to_string())?;
     Ok(UpdateStatus {
         current: current.to_string(),
         latest: Some(release.version.to_string()),
         url: Some(release_url(&release.version)),
         newer: newer(current, &release),
+        stable_newer,
     })
 }
 
-/// The one network call: GitHub's latest release for [`REPOSITORY`], through
+/// The one network call: GitHub's releases for [`REPOSITORY`] at `path`
+/// ([`path_for`]), through
 /// the OS trust store, five seconds at most. Blocking — run it off the host
 /// lock and off the event-loop thread.
-pub fn fetch_latest() -> Result<String, String> {
+pub fn fetch(path: &str) -> Result<String, String> {
     use std::sync::Arc;
     use ureq::tls::{Certificate, RootCerts, TlsConfig, TlsProvider};
 
@@ -118,7 +174,7 @@ pub fn fetch_latest() -> Result<String, String> {
         .build()
         .into();
     agent
-        .get(format!("https://api.github.com/repos/{REPOSITORY}/releases/latest"))
+        .get(format!("https://api.github.com/repos/{REPOSITORY}{path}"))
         .header("Accept", "application/vnd.github+json")
         .call()
         .map_err(|e| e.to_string())?

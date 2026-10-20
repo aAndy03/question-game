@@ -117,6 +117,7 @@ export const SETTINGS = {
     checking: 'Checking…',
     upToDate: (version: string) => `You have the latest release, ${version}.`,
     updateAvailable: (version: string) => `questiongame ${version} is available.`,
+    stableAvailable: (version: string) => `questiongame ${version} is out.`,
     unreachable: "Couldn't reach GitHub. Check the connection and try again.",
     openRelease: 'Open release page',
     whatsNew: "What's new",

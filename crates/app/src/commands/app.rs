@@ -114,10 +114,14 @@ pub fn app_info(
 /// failure is logged — offline and an unreadable trust store read the same in
 /// Studio, which says nothing about either, so the log is where they differ.
 #[tauri::command]
-pub async fn update_check(window: WebviewWindow) -> AppResult<crate::update::UpdateStatus> {
+pub async fn update_check(
+    window: WebviewWindow,
+    channel: State<'_, crate::identity::Channel>,
+) -> AppResult<crate::update::UpdateStatus> {
     guard::allow(window.label(), "update_check")?;
-    let answer = tauri::async_runtime::spawn_blocking(|| {
-        crate::update::check(crate::update::fetch_latest, env!("CARGO_PKG_VERSION"))
+    let line = channel.line();
+    let answer = tauri::async_runtime::spawn_blocking(move || {
+        crate::update::check(crate::update::fetch, env!("CARGO_PKG_VERSION"), line)
     })
     .await
     .map_err(|e| AppError::Network(e.to_string()))?;

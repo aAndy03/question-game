@@ -87,8 +87,12 @@ function Updates() {
         </Button>
         {check.state === 'done' && check.status.newer && check.status.latest ? (
           <>
-            <Text variant="studio-body">{SETTINGS.about.updateAvailable(check.status.latest)}</Text>
-            <Button variant="primary" onPress={() => void run('update_open_release', { version: check.status.latest })}>
+            <Text variant="studio-body">
+              {check.status.stableNewer
+                ? SETTINGS.about.stableAvailable(check.status.stableNewer)
+                : SETTINGS.about.updateAvailable(check.status.latest)}
+            </Text>
+            <Button variant="primary" onPress={() => void run('update_open_release', { version: check.status.stableNewer ?? check.status.latest })}>
               {SETTINGS.about.openRelease}
             </Button>
           </>

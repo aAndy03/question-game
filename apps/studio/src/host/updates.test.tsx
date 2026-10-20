@@ -50,6 +50,16 @@ describe('the update check on start (P12.9)', () => {
     expect(notice.detail.version).toBe('1.0.3')
   })
 
+  it('tells a beta when a stable release is out, instead of the beta notice (UPD19)', async () => {
+    fake.update = { current: '2.0.0-beta.3', latest: '2.0.0', url: 'https://example.invalid', newer: true, stableNewer: '2.0.0' }
+    mount()
+    await waitFor(() => expect(useNoticeStore.getState().notices).toHaveLength(1))
+    const notice = useNoticeStore.getState().notices[0]!
+    expect(notice.code).toBe('update.stable_available')
+    expect(notice.actions).toEqual(['open_release', 'dismiss'])
+    expect(notice.detail.version).toBe('2.0.0')
+  })
+
   it('says nothing when this is the latest release', async () => {
     fake.update = { current: '1.0.2', latest: '1.0.2', url: null, newer: false }
     mount()

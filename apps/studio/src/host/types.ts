@@ -344,6 +344,8 @@ export interface UpdateStatus {
   readonly latest: string | null
   readonly url: string | null
   readonly newer: boolean
+  /** Beta running a prerelease only: a stable release newer than it. Absent on stable. */
+  readonly stableNewer?: string
 }
 
 export type DisabledReason =
