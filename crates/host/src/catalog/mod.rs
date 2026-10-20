@@ -33,7 +33,7 @@ mod snapshot;
 mod store;
 
 pub use crate::flags::GameSettings;
-pub use backup::{META_LAST_OPENED, META_LAST_SEEN, OpenOptions, OpenReport, UNSTAMPED_VERSION};
+pub use backup::{META_LAST_OPENED, META_LAST_SEEN, OpenOptions, OpenReport, UNSTAMPED_VERSION, compact_copy};
 pub use complete::QuestionGap;
 pub use db::CatalogLocation;
 pub use error::{CatalogError, CatalogKind, CatalogResult};

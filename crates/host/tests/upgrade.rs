@@ -257,3 +257,57 @@ fn a_boot_that_fails_after_the_backup_still_keeps_only_five() {
     }
     assert_eq!(backups_in(&dir.backups()).len(), 5);
 }
+
+// ---- P13.1: a compact copy of a library, for questiongame Beta ----
+
+use questiongame_host::catalog::compact_copy;
+
+#[test]
+fn a_compact_copy_holds_the_library_and_leaves_the_source_as_it_was() {
+    let dir = TempDir::new("compact");
+    let from = dir.library();
+    let catalog = CatalogService::open(CatalogLocation::file(&from)).unwrap();
+    catalog.catalog_upsert(&team("t1", "Alpha"), 1).unwrap();
+    drop(catalog);
+    let before = std::fs::read(&from).unwrap();
+    let to = dir.0.join("copy.sqlite3");
+    compact_copy(&from, &to).unwrap();
+    assert_eq!(std::fs::read(&from).unwrap(), before);
+    let copy = CatalogService::open(CatalogLocation::file(&to)).unwrap();
+    assert!(copy.catalog_get(CatalogKind::Team, "t1").is_ok());
+}
+
+#[test]
+fn a_compact_copy_never_writes_over_a_file() {
+    let dir = TempDir::new("compact-exists");
+    let from = dir.library();
+    drop(CatalogService::open(CatalogLocation::file(&from)).unwrap());
+    let to = dir.0.join("copy.sqlite3");
+    std::fs::write(&to, b"already here").unwrap();
+    assert!(compact_copy(&from, &to).is_err());
+    assert_eq!(std::fs::read(&to).unwrap(), b"already here");
+}
+
+#[test]
+fn a_compact_copy_refuses_a_library_newer_than_this_build() {
+    let dir = TempDir::new("compact-newer");
+    let from = dir.library();
+    drop(CatalogService::open(CatalogLocation::file(&from)).unwrap());
+    {
+        let conn = rusqlite::Connection::open(&from).unwrap();
+        conn.execute_batch("PRAGMA user_version = 999").unwrap();
+    }
+    let to = dir.0.join("copy.sqlite3");
+    assert!(matches!(compact_copy(&from, &to), Err(CatalogError::SchemaTooNew { found: 999, .. })));
+    assert!(!to.exists());
+}
+
+#[test]
+fn a_compact_copy_of_garbage_is_an_error_and_leaves_nothing() {
+    let dir = TempDir::new("compact-garbage");
+    let from = dir.library();
+    std::fs::write(&from, vec![0x5a; 4096]).unwrap();
+    let to = dir.0.join("copy.sqlite3");
+    assert!(compact_copy(&from, &to).is_err());
+    assert!(!to.exists());
+}

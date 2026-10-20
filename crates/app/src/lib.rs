@@ -33,6 +33,7 @@ pub mod logfile;
 pub mod monitors;
 pub mod perf;
 pub mod quit;
+pub mod stable_copy;
 pub mod state;
 pub mod tick;
 pub mod topology;

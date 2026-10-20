@@ -1078,6 +1078,7 @@ host_api:
     "catalog::backup::OpenOptions": {doc: "How [`super::CatalogService::open_file`] guards an upgrade.", kind: struct, sig: "struct OpenOptions { app_version: String, backup_dir: PathBuf, keep: usize, stamp: String }"}
     "catalog::backup::OpenReport": {doc: "What opening the library found, for the boot log and *What's new*.", kind: struct, sig: "struct OpenReport { existed: bool, previous_version: Option<String>, backup: Option<PathBuf> }"}
     "catalog::backup::UNSTAMPED_VERSION": {doc: "What an unstamped library was last opened by.", kind: const, sig: "const UNSTAMPED_VERSION: &str = \"1.0.1\""}
+    "catalog::backup::compact_copy": {doc: "A compact copy of the library at `from`, written to `to` (P13.1): how questiongame Beta takes the stable library.", kind: fn, sig: "fn compact_copy(from: &Path, to: &Path) -> CatalogResult<()>"}
   crates/host/src/catalog/complete.rs:
     "catalog::complete::QuestionGap": {doc: "One reason a question cannot go on air yet, in the order the operator reads them.", kind: enum, sig: "enum QuestionGap { Stem | Options | Correct | Difficulty | Domain }"}
     "catalog::complete::body_gaps": {doc: "The four gaps a body can have on its own — everything but the domain.", kind: fn, sig: "fn body_gaps(stem: &str, options: &[QuestionOption], difficulty: Option<u8>) -> Vec<QuestionGap>"}
@@ -1834,6 +1835,10 @@ app_crate:
       "perf::take_current": {doc: "The command that held the lock, or `\"?\"` if nothing said.", kind: fn, sig: "fn take_current() -> &'static str"}
     crates/app/src/perf/os.rs:
       "perf::os::role_of": {doc: "The `--type=` argument of a Chromium child, or `browser` when it has none.", kind: fn, sig: "fn role_of(cmd: &[String]) -> String"}
+    crates/app/src/stable_copy.rs:
+      "stable_copy::copy_into": {doc: "Copy the stable library in `stable_dir` into a compact `dest` (which must not exist), through a temp folder inside `beta_dir`.", kind: fn, sig: "fn copy_into(stable_dir: &Path, beta_dir: &Path, dest: &Path) -> Result<(), CopyError>"}
+      "stable_copy::probe": {doc: "Is there a library to copy, and may it be copied now?", kind: fn, sig: "fn probe(stable_dir: &Path) -> StableLibrary"}
+      "stable_copy::stable_dir": {doc: "Where the stable library lives, for a Beta build: the release identity's folder beside Beta's own.", kind: fn, sig: "fn stable_dir(beta_data_dir: &Path, channel: Channel, e2e_override: Option<&Path>) -> Option<PathBuf>"}
     crates/app/src/state.rs:
       "state::assert_unlocked": {doc: "Refuse, loudly and in dev only, to touch a window while the host lock is held.", kind: fn, sig: "fn assert_unlocked(what: &str)"}
       "state::catalog_path": {doc: "Where the catalog lives.", kind: fn, sig: "fn catalog_path(app: &tauri::AppHandle) -> AppResult<std::path::PathBuf>"}
@@ -1894,6 +1899,7 @@ app_crate:
     - "perf::line"
     - "perf::os"
     - quit
+    - stable_copy
     - state
     - tick
     - topology

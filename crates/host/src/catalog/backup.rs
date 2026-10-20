@@ -132,6 +132,42 @@ fn stamp_of(name: &str) -> Option<&str> {
     well_formed.then_some(stamp)
 }
 
+/// A compact copy of the library at `from`, written to `to` (P13.1): how
+/// questiongame Beta takes the stable library. `from` is opened — read-write,
+/// because it is Beta's own byte copy and SQLite folds a pending `-wal` into
+/// the read — and `VACUUM INTO` writes `to`, which must not exist. A library
+/// newer than this build is refused before anything is written, the same
+/// refusal [`super::CatalogService::open_file`] would give; a copy that fails
+/// halfway is removed.
+pub fn compact_copy(from: &Path, to: &Path) -> CatalogResult<()> {
+    let failed = |reason: String| CatalogError::BackupFailed {
+        dir: to.parent().unwrap_or(to).to_path_buf(),
+        reason,
+    };
+    if to.exists() {
+        return Err(failed(format!("{} already exists", to.display())));
+    }
+    let target = to
+        .to_str()
+        .ok_or_else(|| failed("the copy's path is not valid UTF-8".to_string()))?;
+    let conn = Connection::open_with_flags(from, rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+    let found: u32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    let known = super::db::MIGRATIONS.len() as u32;
+    if found > known {
+        return Err(CatalogError::SchemaTooNew { found, known });
+    }
+    if let Err(error) = conn.execute("VACUUM INTO ?1", [target]) {
+        let _ = std::fs::remove_file(to);
+        return Err(error.into());
+    }
+    drop(conn);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(to)
+        .and_then(|file| file.sync_all())
+        .map_err(|e| failed(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -147,3 +183,4 @@ mod tests {
         assert_eq!(stamp_of("questiongame-1.0.1-2026101x-120000.sqlite3"), None);
     }
 }
+

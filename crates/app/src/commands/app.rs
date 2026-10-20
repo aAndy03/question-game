@@ -202,7 +202,7 @@ mod tests {
         let info = AppInfo {
             version: "1.0.2".into(),
             build: "release",
-            identifier: crate::identity::RELEASE_IDENTIFIER.into(),
+            identifier: "org.example.app".into(),
             channel: crate::identity::Channel::Stable.wire(),
         };
         let json = serde_json::to_value(&info).unwrap();
