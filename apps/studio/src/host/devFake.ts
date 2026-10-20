@@ -25,6 +25,8 @@ export function installDevFakeIfAsked(): FakeHost | null {
   const fake = createFakeHost()
   const params = new URLSearchParams(window.location.search)
   const firstRun = params.has('firstrun')
+  // `&channel=beta` plays questiongame Beta: the chip, and the welcome on an empty library.
+  if (params.get('channel') === 'beta') fake.channel = 'beta'
   fake.seed(
     firstRun ? demoLibrary().filter((row) => row.kind !== 'operator') : demoLibrary(),
     [demoRecipe()],

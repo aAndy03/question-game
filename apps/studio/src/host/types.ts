@@ -469,8 +469,10 @@ export interface SeedResult {
 /** `app_info` — what Settings ▸ About says this build is (P12.3). */
 export interface AppInfo {
   readonly version: string
-  readonly build: 'dev' | 'release'
+  readonly build: 'dev' | 'release' | 'e2e' | 'beta'
   readonly identifier: string
+  /** What the Beta chip and the welcome read (`identity::Channel::wire`). */
+  readonly channel: 'stable' | 'beta' | 'dev'
 }
 
 export interface AppPaths {

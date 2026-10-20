@@ -84,16 +84,24 @@ pub struct AppInfo {
     /// `dev` or `release`.
     pub build: &'static str,
     pub identifier: String,
+    /// `stable`, `beta` or `dev` (`identity::Channel::wire`): what the Beta
+    /// chip and the welcome read.
+    pub channel: &'static str,
 }
 
 /// Settings ▸ About. Studio only (`guard`).
 #[tauri::command(async)]
-pub fn app_info(window: WebviewWindow, app: AppHandle) -> AppResult<AppInfo> {
+pub fn app_info(
+    window: WebviewWindow,
+    app: AppHandle,
+    channel: State<'_, crate::identity::Channel>,
+) -> AppResult<AppInfo> {
     guard::allow(window.label(), "app_info")?;
     Ok(AppInfo {
         version: app.package_info().version.to_string(),
         build: crate::identity::build_label_for(tauri::is_dev(), &app.config().identifier),
         identifier: app.config().identifier.clone(),
+        channel: channel.wire(),
     })
 }
 
@@ -183,6 +191,22 @@ pub fn whats_new_seen(window: WebviewWindow, state: State<'_, AppState>) -> AppR
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// REG01: 1.0.2's keys, plus `channel`.
+    #[test]
+    fn app_info_is_1_0_2s_shape_plus_the_channel() {
+        let info = AppInfo {
+            version: "1.0.2".into(),
+            build: "release",
+            identifier: crate::identity::RELEASE_IDENTIFIER.into(),
+            channel: crate::identity::Channel::Stable.wire(),
+        };
+        let json = serde_json::to_value(&info).unwrap();
+        let mut keys: Vec<&String> = json.as_object().unwrap().keys().collect();
+        keys.sort();
+        assert_eq!(keys, ["build", "channel", "identifier", "version"]);
+        assert_eq!(json["channel"], "stable");
+    }
 
     #[test]
     fn the_uninstaller_is_found_only_where_the_installer_put_it() {

@@ -87,6 +87,14 @@ pub fn run() {
             if let Err(reason) = identity::check(tauri::is_dev(), &app.config().identifier) {
                 boot::fail(&reason, None);
             }
+            // Which product this is, decided once (`identity::channel`).
+            let e2e_channel = std::env::var(identity::E2E_CHANNEL_ENV).ok();
+            match identity::channel(&app.config().identifier, e2e_channel.as_deref()) {
+                Ok(channel) => {
+                    app.manage(channel);
+                }
+                Err(reason) => boot::fail(&reason, None),
+            }
             // Logging first, and inside `setup`, because the log file lives in
             // the app-data directory and only Tauri can resolve it. The perf
             // layer is installed with the subscriber, so its counters exist

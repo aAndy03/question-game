@@ -21,6 +21,7 @@
 import { DEFAULT_AUDIO, type Command, type EventName, type MonitorInfo, type PlayStateForMain } from '@questiongame/contract'
 import type { HostError, HostTransport } from './host'
 import type {
+  AppInfo,
   AppPaths,
   UpdateStatus,
   ArchiveScope,
@@ -103,6 +104,8 @@ export interface FakeHost extends HostTransport {
   readonly openedReleases: string[]
   /** Where What's new starts (P12.10); `whats_new_seen` moves it to 1.0.2. */
   whatsNewSince: string | null
+  /** What `app_info.channel` answers; `?fake&channel=beta` makes it Beta. */
+  channel: AppInfo['channel']
   readonly marker: typeof FAKE_HOST_MARKER
   /** The close guard's answers (P12.2): the fake cannot quit, so it counts. */
   quits: number
@@ -725,7 +728,7 @@ export function createFakeHost(): FakeHost {
       return null
     },
     // The app itself (P12.2), refusing in the host's order.
-    app_info: () => ({ version: '1.0.2', build: 'dev', identifier: 'org.questiongame.app' }),
+    app_info: () => ({ version: '1.0.2', build: 'dev', identifier: 'org.questiongame.app', channel: fake.channel }),
     app_quit: () => {
       fake.quits += 1
       return null
@@ -945,6 +948,7 @@ export function createFakeHost(): FakeHost {
     updatesOnStart: true,
     openedReleases: [],
     whatsNewSince: null,
+    channel: 'dev',
     marker: FAKE_HOST_MARKER,
     emit,
     listenerCount(name) {
