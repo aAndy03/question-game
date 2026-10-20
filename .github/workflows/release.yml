@@ -1,14 +1,16 @@
-# Builds the installers and publishes them as a GitHub Release (P12.3).
+# Builds the installers and publishes them as a GitHub Release (P12.3, P13.0).
 #
 # Push a tag named after the version to release it:
 #
-#   git tag v1.0.2 && git push origin v1.0.2
+#   git tag v1.1.0 && git push origin v1.1.0               questiongame
+#   git tag v2.0.0-beta.1 && git push origin v2.0.0-beta.1 questiongame Beta, a pre-release
 #
 # The tag must match the version in Cargo.toml, crates/app/tauri.conf.json and
-# package.json (crates/app/tests/bundle.rs holds those three together). The
-# release gets the Windows installer, the macOS disk image, and GitHub's own
-# source-code archives. "Run workflow" on the Actions tab builds the same
-# installers without releasing them; they are attached to the run instead.
+# package.json (crates/app/tests/bundle.rs holds those three together);
+# scripts/lib/release-route.ts decides the route and refuses anything else.
+# The release gets the Windows installer, the macOS disk image, and GitHub's
+# own source-code archives. "Run workflow" on the Actions tab builds either
+# channel without releasing it; the installers are attached to the run.
 
 name: Release
 
@@ -16,6 +18,14 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      channel:
+        description: Which app to build
+        type: choice
+        options:
+          - stable
+          - beta
+        default: stable
 
 permissions:
   contents: write
@@ -31,6 +41,12 @@ jobs:
   test:
     name: Test
     runs-on: windows-latest
+    outputs:
+      channel: ${{ steps.route.outputs.channel }}
+      publish: ${{ steps.route.outputs.publish }}
+      prerelease: ${{ steps.route.outputs.prerelease }}
+      config_args: ${{ steps.route.outputs.config_args }}
+      release_name: ${{ steps.route.outputs.release_name }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -44,15 +60,13 @@ jobs:
         with:
           key: test
       - run: npm ci
-      - name: The tag names the version being built
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        run: |
-          version=$(node -p "require('./package.json').version")
-          if [ "v$version" != "${GITHUB_REF_NAME}" ]; then
-            echo "Tag ${GITHUB_REF_NAME} does not match version $version in package.json" >&2
-            exit 1
-          fi
+      # Which app this run builds, and whether it publishes; a tag that is
+      # neither vX.Y.Z nor vX.Y.Z-beta.N, or names another version, stops here.
+      - name: Route
+        id: route
+        run: npm run release:route
+        env:
+          INPUT_CHANNEL: ${{ inputs.channel }}
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
@@ -143,18 +157,19 @@ jobs:
           key: ${{ matrix.name }}
       - run: npm ci
 
-      # Tagged: build and attach to the release named after the tag.
-      - name: Build and publish
-        if: startsWith(github.ref, 'refs/tags/')
+      # Tagged: build and attach to the release named after the tag. The
+      # route says which app; the two steps differ only in what they tell people.
+      - name: Build and publish (questiongame)
+        if: needs.test.outputs.publish == 'true' && needs.test.outputs.channel == 'stable'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: questiongame ${{ github.ref_name }}
+          releaseName: ${{ needs.test.outputs.release_name }}
           releaseDraft: false
-          prerelease: false
-          args: ${{ matrix.args }}
+          prerelease: ${{ needs.test.outputs.prerelease == 'true' }}
+          args: ${{ matrix.args }} ${{ needs.test.outputs.config_args }}
           releaseBody: |
             ## Download
 
@@ -174,17 +189,49 @@ jobs:
 
             See the [README](https://github.com/${{ github.repository }}#readme) for the full install guide.
 
+      - name: Build and publish (questiongame Beta)
+        if: needs.test.outputs.publish == 'true' && needs.test.outputs.channel == 'beta'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ needs.test.outputs.release_name }}
+          releaseDraft: false
+          prerelease: ${{ needs.test.outputs.prerelease == 'true' }}
+          args: ${{ matrix.args }} ${{ needs.test.outputs.config_args }}
+          releaseBody: |
+            **This is a beta.** questiongame Beta installs beside questiongame and keeps its own library; nothing you do in it changes your stable library. The first time it opens, it offers to copy your stable library or start empty.
+
+            ## Download
+
+            - **Windows 10 / 11:** `questiongame Beta_…_x64-setup.exe`
+            - **macOS 13 or later (Apple Silicon and Intel):** `questiongame Beta_…_universal.dmg`
+
+            ### Updating from an earlier version
+
+            **Install over the version you have — do not uninstall first.** Run the new installer (Windows) or drag the new app over the old one in Applications (macOS). Your teams, questions and games stay where they are, and questiongame Beta copies them to a backup before it changes anything. Uninstalling first risks ticking *Delete the application data*, which removes your library. The first time it opens, questiongame Beta shows what's new.
+
+            ### These installers are not signed
+
+            questiongame is a free, open-source project and does not pay for code-signing certificates, so your computer will warn you the first time.
+
+            - **Windows:** a blue *"Windows protected your PC"* screen appears. Click **More info**, then **Run anyway**.
+            - **macOS:** open the `.dmg` and drag questiongame Beta to Applications. The first time you open it, macOS says it cannot verify the developer. Open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to questiongame Beta.
+
+            See the [README](https://github.com/${{ github.repository }}#readme) for the full install guide.
+
       # Manual run: build only, and keep the installers on the run.
       - name: Build
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: needs.test.outputs.publish != 'true'
         uses: tauri-apps/tauri-action@v0
         with:
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} ${{ needs.test.outputs.config_args }}
       - name: Keep the installers
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: needs.test.outputs.publish != 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: questiongame-${{ matrix.name }}
+          name: questiongame-${{ needs.test.outputs.channel }}-${{ matrix.name }}
           if-no-files-found: error
           path: |
             target/release/bundle/nsis/*.exe

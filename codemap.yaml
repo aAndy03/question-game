@@ -1810,6 +1810,7 @@ app_crate:
     crates/app/src/identity.rs:
       "identity::build_label": {doc: "What the performance log and Settings ▸ About call this build.", kind: fn, sig: "fn build_label(is_dev: bool) -> &'static str"}
       "identity::build_label_for": {doc: "[`build_label`], naming the end-to-end build for what it is.", kind: fn, sig: "fn build_label_for(is_dev: bool, identifier: &str) -> &'static str"}
+      "identity::channel": {doc: "The one place the channel is decided.", kind: fn, sig: "fn channel(identifier: &str, e2e_channel: Option<&str>) -> Result<Channel, String>"}
       "identity::check": {doc: "`is_dev` is `tauri::is_dev()`: the frontend comes from `devUrl` rather than being embedded — Tauri's own line between the two builds.", kind: fn, sig: "fn check(is_dev: bool, identifier: &str) -> Result<(), String>"}
     crates/app/src/lib.rs:
       run: {doc: "Build and run the desktop app.", kind: fn, sig: "fn run()"}
@@ -1850,10 +1851,12 @@ app_crate:
       "topology::fold": {doc: "Fold a list of paths into a [`Topology`].", kind: fn, sig: "fn fold(paths: &[Path]) -> Topology"}
       "topology::read": {doc: "The topology now.", kind: fn, sig: "fn read() -> Topology"}
     crates/app/src/update.rs:
-      "update::check": {doc: "Ask `fetch` for the latest release and compare it with `current`.", kind: fn, sig: "fn check(fetch: impl FnOnce() -> Result<String, String>, current: &str) -> Result<UpdateStatus, String>"}
-      "update::fetch_latest": {doc: "The one network call: GitHub's latest release for [`REPOSITORY`], through the OS trust store, five seconds at most.", kind: fn, sig: "fn fetch_latest() -> Result<String, String>"}
+      "update::check": {doc: "Ask `fetch` (given [`path_for`] this line) for the releases and compare them with `current`.", kind: fn, sig: "fn check(fetch: impl FnOnce(&str) -> Result<String, String>, current: &str, line: Line) -> Result<UpdateStatus, String>"}
+      "update::fetch": {doc: "The one network call: GitHub's releases for [`REPOSITORY`] at `path` ([`path_for`]), through the OS trust store, five seconds at most.", kind: fn, sig: "fn fetch(path: &str) -> Result<String, String>"}
       "update::newer": {doc: "Is `latest` newer than the running `current`?", kind: fn, sig: "fn newer(current: &str, latest: &Release) -> bool"}
       "update::parse_latest": {doc: "The release in a `/releases/latest` body.", kind: fn, sig: "fn parse_latest(body: &str) -> Option<Release>"}
+      "update::parse_list": {doc: "Every readable release in a `/releases` body, prereleases kept: a non-draft entry whose tag is `v<semver>` (or bare semver).", kind: fn, sig: "fn parse_list(body: &str) -> Vec<Release>"}
+      "update::path_for": {doc: "What each line asks GitHub for.", kind: fn, sig: "fn path_for(line: Line) -> &'static str"}
       "update::release_url": {doc: "The release page for a version.", kind: fn, sig: "fn release_url(version: &Version) -> String"}
     crates/app/src/whats_new.rs:
       "whats_new::since": {doc: "`last_seen` is `META_LAST_SEEN`; `report` is what opening the library found (`None` for a library opened without one — memory, tests).", kind: fn, sig: "fn since(last_seen: Option<String>, report: Option<&OpenReport>) -> Since"}
@@ -2420,8 +2423,11 @@ config:
       bundle.macOS.signingIdentity: "-"
       bundle.targets: [app, dmg]
   identity_consts:
+    BETA_IDENTIFIER: org.questiongame.beta
     DEV_IDENTIFIER: org.questiongame.app
+    E2E_CHANNEL_ENV: QUESTIONGAME_E2E_CHANNEL
     E2E_IDENTIFIER: org.questiongame.e2e
+    E2E_STABLE_DIR_ENV: QUESTIONGAME_E2E_STABLE_DIR
     RELEASE_IDENTIFIER: org.questiongame.desktop
 build:
   cargo_members: [crates/app, crates/host, tools/codemap]
@@ -2493,6 +2499,7 @@ build:
     notices: "vite-node scripts/notices.ts"
     release: "npm run typecheck && npm run lint && npm run test:all && npm run map:check && tauri build"
     "release:check": "vite-node scripts/release-check.ts"
+    "release:route": "vite-node scripts/release-route.ts"
     "studio:icons": "vite-node scripts/studio-icons.ts"
     tauri: tauri
     test: "vitest run"
@@ -2520,6 +2527,7 @@ build:
         needs: []
         runs:
           - "npm ci"
+          - "npm run release:route"
           - "npm run typecheck"
           - "npm run lint"
           - "npm test"
