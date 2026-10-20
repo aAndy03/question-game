@@ -85,7 +85,7 @@ pub use flags::{
 pub use health::{HealthInputs, HealthReport, HealthStatus};
 pub use ids::{
     AssetId, DomainId, EventId, OperatorId, OptionId, PlayId, QuestionId, RecipeId, TeamId,
-    WorkspaceGroupId, WorkspaceId,
+    DomainGroupId, WorkspaceGroupId, WorkspaceId,
 };
 pub use monitor::{
     MonitorError, MonitorInfo, MonitorKey, StageDisplay, StageMove, StagePlacement, StageReattach,

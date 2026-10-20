@@ -277,6 +277,33 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     INSERT INTO globals (key, value_json) VALUES ('workspace.current', '"ws-1"')
     ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json;
     "#,
+    // 5 — Beta (P15): groups inside a domain and tags on a question, both for
+    // organising only — no board, snapshot or Play reads them. A group lives
+    // where its domain lives (it has no workspace column of its own); a
+    // question's group in a domain is part of its membership there. A tag is
+    // kept as typed (`tag`) and compared by `tag_key`, its Unicode lower case.
+    r#"
+    CREATE TABLE domain_groups (
+        id         TEXT PRIMARY KEY,
+        domain_id  TEXT NOT NULL REFERENCES domains(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        sort_key   INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX domain_groups_by_domain ON domain_groups(domain_id);
+
+    ALTER TABLE domain_questions ADD COLUMN group_id TEXT REFERENCES domain_groups(id) ON DELETE SET NULL;
+
+    CREATE TABLE question_tags (
+        question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+        tag         TEXT NOT NULL,
+        tag_key     TEXT NOT NULL,
+        position    INTEGER NOT NULL,
+        PRIMARY KEY (question_id, tag_key)
+    );
+    CREATE INDEX question_tags_by_key ON question_tags(tag_key);
+    "#,
 ];
 
 /// The step that introduced workspaces, 1-based like `user_version`. A file
@@ -290,6 +317,8 @@ pub(crate) const WORKSPACES_STEP: u32 = 4;
 #[doc(hidden)]
 pub fn write_older_schema(from: &Path, to: &Path, steps: u32) -> CatalogResult<()> {
     let conn = Connection::open(to)?;
+    // Tables are copied in name order, not in reference order.
+    conn.pragma_update(None, "foreign_keys", "OFF")?;
     for step in &MIGRATIONS[..steps as usize] {
         conn.execute_batch(step)?;
     }
@@ -312,14 +341,15 @@ pub fn write_older_schema(from: &Path, to: &Path, steps: u32) -> CatalogResult<(
                 .collect::<rusqlite::Result<_>>()?
         };
         let list = columns.join(", ");
+        // The newer file is the truth: a row an older step seeded (a
+        // workspace, a global) is replaced by its copy.
         conn.execute_batch(&format!(
-            "INSERT INTO main.{table} ({list}) SELECT {list} FROM newer.{table}"
+            "DELETE FROM main.{table}; INSERT INTO main.{table} ({list}) SELECT {list} FROM newer.{table}"
         ))?;
     }
-    conn.execute(
-        "DELETE FROM main.globals WHERE key = ?1",
-        [META_CURRENT_WORKSPACE],
-    )?;
+    if steps < WORKSPACES_STEP {
+        conn.execute("DELETE FROM main.globals WHERE key = ?1", [META_CURRENT_WORKSPACE])?;
+    }
     conn.execute_batch("DETACH DATABASE newer")?;
     Ok(())
 }

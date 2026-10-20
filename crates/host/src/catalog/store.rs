@@ -234,6 +234,7 @@ fn domain_row(row: &Row<'_>) -> rusqlite::Result<Domain> {
         code: row.get("code")?,
         description: row.get("description")?,
         questions: Vec::new(),
+        groups: Vec::new(),
         origin: origin(row)?,
         stamps: library_stamps(row)?,
     })
@@ -241,16 +242,73 @@ fn domain_row(row: &Row<'_>) -> rusqlite::Result<Domain> {
 
 fn domain_members(conn: &Connection, id: &DomainId) -> CatalogResult<Vec<DomainMember>> {
     let mut stmt = conn.prepare(
-        "SELECT question_id, sort_key FROM domain_questions
+        "SELECT question_id, sort_key, group_id FROM domain_questions
          WHERE domain_id = ?1 ORDER BY sort_key, question_id",
     )?;
     let rows = stmt.query_map(params![id.as_str()], |row| {
         Ok(DomainMember {
             question_id: QuestionId::new(row.get::<_, String>(0)?),
             sort_key: row.get(1)?,
+            group_id: row.get::<_, Option<String>>(2)?.map(crate::ids::DomainGroupId::new),
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// A domain's groups, in the operator's order.
+pub(super) fn domain_groups(conn: &Connection, id: &DomainId) -> CatalogResult<Vec<super::model::DomainGroup>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, domain_id, name, sort_key FROM domain_groups
+         WHERE domain_id = ?1 ORDER BY sort_key, created_at, id",
+    )?;
+    let rows = stmt.query_map(params![id.as_str()], |row| {
+        Ok(super::model::DomainGroup {
+            id: crate::ids::DomainGroupId::new(row.get::<_, String>(0)?),
+            domain_id: DomainId::new(row.get::<_, String>(1)?),
+            name: row.get(2)?,
+            sort_key: row.get(3)?,
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// One group, wherever its domain is; the caller checks the domain is in view.
+pub(super) fn domain_group_get(
+    conn: &Connection,
+    id: &crate::ids::DomainGroupId,
+) -> CatalogResult<Option<super::model::DomainGroup>> {
+    Ok(conn
+        .query_row(
+            "SELECT id, domain_id, name, sort_key FROM domain_groups WHERE id = ?1",
+            params![id.as_str()],
+            |row| {
+                Ok(super::model::DomainGroup {
+                    id: crate::ids::DomainGroupId::new(row.get::<_, String>(0)?),
+                    domain_id: DomainId::new(row.get::<_, String>(1)?),
+                    name: row.get(2)?,
+                    sort_key: row.get(3)?,
+                })
+            },
+        )
+        .optional()?)
+}
+
+pub(super) fn domain_group_put(conn: &Connection, group: &super::model::DomainGroup, now_ms: u64) -> CatalogResult<()> {
+    conn.execute(
+        "INSERT INTO domain_groups (id, domain_id, name, sort_key, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, sort_key = excluded.sort_key,
+                                       updated_at = excluded.updated_at",
+        params![group.id.as_str(), group.domain_id.as_str(), group.name, group.sort_key, ms(now_ms)],
+    )?;
+    Ok(())
+}
+
+/// The group goes; its questions stay in the domain, in no group
+/// (`ON DELETE SET NULL`).
+pub(super) fn domain_group_delete(conn: &Connection, id: &crate::ids::DomainGroupId) -> CatalogResult<()> {
+    conn.execute("DELETE FROM domain_groups WHERE id = ?1", params![id.as_str()])?;
+    Ok(())
 }
 
 pub(super) fn domain_get(conn: &Connection, id: &DomainId) -> CatalogResult<Domain> {
@@ -263,6 +321,7 @@ pub(super) fn domain_get(conn: &Connection, id: &DomainId) -> CatalogResult<Doma
         .optional()?
         .ok_or_else(|| CatalogError::not_found(CatalogKind::Domain, id.as_str()))?;
     domain.questions = domain_members(conn, id)?;
+    domain.groups = domain_groups(conn, id)?;
     Ok(domain)
 }
 
@@ -277,6 +336,7 @@ pub(super) fn domain_list(conn: &Connection, scope: ArchiveScope) -> CatalogResu
         .collect::<rusqlite::Result<Vec<_>>>()?;
     for domain in &mut domains {
         domain.questions = domain_members(conn, &domain.id)?;
+        domain.groups = domain_groups(conn, &domain.id)?;
     }
     Ok(domains)
 }
@@ -317,13 +377,28 @@ pub(super) fn domain_upsert(
     )?;
     for member in &domain.questions {
         tx.execute(
-            "INSERT INTO domain_questions (domain_id, question_id, sort_key) VALUES (?1, ?2, ?3)",
+            "INSERT INTO domain_questions (domain_id, question_id, sort_key, group_id) VALUES (?1, ?2, ?3, ?4)",
             params![
                 domain.id.as_str(),
                 member.question_id.as_str(),
-                member.sort_key
+                member.sort_key,
+                member.group_id.as_ref().map(|g| g.as_str()),
             ],
         )?;
+    }
+    let foreign: Option<String> = tx
+        .query_row(
+            "SELECT dq.group_id FROM domain_questions dq JOIN domain_groups g ON g.id = dq.group_id
+             WHERE dq.domain_id = ?1 AND g.domain_id <> ?1 LIMIT 1",
+            params![domain.id.as_str()],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(group) = foreign {
+        return Err(CatalogError::invalid(
+            format!("domain.{}.group.{group}", domain.id),
+            "that group belongs to another domain",
+        ));
     }
     domain_rule(tx, domain.id.as_str())?;
     Ok(())
@@ -389,6 +464,7 @@ fn question_row(row: &Row<'_>) -> rusqlite::Result<Question> {
             .get::<_, Option<String>>("media_asset_id")?
             .map(AssetId::new),
         options: Vec::new(),
+        tags: Vec::new(),
         // `None` is stored as `0` (§2.32). The column is `NOT NULL` from the
         // first migration and `0` was never a legal difficulty, so the mapping
         // cannot collide — and a table `domain_questions` references does not
@@ -428,6 +504,7 @@ pub(super) fn question_get(conn: &Connection, id: &QuestionId) -> CatalogResult<
         .optional()?
         .ok_or_else(|| CatalogError::not_found(CatalogKind::Question, id.as_str()))?;
     question.options = question_options(conn, id)?;
+    question.tags = question_tags(conn, id)?;
     Ok(question)
 }
 
@@ -445,6 +522,7 @@ pub(super) fn question_list(
         .collect::<rusqlite::Result<Vec<_>>>()?;
     for question in &mut questions {
         question.options = question_options(conn, &question.id)?;
+        question.tags = question_tags(conn, &question.id)?;
     }
     Ok(questions)
 }
@@ -481,6 +559,7 @@ pub(super) fn question_upsert(
         ],
     )?;
     asset_rule(tx, "questions", "media_asset_id", question.id.as_str())?;
+    tags_put(tx, question)?;
     tx.execute(
         "DELETE FROM question_options WHERE question_id = ?1",
         params![question.id.as_str()],
@@ -1735,4 +1814,63 @@ pub(super) fn home_of(conn: &Connection, kind: CatalogKind, id: &str) -> Catalog
     Ok(conn
         .query_row(&sql, params![id], |row| row.get::<_, Option<String>>(0))
         .optional()?)
+}
+
+// ------------------------------------------------------------------------ tags
+
+fn question_tags(conn: &Connection, id: &QuestionId) -> CatalogResult<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT tag FROM question_tags WHERE question_id = ?1 ORDER BY position")?;
+    let rows = stmt.query_map(params![id.as_str()], |row| row.get(0))?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// The spelling a tag already has in view, if any: typing *christmas* where
+/// *Christmas* exists keeps *Christmas*.
+pub(super) fn tag_spelling(conn: &Connection, key: &str, except: &str) -> CatalogResult<Option<String>> {
+    Ok(conn
+        .query_row(
+            &format!(
+                "SELECT qt.tag FROM question_tags qt JOIN questions q ON q.id = qt.question_id
+                 WHERE qt.tag_key = ?1 AND q.id <> ?2 AND {} ORDER BY q.created_at, q.id LIMIT 1",
+                in_view("q")
+            ),
+            params![key, except],
+            |row| row.get(0),
+        )
+        .optional()?)
+}
+
+/// A question's tags, cleaned, delete-then-insert inside the caller's
+/// transaction.
+fn tags_put(tx: &Transaction<'_>, question: &Question) -> CatalogResult<()> {
+    let clean = super::groups::clean_tags(&question.tags, question.id.as_str())?;
+    tx.execute("DELETE FROM question_tags WHERE question_id = ?1", params![question.id.as_str()])?;
+    for (position, (tag, key)) in clean.iter().enumerate() {
+        let spelling = tag_spelling(tx, key, question.id.as_str())?.unwrap_or_else(|| tag.clone());
+        tx.execute(
+            "INSERT INTO question_tags (question_id, tag, tag_key, position) VALUES (?1, ?2, ?3, ?4)",
+            params![question.id.as_str(), spelling, key, position as i64],
+        )?;
+    }
+    Ok(())
+}
+
+/// Every tag in view, with how many questions carry it and how many of those
+/// are shared — archived questions included.
+pub(super) fn tag_counts(conn: &Connection) -> CatalogResult<Vec<super::groups::TagCount>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT MIN(qt.tag), qt.tag_key, COUNT(*), SUM(q.workspace_id IS NULL)
+           FROM question_tags qt JOIN questions q ON q.id = qt.question_id
+          WHERE {}
+          GROUP BY qt.tag_key ORDER BY qt.tag_key",
+        in_view("q")
+    ))?;
+    let rows = stmt.query_map([], |row| {
+        Ok(super::groups::TagCount {
+            tag: row.get(0)?,
+            questions: row.get::<_, i64>(2)? as usize,
+            shared: row.get::<_, i64>(3)? as usize,
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }

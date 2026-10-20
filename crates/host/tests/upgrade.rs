@@ -514,14 +514,14 @@ fn a_library_from_a_newer_build_is_still_refused() {
         let service = CatalogService::open(CatalogLocation::file(dir.library())).unwrap();
         drop(service);
         let conn = rusqlite::Connection::open(dir.library()).unwrap();
-        conn.execute_batch("PRAGMA user_version = 5").unwrap();
+        conn.execute_batch("PRAGMA user_version = 6").unwrap();
     }
     assert!(matches!(
         CatalogService::open_file(
             &dir.library(),
             &options(&dir, "2.0.0-beta.1", "20261021-120000")
         ),
-        Err(CatalogError::SchemaTooNew { found: 5, known: 4 })
+        Err(CatalogError::SchemaTooNew { found: 6, known: 5 })
     ));
 }
 
@@ -537,4 +537,36 @@ fn a_second_failed_boot_does_not_pin_a_second_copy() {
     let names = backups_in(&dir.backups());
     assert_eq!(names.iter().filter(|n| n.starts_with(PRE_WORKSPACES_PREFIX)).count(), 1, "{names:?}");
     assert!(report.backup.is_some(), "still no copy, no change: {names:?}");
+}
+
+// --------------------------------------------------------- groups, tags (5)
+
+#[test]
+fn m2_m3_migration_5_keeps_every_membership_adds_nothing_and_backs_up_first() {
+    let dir = TempDir::new("m5");
+    let newer = dir.0.join("newer.sqlite3");
+    {
+        let service = CatalogService::open(CatalogLocation::file(&newer)).unwrap();
+        service.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), 1_000).unwrap();
+    }
+    questiongame_host::catalog::db::write_older_schema(&newer, &dir.library(), 4).unwrap();
+    let before: i64 = rusqlite::Connection::open(dir.library())
+        .unwrap()
+        .query_row("SELECT count(*) FROM domain_questions", [], |r| r.get(0))
+        .unwrap();
+    let (service, report) = CatalogService::open_file(&dir.library(), &options(&dir, "2.1.0-beta.1", "20261022-120000")).unwrap();
+    drop(service);
+    let backup = report.backup.expect("a copy first");
+    let name = backup.file_name().unwrap().to_string_lossy().into_owned();
+    assert!(!name.starts_with(PRE_WORKSPACES_PREFIX), "{name}: an ordinary rotated copy");
+    let version: u32 = rusqlite::Connection::open(&backup).unwrap().pragma_query_value(None, "user_version", |r| r.get(0)).unwrap();
+    assert_eq!(version, 4);
+
+    let conn = rusqlite::Connection::open(dir.library()).unwrap();
+    assert_eq!(count(&conn, "SELECT count(*) FROM domain_questions"), before);
+    assert_eq!(count(&conn, "SELECT count(*) FROM domain_questions WHERE group_id IS NOT NULL"), 0);
+    assert_eq!(count(&conn, "SELECT count(*) FROM domain_groups"), 0);
+    assert_eq!(count(&conn, "SELECT count(*) FROM question_tags"), 0);
+    let head: u32 = conn.pragma_query_value(None, "user_version", |r| r.get(0)).unwrap();
+    assert_eq!(head, 5);
 }

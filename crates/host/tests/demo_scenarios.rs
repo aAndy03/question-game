@@ -752,6 +752,7 @@ fn s17_two_questions_at_one_difficulty_are_asked_in_id_order_and_pay_the_same() 
         geo.questions.push(DomainMember {
             question_id: QuestionId::new("seed-q-geo-4"),
             sort_key: next,
+            group_id: None,
         });
         catalog.catalog_upsert(&(*geo).into(), 1_200).unwrap();
 

@@ -96,6 +96,10 @@ id_type!(
     WorkspaceGroupId
 );
 id_type!(
+    /// An operator-made group of questions inside one domain (Beta, P15).
+    DomainGroupId
+);
+id_type!(
     /// One appended fact. `<play id>:<seq>` — deterministic, so a replay
     /// rebuilds the same log rather than a fresh set of uuids.
     EventId

@@ -504,7 +504,7 @@ fn duplicate_into(
         for member in &mut copy.questions {
             member.question_id = QuestionId::new(map(&question_ids, member.question_id.as_str()));
         }
-        store::domain_upsert(tx, &copy, now_ms)?;
+        super::groups::write_copy_with_groups(tx, domain, &mut copy, now_ms)?;
         join(CatalogKind::Domain, domain.id.as_str(), copy.id.as_str())?;
         if let Some(at) = domain.stamps.archived_at {
             archived.push((CatalogKind::Domain, copy.id.to_string(), at));

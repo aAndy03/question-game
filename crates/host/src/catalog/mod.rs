@@ -26,6 +26,7 @@ pub mod complete;
 pub mod db;
 pub mod error;
 pub mod family;
+pub mod groups;
 pub mod import;
 pub mod model;
 pub mod search;
@@ -46,7 +47,7 @@ pub use db::{CatalogLocation, META_CURRENT_WORKSPACE};
 pub use error::{CatalogError, CatalogKind, CatalogResult};
 pub use import::{ImportCounts, ImportReport, ImportRow, RowStatus};
 pub use model::{
-    ArchiveScope, Asset, BoardDomain, CatalogItem, Domain, DomainMember, DomainOverlay, EditScope,
+    ArchiveScope, Asset, BoardDomain, CatalogItem, Domain, DomainGroup, DomainMember, DomainOverlay, EditScope,
     Operator, Origin, PlayRecord, Question, QuestionOption, QuestionOverlay, Recipe,
     RecipeOverlays, Stamps, Team, TeamOverlay,
 };
@@ -55,6 +56,7 @@ pub use seed::{Demo, SeedMode, SeedResult, SeedStatus};
 pub use service::{
     CatalogChange, CatalogService, ChangeOp, OverlayTarget, RecipeChange, WipedPlays,
 };
+pub use groups::{TAG_MAX, TAGS_PER_QUESTION, TagCount, tag_key};
 pub use family::{FamilyCopy, PropagationPreview, SkippedCopy};
 pub use transfer::{Refusal, Selection, Touched, TransferOp, TransferReport};
 pub use workspace::{DeleteReport, WORKSPACE_NAME_MAX, Workspace, WorkspaceGroup};

@@ -448,7 +448,7 @@ fn copy(
             member.question_id = QuestionId::new(map(CatalogKind::Question, member.question_id.as_str()));
         }
         row.stamps.shared = false;
-        store::domain_upsert(tx, &row, now_ms)?;
+        super::groups::write_copy_with_groups(tx, domain, &mut row, now_ms)?;
         store::set_family(tx, CatalogKind::Domain, row.id.as_str(), family_of.get(&(CatalogKind::Domain, id.clone())).copied())?;
         created(CatalogKind::Domain, id, &mut report);
     }

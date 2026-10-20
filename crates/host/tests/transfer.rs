@@ -19,7 +19,7 @@ fn question(id: &str, difficulty: u8, shared: bool) -> CatalogItem {
 }
 fn domain(id: &str, questions: &[&str], shared: bool) -> CatalogItem {
     let mut d = Domain::new(id, id, "DOM");
-    d.questions = questions.iter().enumerate().map(|(i, q)| DomainMember { question_id: QuestionId::from(*q), sort_key: i as i64 }).collect();
+    d.questions = questions.iter().enumerate().map(|(i, q)| DomainMember { question_id: QuestionId::from(*q), sort_key: i as i64, group_id: None }).collect();
     d.stamps.shared = shared;
     CatalogItem::Domain(Box::new(d))
 }
@@ -293,7 +293,7 @@ fn a_reused_domain_does_not_leave_its_new_questions_behind_in_no_domain() {
     catalog.catalog_copy_to(&game, &b, NOW).unwrap();
     catalog.catalog_upsert(&question("q3", 40, false), NOW).unwrap();
     let CatalogItem::Domain(mut d1) = get(&catalog, CatalogKind::Domain, "d1") else { panic!() };
-    d1.questions.push(DomainMember { question_id: QuestionId::from("q3"), sort_key: 9 });
+    d1.questions.push(DomainMember { question_id: QuestionId::from("q3"), sort_key: 9, group_id: None });
     catalog.catalog_upsert(&CatalogItem::Domain(d1), NOW).unwrap();
 
     let again = catalog.catalog_copy_to(&game, &b, NOW).unwrap();

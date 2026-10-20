@@ -36,6 +36,7 @@ fn domain(id: &str, shared: bool, questions: &[&str]) -> CatalogItem {
         .map(|(i, q)| DomainMember {
             question_id: QuestionId::from(*q),
             sort_key: i as i64,
+            group_id: None,
         })
         .collect();
     d.stamps.shared = shared;

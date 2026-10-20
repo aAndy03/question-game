@@ -33,7 +33,7 @@ pub const VERSION: u64 = 1;
 pub const MAX_ROWS: usize = 2_000;
 
 /// The fields a row may carry, in the order they are read and reported.
-const ROW_FIELDS: [&str; 5] = ["question", "options", "difficulty", "domains", "explanation"];
+const ROW_FIELDS: [&str; 6] = ["question", "options", "difficulty", "domains", "explanation", "tags"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -237,6 +237,7 @@ pub fn plan(
         let mut question = Question::new(id.clone(), read.stem.clone(), 1);
         question.difficulty = read.difficulty;
         question.explanation = read.explanation;
+        question.tags = read.tags;
         question.options = read
             .options
             .iter()
@@ -354,6 +355,9 @@ struct Read {
     difficulty: Option<u8>,
     domains: Vec<String>,
     explanation: Option<String>,
+    /// P15: cleaned like any save; a list the save would refuse (a tag over
+    /// 40 characters, more than 20) is dropped whole and said, never trimmed.
+    tags: Vec<String>,
     ignored: Vec<Ignored>,
 }
 
@@ -364,6 +368,7 @@ fn read_row(fields: &Map<String, Value>) -> Read {
         difficulty: None,
         domains: Vec::new(),
         explanation: None,
+        tags: Vec::new(),
         ignored: Vec::new(),
     };
     // Unknown keys first, sorted, so the report does not depend on how the
@@ -433,6 +438,17 @@ fn read_row(fields: &Map<String, Value>) -> Read {
         Some(_) => read
             .ignored
             .push(Ignored::new("explanation", IgnoredWhy::WrongType)),
+    }
+    match fields.get("tags") {
+        None | Some(Value::Null) => {}
+        Some(Value::Array(items)) if items.iter().all(Value::is_string) => {
+            let tags: Vec<String> = items.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect();
+            match super::groups::clean_tags(&tags, "import") {
+                Ok(clean) => read.tags = clean.into_iter().map(|(tag, _)| tag).collect(),
+                Err(_) => read.ignored.push(Ignored::new("tags", IgnoredWhy::OutOfRange)),
+            }
+        }
+        Some(_) => read.ignored.push(Ignored::new("tags", IgnoredWhy::WrongType)),
     }
     read
 }
@@ -605,6 +621,7 @@ impl<'a> Resolver<'a> {
                     .map(|(question, sort_key)| DomainMember {
                         question_id: question.clone(),
                         sort_key,
+                        group_id: None,
                     });
                 domain.questions.extend(appended);
                 Some(domain)
@@ -808,6 +825,7 @@ mod tests {
         existing.questions = vec![DomainMember {
             question_id: QuestionId::from("q-old"),
             sort_key: 4,
+            group_id: None,
         }];
         let plan = run(
             r#"[ { "question": "Q?", "domains": ["Geografie"] } ]"#,

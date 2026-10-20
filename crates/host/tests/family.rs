@@ -16,7 +16,7 @@ fn question(id: &str, difficulty: u8) -> Question {
 }
 fn domain(id: &str, questions: &[&str]) -> Domain {
     let mut d = Domain::new(id, id, "DOM");
-    d.questions = questions.iter().enumerate().map(|(i, q)| DomainMember { question_id: QuestionId::from(*q), sort_key: i as i64 }).collect();
+    d.questions = questions.iter().enumerate().map(|(i, q)| DomainMember { question_id: QuestionId::from(*q), sort_key: i as i64, group_id: None }).collect();
     d
 }
 fn get_question(catalog: &CatalogService, id: &str) -> Question {

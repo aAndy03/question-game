@@ -103,10 +103,12 @@ fn seed(service: &CatalogService) -> Recipe {
         DomainMember {
             question_id: QuestionId::from("q-1"),
             sort_key: 0,
+            group_id: None,
         },
         DomainMember {
             question_id: QuestionId::from("q-2"),
             sort_key: 1,
+            group_id: None,
         },
     ];
     service.catalog_upsert(&domain.into(), 1_000).unwrap();
@@ -662,6 +664,7 @@ fn seed_with_a_twin(service: &CatalogService) -> Recipe {
     domain.questions.push(DomainMember {
         question_id: QuestionId::from("q-3"),
         sort_key: 2,
+        group_id: None,
     });
     service.catalog_upsert(&domain.into(), 1_000).unwrap();
     recipe
@@ -954,6 +957,7 @@ fn seed_with_an_incomplete_member(service: &CatalogService) -> Recipe {
     domain.questions.push(DomainMember {
         question_id: QuestionId::from("q-open"),
         sort_key: 2,
+        group_id: None,
     });
     service.catalog_upsert(&domain.into(), 1_000).unwrap();
     recipe

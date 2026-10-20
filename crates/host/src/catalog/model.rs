@@ -161,6 +161,22 @@ impl Team {
 pub struct DomainMember {
     pub question_id: QuestionId,
     pub sort_key: i64,
+    /// The domain group it sits in here, if any (P15). Part of the membership,
+    /// so a domain save writes exactly what it is sent: every caller that
+    /// rebuilds a member carries it.
+    #[serde(default)]
+    pub group_id: Option<crate::ids::DomainGroupId>,
+}
+
+/// An operator-made group of questions inside one domain (P15). Organising
+/// only: boards and Plays never read it. It lives where its domain lives.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DomainGroup {
+    pub id: crate::ids::DomainGroupId,
+    pub domain_id: DomainId,
+    pub name: String,
+    pub sort_key: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -173,6 +189,10 @@ pub struct Domain {
     pub description: Option<String>,
     /// Membership in authored order. A question may sit in many domains.
     pub questions: Vec<DomainMember>,
+    /// The domain's groups in order (P15). Read-only on a save: the group
+    /// verbs write them.
+    #[serde(default)]
+    pub groups: Vec<DomainGroup>,
     #[serde(default)]
     pub origin: Origin,
     #[serde(flatten)]
@@ -187,6 +207,7 @@ impl Domain {
             code: code.into(),
             description: None,
             questions: Vec::new(),
+            groups: Vec::new(),
             origin: Origin::Operator,
             stamps: Stamps::default(),
         }
@@ -245,6 +266,11 @@ pub struct Question {
     #[serde(default)]
     pub difficulty: Option<u8>,
     pub explanation: Option<String>,
+    /// The operator's tags (P15): across domains, part of the body. Cleaned on
+    /// a save — trimmed, 1–40 characters, one per spelling ignoring case, the
+    /// spelling already used in view kept, at most 20.
+    #[serde(default)]
+    pub tags: Vec<String>,
     #[serde(default)]
     pub origin: Origin,
     #[serde(flatten)]
@@ -260,6 +286,7 @@ impl Question {
             options: Vec::new(),
             difficulty: Some(difficulty),
             explanation: None,
+            tags: Vec::new(),
             origin: Origin::Operator,
             stamps: Stamps::default(),
         }
@@ -679,6 +706,7 @@ impl CatalogItem {
                     question.explanation.as_deref().unwrap_or(""),
                 ];
                 parts.extend(question.options.iter().map(|o| o.text.as_str()));
+                parts.extend(question.tags.iter().map(String::as_str));
                 return parts.join(" ");
             }
             CatalogItem::Operator(operator) => vec![&operator.display_name],

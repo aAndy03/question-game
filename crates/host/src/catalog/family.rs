@@ -225,6 +225,8 @@ fn with_body(
             out.options = source.options.clone();
             out.difficulty = source.difficulty;
             out.explanation = source.explanation.clone();
+            // Tags are body (P15); a question's group is membership and stays.
+            out.tags = source.tags.clone();
             out.media_asset_id = asset(&source.media_asset_id, &stored.media_asset_id)?;
             CatalogItem::Question(out)
         }

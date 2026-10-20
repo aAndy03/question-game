@@ -1300,7 +1300,24 @@ storage:
         - "UPDATE questions SET workspace_id = 'ws-1'"
         - "UPDATE recipes SET workspace_id = 'ws-1'"
         - "UPDATE teams SET workspace_id = 'ws-1'"
-  schema_version: 4
+    "005":
+      adds: ["domain_questions: group_id TEXT REFERENCES domain_groups(id) ON DELETE SET NULL"]
+      creates:
+        domain_groups:
+          - "id TEXT PRIMARY KEY"
+          - "domain_id TEXT NOT NULL REFERENCES domains(id) ON DELETE CASCADE"
+          - "name TEXT NOT NULL"
+          - "sort_key INTEGER NOT NULL"
+          - "created_at INTEGER NOT NULL"
+          - "updated_at INTEGER NOT NULL"
+        question_tags:
+          - "question_id TEXT NOT NULL REFERENCES questions(id) ON DELETE CASCADE"
+          - "tag TEXT NOT NULL"
+          - "tag_key TEXT NOT NULL"
+          - "position INTEGER NOT NULL"
+      indexes: ["domain_groups_by_domain ON domain_groups(domain_id)", "question_tags_by_key ON question_tags(tag_key)"]
+      other: []
+  schema_version: 5
 host_api:
   crates/host/src/award.rs:
     "award::award_points": {doc: "Points for one revealed outcome.", kind: fn, sig: "fn award_points(scoring: &ScoringSettings, judging: &JudgingSettings, difficulty: u8, judgement: &Judgement, remaining_ms_at_lock: Option<u32>, duration_ms: Option<u32>) -> u32"}
@@ -1343,6 +1360,16 @@ host_api:
     "catalog::family::FamilyCopy": {doc: "One other member of a row's family.", kind: struct, sig: "struct FamilyCopy { id: String, workspace: Option<WorkspaceId>, workspace_name: Option<String>, archived: bool }"}
     "catalog::family::PropagationPreview": {doc: "What *Also update {n} copies* would do.", kind: struct, sig: "struct PropagationPreview { update: Vec<FamilyCopy>, skipped: Vec<SkippedCopy> }"}
     "catalog::family::SkippedCopy": {kind: struct, sig: "struct SkippedCopy { copy: FamilyCopy, reason: String }"}
+  crates/host/src/catalog/groups.rs:
+    "catalog::groups::CatalogService::domain_group_create": {doc: "A group in a domain, named by the operator.", kind: method, sig: "fn domain_group_create(&self, domain: &DomainId, name: &str, now_ms: u64) -> CatalogResult<DomainGroup>"}
+    "catalog::groups::CatalogService::domain_group_delete": {doc: "The group goes; its questions stay in the domain, in no group.", kind: method, sig: "fn domain_group_delete(&self, group: &DomainGroupId) -> CatalogResult<()>"}
+    "catalog::groups::CatalogService::domain_group_rename": {kind: method, sig: "fn domain_group_rename(&self, group: &DomainGroupId, name: &str, now_ms: u64) -> CatalogResult<()>"}
+    "catalog::groups::CatalogService::domain_group_reorder": {doc: "The domain's groups in this order; one not named keeps its place after them.", kind: method, sig: "fn domain_group_reorder(&self, domain: &DomainId, order: &[DomainGroupId], now_ms: u64) -> CatalogResult<()>"}
+    "catalog::groups::CatalogService::tag_list": {doc: "Every tag in view (this workspace and shared), with counts.", kind: method, sig: "fn tag_list(&self) -> CatalogResult<Vec<TagCount>>"}
+    "catalog::groups::TAGS_PER_QUESTION": {doc: "The most tags one question carries; a write past it is refused whole.", kind: const, sig: "const TAGS_PER_QUESTION: usize = 20"}
+    "catalog::groups::TAG_MAX": {doc: "The longest tag, in characters.", kind: const, sig: "const TAG_MAX: usize = 40"}
+    "catalog::groups::TagCount": {doc: "One tag in view, for the tag picker and *Manage tags*.", kind: struct, sig: "struct TagCount { tag: String, questions: usize, shared: usize }"}
+    "catalog::groups::tag_key": {doc: "The fold a tag is compared by.", kind: fn, sig: "fn tag_key(tag: &str) -> String"}
   crates/host/src/catalog/import.rs:
     "catalog::import::CatalogService::import_questions": {doc: "`catalog_import_questions` (§2.32).", kind: method, sig: "fn import_questions(&self, text: &str, commit: bool, default_domain: Option<&DomainId>, now_ms: u64) -> CatalogResult<(ImportReport, Vec<CatalogChange>)>"}
     "catalog::import::FORMAT": {doc: "The one document shape this build reads.", kind: const, sig: "const FORMAT: &str = \"questiongame.questions\""}
@@ -1366,6 +1393,7 @@ host_api:
     "catalog::db": {kind: mod, sig: "mod db"}
     "catalog::error": {kind: mod, sig: "mod error"}
     "catalog::family": {kind: mod, sig: "mod family"}
+    "catalog::groups": {kind: mod, sig: "mod groups"}
     "catalog::import": {kind: mod, sig: "mod import"}
     "catalog::model": {kind: mod, sig: "mod model"}
     "catalog::search": {kind: mod, sig: "mod search"}
@@ -1388,9 +1416,10 @@ host_api:
     "catalog::model::CatalogItem::is_shared": {doc: "In the shared library rather than a workspace (Beta 2.0).", kind: method, sig: "fn is_shared(&self) -> bool"}
     "catalog::model::CatalogItem::kind": {kind: method, sig: "fn kind(&self) -> super::error::CatalogKind"}
     "catalog::model::CatalogItem::stamps": {doc: "The row's stamps, whatever its kind.", kind: method, sig: "fn stamps(&self) -> &Stamps"}
-    "catalog::model::Domain": {kind: struct, sig: "struct Domain { id: DomainId, name: String, code: String, description: Option<String>, questions: Vec<DomainMember>, origin: Origin, stamps: Stamps }"}
+    "catalog::model::Domain": {kind: struct, sig: "struct Domain { id: DomainId, name: String, code: String, description: Option<String>, questions: Vec<DomainMember>, groups: Vec<DomainGroup>, origin: Origin, stamps: Stamps }"}
     "catalog::model::Domain::new": {kind: method, sig: "fn new(id: impl Into<DomainId>, name: impl Into<String>, code: impl Into<String>) -> Self"}
-    "catalog::model::DomainMember": {doc: "One question's place in one domain.", kind: struct, sig: "struct DomainMember { question_id: QuestionId, sort_key: i64 }"}
+    "catalog::model::DomainGroup": {doc: "An operator-made group of questions inside one domain (P15).", kind: struct, sig: "struct DomainGroup { id: crate::ids::DomainGroupId, domain_id: DomainId, name: String, sort_key: i64 }"}
+    "catalog::model::DomainMember": {doc: "One question's place in one domain.", kind: struct, sig: "struct DomainMember { question_id: QuestionId, sort_key: i64, group_id: Option<crate::ids::DomainGroupId> }"}
     "catalog::model::DomainOverlay": {kind: struct, sig: "struct DomainOverlay { name: Option<String>, code: Option<String> }"}
     "catalog::model::EditScope": {doc: "Which side of `ScopeConfirm` an inline edit landed on (§2.17).", kind: enum, sig: "enum EditScope { ThisGame | Original }"}
     "catalog::model::Operator": {kind: struct, sig: "struct Operator { id: OperatorId, display_name: String, pin_hash: Option<String>, last_active_at: Option<u64>, plays_run: u32, stamps: Stamps }"}
@@ -1398,7 +1427,7 @@ host_api:
     "catalog::model::Origin": {doc: "Who put a row in the library (§12.1).", kind: enum, sig: "enum Origin { Seed | Operator }"}
     "catalog::model::Origin::as_str": {doc: "The stored spelling, and the wire one.", kind: method, sig: "fn as_str(self) -> &'static str"}
     "catalog::model::PlayRecord": {doc: "A Play as the library remembers it: derived from the event log, rebuilt at boot, and never a place a rule is read from (§5.10).", kind: struct, sig: "struct PlayRecord { id: crate::ids::PlayId, recipe_id: RecipeId, operator_id: Option<crate::ids::OperatorId>, status: String, started_at_ms: Option<u64>, ended_at_ms: Option<u64>, event_count: u64, questions_consumed: u32, scores: BTreeMap<TeamId, u32> }"}
-    "catalog::model::Question": {kind: struct, sig: "struct Question { id: QuestionId, stem: String, media_asset_id: Option<AssetId>, options: Vec<QuestionOption>, difficulty: Option<u8>, explanation: Option<String>, origin: Origin, stamps: Stamps }"}
+    "catalog::model::Question": {kind: struct, sig: "struct Question { id: QuestionId, stem: String, media_asset_id: Option<AssetId>, options: Vec<QuestionOption>, difficulty: Option<u8>, explanation: Option<String>, tags: Vec<String>, origin: Origin, stamps: Stamps }"}
     "catalog::model::Question::answer_mode": {doc: "Derived from the correct ticks, never authored (§2.17).", kind: method, sig: "fn answer_mode(&self) -> AnswerMode"}
     "catalog::model::Question::correct_option_ids": {kind: method, sig: "fn correct_option_ids(&self) -> Vec<OptionId>"}
     "catalog::model::Question::new": {kind: method, sig: "fn new(id: impl Into<QuestionId>, stem: impl Into<String>, difficulty: u8) -> Self"}

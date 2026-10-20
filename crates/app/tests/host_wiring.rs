@@ -81,10 +81,12 @@ fn seed(catalog: &CatalogService) -> RecipeId {
         DomainMember {
             question_id: QuestionId::from("q-1"),
             sort_key: 0,
+            group_id: None,
         },
         DomainMember {
             question_id: QuestionId::from("q-2"),
             sort_key: 1,
+            group_id: None,
         },
     ];
     catalog.catalog_upsert(&domain.into(), 1_000).unwrap();

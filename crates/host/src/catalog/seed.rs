@@ -370,6 +370,7 @@ fn build(doc: &Document, settings: GameSettings, scope: &str) -> (Vec<CatalogIte
             .map(|(sort_key, id)| DomainMember {
                 question_id: id.clone(),
                 sort_key: sort_key as i64,
+                group_id: None,
             })
             .collect();
         domain.origin = Origin::Seed;
