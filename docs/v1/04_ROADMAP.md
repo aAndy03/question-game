@@ -1782,7 +1782,8 @@ Design: `docs/superpowers/specs/2026-10-19-channels-design.md`; plan and test li
 - ☑ First launch: *This is questiongame Beta…*, then *Copy my stable library* or *Start empty*, in English and Romanian, before first run; a **Beta** chip in the sidebar.
 - ☑ The copy writes nothing in the stable folder — byte copy through read-only handles, a shared lock held throughout, compacted inside Beta's folder — refuses while questiongame runs, and opens as an ordinary upgrade (backup, stamp, *What's new*).
 - ☑ The e2e suite runs five Beta specs on the same binary: copy, start empty, no stable library, questiongame running, an unreadable library.
-- ☐ Manual: install *questiongame Beta* beside *questiongame* from a build-only run on Windows and macOS; uninstalling one leaves the other's library.
+- ☑ Manual, Windows (2026-10-20, by the maintainer): *questiongame Beta* from the build-only run installs beside *questiongame* and works; started empty, with the Demo.
+- ☐ Still manual: *Copy my stable library* on a real install, macOS, and that uninstalling one leaves the other's library.
 
 ### P13.2–P13.4 — Stable 1.1: finding things in the library  ☑
 
