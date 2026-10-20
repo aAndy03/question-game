@@ -746,55 +746,67 @@ impl CatalogService {
     /// their behalf. That board becomes illegal from outside, which is what
     /// `build_snapshot`'s second line and the preview warnings are for.
     fn check_board(&self, recipe: &Recipe, pending: Option<&Question>) -> CatalogResult<()> {
-        let conn = self.conn();
-        for board in &recipe.board {
-            let mut selected: Vec<(QuestionId, u8)> = Vec::with_capacity(board.question_ids.len());
-            for id in &board.question_ids {
-                let question = match pending {
-                    Some(question) if &question.id == id => question.clone(),
-                    // A row the library no longer has is `build_snapshot`'s
-                    // refusal to make, with a message about the missing row.
-                    // These rules have nothing to say about it.
-                    _ => match store::question_get(&conn, id) {
-                        Ok(question) => question,
-                        Err(_) => continue,
-                    },
-                };
-                let overlay = recipe.overlays.questions.get(id);
-                if !complete::effective_gaps(&question, overlay).is_empty() {
-                    return Err(CatalogError::invalid(
-                        format!(
-                            "recipe.{}.board.{}.question.{}",
-                            recipe.id,
-                            board.domain_id.as_str(),
-                            id
-                        ),
-                        complete::INCOMPLETE,
-                    ));
-                }
-                if let Some(difficulty) = overlay
-                    .and_then(|patch| patch.difficulty)
-                    .or(question.difficulty)
-                {
-                    selected.push((id.clone(), difficulty));
-                }
-            }
-            if let Some(clash) =
-                crate::board::check(recipe.settings.board.allow_repeated_difficulty, &selected)
-            {
+        board_problem(&self.conn(), recipe, pending)
+    }
+}
+
+/// [`CatalogService::check_board`] on a connection the caller already holds —
+/// how propagation asks whether a change would break a copy's board.
+pub(super) fn board_problem(
+    conn: &Connection,
+    recipe: &Recipe,
+    pending: Option<&Question>,
+) -> CatalogResult<()> {
+    for board in &recipe.board {
+        let mut selected: Vec<(QuestionId, u8)> = Vec::with_capacity(board.question_ids.len());
+        for id in &board.question_ids {
+            let question = match pending {
+                Some(question) if &question.id == id => question.clone(),
+                // A row the library no longer has is `build_snapshot`'s
+                // refusal to make, with a message about the missing row.
+                // These rules have nothing to say about it.
+                _ => match store::question_get(conn, id) {
+                    Ok(question) => question,
+                    Err(_) => continue,
+                },
+            };
+            let overlay = recipe.overlays.questions.get(id);
+            if !complete::effective_gaps(&question, overlay).is_empty() {
                 return Err(CatalogError::invalid(
                     format!(
-                        "recipe.{}.board.{}.difficulty.{}",
+                        "recipe.{}.board.{}.question.{}",
                         recipe.id,
                         board.domain_id.as_str(),
-                        clash.difficulty
+                        id
                     ),
-                    "two questions in this domain share a difficulty; turn on Allow repeated difficulties in Board, or keep one",
+                    complete::INCOMPLETE,
                 ));
             }
+            if let Some(difficulty) = overlay
+                .and_then(|patch| patch.difficulty)
+                .or(question.difficulty)
+            {
+                selected.push((id.clone(), difficulty));
+            }
         }
-        Ok(())
+        if let Some(clash) =
+            crate::board::check(recipe.settings.board.allow_repeated_difficulty, &selected)
+        {
+            return Err(CatalogError::invalid(
+                format!(
+                    "recipe.{}.board.{}.difficulty.{}",
+                    recipe.id,
+                    board.domain_id.as_str(),
+                    clash.difficulty
+                ),
+                "two questions in this domain share a difficulty; turn on Allow repeated difficulties in Board, or keep one",
+            ));
+        }
     }
+    Ok(())
+}
+
+impl CatalogService {
 
     fn write_overlay<F>(&self, id: &RecipeId, write: F) -> CatalogResult<()>
     where

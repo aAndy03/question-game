@@ -9,7 +9,7 @@
 //! document, which `FlagService` holds in memory.
 
 use questiongame_host::catalog::{
-    CatalogChange, ChangeOp, DeleteReport, OpenOptions, Selection, TransferOp, TransferReport, Workspace,
+    CatalogChange, CatalogItem, CatalogKind, ChangeOp, PropagationPreview, DeleteReport, OpenOptions, Selection, TransferOp, TransferReport, Workspace,
     WorkspaceGroup,
 };
 use questiongame_host::{WorkspaceGroupId, WorkspaceId};
@@ -385,6 +385,55 @@ pub fn catalog_make_local(
     Ok(report)
 }
 
+// ------------------------------------------------------------------- families
+
+/// Who else a save would update, and who it would skip (and why), for the
+/// editor's *Save here only · Also update {n} copies* confirm.
+#[tauri::command(async)]
+pub fn catalog_propagation_preview(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    item: CatalogItem,
+) -> AppResult<PropagationPreview> {
+    guard::allow(window.label(), "catalog_propagation_preview")?;
+    Ok(state.lock().catalog.propagation_preview(&item)?)
+}
+
+/// *Also update {n} copies*: the save and every copy it can reach, in one
+/// transaction. *Save here only* is plain `catalog_upsert`.
+#[tauri::command(async)]
+pub fn catalog_upsert_propagating(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    item: CatalogItem,
+) -> AppResult<PropagationPreview> {
+    guard::allow(window.label(), "catalog_upsert_propagating")?;
+    let host = state.lock();
+    let (change, done) = host.catalog.catalog_upsert_propagating(&item, now_ms())?;
+    emit::catalog_changed(&app, &change);
+    for copy in &done.update {
+        emit::catalog_changed(&app, &CatalogChange { kind: change.kind, id: copy.id.clone(), op: ChangeOp::Upserted });
+    }
+    Ok(done)
+}
+
+/// *Stop following its copies*.
+#[tauri::command(async)]
+pub fn catalog_unfollow(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    kind: CatalogKind,
+    id: String,
+) -> AppResult<()> {
+    guard::allow(window.label(), "catalog_unfollow")?;
+    let host = state.lock();
+    host.catalog.catalog_unfollow(kind, &id)?;
+    emit::catalog_changed(&app, &CatalogChange { kind, id, op: ChangeOp::Upserted });
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -433,6 +482,7 @@ mod tests {
             "workspace_delete", "workspace_switch", "workspace_group_create", "workspace_group_rename",
             "workspace_group_reorder", "workspace_group_delete", "transfer_preview",
             "catalog_copy_to", "catalog_move_to", "catalog_make_shared", "catalog_make_local",
+            "catalog_propagation_preview", "catalog_upsert_propagating", "catalog_unfollow",
         ] {
             assert!(!guard::stage_may_call(command), "{command}");
             assert!(!guard::stats_may_call(command), "{command}");

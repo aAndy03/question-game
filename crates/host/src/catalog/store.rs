@@ -1690,3 +1690,36 @@ pub(super) fn users_elsewhere(
     }
     Ok(out)
 }
+
+/// `(id, workspace, workspace name, archived)` — one member of a family.
+pub(super) type Member = (String, Option<String>, Option<String>, bool);
+
+/// Every row of `family`, wherever it lives, archived ones included.
+pub(super) fn family_members(
+    conn: &Connection,
+    kind: CatalogKind,
+    family: i64,
+) -> CatalogResult<Vec<Member>> {
+    let sql = format!(
+        "SELECT r.id, r.workspace_id, w.name, r.archived_at IS NOT NULL FROM {} r
+         LEFT JOIN workspaces w ON w.id = r.workspace_id
+         WHERE r.family_id = ?1 ORDER BY r.created_at, r.id",
+        kind.table()
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(params![family], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// The games whose board names this question.
+pub(super) fn recipes_with_question(conn: &Connection, question: &str) -> CatalogResult<Vec<RecipeId>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT recipe_id FROM recipe_questions WHERE question_id = ?1 ORDER BY recipe_id",
+    )?;
+    let rows = stmt.query_map(params![question], |row| {
+        Ok(RecipeId::new(row.get::<_, String>(0)?))
+    })?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}

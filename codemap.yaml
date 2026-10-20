@@ -122,6 +122,13 @@ commands:
     file: crates/app/src/commands/workspace.rs
     params: ["selection: Selection", "target: WorkspaceId"]
     returns: "AppResult<TransferReport>"
+  catalog_propagation_preview:
+    async: true
+    callers: [main]
+    doc: "Who else a save would update, and who it would skip (and why), for the editor's *Save here only · Also update {n} copies* confirm."
+    file: crates/app/src/commands/workspace.rs
+    params: ["item: CatalogItem"]
+    returns: "AppResult<PropagationPreview>"
   catalog_rebuild_search:
     async: true
     callers: [main]
@@ -162,6 +169,13 @@ commands:
     file: crates/app/src/commands/catalog.rs
     params: ["demo: Option<Demo>"]
     returns: "AppResult<SeedStatus>"
+  catalog_unfollow:
+    async: true
+    callers: [main]
+    doc: "*Stop following its copies*."
+    file: crates/app/src/commands/workspace.rs
+    params: ["kind: CatalogKind", "id: String"]
+    returns: "AppResult<()>"
   catalog_upsert:
     async: true
     callers: [main]
@@ -175,6 +189,13 @@ commands:
     file: crates/app/src/commands/catalog.rs
     params: ["items: Vec<CatalogItem>"]
     returns: "AppResult<Vec<CatalogChange>>"
+  catalog_upsert_propagating:
+    async: true
+    callers: [main]
+    doc: "*Also update {n} copies*: the save and every copy it can reach, in one transaction."
+    file: crates/app/src/commands/workspace.rs
+    params: ["item: CatalogItem"]
+    returns: "AppResult<PropagationPreview>"
   choose_domain:
     async: true
     callers: [main]
@@ -876,6 +897,9 @@ contract:
       - catalog_move_to
       - catalog_make_shared
       - catalog_make_local
+      - catalog_propagation_preview
+      - catalog_upsert_propagating
+      - catalog_unfollow
   events:
     - catalog-changed
     - workspace-changed
@@ -890,7 +914,7 @@ contract:
   files:
     packages/contract/src/commands.ts:
       COMMANDS: {kind: const, sig: "#e3696517"}
-      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, workspace, app } #3db004c0"}
+      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, workspace, app } #29e30a8a"}
       CatalogChange: {doc: "`catalog-changed`.", kind: interface, sig: "{ kind, id, op }"}
       Command: {kind: type, sig: "(typeof COMMAND_GROUPS)[CommandGroup][number]"}
       CommandGroup: {kind: type, sig: "keyof typeof COMMAND_GROUPS"}
@@ -1312,6 +1336,13 @@ host_api:
     "catalog::error::CatalogKind::ALL": {kind: const, sig: "const ALL: [CatalogKind; 6] = [CatalogKind::Team, CatalogKind::Domain, CatalogKind::Question, CatalogKind::Operator, ..."}
     "catalog::error::CatalogKind::as_str": {doc: "The tab name, and the `kind` field of `catalog-changed`.", kind: method, sig: "fn as_str(self) -> &'static str"}
     "catalog::error::CatalogResult": {kind: type, sig: "type CatalogResult = Result<T, CatalogError>"}
+  crates/host/src/catalog/family.rs:
+    "catalog::family::CatalogService::catalog_unfollow": {doc: "*Stop following its copies*: the row leaves its family; the copies stay one family without it.", kind: method, sig: "fn catalog_unfollow(&self, kind: CatalogKind, id: &str) -> CatalogResult<()>"}
+    "catalog::family::CatalogService::catalog_upsert_propagating": {doc: "Save `item` and carry its body to every copy the preview did not skip, in one transaction.", kind: method, sig: "fn catalog_upsert_propagating(&self, item: &CatalogItem, now_ms: u64) -> CatalogResult<(CatalogChange, PropagationPreview)>"}
+    "catalog::family::CatalogService::propagation_preview": {doc: "The other rows of `item`'s family, split into the ones the change can reach and the ones it would break.", kind: method, sig: "fn propagation_preview(&self, item: &CatalogItem) -> CatalogResult<PropagationPreview>"}
+    "catalog::family::FamilyCopy": {doc: "One other member of a row's family.", kind: struct, sig: "struct FamilyCopy { id: String, workspace: Option<WorkspaceId>, workspace_name: Option<String>, archived: bool }"}
+    "catalog::family::PropagationPreview": {doc: "What *Also update {n} copies* would do.", kind: struct, sig: "struct PropagationPreview { update: Vec<FamilyCopy>, skipped: Vec<SkippedCopy> }"}
+    "catalog::family::SkippedCopy": {kind: struct, sig: "struct SkippedCopy { copy: FamilyCopy, reason: String }"}
   crates/host/src/catalog/import.rs:
     "catalog::import::CatalogService::import_questions": {doc: "`catalog_import_questions` (§2.32).", kind: method, sig: "fn import_questions(&self, text: &str, commit: bool, default_domain: Option<&DomainId>, now_ms: u64) -> CatalogResult<(ImportReport, Vec<CatalogChange>)>"}
     "catalog::import::FORMAT": {doc: "The one document shape this build reads.", kind: const, sig: "const FORMAT: &str = \"questiongame.questions\""}
@@ -1334,6 +1365,7 @@ host_api:
     "catalog::complete": {kind: mod, sig: "mod complete"}
     "catalog::db": {kind: mod, sig: "mod db"}
     "catalog::error": {kind: mod, sig: "mod error"}
+    "catalog::family": {kind: mod, sig: "mod family"}
     "catalog::import": {kind: mod, sig: "mod import"}
     "catalog::model": {kind: mod, sig: "mod model"}
     "catalog::search": {kind: mod, sig: "mod search"}

@@ -195,6 +195,12 @@ export const COMMAND_GROUPS = {
     'catalog_make_shared',
     /** Shared rows into this workspace; refused while another workspace uses one. */
     'catalog_make_local',
+    /** Who else a save would update (its family), and who it would skip, and why. */
+    'catalog_propagation_preview',
+    /** *Also update {n} copies*: the save and every copy it can reach, one transaction. */
+    'catalog_upsert_propagating',
+    /** *Stop following its copies*: the row leaves its family. */
+    'catalog_unfollow',
   ],
   /** The app itself (P12): the close guard's answers and the uninstaller. */
   app: [

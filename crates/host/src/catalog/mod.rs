@@ -25,6 +25,7 @@ pub mod backup;
 pub mod complete;
 pub mod db;
 pub mod error;
+pub mod family;
 pub mod import;
 pub mod model;
 pub mod search;
@@ -54,5 +55,6 @@ pub use seed::{Demo, SeedMode, SeedResult, SeedStatus};
 pub use service::{
     CatalogChange, CatalogService, ChangeOp, OverlayTarget, RecipeChange, WipedPlays,
 };
+pub use family::{FamilyCopy, PropagationPreview, SkippedCopy};
 pub use transfer::{Refusal, Selection, Touched, TransferOp, TransferReport};
 pub use workspace::{DeleteReport, WORKSPACE_NAME_MAX, Workspace, WorkspaceGroup};
