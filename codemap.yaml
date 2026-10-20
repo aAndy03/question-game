@@ -2393,6 +2393,15 @@ windows_and_permissions:
     stats: "studio/index.html?stats"
 config:
   files:
+    crates/app/tauri.beta.conf.json:
+      bundle.icon:
+        - icons/beta/32x32.png
+        - icons/beta/128x128.png
+        - "icons/beta/128x128@2x.png"
+        - icons/beta/icon.icns
+        - icons/beta/icon.ico
+      identifier: org.questiongame.beta
+      productName: "questiongame Beta"
     crates/app/tauri.conf.json:
       "$schema": "https://schema.tauri.app/config/2"
       app.security.csp: "default-src 'self'; img-src 'self' asset... #28d5e5c4"
@@ -2480,6 +2489,7 @@ build:
   npm_scripts:
     "audio:placeholders": "vite-node scripts/audio-placeholders.ts"
     build: "npm run notices && npm run build --workspaces --if-present"
+    "build:beta": "tauri build --config crates/app/tauri.beta.conf.json"
     "decor:hulls": "vite-node scripts/decor-hulls.ts"
     "dev:app": "tauri dev --config crates/app/tauri.dev.conf.json"
     "dev:stage": "npm run dev -w @questiongame/stage"

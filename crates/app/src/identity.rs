@@ -91,7 +91,13 @@ pub fn channel(identifier: &str, e2e_channel: Option<&str>) -> Result<Channel, S
 /// being embedded — Tauri's own line between the two builds.
 pub fn check(is_dev: bool, identifier: &str) -> Result<(), String> {
     match (is_dev, identifier) {
-        (true, DEV_IDENTIFIER) | (false, RELEASE_IDENTIFIER) | (false, E2E_IDENTIFIER) => Ok(()),
+        (true, DEV_IDENTIFIER)
+        | (false, RELEASE_IDENTIFIER)
+        | (false, E2E_IDENTIFIER)
+        | (false, BETA_IDENTIFIER) => Ok(()),
+        (true, BETA_IDENTIFIER) => Err(format!(
+            "This dev build carries questiongame Beta's identity ({BETA_IDENTIFIER}), \n             so it would open Beta's library. Build Beta with `npm run build:beta`."
+        )),
         (true, E2E_IDENTIFIER) => Err(format!(
             "This dev build carries the end-to-end identity ({E2E_IDENTIFIER}). \
              Build it with `npm run e2e:build`."
@@ -105,7 +111,7 @@ pub fn check(is_dev: bool, identifier: &str) -> Result<(), String> {
              so it would open the dev library. Build it with `npm run release`."
         )),
         (_, other) => Err(format!(
-            "Unknown app identity `{other}`: expected {DEV_IDENTIFIER} (dev), {RELEASE_IDENTIFIER} (release) or {E2E_IDENTIFIER} (end-to-end)."
+            "Unknown app identity `{other}`: expected {DEV_IDENTIFIER} (dev), {RELEASE_IDENTIFIER} (release), {BETA_IDENTIFIER} (Beta) or {E2E_IDENTIFIER} (end-to-end)."
         )),
     }
 }
@@ -117,7 +123,11 @@ pub fn build_label(is_dev: bool) -> &'static str {
 
 /// [`build_label`], naming the end-to-end build for what it is.
 pub fn build_label_for(is_dev: bool, identifier: &str) -> &'static str {
-    if identifier == E2E_IDENTIFIER { "e2e" } else { build_label(is_dev) }
+    match identifier {
+        E2E_IDENTIFIER => "e2e",
+        BETA_IDENTIFIER => "beta",
+        _ => build_label(is_dev),
+    }
 }
 
 #[cfg(test)]
@@ -141,6 +151,42 @@ mod tests {
         assert!(check(true, E2E_IDENTIFIER).is_err(), "a dev server never runs the suite");
         assert_eq!(build_label_for(false, E2E_IDENTIFIER), "e2e");
         assert_eq!(build_label_for(false, RELEASE_IDENTIFIER), "release");
+    }
+
+    /// ID01–ID05 (P13.1): Beta is a built app, never a dev server.
+    #[test]
+    fn beta_runs_only_as_a_built_app() {
+        assert_eq!(check(false, BETA_IDENTIFIER), Ok(()));
+        let dev_as_beta = check(true, BETA_IDENTIFIER).unwrap_err();
+        assert!(dev_as_beta.contains("npm run build:beta"), "{dev_as_beta}");
+        assert_eq!(build_label_for(false, BETA_IDENTIFIER), "beta");
+        assert_eq!(build_label_for(true, BETA_IDENTIFIER), "beta");
+        let unknown = check(false, "com.example.other").unwrap_err();
+        assert!(unknown.contains(BETA_IDENTIFIER), "{unknown}");
+    }
+
+    /// ID03, ID04: the whole table, and 1.0.2's words where 1.0.2 had them.
+    #[test]
+    fn the_whole_identity_table() {
+        let ids = [DEV_IDENTIFIER, RELEASE_IDENTIFIER, E2E_IDENTIFIER, BETA_IDENTIFIER, "com.example.other", ""];
+        for dev in [true, false] {
+            for id in ids {
+                let want = matches!((dev, id), (true, DEV_IDENTIFIER) | (false, RELEASE_IDENTIFIER | E2E_IDENTIFIER | BETA_IDENTIFIER));
+                assert_eq!(check(dev, id).is_ok(), want, "check({dev}, {id:?})");
+            }
+        }
+        assert_eq!(
+            check(true, E2E_IDENTIFIER).unwrap_err(),
+            "This dev build carries the end-to-end identity (org.questiongame.e2e). Build it with `npm run e2e:build`."
+        );
+        assert_eq!(
+            check(true, RELEASE_IDENTIFIER).unwrap_err(),
+            "This dev build carries the installed app's identity (org.questiongame.desktop), so it would open the installed app's library. Start it with `npm run dev:app`."
+        );
+        assert_eq!(
+            check(false, DEV_IDENTIFIER).unwrap_err(),
+            "This release build carries the dev identity (org.questiongame.app), so it would open the dev library. Build it with `npm run release`."
+        );
     }
 
     #[test]
