@@ -1765,9 +1765,20 @@ The first maintenance release. Operators take it by installing over 1.0.1; nothi
 - ☑ `codemap.yaml` adds `stage`, `packages`, `windows_and_permissions`, `config`, `build`, `e2e` and `fixtures` (2570 lines); `mismatches:` empty, and each new cross-check has a test that makes it fire.
 - ☑ `CLAUDE.md` is an index (28 KB, was 127 KB); the as-built rules live in `docs/as-built/`, one file per area.
 
+### P13.0 — Channels, before Beta  ☑
+
+Design: `docs/superpowers/specs/2026-10-19-channels-design.md`; plan and test list beside it in `docs/superpowers/plans/`.
+
+- ☑ `identity::channel` decides Stable · Beta · Dev · E2e(line) once at boot; the e2e build refuses an unknown `QUESTIONGAME_E2E_CHANNEL`; `app_info.channel` tells Studio.
+- ☑ The update check reads `/releases/latest` on stable (1.0.2's JSON, unchanged) and the release list on Beta, newest by semver, with *questiongame X is out* when a stable release passes a running beta.
+- ☑ *What's new* orders by SemVer, prereleases included; one version fixture holds TypeScript and Rust together.
+- ☑ `vX.Y.Z` publishes questiongame, `vX.Y.Z-beta.N` publishes questiongame Beta as a pre-release, anything else is refused before a build; *Run workflow* builds either, unpublished.
+- ☑ `npm run version:stable` / `version:beta` bump the four version files, the lock files and the map, run the checks and commit — never tag, never push.
+- ☑ `release/1.x` is cut here: stable 1.1 starts from it.
+
 ### Next
 
-- ☐ A **questiongame Beta** channel: a separate app (`org.questiongame.beta`, its own data folder, installed beside stable), `main` as the beta line with `release/1.0` for stable fixes, `-beta.N` tags published as pre-releases, a channel-aware update check.
+- ☐ **P13.1 — questiongame Beta**: its own identity and icon, a read-only copy of the stable library on first launch (or start empty), a Beta mark in Studio, and the e2e suite on both channels.
 
 ---
 

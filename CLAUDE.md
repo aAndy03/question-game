@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-Shipped: **1.0.2**; main is at P12.15. The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: a **questiongame Beta** channel (roadmap ▸ Next).
+Shipped: **1.0.2**; main is at P13.0. The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: **questiongame Beta** (roadmap ▸ Next). **Which branch?** Stable fixes on `release/1.x`, merged forward into `main`; Beta work on `main` only — `docs/as-built/release.md` ▸ Channels.
 
 ## As built — read the area's file before changing it
 
@@ -17,7 +17,7 @@ Each file holds the rules a later change must not undo, with the incident that t
 | Studio — shell, notices, editors, Control, Screens, Settings, health, Statistics | `docs/as-built/studio.md` |
 | Stage — languages, editable words, fitting the display, the clock, the Viewer, motion | `docs/as-built/stage.md` |
 | `play-state` / `play-tick`, emission rates, Studio's `playState` store | `docs/as-built/wire.md` |
-| identities, the installer, a version bump, the licence audit, CI, backups, updates, *What's new* | `docs/as-built/release.md` |
+| identities and channels, the installer, a version bump, the licence audit, CI, backups, updates, *What's new* | `docs/as-built/release.md` |
 | the end-to-end suite or the codebase map | `docs/as-built/tooling.md` |
 
 **Data folders are off-limits**: `org.questiongame.desktop` (the installed app) and `org.questiongame.app` (the dev build) hold real libraries. Read them on a copy; ask before writing or deleting anything in them; copy a `.sqlite3` and its `-wal` together. The e2e suite owns `org.questiongame.e2e` and nothing else.
