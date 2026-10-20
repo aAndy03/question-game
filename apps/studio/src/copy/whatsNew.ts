@@ -127,9 +127,15 @@ export function compareVersions(a: string, b: string): number {
   return 0
 }
 
-/** The releases newer than `since` and no newer than `current`, newest first. */
+/**
+ * The releases newer than `since` and no newer than `current`, newest first.
+ * Someone on a stable version is never shown a beta's notes: the stable
+ * release that follows them summarises them (review, P13.1).
+ */
 export function notesAfter(since: string, current: string, releases: readonly WhatsNewRelease[] = WHATS_NEW): WhatsNewRelease[] {
+  const onStable = !since.includes('-') && !current.includes('-')
   return releases
+    .filter((r) => !(onStable && r.version.includes('-')))
     .filter((r) => compareVersions(r.version, since) > 0 && compareVersions(r.version, current) <= 0)
     .sort((a, b) => compareVersions(b.version, a.version))
 }

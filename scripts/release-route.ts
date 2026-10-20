@@ -13,6 +13,7 @@ const answer = route({
   ref: process.env.GITHUB_REF ?? '',
   refName: process.env.GITHUB_REF_NAME ?? '',
   version,
+  ...(process.env.GITHUB_EVENT_NAME ? { eventName: process.env.GITHUB_EVENT_NAME } : {}),
   ...(process.env.INPUT_CHANNEL ? { dispatchChannel: process.env.INPUT_CHANNEL } : {}),
 })
 

@@ -98,3 +98,13 @@ describe("What's new", () => {
     for (let i = 1; i < WHATS_NEW.length; i++) expect(compareVersions(WHATS_NEW[i - 1]!.version, WHATS_NEW[i]!.version)).toBeGreaterThan(0)
   })
 })
+
+describe('a stable update past betas (review)', () => {
+  it('shows a stable user the stable notes only, never the betas in between', () => {
+    const entry = (version: string): WhatsNewRelease => ({ version, notes: { en: [], ro: [] } })
+    const list = ['2.0.0', '2.0.0-beta.2', '2.0.0-beta.1', '1.1.0'].map(entry)
+    expect(notesAfter('1.0.2', '2.0.0', list).map((r) => r.version)).toEqual(['2.0.0', '1.1.0'])
+    // A beta user moving to the release still reads what came after its beta.
+    expect(notesAfter('2.0.0-beta.1', '2.0.0', list).map((r) => r.version)).toEqual(['2.0.0', '2.0.0-beta.2'])
+  })
+})

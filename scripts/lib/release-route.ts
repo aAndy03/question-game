@@ -35,8 +35,10 @@ export function route(input: {
   readonly refName: string
   readonly version: string
   readonly dispatchChannel?: string
+  /** `GITHUB_EVENT_NAME`. A manual run may be started *from* a tag; it still never publishes. */
+  readonly eventName?: string
 }): Route | { readonly refused: string } {
-  if (!input.ref.startsWith('refs/tags/')) {
+  if (input.eventName === 'workflow_dispatch' || !input.ref.startsWith('refs/tags/')) {
     const channel = input.dispatchChannel ?? 'stable'
     if (channel !== 'stable' && channel !== 'beta') return { refused: `channel \`${channel}\`: expected stable or beta` }
     return { channel, publish: false, prerelease: false, configArgs: channel === 'beta' ? BETA_CONFIG_ARGS : '', releaseName: null }

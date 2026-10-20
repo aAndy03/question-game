@@ -69,6 +69,12 @@ describe('a manual run builds without publishing (WF07)', () => {
     expect(dispatch('1.0.2', 'stable')).toMatchObject({ channel: 'stable', publish: false })
   })
 
+  it('never publishes from a manual run, even one started from a tag (review)', () => {
+    const fromTag = route({ ref: 'refs/tags/v1.0.2', refName: 'v1.0.2', version: '1.0.2', eventName: 'workflow_dispatch', dispatchChannel: 'beta' })
+    expect(fromTag).toMatchObject({ channel: 'beta', publish: false, releaseName: null })
+    expect(route({ ref: 'refs/tags/v1.0.2', refName: 'v1.0.2', version: '1.0.2', eventName: 'push' })).toMatchObject({ publish: true })
+  })
+
   it('refuses a channel it does not know', () => {
     expect(dispatch('1.0.2', 'nightly')).toHaveProperty('refused')
   })
