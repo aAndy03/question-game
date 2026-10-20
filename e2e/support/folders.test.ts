@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import path from 'node:path'
-import { E2E_IDENTIFIER, assertE2eFolder, e2eFolders, seedFor } from './folders'
+import { E2E_IDENTIFIER, STABLE_FIXTURE, assertE2eFolder, assertStableFixture, channelFor, e2eFolders, launchEnv, seedFor, stableFixtureDir } from './folders'
 
 /**
  * P12.14. The suite deletes and rewrites an app's data folder before every
@@ -35,5 +35,50 @@ describe('the e2e folders', () => {
     expect(seedFor('/x/e2e/specs/load-refusal.e2e.ts')).toEqual(['--broken-board'])
     expect(seedFor('/x/e2e/specs/upgrade.e2e.ts')).toEqual([])
     expect(() => seedFor('/x/e2e/specs/unknown.e2e.ts')).toThrow(/unknown\.e2e\.ts/)
+  })
+})
+
+/**
+ * P13.1. The Beta specs copy from a "stable library" the suite writes into a
+ * temp folder of its own — never a real one.
+ */
+describe('the stable fixture', () => {
+  it('is one named folder directly under the temp folder', () => {
+    expect(stableFixtureDir('C:\\Temp')).toBe(path.join('C:\\Temp', STABLE_FIXTURE))
+    expect(() => assertStableFixture(path.join('C:\\Temp', STABLE_FIXTURE), 'C:\\Temp')).not.toThrow()
+  })
+
+  it('refuses anything else, the real stable folder above all', () => {
+    for (const folder of [
+      'C:\\Roaming\\org.questiongame.desktop',
+      'C:\\Temp\\org.questiongame.desktop',
+      'C:\\Temp\\other',
+      'C:\\Temp',
+      `C:\\Temp\\${STABLE_FIXTURE}\\..\\x`,
+      `C:\\Elsewhere\\${STABLE_FIXTURE}`,
+    ]) {
+      expect(() => assertStableFixture(folder, 'C:\\Temp'), folder).toThrow()
+    }
+  })
+
+  it('names what each Beta spec copies from, and refuses a Beta spec it does not know', () => {
+    expect(channelFor('/x/e2e/specs/show.e2e.ts')).toBeNull()
+    expect(channelFor('/x/e2e/specs/beta-copy.e2e.ts')).toEqual({ channel: 'beta', stable: 'demo' })
+    expect(channelFor('/x/e2e/specs/beta-no-stable.e2e.ts')).toEqual({ channel: 'beta', stable: 'none' })
+    expect(channelFor('/x/e2e/specs/beta-stable-running.e2e.ts')).toEqual({ channel: 'beta', stable: 'running' })
+    expect(channelFor('/x/e2e/specs/beta-corrupt.e2e.ts')).toEqual({ channel: 'beta', stable: 'garbage' })
+    expect(() => channelFor('/x/e2e/specs/beta-unknown.e2e.ts')).toThrow(/CHANNELS/)
+    for (const spec of ['beta-start-empty', 'beta-copy', 'beta-no-stable', 'beta-stable-running', 'beta-corrupt']) {
+      expect(seedFor(`/x/e2e/specs/${spec}.e2e.ts`), spec).toBeNull()
+    }
+  })
+
+  it('leaves the stable specs on the stable channel, whatever the shell has set', () => {
+    const env = launchEnv(null, 'C:\\Temp\\fixture', { QUESTIONGAME_E2E_CHANNEL: 'beta', QUESTIONGAME_E2E_STABLE_DIR: 'C:\\x', PATH: 'p' })
+    expect(env.QUESTIONGAME_E2E_CHANNEL).toBeUndefined()
+    expect(env.QUESTIONGAME_E2E_STABLE_DIR).toBeUndefined()
+    expect(env.PATH).toBe('p')
+    const beta = launchEnv({ channel: 'beta', stable: 'demo' }, 'C:\\Temp\\fixture', { PATH: 'p' })
+    expect(beta).toMatchObject({ QUESTIONGAME_E2E_CHANNEL: 'beta', QUESTIONGAME_E2E_STABLE_DIR: 'C:\\Temp\\fixture', PATH: 'p' })
   })
 })

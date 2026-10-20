@@ -13,18 +13,36 @@
  */
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { browser } from '@wdio/globals'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { E2E_IDENTIFIER, libraryFile, resetE2eFolders, seedFor } from './support/folders'
+import { E2E_IDENTIFIER, channelFor, launchEnv, libraryFile, resetE2eFolders, resetStableFixture, seedFor, stableFixtureDir } from './support/folders'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const application = path.join(root, 'target', 'debug', 'questiongame.exe')
 const cargoBin = path.join(os.homedir(), '.cargo', 'bin')
 
 let driver: ChildProcess | null = null
+/** A stable app's lock, held for `beta-stable-running` (P13.1). */
+let holder: ChildProcess | null = null
+let realFolders: Record<string, string[]> = {}
+
+/**
+ * The names in the installed and dev apps' folders — read, never written. A
+ * running app rewrites its log, perf log and SQLite sidecars on its own, so
+ * those are left out; anything else appearing or vanishing is the suite's doing.
+ */
+function snapshotRealFolders(): Record<string, string[]> {
+  const volatile = /(-wal|-shm|\.log(\.\d+)?|^perf)$/
+  const out: Record<string, string[]> = {}
+  for (const id of ['org.questiongame.desktop', 'org.questiongame.app']) {
+    const dir = path.join(process.env.APPDATA ?? '', id)
+    if (existsSync(dir)) out[id] = readdirSync(dir).filter((n) => !volatile.test(n)).sort()
+  }
+  return out
+}
 
 function run(command: string, args: readonly string[]): void {
   // WebdriverIO sets NODE_ENV for its own process; a Vite build that inherits
@@ -58,19 +76,45 @@ export const config: WebdriverIO.Config = {
   onPrepare() {
     if (process.env.E2E_SKIP_BUILD !== '1') run('npm', ['run', 'e2e:build'])
     if (!existsSync(application)) throw new Error(`no e2e build at ${application}: run npm run e2e:build`)
+    // The Beta specs play a running stable app with this (P13.1).
+    run('cargo', ['build', '-q', '-p', 'questiongame-app', '--example', 'hold_lock'])
+    realFolders = snapshotRealFolders()
+  },
+
+  onComplete() {
+    // E2E12: the installed and dev libraries' folders hold the same names as
+    // before the run. Read only; the files a running app rewrites are left out.
+    const after = snapshotRealFolders()
+    if (JSON.stringify(after) !== JSON.stringify(realFolders)) {
+      throw new Error(`a real data folder changed during the e2e run:\n${JSON.stringify(realFolders)}\n${JSON.stringify(after)}`)
+    }
   },
 
   beforeSession(_config, _capabilities, specs) {
     // The folders of `org.questiongame.e2e` and nothing else; `resetE2eFolders`
     // refuses any other name.
     resetE2eFolders()
-    const seed = seedFor(specs[0] ?? '')
+    const spec = specs[0] ?? ''
+    const seed = seedFor(spec)
     if (seed !== null) {
       run('cargo', ['run', '-q', '-p', 'questiongame-host', '--example', 'e2e_library', '--', `"${libraryFile()}"`, ...seed])
+    }
+    const setup = channelFor(spec)
+    const fixture = stableFixtureDir()
+    if (setup !== null) {
+      resetStableFixture()
+      if (setup.stable === 'demo' || setup.stable === 'running') {
+        run('cargo', ['run', '-q', '-p', 'questiongame-host', '--example', 'e2e_library', '--', `"${path.join(fixture, 'questiongame.sqlite3')}"`])
+      }
+      if (setup.stable === 'garbage') writeFileSync(path.join(fixture, 'questiongame.sqlite3'), Buffer.alloc(8192, 0x5a))
+      if (setup.stable === 'running') {
+        holder = spawn(path.join(root, 'target', 'debug', 'examples', 'hold_lock.exe'), [fixture], { stdio: 'ignore' })
+      }
     }
     const nativeDriver = path.join(cargoBin, 'msedgedriver.exe')
     driver = spawn(path.join(cargoBin, 'tauri-driver.exe'), existsSync(nativeDriver) ? ['--native-driver', nativeDriver] : [], {
       stdio: [null, process.stdout, process.stderr],
+      env: launchEnv(setup, fixture) as NodeJS.ProcessEnv,
     })
   },
 
@@ -87,6 +131,8 @@ export const config: WebdriverIO.Config = {
   afterSession() {
     driver?.kill()
     driver = null
+    holder?.kill()
+    holder = null
   },
 }
 

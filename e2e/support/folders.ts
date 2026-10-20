@@ -9,6 +9,7 @@
  */
 
 import { mkdirSync, rmSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 export const E2E_IDENTIFIER = 'org.questiongame.e2e'
@@ -19,6 +20,79 @@ const SEEDS: Readonly<Record<string, readonly string[] | null>> = {
   'show.e2e.ts': [],
   'load-refusal.e2e.ts': ['--broken-board'],
   'upgrade.e2e.ts': [],
+  // questiongame Beta's first launch (P13.1): its own library starts empty.
+  'beta-start-empty.e2e.ts': null,
+  'beta-copy.e2e.ts': null,
+  'beta-no-stable.e2e.ts': null,
+  'beta-stable-running.e2e.ts': null,
+  'beta-corrupt.e2e.ts': null,
+}
+
+/**
+ * The Beta specs (P13.1): the e2e build plays questiongame Beta
+ * (`QUESTIONGAME_E2E_CHANNEL=beta`) and finds its "stable library" in a temp
+ * folder of the suite's own (`QUESTIONGAME_E2E_STABLE_DIR`), never a real one.
+ * `stable` is what that folder holds: the Demo, nothing, the Demo with a
+ * running stable app holding its lock, or bytes that are not a library.
+ */
+export interface ChannelSetup {
+  readonly channel: 'beta'
+  readonly stable: 'demo' | 'none' | 'running' | 'garbage'
+}
+
+const CHANNELS: Readonly<Record<string, ChannelSetup>> = {
+  'beta-start-empty.e2e.ts': { channel: 'beta', stable: 'demo' },
+  'beta-copy.e2e.ts': { channel: 'beta', stable: 'demo' },
+  'beta-no-stable.e2e.ts': { channel: 'beta', stable: 'none' },
+  'beta-stable-running.e2e.ts': { channel: 'beta', stable: 'running' },
+  'beta-corrupt.e2e.ts': { channel: 'beta', stable: 'garbage' },
+}
+
+/** The temp folder the Beta specs copy from. */
+export const STABLE_FIXTURE = 'questiongame-e2e-stable'
+
+export function stableFixtureDir(tmp: string = os.tmpdir()): string {
+  return path.join(tmp, STABLE_FIXTURE)
+}
+
+/** Throw unless `folder` is exactly `<tmp>/questiongame-e2e-stable`. */
+export function assertStableFixture(folder: string, tmp: string = os.tmpdir()): void {
+  if (path.normalize(folder) !== path.normalize(stableFixtureDir(tmp)) || folder.split(/[\\/]/).includes('..')) {
+    throw new Error(`refusing to touch ${folder}: not the stable fixture ${stableFixtureDir(tmp)}`)
+  }
+}
+
+/** Empty the stable fixture, so every Beta spec starts from nothing. */
+export function resetStableFixture(): string {
+  const folder = stableFixtureDir()
+  assertStableFixture(folder)
+  rmSync(folder, { recursive: true, force: true })
+  mkdirSync(folder, { recursive: true })
+  return folder
+}
+
+/** What a spec plays: `null` is questiongame (stable), as every spec before P13.1. */
+export function channelFor(spec: string): ChannelSetup | null {
+  const name = path.basename(spec.replace(/^file:\/\//, ''))
+  const setup = CHANNELS[name]
+  if (setup === undefined && name.startsWith('beta-')) throw new Error(`${name}: add it to CHANNELS in e2e/support/folders.ts`)
+  return setup ?? null
+}
+
+/**
+ * The environment `tauri-driver` (and so the app) starts with. Both variables
+ * are always set or always removed, so a value left in the shell can never
+ * turn a stable spec into a Beta one.
+ */
+export function launchEnv(setup: ChannelSetup | null, fixture: string, env: Env = process.env): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = { ...env }
+  delete out.QUESTIONGAME_E2E_CHANNEL
+  delete out.QUESTIONGAME_E2E_STABLE_DIR
+  if (setup !== null) {
+    out.QUESTIONGAME_E2E_CHANNEL = setup.channel
+    out.QUESTIONGAME_E2E_STABLE_DIR = fixture
+  }
+  return out
 }
 
 type Env = Readonly<Record<string, string | undefined>>

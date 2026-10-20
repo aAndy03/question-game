@@ -119,6 +119,8 @@ jobs:
           New-Item -ItemType Directory -Force e2e/.artifacts | Out-Null
           Copy-Item "$env:APPDATA\org.questiongame.e2e\questiongame.log" e2e/.artifacts -ErrorAction SilentlyContinue
           Copy-Item "$env:APPDATA\org.questiongame.e2e\perf" e2e/.artifacts -Recurse -ErrorAction SilentlyContinue
+          # What the Beta specs copied from (P13.1): the suite's own temp folder.
+          Copy-Item "$env:TEMP\questiongame-e2e-stable" e2e/.artifacts/stable-fixture -Recurse -ErrorAction SilentlyContinue
       - name: Keep what a failed step looked like
         if: failure()
         uses: actions/upload-artifact@v7

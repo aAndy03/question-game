@@ -1696,6 +1696,7 @@ studio_calls:
     app_close_cancelled: [apps/studio/src/organisms/QuitGuard.tsx]
     app_info: [apps/studio/src/host/queries.ts]
     app_quit: [apps/studio/src/organisms/QuitGuard.tsx]
+    beta_welcome_get: [apps/studio/src/host/queries.ts]
     catalog_archive: [apps/studio/src/organisms/useArchive.tsx]
     catalog_archive_many: [apps/studio/src/organisms/useArchive.tsx]
     catalog_get: [apps/studio/src/host/queries.ts]
@@ -1804,6 +1805,7 @@ studio_calls:
     - apps/studio/src/organisms/DataActions.tsx
     - apps/studio/src/organisms/Viewer.tsx
     - apps/studio/src/organisms/useControlHotkeys.ts
+    - apps/studio/src/pages/BetaWelcomePage.tsx
 app_crate:
   functions:
     crates/app/src/boot.rs:
@@ -2588,11 +2590,21 @@ build:
         runs_on: windows-latest
 e2e:
   seeds:
+    beta-copy.e2e.ts: "null"
+    beta-corrupt.e2e.ts: "null"
+    beta-no-stable.e2e.ts: "null"
+    beta-stable-running.e2e.ts: "null"
+    beta-start-empty.e2e.ts: "null"
     first-run.e2e.ts: "null"
     load-refusal.e2e.ts: "['--broken-board']"
     show.e2e.ts: "[]"
     upgrade.e2e.ts: "[]"
   specs:
+    e2e/specs/beta-copy.e2e.ts: ["questiongame Beta copies the stable library > copies it, opens on it, and leaves the original untouched"]
+    e2e/specs/beta-corrupt.e2e.ts: ["questiongame Beta with an unreadable stable library > says the copy failed and still starts empty"]
+    e2e/specs/beta-no-stable.e2e.ts: ["questiongame Beta without a stable library > offers only Start empty"]
+    e2e/specs/beta-stable-running.e2e.ts: ["questiongame Beta while questiongame is running > asks to close it first, then copies"]
+    e2e/specs/beta-start-empty.e2e.ts: ["questiongame Beta, started empty > goes to first run"]
     e2e/specs/first-run.e2e.ts: ["first run > sets up an operator and the Demo"]
     e2e/specs/load-refusal.e2e.ts: ["a refused Load > says why from the Roster and leads to the Board"]
     e2e/specs/show.e2e.ts: ["a show > loads a game, opens Stage, and puts the first question on air"]
