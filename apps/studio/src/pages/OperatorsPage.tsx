@@ -1,13 +1,16 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Button, InitialsAvatar, MeaningChip } from '@/atoms'
-import { ActionMenu, ArchiveToggle, PageHeader, SearchField, ViewSwitch, type ArchiveView } from '@/molecules'
-import { LibraryList, OperatorDetail, useActivateOperator, useArchive, type RecordView } from '@/organisms'
+import { ActionMenu, PageHeader } from '@/molecules'
+import { LibraryList, ListToolbar, OperatorDetail, useActivateOperator, useArchive, type RecordView } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
-import { useArchiveScope, useChromeStore, usePrefs } from '@/chrome/chrome'
+import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
-import { fmt, LIST, OPERATOR, TABS } from '@/copy'
-import { useCatalogList, useSearch, useSettings } from '@/host/queries'
+import { fmt, LIST, OPERATOR, TABS, VIEWS } from '@/copy'
+import { operatorsSpec, type OperatorItem } from '@/host/listSpecs'
+import type { ListItem } from '@/host/listView'
+import { useCatalogList, useListHits, useSettings } from '@/host/queries'
 import { isArchived } from '@/host/types'
+import { useListView } from '@/host/useListView'
 
 export interface OperatorsPageProps {
   currentId?: string | null | undefined
@@ -23,18 +26,16 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
   const archive = useArchive()
   const settings = useSettings()
   const activeId = settings.data?.globals.active_operator_id ?? null
-  const [text, setText] = useState('')
-  const onSearch = useCallback((t: string) => setText(t), [])
+  const list = useCatalogList('operator', scope)
+  const session = useListState('operators')
+  const hits = useListHits('operator', session.search, scope, list.data?.length)
 
-  const list = useCatalogList('operator', scope === 'archived' ? 'archived' : 'active')
-  const hits = useSearch(text ? { text, kinds: ['operator'], scope: scope === 'archived' ? 'archived' : 'active', limit: 200 } : null)
-  const hitIds = useMemo(() => (text && hits.data ? new Set(hits.data.map((h) => h.id)) : null), [text, hits.data])
-
-  const rows = useMemo<RecordView[] | undefined>(
+  const items = useMemo<ListItem<OperatorItem, RecordView>[] | undefined>(
     () =>
-      list.data
-        ?.filter((o) => !hitIds || hitIds.has(o.id))
-        .map((o) => ({
+      list.data?.map((o) => ({
+        id: o.id,
+        data: { operator: o, active: o.id === activeId },
+        view: {
           id: o.id,
           title: o.displayName,
           leading: <InitialsAvatar name={o.displayName} size="sm" tone={o.id === activeId ? 'accent' : 'default'} />,
@@ -47,10 +48,11 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
           ),
           meta: [fmt.count(o.playsRun, OPERATOR.runOne, OPERATOR.runMany), fmt.dateShort(o.lastActiveAt)],
           isArchived: isArchived(o),
-          sort: { updated: o.updatedAt, created: o.createdAt },
-        })),
-    [list.data, hitIds, activeId],
+        },
+      })),
+    [list.data, activeId],
   )
+  const lv = useListView(operatorsSpec, items, hits)
 
   const makeActive = (id: string) => {
     const target = list.data?.find((o) => o.id === id)
@@ -69,27 +71,22 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
               {LIST.new(OPERATOR.one)}
             </Button>
           }
-          toolbar={
-            <div className="flex flex-wrap items-center gap-2">
-              <SearchField what={OPERATOR.many} onSearch={onSearch} />
-              <div className="flex-1" />
-              <ViewSwitch value={view.operators} onChange={(v) => setView('operators', v)} />
-              <ArchiveToggle value={archivedView ? 'archived' : 'active'} onChange={(v: ArchiveView) => setScope('operators', v)} />
-            </div>
-          }
+          toolbar={<ListToolbar view={lv} what={OPERATOR.many} layout={view.operators} onLayout={(v) => setView('operators', v)} status={scope} onStatus={(v) => setScope('operators', v)} />}
         />
       }
       aside={currentId ? <OperatorDetail id={currentId} compact /> : null}
     >
       <LibraryList
-        rows={rows}
+        view={lv}
+        total={list.data?.length}
+        scope={scope}
         isLoading={list.isLoading}
         error={list.error ? String(list.error) : null}
         layout={view.operators}
         what={OPERATOR.many}
-        emptyKind={text ? 'noResults' : archivedView ? 'archivedEmpty' : 'empty'}
+        columns={{ title: { sortId: 'name', label: VIEWS.name }, meta: [{ sortId: 'playsRun', label: VIEWS.playsRun }, { sortId: 'lastActive', label: VIEWS.lastActive }] }}
         emptyAction={
-          !text && !archivedView ? (
+          !archivedView ? (
             <Button variant="primary" icon="add" onPress={() => void go({ tab: 'operators', mode: 'new' })}>
               {LIST.new(OPERATOR.one)}
             </Button>

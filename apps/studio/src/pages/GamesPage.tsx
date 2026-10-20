@@ -1,16 +1,19 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Button, Icon, MeaningChip } from '@/atoms'
-import { ActionMenu, ArchiveToggle, PageHeader, SearchField, ViewSwitch, type ArchiveView } from '@/molecules'
-import { LibraryList, useArchive, type RecordView } from '@/organisms'
+import { ActionMenu, PageHeader } from '@/molecules'
+import { LibraryList, ListToolbar, useArchive, type RecordView } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
-import { useArchiveScope, useChromeStore, usePrefs } from '@/chrome/chrome'
+import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
-import { CHROME, fmt, GAME, LIST, TABS } from '@/copy'
+import { CHROME, fmt, GAME, LIST, TABS, VIEWS } from '@/copy'
 import type { SeedResult } from '@/host/types'
 import { useHostCommand } from '@/host/commands'
 import { usePlayState } from '@/host/playState'
-import { useRecipeList, useSearch } from '@/host/queries'
+import { gamesSpec, type GameItem } from '@/host/listSpecs'
+import type { ListItem } from '@/host/listView'
+import { useListHits, useRecipeList } from '@/host/queries'
 import { isArchived, type Recipe } from '@/host/types'
+import { useListView } from '@/host/useListView'
 
 /** Games — all games: recipe cards or a table (spec §12). */
 export function GamesPage() {
@@ -22,21 +25,19 @@ export function GamesPage() {
   const run = useHostCommand()
   const archive = useArchive()
   const play = usePlayState()
-  const [text, setText] = useState('')
-  const onSearch = useCallback((t: string) => setText(t), [])
-
-  const list = useRecipeList(scope === 'archived' ? 'archived' : 'active')
-  const hits = useSearch(text ? { text, kinds: ['recipe'], scope: scope === 'archived' ? 'archived' : 'active', limit: 200 } : null)
-  const hitIds = useMemo(() => (text && hits.data ? new Set(hits.data.map((h) => h.id)) : null), [text, hits.data])
+  const list = useRecipeList(scope)
+  const session = useListState('games')
+  const hits = useListHits('recipe', session.search, scope, list.data?.length)
   const playingId = play && (play.status === 'playing' || play.status === 'paused') ? play.operator.recipeId : null
 
-  const rows = useMemo<RecordView[] | undefined>(
+  const items = useMemo<ListItem<GameItem, RecordView>[] | undefined>(
     () =>
-      list.data
-        ?.filter((r) => !hitIds || hitIds.has(r.id))
-        .map((r: Recipe) => {
-          const questions = r.board.reduce((n, b) => n + b.questionIds.length, 0)
-          return {
+      list.data?.map((r: Recipe) => {
+        const questions = r.board.reduce((n, b) => n + b.questionIds.length, 0)
+        return {
+          id: r.id,
+          data: { recipe: r, playing: playingId === r.id, questions },
+          view: {
             id: r.id,
             title: r.name,
             subtitle: [r.folder, ...r.tags].filter(Boolean).join(' · ') || undefined,
@@ -49,11 +50,13 @@ export function GamesPage() {
             ),
             meta: [GAME.teamsCount(r.teams.length), GAME.questionsCount(questions), fmt.dateShort(r.updatedAt)],
             isArchived: isArchived(r),
-            sort: { updated: r.updatedAt, created: r.createdAt },
-          }
-        }),
-    [list.data, hitIds, playingId],
+          },
+        }
+      }),
+    [list.data, playingId],
   )
+  const spec = useMemo(() => gamesSpec(list.data ?? []), [list.data])
+  const lv = useListView(spec, items, hits)
 
   const create = async () => {
     const id = `recipe-${crypto.randomUUID().slice(0, 8)}`
@@ -82,28 +85,24 @@ export function GamesPage() {
               {LIST.new(GAME.one)}
             </Button>
           }
-          toolbar={
-            <div className="flex flex-wrap items-center gap-2">
-              <SearchField what={GAME.many} onSearch={onSearch} />
-              <div className="flex-1" />
-              <ViewSwitch value={view.games} onChange={(v) => setView('games', v)} />
-              <ArchiveToggle value={archivedView ? 'archived' : 'active'} onChange={(v: ArchiveView) => setScope('games', v)} />
-            </div>
-          }
+          toolbar={<ListToolbar view={lv} what={GAME.many} layout={view.games} onLayout={(v) => setView('games', v)} status={scope} onStatus={(v) => setScope('games', v)} />}
         />
       }
     >
       <LibraryList
-        rows={rows}
+        view={lv}
+        total={list.data?.length}
+        scope={scope}
         isLoading={list.isLoading}
         error={list.error ? String(list.error) : null}
         layout={view.games}
         what={GAME.many}
-        sortBy="updated"
-        sortDesc
-        emptyKind={text ? 'noResults' : archivedView ? 'archivedEmpty' : 'empty'}
+        columns={{
+          title: { sortId: 'name', label: VIEWS.name },
+          meta: [{ sortId: 'teams', label: VIEWS.teams }, { sortId: 'questions', label: VIEWS.questions }, { sortId: 'changed', label: VIEWS.changed }],
+        }}
         emptyAction={
-          !text && !archivedView ? (
+          !archivedView ? (
             <div className="flex flex-wrap items-center justify-center gap-2">
               <Button variant="primary" icon="add" onPress={() => void create()}>
                 {LIST.new(GAME.one)}

@@ -1,24 +1,26 @@
 import { Tabs } from '@heroui/react'
 import { LIST } from '@/copy'
 
-export type ArchiveView = 'active' | 'archived'
+export type ArchiveView = 'active' | 'archived' | 'all'
 
 export interface ArchiveToggleProps {
   value: ArchiveView
   onChange: (scope: ArchiveView) => void
   /** Optional counts shown after the labels. */
   counts?: { active?: number | undefined; archived?: number | undefined } | undefined
+  /** Offer *All* as well (the library tabs, stable 1.1). */
+  withAll?: boolean | undefined
 }
 
 /** Active | Archived, inside every library tab (spec §2.24). */
-export function ArchiveToggle({ value, onChange, counts }: ArchiveToggleProps) {
+export function ArchiveToggle({ value, onChange, counts, withAll }: ArchiveToggleProps) {
   const label = (base: string, n: number | undefined) => (n === undefined ? base : `${base} · ${n}`)
   return (
     <Tabs
       variant="secondary"
       selectedKey={value}
       onSelectionChange={(key) => {
-        if (key === 'active' || key === 'archived') onChange(key)
+        if (key === 'active' || key === 'archived' || (withAll && key === 'all')) onChange(key)
       }}
     >
       <Tabs.ListContainer>
@@ -31,6 +33,12 @@ export function ArchiveToggle({ value, onChange, counts }: ArchiveToggleProps) {
             {label(LIST.archived, counts?.archived)}
             <Tabs.Indicator />
           </Tabs.Tab>
+          {withAll ? (
+            <Tabs.Tab id="all">
+              {LIST.all}
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          ) : null}
         </Tabs.List>
       </Tabs.ListContainer>
     </Tabs>

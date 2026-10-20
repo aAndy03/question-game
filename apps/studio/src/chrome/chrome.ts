@@ -84,12 +84,6 @@ interface ChromeState {
   readonly prefs: Readonly<Record<string, OperatorPrefs>>
   /** Session-only: not persisted. */
   readonly archiveScope: Readonly<Partial<Record<Tab, ArchiveScope>>>
-  /**
-   * The question list's All | Incomplete (§17.4). Session-only, like the
-   * archive scope, so it survives opening a question and coming back — the
-   * loop is *filter, open, fix, back, next*.
-   */
-  readonly libraryFilter: 'all' | 'incomplete'
   /** Session-only list views per tab (stable 1.1): filters, search, page, collapsed groups. */
   readonly listState: Readonly<Partial<Record<LibraryTab, ListState>>>
   /** True while the pointer is over the left-edge peek strip (sidebar hidden). */
@@ -101,7 +95,6 @@ interface ChromeState {
   setTheme(theme: ThemeChoice): void
   setView(tab: ListTab, view: ViewMode): void
   setArchiveScope(tab: Tab, scope: ArchiveScope): void
-  setLibraryFilter(filter: 'all' | 'incomplete'): void
   setListPrefs(tab: LibraryTab, patch: Partial<ListPrefs>): void
   setListState(tab: LibraryTab, patch: Partial<ListState>): void
   setSettingsInner(inner: SettingsInner): void
@@ -123,7 +116,6 @@ export const useChromeStore = create<ChromeState>()(
         operatorId: '',
         prefs: {},
         archiveScope: {},
-        libraryFilter: 'all',
         listState: {},
         peeking: false,
 
@@ -150,15 +142,18 @@ export const useChromeStore = create<ChromeState>()(
           crumb('scope', `${tab}=${scope}`)
           set((s) => ({ archiveScope: { ...s.archiveScope, [tab]: scope } }))
         },
-        setLibraryFilter(libraryFilter) {
-          set({ libraryFilter })
-        },
         setListPrefs(tab, patch) {
           const lists = current(get()).lists ?? {}
           update({ lists: { ...lists, [tab]: { ...lists[tab], ...patch } } })
         },
         setListState(tab, patch) {
-          set((s) => ({ listState: { ...s.listState, [tab]: { ...EMPTY_LIST_STATE, ...s.listState[tab], ...patch } } }))
+          set((s) => {
+            const was = s.listState[tab] ?? EMPTY_LIST_STATE
+            // Nothing changed, nothing written: a new object here is a new
+            // render for every list on screen.
+            if ((Object.keys(patch) as (keyof ListState)[]).every((k) => Object.is(was[k], patch[k]))) return s
+            return { listState: { ...s.listState, [tab]: { ...was, ...patch } } }
+          })
         },
         setSettingsInner(settingsInner) {
           update({ settingsInner })

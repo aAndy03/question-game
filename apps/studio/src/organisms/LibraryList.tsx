@@ -1,16 +1,12 @@
-import { useMemo, useRef, useState, type ReactNode } from 'react'
-import {
-  getCoreRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
-  type SortingState,
-} from '@tanstack/react-table'
+import { useRef, type ReactNode } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Skeleton } from '@/atoms'
-import { BulkBar, EmptyState, RecordRow, type RecordLayout } from '@/molecules'
+import { CheckboxField, Skeleton } from '@/atoms'
+import { BulkBar, EmptyState, GroupHeader, PageFooter, RecordRow, type RecordLayout } from '@/molecules'
 import { LIST } from '@/copy'
 import { crumb } from '@/chrome/diagnostics'
+import { footerText, isActive, type ListEntry } from '@/host/listView'
+import type { ListViewApi } from '@/host/useListView'
+import type { ArchiveScope } from '@/host/types'
 
 /**
  * What a record list needs from a row to draw it. Each tab maps its entity to
@@ -25,29 +21,38 @@ export interface RecordView {
   readonly meta?: readonly ReactNode[] | undefined
   readonly isArchived?: boolean | undefined
   readonly isOverridden?: boolean | undefined
-  /** Sort keys the toolbar may pick. */
-  readonly sort: Readonly<Record<string, string | number>>
+}
+
+/** A table column the header row can sort by. */
+export interface ListColumn {
+  readonly sortId: string
+  readonly label: string
 }
 
 export interface LibraryListProps {
-  rows: readonly RecordView[] | undefined
+  /** The tab's list view (`useListView`): what is shown, and the selection. */
+  view: ListViewApi<unknown, RecordView>
+  /** How many rows the host sent before any filter; `undefined` while loading. */
+  total: number | undefined
+  /** The Status in force, for the empty states. */
+  scope: ArchiveScope
   isLoading: boolean
   error?: string | null | undefined
   layout: RecordLayout
   /** The plural noun for empty states. */
   what: string
-  /** Which empty state applies when there are no rows. */
-  emptyKind: 'empty' | 'noResults' | 'archivedEmpty' | 'allComplete'
+  /** The `empty` state's action — usually *New*. */
   emptyAction?: ReactNode
-  sortBy?: string | undefined
-  sortDesc?: boolean | undefined
+  /** The filter (and its value) whose empty result is `allComplete`, not `noResults`. */
+  allCompleteWhen?: { readonly id: string; readonly value: string } | undefined
+  /** Table header row: the title column and one per meta cell, `null` where a cell does not sort. */
+  columns?: { readonly title: ListColumn; readonly meta: readonly (ListColumn | null)[] } | undefined
   currentId?: string | null | undefined
   onOpen?: ((id: string) => void) | undefined
   actions?: ((row: RecordView) => ReactNode) | undefined
   /** Enables selection and the bulk bar. */
   bulk?:
     | {
-        mode: 'archive' | 'restore'
         onArchive?: ((ids: readonly string[]) => void) | undefined
         onRestore?: ((ids: readonly string[]) => void) | undefined
         isPending?: boolean | undefined
@@ -57,184 +62,230 @@ export interface LibraryListProps {
 }
 
 const VIRTUAL_ABOVE = 200
-/**
- * What the table is given while `rows` is still `undefined`. **One array, not
- * a new `[]` per render.** TanStack Table memoizes the core row model on the
- * identity of `data`, and every change queues `resetPageIndex` on a
- * microtask; that is a `setState`, which renders the list again, which — with
- * a fresh `[]` — is another change. Nothing in that loop is a nested update
- * React would refuse, and the host reply that would have made `rows` an array
- * never got a turn: Studio froze on every Archived toggle whose list came back
- * empty (2026-09-08, ~120 commits a second). `LibraryList.test.tsx` holds it.
- */
-const NO_ROWS: readonly RecordView[] = []
 
 /**
- * Every record list: TanStack Table for sorting and selection, `RecordRow`
- * in grid or table layout, virtualised above 200 rows, `Skeleton` while
- * loading, the four `EmptyState`s, one `BulkBar` (05_STUDIO_DESIGN.md §4.3).
+ * Every record list (05_STUDIO_DESIGN.md §4.3, §20): the list view's page —
+ * group headers, rows in grid or table layout, a sortable header row in
+ * table view — the page footer, the bulk bar, `Skeleton` while loading, the
+ * empty states. Filtering, sorting, grouping, paging and selection are the
+ * list view's (`useListView`); this only draws them, so there is no second
+ * copy of any of them here — which is also why TanStack Table is gone: its
+ * row model was a second sort, and its auto-reset was the P11.3 freeze.
+ * Virtualised over 200 entries in table view, which only page size *All*
+ * reaches.
  */
 export function LibraryList({
-  rows,
+  view,
+  total,
+  scope,
   isLoading,
   error,
   layout,
   what,
-  emptyKind,
   emptyAction,
-  sortBy = 'title',
-  sortDesc = false,
+  allCompleteWhen,
+  columns,
   currentId,
   onOpen,
   actions,
   bulk,
   onRetry,
 }: LibraryListProps) {
-  // Step-by-step crumbs through the one render the operator's freeze happens
-  // in. The last one in the log is the step that did not return.
-  const where = `${what} rows=${rows?.length ?? 'none'} layout=${layout}`
+  const { page, selection, state } = view
+  const where = `${what} rows=${total ?? 'none'} layout=${layout}`
   crumb('list:enter', where)
-  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
-  const sorting = useMemo<SortingState>(() => [{ id: sortBy, desc: sortDesc }], [sortBy, sortDesc])
-
-  const columns = useMemo<ColumnDef<RecordView>[]>(
-    () => [
-      { id: 'title', accessorFn: (r) => r.title.toLowerCase() },
-      ...Object.keys(rows?.[0]?.sort ?? {}).map((key) => ({
-        id: key,
-        accessorFn: (r: RecordView) => r.sort[key] ?? '',
-      })),
-    ],
-    [rows],
-  )
-
-  const table = useReactTable({
-    data: (rows ?? NO_ROWS) as RecordView[],
-    columns,
-    state: { sorting, rowSelection },
-    onRowSelectionChange: setRowSelection,
-    getRowId: (r) => r.id,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    enableRowSelection: bulk !== undefined,
-  })
-
-  crumb('list:table', where)
-  const sorted = table.getRowModel().rows
-  crumb('list:sorted', `${where} sorted=${sorted.length}`)
-  const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id])
+  const entries = page.entries
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const virtual = sorted.length > VIRTUAL_ABOVE && layout === 'table'
+  const virtual = entries.length > VIRTUAL_ABOVE && layout === 'table'
   const virtualizer = useVirtualizer({
-    // `enabled` matters more than `count`. A disabled virtualizer observes
-    // nothing; an enabled one asks `getScrollElement()` on every render and
-    // sets up observers around whatever it gets — including `null`, which is
-    // what this ref is on every branch that does not render the list. Two of
-    // those branches are the ordinary ones (loading, and an empty archive), so
-    // the common case was handing an observer an element that does not exist.
+    // A disabled virtualizer observes nothing; see the P11.3 notes in git.
     enabled: virtual,
-    count: virtual ? sorted.length : 0,
+    count: virtual ? entries.length : 0,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 40,
     overscan: 12,
   })
-  crumb('list:virtual', `${where} virtual=${virtual}`)
 
-  // The number is the row's place in the list as it stands — filtered, sorted,
-  // and counted from one. It is not an id: an archived row does not keep a
-  // number to come back to, it takes the next one in whatever list it lands in.
-  const render = (row: (typeof sorted)[number], position: number) => (
-    <RecordRow
-      key={row.id}
-      layout={layout}
-      index={layout === 'table' ? position + 1 : undefined}
-      leading={row.original.leading}
-      title={row.original.title}
-      subtitle={row.original.subtitle}
-      chips={row.original.chips}
-      meta={row.original.meta}
-      actions={actions ? actions(row.original) : null}
-      isArchived={row.original.isArchived}
-      isOverridden={row.original.isOverridden}
-      isCurrent={currentId === row.id}
-      isSelected={row.getIsSelected()}
-      onSelectChange={bulk ? (on) => row.toggleSelected(on) : undefined}
-      onOpen={onOpen ? () => onOpen(row.id) : undefined}
-    />
-  )
+  const offset = page.from > 0 ? page.from - 1 : 0
+  let position = 0
+  const draw = (entry: ListEntry<unknown, RecordView>) => {
+    if (entry.kind === 'header') {
+      const g = entry.group
+      return <GroupHeader key={`#${g.key}`} label={g.label} count={g.count} continued={g.continued} collapsed={g.collapsed} onToggle={() => view.toggleCollapsed(g.key)} />
+    }
+    const { row } = entry
+    const record = row.item.view
+    position += 1
+    return (
+      <RecordRow
+        key={row.key}
+        layout={layout}
+        index={layout === 'table' ? offset + position : undefined}
+        leading={record.leading}
+        title={record.title}
+        subtitle={record.subtitle}
+        note={row.alsoIn.length > 0 ? LIST.alsoIn(row.alsoIn) : undefined}
+        chips={record.chips}
+        meta={record.meta}
+        actions={actions ? actions(record) : null}
+        isArchived={record.isArchived}
+        isOverridden={record.isOverridden}
+        isCurrent={currentId === row.item.id}
+        isSelected={selection.ids.has(row.item.id)}
+        onSelectChange={bulk ? () => selection.toggle(row.item.id) : undefined}
+        onOpen={onOpen ? () => onOpen(row.item.id) : undefined}
+      />
+    )
+  }
 
-  /**
-   * Skeleton, empty, error and the list itself are all *inside* the scroll
-   * box rather than instead of it. The box is the list's shape, so it should
-   * not appear and disappear underneath the operator as rows arrive — and the
-   * ref the virtualizer is pointed at stays mounted for the life of the list
-   * instead of going null on every state that is not "rows".
-   */
+  const searching = view.searching
+  const filtering = view.activeFilters.length > 0
+  const empty = () => {
+    if (!total) return <EmptyState kind={scope === 'archived' ? 'archivedEmpty' : 'empty'} what={what} action={scope === 'archived' ? null : emptyAction} />
+    const onlyComplete =
+      allCompleteWhen !== undefined && !searching && view.activeFilters.length === 1 && state.filters[allCompleteWhen.id] === allCompleteWhen.value
+    if (onlyComplete) return <EmptyState kind="allComplete" what={what} />
+    return (
+      <EmptyState
+        kind="noResults"
+        what={what}
+        action={
+          <div className="flex gap-2">
+            {searching ? <TextButton onPress={() => view.setSearch('')}>{LIST.clearSearch}</TextButton> : null}
+            {filtering ? <TextButton onPress={view.clearFilters}>{LIST.clearFilters}</TextButton> : null}
+          </div>
+        }
+      />
+    )
+  }
+
+  const header = () => {
+    if (layout !== 'table' || columns === undefined) return null
+    const pageAll = page.pageIds.length > 0 && page.pageIds.every((id) => selection.ids.has(id))
+    const pageSome = page.pageIds.some((id) => selection.ids.has(id))
+    return (
+      <div role="row" className="flex h-9 items-center gap-3 border-b border-[var(--border)] px-3 text-xs" data-list-header>
+        {bulk ? (
+          <CheckboxField
+            label={LIST.selectAll}
+            hideLabel
+            isSelected={pageAll}
+            isIndeterminate={!pageAll && pageSome}
+            onChange={(on) => (on ? selection.selectPage() : selection.clear())}
+          />
+        ) : null}
+        <span className="w-7 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <SortHeader column={columns.title} view={view} align="left" />
+        </div>
+        {columns.meta.map((c, i) => (
+          <div key={c?.sortId ?? `m${i}`} className="w-28 shrink-0 text-right">
+            {c ? <SortHeader column={c} view={view} align="right" /> : null}
+          </div>
+        ))}
+        {actions ? <span className="w-8 shrink-0" /> : null}
+      </div>
+    )
+  }
+
   const body = () => {
-    if (isLoading && !rows) return <Skeleton shape={layout === 'grid' ? 'card' : 'row'} count={layout === 'grid' ? 4 : 8} />
-    if (error) return <EmptyState kind="error" what={what} detail={error} action={onRetry ? <RetryButton onRetry={onRetry} /> : null} />
-    if (!rows || rows.length === 0) return <EmptyState kind={emptyKind} what={what} action={emptyAction} />
+    if (isLoading && total === undefined) return <Skeleton shape={layout === 'grid' ? 'card' : 'row'} count={layout === 'grid' ? 4 : 8} />
+    if (error) return <EmptyState kind="error" what={what} detail={error} action={onRetry ? <TextButton onPress={onRetry}>{LIST.retry}</TextButton> : null} />
+    if (entries.length === 0) return empty()
     if (layout === 'grid') {
-      return <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3">{sorted.map((row, i) => render(row, i))}</div>
+      const out: ReactNode[] = []
+      let cards: ReactNode[] = []
+      const flush = () => {
+        if (cards.length > 0) out.push(<div key={`g${out.length}`} className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3">{cards}</div>)
+        cards = []
+      }
+      for (const e of entries) {
+        if (e.kind === 'header') {
+          flush()
+          out.push(draw(e))
+        } else cards.push(draw(e))
+      }
+      flush()
+      return <div className="flex flex-col gap-3">{out}</div>
     }
     if (virtual) {
       return (
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((item) => {
-            const row = sorted[item.index]
-            if (!row) return null
+            const entry = entries[item.index]
+            if (!entry) return null
+            position = entries.slice(0, item.index).filter((e) => e.kind === 'row').length
             return (
-              <div key={row.id} style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${item.start}px)` }}>
-                {render(row, item.index)}
+              <div key={entry.kind === 'row' ? entry.row.key : `#${entry.group.key}`} style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${item.start}px)` }}>
+                {draw(entry)}
               </div>
             )
           })}
         </div>
       )
     }
-    // `overflow-hidden` is what makes a row's hover and selection respect the
-    // container's rounded corners: without it the first and last rows paint
-    // square over them.
+    // `overflow-hidden` keeps hover and selection inside the rounded corners.
     return (
       <div className="overflow-hidden rounded-[var(--radius)] border border-[var(--border)]" style={{ background: 'var(--surface)' }}>
-        {sorted.map((row, i) => render(row, i))}
+        {header()}
+        {entries.map(draw)}
       </div>
     )
   }
 
-  crumb('list:body', where)
-  const hasRows = Boolean(rows && rows.length > 0)
+  const hasRows = entries.length > 0
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       {bulk ? (
         <BulkBar
-          count={selectedIds.length}
-          mode={bulk.mode}
-          onArchive={bulk.onArchive ? () => bulk.onArchive?.(selectedIds) : undefined}
-          onRestore={bulk.onRestore ? () => bulk.onRestore?.(selectedIds) : undefined}
-          onClear={() => setRowSelection({})}
+          count={selection.ids.size}
+          onPage={selection.onPage}
+          archive={bulk.onArchive ? { count: view.bulk.archive.length, run: () => bulk.onArchive?.(view.bulk.archive) } : undefined}
+          restore={bulk.onRestore ? { count: view.bulk.restore.length, run: () => bulk.onRestore?.(view.bulk.restore) } : undefined}
+          selectAll={{ count: page.selectableIds.length, run: selection.selectAll }}
+          onClear={selection.clear}
           isPending={bulk.isPending}
         />
       ) : null}
-      <div
-        ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto"
-        role={layout === 'table' && hasRows ? 'table' : undefined}
-      >
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" role={layout === 'table' && hasRows ? 'table' : undefined}>
         {body()}
       </div>
+      <PageFooter
+        page={page.page}
+        pageCount={page.pageCount}
+        text={footerText(page, view.spec.noun)}
+        pageSize={state.pageSize}
+        onPage={view.setPage}
+        onPageSize={view.setPageSize}
+      />
     </div>
   )
 }
 
-function RetryButton({ onRetry }: { onRetry: () => void }) {
+function SortHeader({ column, view, align }: { column: ListColumn; view: ListViewApi<unknown, RecordView>; align: 'left' | 'right' }) {
+  const on = view.state.sort.id === column.sortId
+  const desc = on && view.state.sort.desc
   return (
-    <button
-      type="button"
-      onClick={onRetry}
-      className="rounded-[var(--radius)] border border-[var(--border)] px-3 py-1.5 text-sm hover:bg-[var(--surface-secondary)]"
-    >
-      {LIST.retry}
+    <span role="columnheader" aria-sort={on ? (desc ? 'descending' : 'ascending') : 'none'} className={align === 'right' ? 'block text-right' : 'block'}>
+      <button
+        type="button"
+        className="rounded px-1 font-medium text-[var(--muted)] hover:text-[var(--foreground)]"
+        onClick={() => view.setSort({ id: column.sortId, desc: on ? !desc : false })}
+      >
+        {column.label}
+        {on ? (desc ? ' ↓' : ' ↑') : ''}
+      </button>
+    </span>
+  )
+}
+
+function TextButton({ onPress, children }: { onPress: () => void; children: ReactNode }) {
+  return (
+    <button type="button" onClick={onPress} className="rounded-[var(--radius)] border border-[var(--border)] px-3 py-1.5 text-sm hover:bg-[var(--surface-secondary)]">
+      {children}
     </button>
   )
 }
+
+/** Whether any filter of a view is on — for a page that needs to know. */
+export const hasActive = isActive

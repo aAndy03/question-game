@@ -9,6 +9,8 @@ export interface RecordRowProps {
   leading?: ReactNode
   title: string
   subtitle?: string | undefined
+  /** A muted note after the title — "also in History, Science" (stable 1.1). */
+  note?: string | undefined
   /** Chips after the title. */
   chips?: ReactNode
   /** Right-aligned metadata (dates, counts). In table layout these are the cells. */
@@ -40,6 +42,7 @@ export function RecordRow({
   leading,
   title,
   subtitle,
+  note,
   chips,
   meta = [],
   actions,
@@ -102,6 +105,11 @@ export function RecordRow({
                 {subtitle}
               </Text>
             ) : null}
+            {note ? (
+              <Text variant="studio-caption" tone="muted" truncate>
+                {note}
+              </Text>
+            ) : null}
           </div>
           {actions ? (
             <div onClick={(e) => e.stopPropagation()} className="-mr-2 -mt-1 shrink-0">
@@ -154,6 +162,11 @@ export function RecordRow({
         <Text variant="studio-label" tone={tone} truncate className="min-w-0 flex-1">
           {title}
         </Text>
+        {note ? (
+          <Text variant="studio-caption" tone="muted" truncate className="max-w-[30%] shrink-0">
+            {note}
+          </Text>
+        ) : null}
         {subtitle ? (
           <Text variant="studio-caption" tone="muted" truncate className="hidden max-w-[30%] xl:block">
             {subtitle}

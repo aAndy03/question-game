@@ -1,18 +1,33 @@
 import { Button, Text } from '@/atoms'
 import { LIST } from '@/copy'
 
+export interface BulkAction {
+  readonly count: number
+  run(): void
+}
+
 export interface BulkBarProps {
+  /** Selected items, across every page. */
   count: number
-  /** Which verb applies to the current list scope. */
-  mode: 'archive' | 'restore'
-  onArchive?: (() => void) | undefined
-  onRestore?: (() => void) | undefined
+  /** How many of them are on the page shown. */
+  onPage: number
+  /** What Archive would touch — the active ones. Hidden at 0. */
+  archive?: BulkAction | undefined
+  /** What Restore would touch — the archived ones. Hidden at 0. */
+  restore?: BulkAction | undefined
+  /** *Select all {n}*: every matching item on every page, when not all are selected. */
+  selectAll?: BulkAction | undefined
   onClear: () => void
   isPending?: boolean | undefined
 }
 
-/** Appears when a selection exists; one confirm per batch (spec §2.19). */
-export function BulkBar({ count, mode, onArchive, onRestore, onClear, isPending }: BulkBarProps) {
+/**
+ * Appears when a selection exists; one confirm per batch (spec §2.19). Under
+ * Status *All* a selection mixes active and archived rows, so both actions are
+ * offered, each with the count it applies to and touching only those rows
+ * (stable 1.1).
+ */
+export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, isPending }: BulkBarProps) {
   if (count === 0) return null
   return (
     <div
@@ -22,17 +37,22 @@ export function BulkBar({ count, mode, onArchive, onRestore, onClear, isPending 
       style={{ background: 'var(--surface-secondary)' }}
     >
       <Text variant="studio-label" tone="default">
-        {LIST.selected(count)}
+        {onPage < count ? LIST.selectedOnPage(count, onPage) : LIST.selected(count)}
       </Text>
       <div className="flex flex-1 items-center gap-2">
-        {mode === 'archive' && onArchive ? (
-          <Button size="sm" variant="danger" icon="archive" onPress={onArchive} isPending={isPending}>
-            {LIST.archive}
+        {archive && archive.count > 0 ? (
+          <Button size="sm" variant="danger" icon="archive" onPress={archive.run} isPending={isPending} isDisabled={isPending}>
+            {LIST.archiveN(archive.count)}
           </Button>
         ) : null}
-        {mode === 'restore' && onRestore ? (
-          <Button size="sm" variant="primary" icon="restore" onPress={onRestore} isPending={isPending}>
-            {LIST.restore}
+        {restore && restore.count > 0 ? (
+          <Button size="sm" variant="primary" icon="restore" onPress={restore.run} isPending={isPending} isDisabled={isPending}>
+            {LIST.restoreN(restore.count)}
+          </Button>
+        ) : null}
+        {selectAll && selectAll.count > count ? (
+          <Button size="sm" variant="tertiary" onPress={selectAll.run}>
+            {LIST.selectAllN(selectAll.count)}
           </Button>
         ) : null}
       </div>

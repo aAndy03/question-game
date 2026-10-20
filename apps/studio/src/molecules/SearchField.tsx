@@ -10,14 +10,16 @@ export interface SearchFieldProps {
   onSearch: (text: string) => void
   autoFocus?: boolean | undefined
   className?: string | undefined
+  /** The text to start from — a search kept for the session (stable 1.1). */
+  initial?: string | undefined
 }
 
 /**
  * The search box on every list toolbar. Search filters the current list
  * (spec §12); the query composition (kinds, scope) is the list's business.
  */
-export function SearchField({ what, onSearch, autoFocus, className }: SearchFieldProps) {
-  const [text, setText] = useState('')
+export function SearchField({ what, onSearch, autoFocus, className, initial = '' }: SearchFieldProps) {
+  const [text, setText] = useState(initial)
   const [debounced] = useDebouncedValue(text, { wait: 200 })
 
   useEffect(() => {

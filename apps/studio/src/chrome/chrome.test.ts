@@ -104,10 +104,10 @@ describe('chrome stores hold chrome only', () => {
     const s = useChromeStore.getState()
     s.setOperator('op-a')
     s.setListState('library', { search: 'rome', page: 3 })
-    s.setListState('teams', { page: 1 })
+    s.setListState('teams', { page: 2 })
     s.setOperator('op-b')
     expect(useChromeStore.getState().listState.library).toMatchObject({ search: 'rome', page: 3 })
-    expect(useChromeStore.getState().listState.teams?.page).toBe(1)
+    expect(useChromeStore.getState().listState.teams?.page).toBe(2)
     const persisted = useChromeStore.persist.getOptions().partialize?.(useChromeStore.getState()) as Record<string, unknown>
     expect(Object.keys(persisted).sort()).toEqual(['operatorId', 'prefs'])
   })
