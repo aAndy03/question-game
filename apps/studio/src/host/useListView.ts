@@ -116,12 +116,16 @@ export function useListView<T, V>(
   const setFilter = useCallback((id: string, value: FilterValue | null) => narrow({ filters: { ...session.filters, [id]: value } }), [narrow, session.filters])
   const setChanged = useCallback((changed: Changed) => narrow({ changed }), [narrow])
   const clearFilters = useCallback(() => narrow({ filters: {}, changed: 'any' }), [narrow])
+  const currentSearch = session.search
   const setSearch = useCallback(
     (search: string) => {
+      // The search field reports its text when it mounts; the same text is not
+      // a new search, and must not cost the operator their page.
+      if (search === currentSearch) return
       if (search.trim().length === 0) setPicked(false)
       narrow({ search })
     },
-    [narrow],
+    [narrow, currentSearch],
   )
   const setSort = useCallback(
     (next: { id: string; desc: boolean }) => {

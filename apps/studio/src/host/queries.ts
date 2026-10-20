@@ -14,6 +14,7 @@
  * because the host said so, not because a component remembered to refetch.
  */
 
+import { useMemo } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { MonitorInfo } from '@questiongame/contract'
 import { command, hasHost } from './host'
@@ -22,6 +23,7 @@ import type {
   BetaWelcome,
   AppPaths,
   ArchiveScope,
+  CatalogKind,
   CatalogItem,
   ImportReport,
   ItemOf,
@@ -132,6 +134,21 @@ export function useSearch(query: SearchQuery | null) {
     enabled: enabled() && query !== null && query.text.trim().length > 0,
     placeholderData: (previous) => previous,
   })
+}
+
+/**
+ * A library tab's search hits (stable 1.1): id → score, or `null` while
+ * Search is blank or its answer belongs to older text. Asks only once the list
+ * has loaded, and for **every** match — the limit is the list's size — so a
+ * paged, filtered list never silently loses one past a cap.
+ */
+export function useListHits(kind: CatalogKind, text: string, scope: ArchiveScope, total: number | undefined): ReadonlyMap<string, number> | null {
+  const trimmed = text.trim()
+  const search = useSearch(trimmed && total !== undefined ? { text: trimmed, kinds: [kind], scope, limit: Math.max(total, 1) } : null)
+  return useMemo(
+    () => (trimmed && search.data && !search.isPlaceholderData ? new Map(search.data.map((h) => [h.id, h.score])) : null),
+    [trimmed, search.data, search.isPlaceholderData],
+  )
 }
 
 export function useRecipeList(scope: ArchiveScope) {

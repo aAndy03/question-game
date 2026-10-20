@@ -97,7 +97,7 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
         <Text variant="studio-heading">{DOMAIN.heading}</Text>
         <IconButton icon="add" label={DOMAIN.add} size="sm" variant="secondary" onPress={startNew} isDisabled={editing === 'new'} />
       </div>
-      <ArchiveToggle value={scope} onChange={setScope} />
+      <ArchiveToggle value={scope} onChange={(v) => v !== 'all' && setScope(v)} />
       {editing === 'new' ? form : null}
       {domains.isLoading && !domains.data ? (
         <Skeleton shape="row" count={5} />

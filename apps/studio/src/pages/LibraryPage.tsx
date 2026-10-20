@@ -1,14 +1,17 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button, MeaningChip, Text } from '@/atoms'
-import { ActionMenu, ArchiveToggle, IncompleteMark, PageHeader, QuestionFilter, SearchField, ViewSwitch, type ArchiveView } from '@/molecules'
-import { DomainPane, ImportQuestionsDialog, LibraryList, QuestionDetail, useArchive, type RecordView } from '@/organisms'
+import { ActionMenu, IncompleteMark, PageHeader } from '@/molecules'
+import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, type RecordView } from '@/organisms'
 import { SplitLayout } from '@/templates'
-import { useArchiveScope, useChromeStore, usePrefs } from '@/chrome/chrome'
+import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
-import { DOMAIN, fmt, IMPORT, LIST, QUESTION, TABS } from '@/copy'
+import { DOMAIN, fmt, IMPORT, LIST, QUESTION, TABS, VIEWS } from '@/copy'
 import { activeMemberIds, questionGaps } from '@/host/question'
-import { useCatalogList, useSearch } from '@/host/queries'
+import { questionsSpec, type QuestionItem } from '@/host/listSpecs'
+import type { ListItem } from '@/host/listView'
+import { useCatalogList, useListHits } from '@/host/queries'
 import { answerMode, difficultyBand, isArchived } from '@/host/types'
+import { useListView } from '@/host/useListView'
 
 export interface LibraryPageProps {
   domainId: string | null
@@ -19,52 +22,50 @@ export interface LibraryPageProps {
 /**
  * Domains + Questions (spec §12): the domain pane on the left with its own
  * archive scope, the question list on the right filtered by the selected
- * domain, with *its* own archive scope — and All | Incomplete (§2.32), which
- * under *All questions* is also the only way to find a question in no domain.
+ * domain, with *its* own archive scope — and the list view's filters, sort,
+ * headers and pages (stable 1.1). The Completeness filter replaced the old
+ * All | Incomplete tabs (§2.32): under *All questions* it is still the way to
+ * find a question in no domain.
  */
 export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
   const scope = useArchiveScope('library')
   const setScope = useChromeStore((s) => s.setArchiveScope)
-  const libraryFilter = useChromeStore((s) => s.libraryFilter)
-  const setLibraryFilter = useChromeStore((s) => s.setLibraryFilter)
   const { view } = usePrefs()
   const setView = useChromeStore((s) => s.setView)
   const go = useNavStore((s) => s.go)
   const replace = useNavStore((s) => s.replace)
   const archive = useArchive()
-  const [text, setText] = useState('')
   const [importing, setImporting] = useState(false)
-  const onSearch = useCallback((t: string) => setText(t), [])
 
-  const questions = useCatalogList('question', scope === 'archived' ? 'archived' : 'active')
+  const questions = useCatalogList('question', scope)
   const domains = useCatalogList('domain', 'all')
   const domain = domains.data?.find((d) => d.id === domainId) ?? null
-  const hits = useSearch(text ? { text, kinds: ['question'], scope: scope === 'archived' ? 'archived' : 'active', limit: 500 } : null)
-  const hitIds = useMemo(() => (text && hits.data ? new Set(hits.data.map((h) => h.id)) : null), [text, hits.data])
   const memberIds = useMemo(() => (domain ? new Set(domain.questions.map((m) => m.questionId)) : null), [domain])
   const inActiveDomain = useMemo(() => activeMemberIds(domains.data ?? []), [domains.data])
-  /** This view before the Incomplete filter: domain and search applied. */
-  const scoped = useMemo(
-    () => questions.data?.filter((q) => (!memberIds || memberIds.has(q.id)) && (!hitIds || hitIds.has(q.id))),
-    [questions.data, memberIds, hitIds],
-  )
-  const gapsOf = useMemo(
-    () => new Map((scoped ?? []).map((q) => [q.id, questionGaps(q, inActiveDomain.has(q.id))])),
-    [scoped, inActiveDomain],
-  )
-  const incompleteCount = useMemo(() => [...gapsOf.values()].filter((g) => g.length > 0).length, [gapsOf])
-  const incompleteOnly = libraryFilter === 'incomplete'
+  const activeDomains = useMemo(() => (domains.data ?? []).filter((d) => d.archivedAt === null), [domains.data])
+  /** Each question's active domains, once — the list view groups and filters by them. */
+  const domainsOf = useMemo(() => {
+    const out = new Map<string, { id: string; name: string }[]>()
+    for (const d of activeDomains) for (const m of d.questions) {
+      const list = out.get(m.questionId) ?? []
+      list.push({ id: d.id, name: d.name })
+      out.set(m.questionId, list)
+    }
+    return out
+  }, [activeDomains])
+  /** The domain pane's pick scopes the list before anything else does. */
+  const scoped = useMemo(() => questions.data?.filter((q) => !memberIds || memberIds.has(q.id)), [questions.data, memberIds])
+  const session = useListState('library')
+  const hits = useListHits('question', session.search, scope, questions.data?.length)
 
-  const rows = useMemo<RecordView[] | undefined>(
+  const items = useMemo<ListItem<QuestionItem, RecordView>[] | undefined>(
     () =>
-      scoped
-        ?.filter((q) => !incompleteOnly || (gapsOf.get(q.id)?.length ?? 0) > 0)
-        .map((q) => {
-          const gaps = gapsOf.get(q.id) ?? []
+      scoped?.map((q) => {
+          const gaps = questionGaps(q, inActiveDomain.has(q.id))
           const band = q.difficulty === null ? null : difficultyBand(q.difficulty)
           const mode = answerMode(q)
           const inDomains = (domains.data ?? []).filter((d) => d.questions.some((m) => m.questionId === q.id)).length
-          return {
+          const record: RecordView = {
             id: q.id,
             title: q.stem || QUESTION.noStem,
             subtitle: q.options.map((o) => o.text).join(' · '),
@@ -85,11 +86,24 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
             ),
             meta: [domain ? '' : fmt.count(inDomains, DOMAIN.one, DOMAIN.many), fmt.dateShort(q.updatedAt)].filter(Boolean),
             isArchived: isArchived(q),
-            sort: { difficulty: q.difficulty ?? 0, updated: q.updatedAt, created: q.createdAt },
           }
+          return { id: q.id, data: { question: q, gaps, domains: domainsOf.get(q.id) ?? [] }, view: record }
         }),
-    [scoped, gapsOf, incompleteOnly, domains.data, domain],
+    [scoped, inActiveDomain, domainsOf, domains.data, domain],
   )
+  const spec = useMemo(
+    () => questionsSpec({ allQuestions: domainId === null, domains: activeDomains.map((d) => ({ id: d.id, name: d.name })) }),
+    [domainId, activeDomains],
+  )
+  const lv = useListView(spec, items, hits)
+  const incompleteCount = useMemo(() => (items ?? []).filter((i) => i.data.gaps.length > 0).length, [items])
+  // Picking a domain in the pane is the domain scope: the Domain filter is not
+  // offered there, so its values go rather than linger as a hidden chip.
+  const { setFilter } = lv
+  const domainFilterOn = Array.isArray(session.filters.domain) && session.filters.domain.length > 0
+  useEffect(() => {
+    if (domainId !== null && domainFilterOn) setFilter('domain', null)
+  }, [domainId, domainFilterOn, setFilter])
 
   const archivedView = scope === 'archived'
   const newRoute = { tab: 'library' as const, mode: 'new' as const, ...(domainId ? { domainId } : {}) }
@@ -116,26 +130,35 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
       secondary={
         <div className="flex min-h-0 flex-1 gap-6">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <Text variant="studio-heading" className="mr-2">
-                {domain ? domain.name : DOMAIN.all}
-              </Text>
-              <SearchField what={QUESTION.many} onSearch={onSearch} className="w-64" />
-              <div className="flex-1" />
-              <QuestionFilter value={libraryFilter} onChange={setLibraryFilter} incomplete={incompleteCount} />
-              <ViewSwitch value={view.library} onChange={(v) => setView('library', v)} />
-              <ArchiveToggle value={archivedView ? 'archived' : 'active'} onChange={(v: ArchiveView) => setScope('library', v)} />
-            </div>
+            <ListToolbar
+              view={lv}
+              what={QUESTION.many}
+              layout={view.library}
+              onLayout={(v) => setView('library', v)}
+              status={scope}
+              onStatus={(v) => setScope('library', v)}
+              filterHint={incompleteCount > 0 ? VIEWS.incompleteHint(incompleteCount) : undefined}
+              lead={
+                <Text variant="studio-heading" className="mr-2">
+                  {domain ? domain.name : DOMAIN.all}
+                </Text>
+              }
+            />
             <LibraryList
-              rows={rows}
+              view={lv}
+              total={scoped?.length}
+              scope={scope}
               isLoading={questions.isLoading}
               error={questions.error ? String(questions.error) : null}
               layout={view.library}
               what={QUESTION.many}
-              sortBy="difficulty"
-              emptyKind={text ? 'noResults' : archivedView ? 'archivedEmpty' : incompleteOnly ? 'allComplete' : 'empty'}
+              allCompleteWhen={{ id: 'completeness', value: 'incomplete' }}
+              columns={{
+                title: { sortId: 'text', label: VIEWS.text },
+                meta: domain ? [{ sortId: 'changed', label: VIEWS.changed }] : [{ sortId: 'domains', label: VIEWS.domains }, { sortId: 'changed', label: VIEWS.changed }],
+              }}
               emptyAction={
-                !text && !archivedView && !incompleteOnly ? (
+                !archivedView ? (
                   <div className="flex flex-wrap items-center justify-center gap-2">
                     <Button variant="primary" icon="add" onPress={() => void go(newRoute)}>
                       {LIST.new(QUESTION.one)}
@@ -167,7 +190,6 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                 />
               )}
               bulk={{
-                mode: archivedView ? 'restore' : 'archive',
                 onArchive: (ids) => archive.archive({ kind: 'question', ids, what: QUESTION.many }),
                 onRestore: (ids) => void archive.restore({ kind: 'question', ids, what: QUESTION.many }),
                 isPending: archive.isPending,

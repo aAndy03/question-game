@@ -1,13 +1,16 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Avatar, Button, MeaningChip } from '@/atoms'
-import { ActionMenu, ArchiveToggle, PageHeader, SearchField, ViewSwitch, type ArchiveView } from '@/molecules'
-import { LibraryList, TeamDetail, useArchive, type RecordView } from '@/organisms'
+import { ActionMenu, PageHeader } from '@/molecules'
+import { LibraryList, ListToolbar, TeamDetail, useArchive, type RecordView } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
-import { useChromeStore, usePrefs, useArchiveScope } from '@/chrome/chrome'
+import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
-import { fmt, LIST, TABS, TEAM } from '@/copy'
-import { useCatalogList, useSearch } from '@/host/queries'
-import { isArchived } from '@/host/types'
+import { fmt, LIST, TABS, TEAM, VIEWS } from '@/copy'
+import { teamsSpec } from '@/host/listSpecs'
+import type { ListItem } from '@/host/listView'
+import { useCatalogList, useListHits } from '@/host/queries'
+import { isArchived, type Team } from '@/host/types'
+import { useListView } from '@/host/useListView'
 
 export interface TeamsPageProps {
   /** The team open in the aside, when one is. */
@@ -21,18 +24,16 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
   const setView = useChromeStore((s) => s.setView)
   const go = useNavStore((s) => s.go)
   const archive = useArchive()
-  const [text, setText] = useState('')
-  const onSearch = useCallback((t: string) => setText(t), [])
+  const list = useCatalogList('team', scope)
+  const session = useListState('teams')
+  const hits = useListHits('team', session.search, scope, list.data?.length)
 
-  const list = useCatalogList('team', scope === 'archived' ? 'archived' : 'active')
-  const hits = useSearch(text ? { text, kinds: ['team'], scope: scope === 'archived' ? 'archived' : 'active', limit: 200 } : null)
-  const hitIds = useMemo(() => (text && hits.data ? new Set(hits.data.map((h) => h.id)) : null), [text, hits.data])
-
-  const rows = useMemo<RecordView[] | undefined>(
+  const items = useMemo<ListItem<Team, RecordView>[] | undefined>(
     () =>
-      list.data
-        ?.filter((t) => !hitIds || hitIds.has(t.id))
-        .map((t) => ({
+      list.data?.map((t) => ({
+        id: t.id,
+        data: t,
+        view: {
           id: t.id,
           title: t.name,
           subtitle: t.notes ?? undefined,
@@ -40,10 +41,11 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
           chips: isArchived(t) ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null,
           meta: [fmt.count(t.playCount, TEAM.playOne, TEAM.playMany), fmt.dateShort(t.updatedAt)],
           isArchived: isArchived(t),
-          sort: { updated: t.updatedAt, created: t.createdAt },
-        })),
-    [list.data, hitIds],
+        },
+      })),
+    [list.data],
   )
+  const lv = useListView(teamsSpec, items, hits)
 
   const archivedView = scope === 'archived'
   return (
@@ -57,27 +59,22 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
               {LIST.new(TEAM.one)}
             </Button>
           }
-          toolbar={
-            <div className="flex flex-wrap items-center gap-2">
-              <SearchField what={TEAM.many} onSearch={onSearch} />
-              <div className="flex-1" />
-              <ViewSwitch value={view.teams} onChange={(v) => setView('teams', v)} />
-              <ArchiveToggle value={archivedView ? 'archived' : 'active'} onChange={(v: ArchiveView) => setScope('teams', v)} />
-            </div>
-          }
+          toolbar={<ListToolbar view={lv} what={TEAM.many} layout={view.teams} onLayout={(v) => setView('teams', v)} status={scope} onStatus={(v) => setScope('teams', v)} />}
         />
       }
       aside={currentId ? <TeamDetail id={currentId} compact /> : null}
     >
       <LibraryList
-        rows={rows}
+        view={lv}
+        total={list.data?.length}
+        scope={scope}
         isLoading={list.isLoading}
         error={list.error ? String(list.error) : null}
         layout={view.teams}
         what={TEAM.many}
-        emptyKind={text ? 'noResults' : archivedView ? 'archivedEmpty' : 'empty'}
+        columns={{ title: { sortId: 'name', label: VIEWS.name }, meta: [{ sortId: 'plays', label: VIEWS.plays }, { sortId: 'changed', label: VIEWS.changed }] }}
         emptyAction={
-          !text && !archivedView ? (
+          !archivedView ? (
             <Button variant="primary" icon="add" onPress={() => void go({ tab: 'teams', mode: 'new' })}>
               {LIST.new(TEAM.one)}
             </Button>
@@ -103,7 +100,6 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
           />
         )}
         bulk={{
-          mode: archivedView ? 'restore' : 'archive',
           onArchive: (ids) => archive.archive({ kind: 'team', ids, what: TEAM.many }),
           onRestore: (ids) => void archive.restore({ kind: 'team', ids, what: TEAM.many }),
           isPending: archive.isPending,
