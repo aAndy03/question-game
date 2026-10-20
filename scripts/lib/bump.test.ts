@@ -52,7 +52,9 @@ beforeEach(() => {
 })
 afterEach(() => rmSync(path.dirname(root), { recursive: true, force: true }))
 
-describe('a bump (BUMP10–BUMP18)', () => {
+// Each case drives a real git repository; under a full parallel run that can take
+// longer than vitest's default 5 s.
+describe('a bump (BUMP10–BUMP18)', { timeout: 30_000 }, () => {
   it('writes the four files, commits once, and neither tags nor pushes', () => {
     seed('1.0.2', 'release/1.x')
     const before = refs()
