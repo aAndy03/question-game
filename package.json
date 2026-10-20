@@ -30,6 +30,8 @@
     "notices": "vite-node scripts/notices.ts",
     "release:check": "vite-node scripts/release-check.ts",
     "release:route": "vite-node scripts/release-route.ts",
+    "version:stable": "vite-node scripts/version.ts -- stable",
+    "version:beta": "vite-node scripts/version.ts -- beta",
     "typecheck": "tsc --build --force && tsc -p e2e",
     "test": "vitest run",
     "test:watch": "vitest",
