@@ -23,11 +23,21 @@ async function switcher(current: string): Promise<void> {
 
 /** Pick an item of the open menu by what it says. */
 async function pick(text: string): Promise<void> {
-  await browser.waitUntil(async () => (await $$('[role="menuitem"]').length) > 0, { timeoutMsg: 'no menu open' })
-  for (const item of await $$('[role="menuitem"]')) {
-    if ((await item.getText()).trim() === text) return item.click()
-  }
-  throw new Error(`no menu item "${text}"`)
+  // A menu that is closing still lists its items for a moment: wait for this one.
+  let found: WebdriverIO.Element | undefined
+  await browser.waitUntil(
+    async () => {
+      for (const item of await $$('[role="menuitem"]')) {
+        if ((await item.getText()).trim() === text && (await item.isClickable())) {
+          found = item
+          return true
+        }
+      }
+      return false
+    },
+    { timeoutMsg: `no menu item "${text}"` },
+  )
+  await (found as WebdriverIO.Element).click()
 }
 
 /** Tick a row's checkbox: HeroUI draws it, the input itself is visually hidden. */
