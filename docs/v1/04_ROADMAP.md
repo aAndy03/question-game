@@ -1776,9 +1776,17 @@ Design: `docs/superpowers/specs/2026-10-19-channels-design.md`; plan and test li
 - ☑ `npm run version:stable` / `version:beta` bump the four version files, the lock files and the map, run the checks and commit — never tag, never push.
 - ☑ `release/1.x` is cut here: stable 1.1 starts from it.
 
+### P13.1 — questiongame Beta  ☑
+
+- ☑ `org.questiongame.beta`, *questiongame Beta*, a badged icon; `npm run build:beta`; a dev server refuses the identity.
+- ☑ First launch: *This is questiongame Beta…*, then *Copy my stable library* or *Start empty*, in English and Romanian, before first run; a **Beta** chip in the sidebar.
+- ☑ The copy writes nothing in the stable folder — byte copy through read-only handles, a shared lock held throughout, compacted inside Beta's folder — refuses while questiongame runs, and opens as an ordinary upgrade (backup, stamp, *What's new*).
+- ☑ The e2e suite runs five Beta specs on the same binary: copy, start empty, no stable library, questiongame running, an unreadable library.
+- ☐ Manual: install *questiongame Beta* beside *questiongame* from a build-only run on Windows and macOS; uninstalling one leaves the other's library.
+
 ### Next
 
-- ☐ **P13.1 — questiongame Beta**: its own identity and icon, a read-only copy of the stable library on first launch (or start empty), a Beta mark in Studio, and the e2e suite on both channels.
+- ☐ **Stable 1.1** on `release/1.x`: filters, sort, list headers and pagination in the library tabs.
 
 ---
 

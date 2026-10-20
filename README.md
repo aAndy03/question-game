@@ -100,6 +100,20 @@ request to GitHub's public API, from the app itself. Turn it off in Settings ▸
 About (*Check for updates when questiongame starts*); everything else works
 the same offline.
 
+### questiongame Beta
+
+questiongame Beta is the next version, for people who want to try it before
+everyone else. It is a **separate app**: it installs beside questiongame,
+appears as *questiongame Beta* with a **BETA** band on its icon and a **Beta**
+mark in Studio, and keeps **its own library**. Nothing you do in Beta changes
+your questiongame library.
+
+The first time it opens, Beta offers to **copy your questiongame library** or
+**start empty**. The copy is read-only on the questiongame side — close
+questiongame first, then copy. Beta releases are listed as *pre-releases* on
+the Releases page, and Beta tells you when a new beta or a new questiongame is
+out.
+
 ### Uninstalling
 
 - **Remove the app, keep your library:** on Windows, Settings ▸ Data ▸
@@ -253,23 +267,36 @@ only ship what it can ship.
 
 GitHub Actions builds both installers (`.github/workflows/release.yml`).
 
-1. Bump the version in `Cargo.toml` (`[workspace.package]`),
-   `crates/app/tauri.conf.json` and `package.json` — a test fails if they
-   disagree — then commit.
-2. Tag the commit with that version and push the tag:
+Two apps ship from this repository: **questiongame** (stable, from the
+`release/1.x` branch) and **questiongame Beta** (from `main`).
+
+1. Add the release's *What's new* entry (`apps/studio/src/copy/whatsNew.ts`),
+   then bump and commit with one command — it never tags or pushes:
 
    ```bash
-   git tag v1.0.1
-   git push origin v1.0.1
+   npm run version:stable
    ```
 
+   on `release/1.x` (`-- minor` or `-- major` for more than a patch), or
+   `npm run version:beta` on `main`.
+2. Push, then tag the commit with that version and push the tag:
+
+   ```bash
+   git tag v1.1.0
+   git push origin v1.1.0
+   ```
+
+   `vX.Y.Z` publishes questiongame; `vX.Y.Z-beta.N` publishes questiongame
+   Beta as a pre-release. Any other tag, or one that does not match the
+   version, is refused before anything builds.
 3. The workflow runs every test, builds the Windows installer and a universal
    macOS disk image, and publishes both on the
    [Releases](https://github.com/aAndy03/question-game/releases) page next to
    GitHub's source-code archives.
 
-**Run workflow** on the Actions tab builds the same installers without
-publishing; they are attached to the run.
+**Run workflow** on the Actions tab builds either app (its *channel* input)
+without publishing; the installers are attached to the run. Stable fixes are
+merged forward from `release/1.x` into `main` after each stable release.
 
 ---
 
