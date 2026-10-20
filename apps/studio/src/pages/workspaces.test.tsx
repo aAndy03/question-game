@@ -11,7 +11,7 @@ import { resetUpdateCheck } from '@/host/updates'
 import { resetWhatsNew } from '@/host/whatsNew'
 import { BETA_WELCOME } from '@/copy/beta'
 import { FIRST_RUN } from '@/copy/firstRun'
-import { WORKSPACE } from '@/copy/workspaces'
+import { TRANSFER, WORKSPACE } from '@/copy/workspaces'
 import type { CatalogItem } from '@/host/types'
 
 /** Beta 2.0 in Studio: naming, the switcher, Manage workspaces. */
@@ -129,5 +129,51 @@ describe('Manage workspaces', () => {
     fireEvent.click(screen.getByLabelText(`${WORKSPACE.actions}: My library`))
     const archive = await screen.findByRole('menuitem', { name: WORKSPACE.archive })
     expect(archive.getAttribute('aria-disabled')).toBe('true')
+  })
+})
+
+describe('review fixes', () => {
+  it('never shows first run before the workspace list has said the workspace is unnamed', async () => {
+    fake.workspaces = fake.workspaces.map((w) => ({ ...w, name: null }))
+    const real = fake.invoke.bind(fake)
+    let release: () => void = () => {}
+    const gate = new Promise<void>((r) => (release = r))
+    setHostTransport({
+      invoke: async (name, args) => {
+        if (name === 'workspace_list') await gate
+        return real(name, args)
+      },
+      listen: (name, handler) => fake.listen(name, handler),
+    })
+    render(<App />)
+    await waitFor(() => expect(calls('settings_get').length).toBeGreaterThan(0))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(screen.queryByText(FIRST_RUN.paths.title)).toBeNull()
+    release()
+    expect(await screen.findByText(WORKSPACE.createTitle)).toBeTruthy()
+  })
+
+  it('leaves an open record for its tab before switching', async () => {
+    await withOperator()
+    fake.seed([{ kind: 'team', item: { id: 'red', origin: 'operator', name: 'Red', shortCode: 'RED', color: 'var(--ink)', logoAssetId: null, notes: null, playCount: 0, lastPlayAt: null, createdAt: 0, updatedAt: 0, archivedAt: null } }])
+    await fake.invoke('workspace_create', { name: 'Club' })
+    useNavStore.setState({ route: { tab: 'teams', id: 'red', mode: 'view' } })
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /My library/ }))
+    fireEvent.click(within(await screen.findByRole('menu')).getByText('Club'))
+    await waitFor(() => expect(calls('workspace_switch')).toHaveLength(1))
+    expect(useNavStore.getState().route).toEqual({ tab: 'teams' })
+  })
+
+  it('offers Stop following its copies on a row in a family', async () => {
+    await withOperator()
+    fake.seed([{ kind: 'team', item: { id: 'red', origin: 'operator', name: 'Red', shortCode: 'RED', color: 'var(--ink)', logoAssetId: null, notes: null, playCount: 0, lastPlayAt: null, createdAt: 0, updatedAt: 0, archivedAt: null, familyId: 3 } }])
+    useNavStore.setState({ route: { tab: 'teams' } })
+    render(<App />)
+    await screen.findByText('Red')
+    const menus = screen.getAllByRole('button', { name: 'Open' })
+    fireEvent.click(menus[0] as HTMLElement)
+    fireEvent.click(await screen.findByText(TRANSFER.unfollow))
+    await waitFor(() => expect(calls('catalog_unfollow')).toHaveLength(1))
   })
 })

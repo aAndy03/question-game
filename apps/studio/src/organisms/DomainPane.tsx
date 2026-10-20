@@ -5,6 +5,7 @@ import { CONFIRM, DOMAIN, LIST } from '@/copy'
 import { activeMemberIds, bodyGaps, questionGaps } from '@/host/question'
 import { useCatalogList } from '@/host/queries'
 import type { ArchiveScope, Domain } from '@/host/types'
+import { useHostCommand } from '@/host/commands'
 import { useArchive } from './useArchive'
 import { useTransfer } from './useTransfer'
 import { usePropagatingSave } from './usePropagatingSave'
@@ -29,6 +30,7 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
   const domains = useCatalogList('domain', scope)
   const questions = useCatalogList('question', 'active')
   const transfer = useTransfer()
+  const run = useHostCommand()
   const propagating = usePropagatingSave()
   const incomplete = useMemo(() => {
     const byId = new Map((questions.data ?? []).map((q) => [q.id, q]))
@@ -143,12 +145,14 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
                         d.shared === true
                           ? { id: 'make_local', label: TRANSFER.makeLocal, icon: 'shared' }
                           : { id: 'make_shared', label: TRANSFER.makeShared, icon: 'shared' },
+                        ...(d.familyId != null ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
                         d.archivedAt !== null
                           ? { id: 'restore', label: LIST.restore, icon: 'restore' }
                           : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true },
                       ]}
                       onAction={(a) => {
                         if (a === 'copy' || a === 'move' || a === 'make_shared' || a === 'make_local') transfer.open(a, { domains: [d.id] })
+                        if (a === 'unfollow') void run.ok('catalog_unfollow', { kind: 'domain', id: d.id })
                         if (a === 'edit') startEdit(d)
                         if (a === 'archive') archive.archive({ kind: 'domain', ids: [d.id], what: DOMAIN.one })
                         if (a === 'restore') void archive.restore({ kind: 'domain', ids: [d.id], what: DOMAIN.one })

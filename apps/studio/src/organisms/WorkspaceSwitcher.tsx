@@ -4,9 +4,10 @@ import { Button, Icon, InitialsAvatar, Text, Tooltip } from '@/atoms'
 import { NameDialog } from '@/molecules'
 import { useNavStore } from '@/chrome/nav'
 import { WORKSPACE } from '@/copy/workspaces'
-import { useHostCommand } from '@/host/commands'
 import { command } from '@/host/host'
-import { isPlayOpen, usePlayState } from '@/host/playState'
+import { usePlayState } from '@/host/playState'
+import { toast } from '@/chrome/toast'
+import { isGameLoaded, useSwitchWorkspace } from './useSwitchWorkspace'
 import { useWorkspaces } from '@/host/queries'
 import type { Workspace, WorkspaceGroup } from '@/host/types'
 
@@ -40,17 +41,17 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
   const workspaces = useWorkspaces()
   const play = usePlayState()
   const go = useNavStore((s) => s.go)
-  const run = useHostCommand()
+  const switchWorkspace = useSwitchWorkspace()
   const [creating, setCreating] = useState(false)
   const data = workspaces.data
   if (!data) return null
 
   const current = data.workspaces.find((w) => w.id === data.current)
   const name = workspaceName(current)
-  const loaded = play !== null && (isPlayOpen(play) || play.status === 'loaded')
+  const loaded = isGameLoaded(play)
 
   const switchTo = async (id: string) => {
-    if (id !== data.current) await run.ok('workspace_switch', { id })
+    if (id !== data.current) await switchWorkspace(id)
   }
 
   const face = collapsed ? (
@@ -130,7 +131,9 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
         confirmLabel={WORKSPACE.create}
         onSubmit={async (typed) => {
           const created = await command<Workspace>('workspace_create', { name: typed })
-          await command('workspace_switch', { id: created.id })
+          // Created is created: a switch refused now (a game was loaded
+          // meanwhile) must not read as a refused name (review).
+          if (!(await switchWorkspace(created.id))) toast.success(WORKSPACE.createdNotOpened(typed.trim()))
         }}
       />
     </div>

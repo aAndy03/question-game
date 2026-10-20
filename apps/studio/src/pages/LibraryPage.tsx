@@ -13,6 +13,7 @@ import type { ListItem } from '@/host/listView'
 import { useCatalogList, useListHits } from '@/host/queries'
 import { answerMode, difficultyBand, isArchived } from '@/host/types'
 import { useListView } from '@/host/useListView'
+import { useHostCommand } from '@/host/commands'
 
 export interface LibraryPageProps {
   domainId: string | null
@@ -37,6 +38,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
   const replace = useNavStore((s) => s.replace)
   const archive = useArchive()
   const transfer = useTransfer()
+  const run = useHostCommand()
   const [importing, setImporting] = useState(false)
 
   const questions = useCatalogList('question', scope)
@@ -194,12 +196,14 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                     { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
                     { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', isDisabled: sharedQ(row.id) },
                     sharedQ(row.id) ? { id: 'make_local', label: TRANSFER.makeLocal, icon: 'shared' } : { id: 'make_shared', label: TRANSFER.makeShared, icon: 'shared' },
+                    ...(questions.data?.find((q) => q.id === row.id)?.familyId != null ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
                     row.isArchived
                       ? { id: 'restore', label: LIST.restore, icon: 'restore' }
                       : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true },
                   ]}
                   onAction={(a) => {
                     if (a === 'copy' || a === 'move' || a === 'make_shared' || a === 'make_local') transfer.open(a, { questions: [row.id] })
+                    if (a === 'unfollow') void run.ok('catalog_unfollow', { kind: 'question', id: row.id })
                     const at = domainId ? { domainId } : {}
                     if (a === 'open') void go({ tab: 'library', questionId: row.id, mode: 'view', ...at })
                     if (a === 'edit') void go({ tab: 'library', questionId: row.id, mode: 'edit', ...at })

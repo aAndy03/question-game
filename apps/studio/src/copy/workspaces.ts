@@ -66,6 +66,7 @@ export const WORKSPACE = {
   onlyArchived: 'Archive it first',
   isCurrent: 'Open another workspace first',
   deleted: (name: string) => `${name} deleted. A backup was taken first.`,
+  createdNotOpened: (name: string) => `${name} created. Open it once the game in Control is unloaded.`,
 } as const
 
 /** Copy, move and share (Beta 2.0, 05_STUDIO_DESIGN.md §21). */
@@ -93,7 +94,7 @@ export const TRANSFER = {
   confirmMove: 'Move',
   confirmShared: 'Make shared',
   confirmLocal: 'Make local',
-  done: (n: number) => `${n} ${n === 1 ? 'row' : 'rows'} done`,
+  done: (n: number) => `Done: ${n} picked, with what ${n === 1 ? 'it needs' : 'they need'}`,
   where: 'Where',
   whereAll: 'This workspace and shared',
   whereLocal: 'This workspace',

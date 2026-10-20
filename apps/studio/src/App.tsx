@@ -179,6 +179,10 @@ function Shell() {
   // Until the host has said, first run must not latch: the welcome comes first.
   if (!welcomeSettled) return null
 
+  // Until the host has said which workspace this is, first run must not latch
+  // underneath the name step (review).
+  if (workspaces.data === undefined && !workspaces.isError) return null
+
   // The workspace has no name yet — a fresh library, or one that just moved
   // into its first workspace. Asked before first run and before the shell;
   // nothing suggests a name.

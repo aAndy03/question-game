@@ -29,7 +29,8 @@ export interface ConfirmDialogProps {
   armedLabel?: string | undefined
   cancelLabel?: string | undefined
   isPending?: boolean | undefined
-  onConfirm: () => void | Promise<void>
+  /** Returning `false` keeps the dialog open: the host refused, and the operator may try again. */
+  onConfirm: () => void | boolean | Promise<void | boolean>
   /**
    * Stacked frames, innermost last: arm → confirm → pin inside one dialog.
    * When non-empty the last frame's title, body and button are shown.
@@ -77,8 +78,8 @@ export function ConfirmDialog({
       setArmed(true)
       return
     }
-    await onConfirm()
-    if (!frame) onOpenChange(false)
+    const kept = await onConfirm()
+    if (!frame && kept !== false) onOpenChange(false)
   }
   const cancel = () => {
     if (frame && onCancelFrame) onCancelFrame()

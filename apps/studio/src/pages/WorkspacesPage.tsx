@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Button, MeaningChip, Panel, SelectField, Text } from '@/atoms'
 import { ActionMenu, ConfirmDialog, NameDialog, PageHeader, type ActionItem, type ConfirmFrame } from '@/molecules'
-import { groupedWorkspaces, workspaceName } from '@/organisms'
+import { groupedWorkspaces, isGameLoaded, useSwitchWorkspace, workspaceName } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { toast } from '@/chrome/toast'
@@ -32,6 +32,7 @@ type Dialog =
 export function WorkspacesPage() {
   const workspaces = useWorkspaces()
   const run = useHostCommand()
+  const switchWorkspace = useSwitchWorkspace()
   const play = usePlayState()
   const settings = useSettings()
   const activeId = settings.data?.globals.active_operator_id ?? null
@@ -44,7 +45,7 @@ export function WorkspacesPage() {
   const [frames, setFrames] = useState<ConfirmFrame[]>([])
   const [pending, setPending] = useState(false)
   const data = workspaces.data
-  const loaded = play !== null
+  const loaded = isGameLoaded(play)
   const pinPath = activeId ? `operator.${activeId}.pin` : ''
   const pinError = pinPath ? (noticesAt(notices, pinPath)[0]?.detail.message ?? null) : null
 
@@ -85,7 +86,7 @@ export function WorkspacesPage() {
   const onRow = async (w: Workspace, action: string) => {
     switch (action) {
       case 'open':
-        await run.ok('workspace_switch', { id: w.id })
+        await switchWorkspace(w.id)
         return
       case 'rename':
       case 'duplicate':
@@ -216,10 +217,10 @@ export function WorkspacesPage() {
         }
         confirmLabel={WORKSPACE.save}
         onConfirm={async () => {
-          if (dialog?.kind !== 'group') return
+          if (dialog?.kind !== 'group') return true
           const groupId = groupPick || null
           const sortKey = data.workspaces.filter((w) => w.groupId === groupId).length
-          await run.ok('workspace_set_group', { id: dialog.workspace.id, groupId, sortKey })
+          return run.ok('workspace_set_group', { id: dialog.workspace.id, groupId, sortKey })
         }}
       />
       <ConfirmDialog
@@ -229,7 +230,7 @@ export function WorkspacesPage() {
         body={WORKSPACE.deleteGroupBody}
         confirmLabel={WORKSPACE.deleteGroup}
         onConfirm={async () => {
-          if (dialog?.kind === 'deleteGroup') await run.ok('workspace_group_delete', { id: dialog.group.id })
+          if (dialog?.kind === 'deleteGroup') return run.ok('workspace_group_delete', { id: dialog.group.id })
         }}
       />
       <ConfirmDialog

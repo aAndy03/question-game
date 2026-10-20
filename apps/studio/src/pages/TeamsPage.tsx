@@ -12,6 +12,7 @@ import type { ListItem } from '@/host/listView'
 import { useCatalogList, useListHits } from '@/host/queries'
 import { isArchived, type Team } from '@/host/types'
 import { useListView } from '@/host/useListView'
+import { useHostCommand } from '@/host/commands'
 
 export interface TeamsPageProps {
   /** The team open in the aside, when one is. */
@@ -26,6 +27,7 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
   const go = useNavStore((s) => s.go)
   const archive = useArchive()
   const transfer = useTransfer()
+  const run = useHostCommand()
   const list = useCatalogList('team', scope)
   const session = useListState('teams')
   const hits = useListHits('team', session.search, scope, list.data?.length)
@@ -54,6 +56,7 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
   )
   const lv = useListView(teamsSpec, items, hits)
   const shared = (id: string) => list.data?.find((t) => t.id === id)?.shared === true
+  const family = (id: string) => list.data?.find((t) => t.id === id)?.familyId != null
   /** `true` all shared, `false` none, `undefined` a mix. */
   const sharedness = (ids: readonly string[]) => {
     const flags = new Set(ids.map(shared))
@@ -106,12 +109,14 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
               { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
               { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', isDisabled: shared(row.id) },
               shared(row.id) ? { id: 'make_local', label: TRANSFER.makeLocal, icon: 'shared' } : { id: 'make_shared', label: TRANSFER.makeShared, icon: 'shared' },
+              ...(family(row.id) ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
               row.isArchived
                 ? { id: 'restore', label: LIST.restore, icon: 'restore' }
                 : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true },
             ]}
             onAction={(a) => {
               if (a === 'copy' || a === 'move' || a === 'make_shared' || a === 'make_local') transfer.open(a, { teams: [row.id] })
+              if (a === 'unfollow') void run.ok('catalog_unfollow', { kind: 'team', id: row.id })
               if (a === 'open') void go({ tab: 'teams', id: row.id, mode: 'view' })
               if (a === 'edit') void go({ tab: 'teams', id: row.id, mode: 'edit' })
               if (a === 'archive') archive.archive({ kind: 'team', ids: [row.id], what: TEAM.one })

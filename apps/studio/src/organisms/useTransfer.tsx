@@ -62,19 +62,21 @@ export function useTransfer(): TransferController {
 
   const others = (workspaces.data?.workspaces ?? []).filter((w) => w.archivedAt === null && w.id !== workspaces.data?.current)
   const needsTarget = state?.op === 'copy' || state?.op === 'move'
+  // The list may arrive after the dialog opened: fall back to the first other workspace.
+  const chosen = target ?? others[0]?.id ?? null
 
   useEffect(() => {
     setPreview(null)
     setPreviewError(null)
-    if (!state || (needsTarget && !target)) return
+    if (!state || (needsTarget && !chosen)) return
     let live = true
-    command<TransferReport>('transfer_preview', { op: state.op, selection: state.selection, target: needsTarget ? target : null })
+    command<TransferReport>('transfer_preview', { op: state.op, selection: state.selection, target: needsTarget ? chosen : null })
       .then((r) => live && setPreview(r))
       .catch((e: HostError) => live && setPreviewError(e.message))
     return () => {
       live = false
     }
-  }, [state, target, needsTarget])
+  }, [state, chosen, needsTarget])
 
   const open = (op: TransferOp, selection: Selection) => {
     setState({ op, selection })
@@ -88,11 +90,11 @@ export function useTransfer(): TransferController {
   const confirm = async () => {
     if (!state) return
     setPending(true)
-    const args = needsTarget ? { selection: state.selection, target } : { selection: state.selection }
+    const args = needsTarget ? { selection: state.selection, target: chosen } : { selection: state.selection }
     const done = await run<TransferReport>(COMMAND[state.op], args)
     setPending(false)
     if (done === null) return
-    toast.success(TRANSFER.done(done.created.length + done.moved.length))
+    toast.success(TRANSFER.done(picked(state.selection)))
     close()
   }
 
@@ -118,7 +120,7 @@ export function useTransfer(): TransferController {
                 ) : (
                   <SelectField
                     label={TRANSFER.target}
-                    value={target}
+                    value={chosen}
                     onChange={(v) => setTarget(v)}
                     options={others.map((w) => ({ value: w.id, label: workspaceName(w) }))}
                   />
@@ -177,7 +179,7 @@ export function useTransfer(): TransferController {
               variant="primary"
               onPress={() => void confirm()}
               isPending={pending}
-              isDisabled={!preview || refused.length > 0 || previewError !== null || (needsTarget && !target)}
+              isDisabled={!preview || refused.length > 0 || previewError !== null || (needsTarget && !chosen)}
             >
               {state ? CONFIRM_LABEL[state.op] : ''}
             </Button>

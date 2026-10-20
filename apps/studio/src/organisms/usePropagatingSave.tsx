@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AlertDialog } from '@heroui/react'
 import { Button, Text } from '@/atoms'
 import { CONFIRM } from '@/copy'
@@ -31,6 +31,9 @@ export function usePropagatingSave(): PropagatingSave {
   const [preview, setPreview] = useState<PropagationPreview | null>(null)
   const answer = useRef<((choice: Choice) => void) | null>(null)
 
+  // An editor that unmounts with the question open has its save cancelled, not left hanging.
+  useEffect(() => () => answer.current?.('cancel'), [])
+
   const choose = (choice: Choice) => {
     answer.current?.(choice)
     answer.current = null
@@ -38,6 +41,8 @@ export function usePropagatingSave(): PropagatingSave {
   }
 
   const upsert: PropagatingSave['upsert'] = async (item, options) => {
+    // A second save while the question is open is not a second question.
+    if (answer.current) return null
     if (item.item.familyId == null) return run('catalog_upsert', { item }, options)
     let plan: PropagationPreview
     try {
