@@ -118,6 +118,17 @@ The design is `05_STUDIO_DESIGN.md` §22.
 - **Group dialogs stack**: the Groups and Manage tags dialogs stay open under their Rename / Delete (closing and reopening the parent flickered and threw focus back to the toolbar). `useGroupEditing` is shared by the Groups dialog and the group header menu.
 - **The fake host** keeps domain groups in a map of its own (never on the stored row, as the host ignores `groups` on a save), and cleans tags as the host does.
 
+## Copy, import, the editor in Studio (beta.3)
+
+The host half is `host.md` ▸ Copy, import and refusals.
+
+- **The question editor writes once**: the question and every domain whose membership it changes go in one `catalog_upsert_many`, so a refused membership leaves no saved question behind and no "Question saved". *Also update copies* is asked (`usePropagatingSave.decide`, which asks without writing) only when the body changed — stem, options, difficulty, explanation, media, tags (`sameBody`); on *Also*, the propagating save goes first and the memberships follow.
+- **Twin names are a field description, never an error** (`host/twins.ts`: case and spaces folded): the team, domain and game name fields say "Another team in this workspace is named Red.", against active rows of the workspace other than the one edited. The transfer dialog says "Club already has a team Red. Both will be there." from `TransferReport.twins`.
+- **Archive confirms name the games**: `useArchive` asks `referenced_by` for up to 50 picked rows and lists the answers (`CONFIRM.referencedBy` / `referencedByMany`); the confirm is armed only then.
+- **A theme colour is a swatch**: a team colour that is a token (`var(--state-incorrect)`, the Demo's) shows as a checked swatch labelled *Theme colour*; the hex field is empty with `#RRGGBB` as its placeholder. Found on the real app.
+- **The import preview** adds, per row, *In …* (`landing`), *Tags: …* and *Repeats …*; a duplicate's status reads *Duplicate*, since it may repeat a row of the same file. A row in no domain says so once, as a gap.
+- **Dialog footers wrap** (`studio.css`: `.alert-dialog__footer`, `.modal__footer`), and *This row has copies* is `md`: its three actions spilled out of the frame at `sm` (the maintainer's beta.2 screenshot; `workspaces.e2e.ts` now asserts every button sits inside the dialog).
+
 ## Library views as built (stable 1.1, P13.2–P13.4)
 
 The design is `05_STUDIO_DESIGN.md` §20. What a later change must not undo:

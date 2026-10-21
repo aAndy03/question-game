@@ -30,6 +30,47 @@ export interface WhatsNewRelease {
 
 export const WHATS_NEW: readonly WhatsNewRelease[] = [
   {
+    version: '2.0.0-beta.3',
+    notes: {
+      en: [
+        {
+          title: 'A copied game always loads',
+          body: 'Copying a game no longer reuses a question whose copy in the other workspace has a different difficulty or is unfinished: it copies that question fresh. Archived questions and teams arrive archived.',
+        },
+        {
+          title: 'Import tells you where each question goes',
+          body: 'The preview now names the domain each question lands in, new or existing, its tags, and which question a duplicate repeats. When two domains share a name, the oldest is used and the preview says so.',
+        },
+        {
+          title: 'Saving a question is all or nothing',
+          body: 'A question and its domains are saved together, so a refused domain never leaves half a save behind. Update copies is asked only when the question itself changed, not its domains.',
+        },
+        {
+          title: 'Messages name things',
+          body: 'When something cannot be archived or moved, questiongame names it and the games that use it, for one row or many. A name already used in the workspace is pointed out beside the field, and a team in a theme colour shows its swatch.',
+        },
+      ],
+      ro: [
+        {
+          title: 'Un joc copiat se încarcă mereu',
+          body: 'Când copiezi un joc, nu mai este refolosită o întrebare a cărei copie din celălalt spațiu de lucru are altă dificultate sau e neterminată: întrebarea e copiată din nou. Întrebările și echipele arhivate ajung arhivate.',
+        },
+        {
+          title: 'Importul îți spune unde ajunge fiecare întrebare',
+          body: 'Previzualizarea arată acum domeniul în care ajunge fiecare întrebare, nou sau existent, etichetele ei și ce întrebare repetă un duplicat. Când două domenii au același nume, este folosit cel mai vechi, iar previzualizarea o spune.',
+        },
+        {
+          title: 'Salvarea unei întrebări e totul sau nimic',
+          body: 'O întrebare și domeniile ei se salvează împreună, așa că un domeniu refuzat nu lasă în urmă o salvare pe jumătate. Actualizarea copiilor este cerută doar când s-a schimbat întrebarea, nu domeniile ei.',
+        },
+        {
+          title: 'Mesajele numesc lucrurile',
+          body: 'Când ceva nu poate fi arhivat sau mutat, questiongame îl numește, împreună cu jocurile care îl folosesc, pentru un rând sau mai multe. Un nume deja folosit în spațiul de lucru e semnalat lângă câmp, iar o echipă cu o culoare din temă își arată mostra.',
+        },
+      ],
+    },
+  },
+  {
     version: '2.0.0-beta.2',
     notes: {
       en: [

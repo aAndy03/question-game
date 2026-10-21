@@ -114,6 +114,16 @@ Design: `docs/superpowers/specs/2026-10-21-remove-shared-library-design.md`; pla
 - **`is_empty_everywhere`** (unscoped) is what the Beta welcome checks before a stable library replaces the file: an empty workspace is not an empty library.
 - Not added: an unscoped asset read for Plays (R11) — nothing reads a snapshot's asset ids by id yet.
 
+## Copy, import and refusals (beta.3)
+
+Design: `docs/superpowers/specs/2026-10-21-beta3-copy-import-editor-design.md` (rules 1–11).
+
+- **A copy keeps archive state**: `transfer.rs` writes every row active, then archives each created row whose source was archived (`store::set_archived`, a last pass) — an archived question copied with its domain arrives archived, as Duplicate already did.
+- **A copied game loads as its original does**: a board question that only came along is reused only if the target's family member has the same difficulty and the same completeness (`complete::effective_gaps` empty or not); otherwise it is copied fresh. Before this, a re-graded copy in the target broke the copied board's walk (§2.31) and the game refused to Load.
+- **Twins are said, not refused**: `TransferReport.twins` lists each picked team, domain or game that arrives beside an active row of the same name (folded) in the target — "team Red". No uniqueness rule anywhere.
+- **Refusals name rows**: `store::row_name` (a name, a stem cut to 40, an asset's path, an operator's display name) is what `StillUsed`, `ScopeRule` and `WrongWorkspace` say; `referenced_by` returns a sentence — "the game Friday", "the games A and B", "the game X and 3 more", "an open Play" — never an id or a kind word ("a a recipe board" is gone).
+- **Import resolves names in this workspace, oldest first**: of two domains with one name the oldest-created takes it; a code names exactly one. Each `ImportRow` carries `landing` ("History (HIS_100)", "Rome (new)", "History (HIS_200), one of 2 named History"), its cleaned `tags`, and for a duplicate `duplicate_of` — the library question's stem, or "row 4" of the same file. `fake/import.ts` mirrors all three.
+
 ## Domain groups, tags, bulk edits (P15)
 
 Design: `docs/superpowers/specs/2026-10-21-groups-tags-bulk-design.md`; plan and Sonnet's test list (with rulings) in `docs/superpowers/plans/2026-10-21-groups-tags-bulk*.md`.

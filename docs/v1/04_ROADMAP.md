@@ -1821,11 +1821,19 @@ Design: `docs/superpowers/specs/2026-10-21-remove-shared-library-design.md` (it 
 - ☑ **P16.1** — Studio and the contract drop sharing; *Bring their domains*; a switch leaves nothing of the old workspace (Screens, Statistics both windows, Back/Forward, notices).
 - ☑ **P16.2** — `upgrade-shared.e2e.ts` (a beta.1 library with shared rows on the real app), the workspaces spec on copy and move, docs, *What's new* 2.0.0-beta.2.
 
+### P17 — Beta: copy, import, the editor (beta.3)  ☑
+
+Design: `docs/superpowers/specs/2026-10-21-beta3-copy-import-editor-design.md`. On `main` only.
+
+- ☑ **P17.0** — host: archive state kept on copy; a drifted reused question copied fresh; `TransferReport.twins`; refusals and `referenced_by` by name; import landing, tags and duplicates, twins to the oldest.
+- ☑ **P17.1** — Studio: the editor's one write and `decide`; twin notes; archive confirms naming games, bulk too; theme colour swatch; the import preview's new lines; dialog footers that wrap.
+- ☑ **P17.2** — the workspaces spec asserts the copies dialog inside its frame; docs, *What's new* 2.0.0-beta.3.
+
 ### Beta parity (from the 2026-10-21 audits)
 
 | Version | Focus |
 | --- | --- |
-| **beta.3** | Copy, import, the editor: archived rows keep their state on copy; a reused copy that would break a game is copied fresh or named; import resolves domains in this workspace, shows tags and new domains, refuses inside the dialog; the question editor saves question and memberships in one write; readable refusals (names, not ids) and notice codes; archive confirms name the games that use the row; a soft warning for twin names. |
+| **beta.3** ☑ | Copy, import, the editor: archived rows keep their state on copy; a reused copy that would break a game is copied fresh or named; import resolves domains in this workspace, shows tags and new domains, refuses inside the dialog; the question editor saves question and memberships in one write; readable refusals (names, not ids) and notice codes; archive confirms name the games that use the row; a soft warning for twin names. |
 | **beta.4** | Games parity: Board and Roster pickers on the list-view model (search, difficulty and tag filters, domain-group headers, select all in group, paging); an archived team on a roster refused at Load; a Rules warning for an archived row on the board; *Apply to original* through *Also update copies*; Game page Copy/Move/Duplicate; a Games bulk bar; Plays by name; the difficulty prompt as a dialog. |
 | **beta.5** | The rest: detail panels (tags, groups, copies, *Stop following*); Statistics by workspace; Settings copy "in this workspace"; Manage workspaces as a list view; vocabulary; a library health check; strings to copy; *Duplicate* within a workspace; the disabled switcher's reason by keyboard. |
 | **stable 1.1.1** | Studio below 1280 px; the board difficulty prompt; the other 1.1 bugs the audits named — on `release/1.x`, merged forward. |
