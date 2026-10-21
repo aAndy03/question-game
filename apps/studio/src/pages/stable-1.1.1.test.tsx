@@ -174,3 +174,31 @@ describe('the 1.1.1 review', () => {
     expect(CONFIRM.referencedBy('an open play')).toContain('an open Play')
   })
 })
+
+describe('closing an opened row (1.1.1, the maintainer)', () => {
+  const asideOpen = () => document.querySelector('[data-detail-aside]') !== null
+  const opened = async () => {
+    await at({ tab: 'teams', id: 'team-alpha', mode: 'view' } as Route)
+    await waitFor(() => expect(asideOpen()).toBe(true))
+  }
+
+  it('pressing the open row again closes it', async () => {
+    await opened()
+    fireEvent.click(screen.getAllByRole('button').find((b) => b.textContent?.includes('Alpha') && b.closest('[data-list-body]')) as HTMLElement)
+    await waitFor(() => expect(useNavStore.getState().route).toEqual({ tab: 'teams' }))
+  })
+
+  it('a click on the list’s empty space closes it', async () => {
+    await opened()
+    fireEvent.click(document.querySelector('[data-list-body]') as HTMLElement)
+    await waitFor(() => expect(useNavStore.getState().route).toEqual({ tab: 'teams' }))
+  })
+
+  it('Escape closes it, unless a dialog or a field has it', async () => {
+    await opened()
+    fireEvent.keyDown(screen.getByRole('searchbox'), { key: 'Escape' })
+    expect(useNavStore.getState().route).toMatchObject({ id: 'team-alpha' })
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    await waitFor(() => expect(useNavStore.getState().route).toEqual({ tab: 'teams' }))
+  })
+})

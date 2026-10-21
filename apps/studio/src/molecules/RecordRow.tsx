@@ -119,10 +119,11 @@ export function RecordRow({
         </div>
         {chips || meta.length > 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-1.5">{chips}</div>
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">{chips}</div>
+            {/* Each value on one line; the values wrap as wholes (1.1.1: "Oct 21," over "2026"). */}
+            <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
               {meta.map((m, i) => (
-                <Text key={i} variant="studio-caption" tone="muted">
+                <Text key={i} variant="studio-caption" tone="muted" className="whitespace-nowrap">
                   {m}
                 </Text>
               ))}
@@ -159,11 +160,13 @@ export function RecordRow({
       ) : null}
       {leading ? <div className="shrink-0">{leading}</div> : null}
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <Text variant="studio-label" tone={tone} truncate className="min-w-0 flex-1">
+        {/* A readable minimum: beside an opened row's aside the chips and meta
+            took every pixel and the text went to nothing (1.1.1). */}
+        <Text variant="studio-label" tone={tone} truncate className="min-w-[8rem] flex-1">
           {title}
         </Text>
         {note ? (
-          <Text variant="studio-caption" tone="muted" truncate className="max-w-[30%] shrink-0">
+          <Text variant="studio-caption" tone="muted" truncate className="hidden max-w-[30%] shrink-0 @xl/list:block">
             {note}
           </Text>
         ) : null}
@@ -172,10 +175,11 @@ export function RecordRow({
             {subtitle}
           </Text>
         ) : null}
-        <div className="flex shrink-0 items-center gap-1.5">{chips}</div>
+        <div className="hidden min-w-0 shrink items-center gap-1.5 overflow-hidden @lg/list:flex">{chips}</div>
       </div>
       {meta.map((m, i) => (
-        <Text key={i} variant="studio-caption" tone="muted" className="w-28 shrink-0 text-right" tabular>
+        // As `LibraryList`'s `metaFits`: the first from 36rem, the rest from 48rem.
+        <Text key={i} variant="studio-caption" tone="muted" className={`${i === 0 ? 'hidden @xl/list:block' : 'hidden @3xl/list:block'} w-28 shrink-0 text-right`} tabular>
           {m}
         </Text>
       ))}

@@ -99,7 +99,8 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
           ) : null
         }
         currentId={currentId}
-        onOpen={(id) => void go({ tab: 'operators', id, mode: 'view' })}
+        onOpen={(id) => (id === currentId ? replace({ tab: 'operators' }) : void go({ tab: 'operators', id, mode: 'view' }))}
+        onDismiss={currentId ? () => replace({ tab: 'operators' }) : undefined}
         actions={(row) => (
           <ActionMenu
             items={[

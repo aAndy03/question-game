@@ -87,7 +87,8 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
           ) : null
         }
         currentId={currentId}
-        onOpen={(id) => void go({ tab: 'teams', id, mode: 'view' })}
+        onOpen={(id) => (id === currentId ? replace({ tab: 'teams' }) : void go({ tab: 'teams', id, mode: 'view' }))}
+        onDismiss={currentId ? () => replace({ tab: 'teams' }) : undefined}
         actions={(row) => (
           <ActionMenu
             items={[

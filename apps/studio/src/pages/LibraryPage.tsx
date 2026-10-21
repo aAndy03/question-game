@@ -181,7 +181,12 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                 ) : null
               }
               currentId={currentId}
-              onOpen={(id) => void go({ tab: 'library', questionId: id, mode: 'view', ...(domainId ? { domainId } : {}) })}
+              onOpen={(id) =>
+                id === currentId
+                  ? replace({ tab: 'library', ...(domainId ? { domainId } : {}) })
+                  : void go({ tab: 'library', questionId: id, mode: 'view', ...(domainId ? { domainId } : {}) })
+              }
+              onDismiss={currentId ? () => replace({ tab: 'library', ...(domainId ? { domainId } : {}) }) : undefined}
               actions={(row) => (
                 <ActionMenu
                   items={[
