@@ -54,6 +54,8 @@ interface NoticeState {
   dismissUnder(prefix: string): void
   /** Drop every **error** the predicate picks (P12.12). */
   dismissWhere(pick: (notice: OpenNotice) => boolean): void
+  /** Every notice about a row — a game, team, domain or question — whatever its severity: on a workspace switch that row is no longer here (beta.2). */
+  dropRowNotices(): void
   /**
    * Replace every notice whose `detail.source` is `source` with `notices`,
    * stamping the source on each. Other notices keep their ids and order.
@@ -66,6 +68,9 @@ interface NoticeState {
 }
 
 let nextId = 1
+
+/** A target path that names a library row or a game (`recipe.g1…`, `team/t1`). */
+const ROW_PATH = /^(recipe|team|domain|question)[./]/
 
 export const useNoticeStore = create<NoticeState>((set, get) => ({
   notices: [],
@@ -107,6 +112,10 @@ export const useNoticeStore = create<NoticeState>((set, get) => ({
 
   dismissWhere(pick) {
     set((s) => ({ notices: s.notices.filter((n) => !(n.severity === 'error' && pick(n))) }))
+  },
+
+  dropRowNotices() {
+    set((s) => ({ notices: s.notices.filter((n) => !(n.targetPath !== null && ROW_PATH.test(n.targetPath))) }))
   },
 
   replaceSource(source, notices) {

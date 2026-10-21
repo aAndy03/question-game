@@ -52,17 +52,18 @@ pub fn stats_window(
     open: bool,
 ) -> AppResult<()> {
     guard::allow(window.label(), "stats_window")?;
-    let (key, fullscreen) = {
+    let (key, fullscreen, title) = {
         let host = state.lock();
         let control = host.flags.control();
         (
             control.stats_monitor_id.clone().map(MonitorKey::new),
             control.stats_fullscreen,
+            super::workspace::stats_title(&host),
         )
     };
 
     if open {
-        windows::open_stats(&app, key.as_ref(), fullscreen)?;
+        windows::open_stats(&app, key.as_ref(), fullscreen, &title)?;
     } else {
         windows::close_stats(&app)?;
     }

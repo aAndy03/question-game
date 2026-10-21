@@ -80,6 +80,8 @@ interface NavState {
   goBack(): Promise<boolean>
   goForward(): Promise<boolean>
   setGuard(guard: NavGuard | null): void
+  /** Forget Back and Forward: a workspace switch leaves nothing to go back to (beta.2). */
+  clearHistory(): void
 }
 
 export const useNavStore = create<NavState>((set, get) => ({
@@ -87,6 +89,10 @@ export const useNavStore = create<NavState>((set, get) => ({
   back: [],
   forward: [],
   guard: null,
+
+  clearHistory() {
+    set({ back: [], forward: [] })
+  },
 
   async go(route) {
     const { guard, route: current, back } = get()

@@ -6,6 +6,7 @@ import { useChromeStore, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { TABS } from '@/copy'
 import { STATS } from '@/copy/stats'
+import { useCurrentWorkspaceId } from '@/host/queries'
 
 export type StatsView = 'live' | 'all'
 
@@ -39,6 +40,7 @@ export function StatisticsPage({ view, onView, surface = 'tab' }: StatisticsPage
   const listView = usePrefs().view['statistics'] ?? 'table'
   const setListView = useChromeStore((s) => s.setView)
   const selected: StatsView = view ?? 'live'
+  const workspace = useCurrentWorkspaceId()
 
   return (
     <SettingsLayout
@@ -76,10 +78,11 @@ export function StatisticsPage({ view, onView, surface = 'tab' }: StatisticsPage
         </div>
       }
     >
+      {/* Keyed on the workspace: a filter naming the last one's games, teams and domains goes with it (beta.2). */}
       {selected === 'live' ? (
-        <LiveStats {...(surface === 'tab' ? { onGoToControl: () => void go({ tab: 'control' }) } : {})} />
+        <LiveStats key={workspace ?? 'none'} {...(surface === 'tab' ? { onGoToControl: () => void go({ tab: 'control' }) } : {})} />
       ) : (
-        <AllDataStats view={listView} />
+        <AllDataStats key={workspace ?? 'none'} view={listView} />
       )}
     </SettingsLayout>
   )

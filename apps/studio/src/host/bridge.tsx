@@ -37,6 +37,7 @@ import type {
   RecipeChange,
 } from '@questiongame/contract'
 import { useHealthStore } from '@/chrome/health'
+import { useNavStore } from '@/chrome/nav'
 import { useNoticeStore } from '@/chrome/notices'
 import { useQuitStore } from '@/chrome/quit'
 import { useWindowsStore } from '@/chrome/windows'
@@ -81,7 +82,16 @@ export function HostBridge() {
     add(on<PlayTick>('play-tick', receivePlayTick))
     add(on<CatalogChange>('catalog-changed', (c) => invalidateForCatalogChange(client, c.kind, c.id)))
     add(on<RecipeChange>('recipe-changed', (c) => invalidateForRecipeChange(client, c.id)))
-    add(on<Workspaces>('workspace-changed', (w) => receiveWorkspaces(client, w)))
+    add(
+      on<Workspaces>('workspace-changed', (w) => {
+        // Another workspace: Back would land on its rows, and a notice about
+        // one of its rows points at nothing here (beta.2).
+        if (receiveWorkspaces(client, w)) {
+          useNavStore.getState().clearHistory()
+          useNoticeStore.getState().dropRowNotices()
+        }
+      }),
+    )
     add(
       on<MonitorsChanged>('monitors-changed', (m) => {
         client.setQueryData(keys.monitors, m.monitors)

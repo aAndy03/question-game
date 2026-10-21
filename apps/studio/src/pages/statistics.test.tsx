@@ -151,6 +151,23 @@ describe('Statistics', () => {
     await waitFor(() => expect(statsCalls(fake).some((q) => q.filter?.includeRehearsal === true)).toBe(true))
   })
 
+  it('drops its filters when the workspace changes (beta.2)', async () => {
+    const fake = mount()
+    const other = await fake.invoke<{ id: string }>('workspace_create', { name: 'Club' })
+    render(<App />)
+    await goToStatistics('all')
+    const rehearsals = await screen.findByRole('checkbox', { name: STATS.filters.rehearsals })
+    await act(async () => {
+      fireEvent.click(rehearsals)
+    })
+    await waitFor(() => expect(statsCalls(fake).at(-1)?.filter?.includeRehearsal).toBe(true))
+    await act(async () => {
+      await fake.invoke('workspace_switch', { id: other.id })
+    })
+    await waitFor(() => expect(statsCalls(fake).at(-1)?.filter?.includeRehearsal ?? false).toBe(false))
+    expect((screen.getByRole('checkbox', { name: STATS.filters.rehearsals }) as HTMLInputElement).checked).toBe(false)
+  })
+
   it('issues no writing command at all (P11 exit criterion)', async () => {
     const fake = mount(openPlay(12))
     render(<App />)

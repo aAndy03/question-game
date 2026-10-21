@@ -110,3 +110,13 @@ describe('the fake host keeps operators global', () => {
     expect(rows).toHaveLength(1)
   })
 })
+
+describe('a window that never cached the list (the Statistics window, beta.2)', () => {
+  it('resets on the first workspace-changed, and says so', () => {
+    const client = new QueryClient()
+    client.setQueryData(keys.catalog.list('team', 'active'), [{ id: 'old' }])
+    expect(receiveWorkspaces(client, list('ws-2'))).toBe(true)
+    expect(client.getQueryData(keys.catalog.list('team', 'active'))).toBeUndefined()
+    expect(receiveWorkspaces(client, list('ws-2')), 'the same workspace again: nothing to reset').toBe(false)
+  })
+})

@@ -236,7 +236,24 @@ pub fn reconcile_mirrors(app: &AppHandle, wanted: &[MonitorKey]) -> AppResult<()
 /// Windows message loop, and the new window's first act is to `invoke` — which
 /// wants the same lock. That is what left the window white and unresponsive
 /// when it was built inside `monitors_list`.
-pub fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool) -> AppResult<()> {
+/// The Statistics window's title: it names the workspace it shows, because
+/// on another display nothing else says which library the numbers are from
+/// (beta.2). An unnamed workspace leaves the plain title.
+pub fn stats_title(workspace: Option<&str>) -> String {
+    match workspace.map(str::trim).filter(|n| !n.is_empty()) {
+        Some(name) => format!("questiongame Statistics — {name}"),
+        None => "questiongame Statistics".to_owned(),
+    }
+}
+
+/// Retitle the Statistics window, if it is open.
+pub fn retitle_stats(app: &AppHandle, title: &str) {
+    if let Some(window) = app.get_webview_window(STATS) {
+        let _ = window.set_title(title);
+    }
+}
+
+pub fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool, title: &str) -> AppResult<()> {
     crate::state::assert_unlocked("windows::open_stats");
     let origin = match key {
         Some(k) => monitors::physical_origin(app, k),
@@ -248,6 +265,7 @@ pub fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool) -
         // another display since, and raise it — pressing Show on a window
         // hiding behind Studio should bring it forward.
         place(&window, origin, fullscreen)?;
+        window.set_title(title)?;
         window.set_focus()?;
         return Ok(());
     }
@@ -257,7 +275,7 @@ pub fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool) -
     // the wrong display first.
     let mut builder = debuggable(
         WebviewWindowBuilder::new(app, STATS, WebviewUrl::App(STATS_PATH.into()))
-            .title("questiongame Statistics")
+            .title(title)
             .inner_size(1280.0, 800.0)
             .focused(false),
         app,

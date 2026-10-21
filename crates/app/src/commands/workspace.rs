@@ -68,6 +68,17 @@ pub fn adopt_workspace_defaults(host: &mut Host, now: u64) -> AppResult<()> {
     Ok(())
 }
 
+/// The Statistics window's title for the workspace Studio works in.
+pub fn stats_title(host: &Host) -> String {
+    let current = host.catalog.current_workspace();
+    let name = host
+        .catalog
+        .workspace_list()
+        .ok()
+        .and_then(|(all, _)| all.into_iter().find(|w| w.id == current).and_then(|w| w.name));
+    crate::windows::stats_title(name.as_deref())
+}
+
 fn changed(app: &AppHandle, host: &Host) -> AppResult<Workspaces> {
     let list = workspaces(host)?;
     emit::workspace_changed(app, &list);

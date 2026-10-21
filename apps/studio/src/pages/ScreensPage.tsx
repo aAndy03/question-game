@@ -4,7 +4,7 @@ import { EmptyState } from '@/molecules'
 import { LayoutEditor } from '@/organisms'
 import { WorkshopLayout } from '@/templates'
 import { SCREENS_TAB } from '@/copy'
-import { useRecipeList } from '@/host/queries'
+import { useCurrentWorkspaceId, useRecipeList } from '@/host/queries'
 
 /**
  * Screens (spec §12, §17): pick a game, then restyle its screens on the
@@ -12,6 +12,13 @@ import { useRecipeList } from '@/host/queries'
  * `App`, so this page never has to ask.
  */
 export function ScreensPage() {
+  // The game picked belongs to the workspace it was picked in: another
+  // workspace starts the page over (beta.2: the editor stayed on the old one).
+  const workspace = useCurrentWorkspaceId()
+  return <ScreensFor key={workspace ?? 'none'} />
+}
+
+function ScreensFor() {
   const recipes = useRecipeList('active')
   const [recipeId, setRecipeId] = useState<string | null>(null)
   useEffect(() => {

@@ -98,6 +98,7 @@ pub fn settings_set_global(
         (
             control.stats_monitor_id.clone().map(MonitorKey::new),
             control.stats_fullscreen,
+            super::workspace::stats_title(&host),
         )
     });
 
@@ -118,10 +119,10 @@ pub fn settings_set_global(
     // webview that invokes while this command still holds the lock waits on
     // itself.
     drop(host);
-    if let Some((key, fullscreen)) = stats_target
+    if let Some((key, fullscreen, title)) = stats_target
         && windows::stats_is_open(&app)
     {
-        windows::open_stats(&app, key.as_ref(), fullscreen)?;
+        windows::open_stats(&app, key.as_ref(), fullscreen, &title)?;
     }
     Ok(())
 }

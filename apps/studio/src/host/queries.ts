@@ -324,6 +324,16 @@ export function useTags() {
   })
 }
 
+/**
+ * The workspace Studio works in, as the last `workspace_list` or
+ * `workspace-changed` said — read, never asked for: the Statistics window
+ * may not call `workspace_list`, and hears the event (beta.2).
+ */
+export function useCurrentWorkspaceId(): string | null {
+  const known = useQuery({ queryKey: keys.workspaces, queryFn: () => command<Workspaces>('workspace_list'), enabled: false, staleTime: Infinity })
+  return known.data?.current ?? null
+}
+
 /** Every workspace, every group, and the one Studio works in (Beta 2.0). */
 export function useWorkspaces() {
   return useQuery({
@@ -357,14 +367,16 @@ const WORKSPACE_SCOPED: readonly (readonly string[])[] = [
  * A `workspace-changed`: the list is replaced, and when Studio now works in
  * another workspace every workspace-scoped query is **reset** — dropped and,
  * where something is on screen, fetched again — so no list ever shows the
- * last workspace's rows under the new one's name.
+ * last workspace's rows under the new one's name. A window that never cached
+ * the list (the Statistics window cannot ask for it) cannot tell, so it resets
+ * too (beta.2). Returns whether it reset.
  */
-export function receiveWorkspaces(client: QueryClient, next: Workspaces): void {
+export function receiveWorkspaces(client: QueryClient, next: Workspaces): boolean {
   const before = client.getQueryData<Workspaces>(keys.workspaces)
   client.setQueryData(keys.workspaces, next)
-  if (before && before.current !== next.current) {
-    for (const queryKey of WORKSPACE_SCOPED) void client.resetQueries({ queryKey })
-  }
+  if (before && before.current === next.current) return false
+  for (const queryKey of WORKSPACE_SCOPED) void client.resetQueries({ queryKey })
+  return true
 }
 
 /** The bridge's half: which keys a host event touches. */

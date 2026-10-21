@@ -149,3 +149,29 @@ describe('Screens', () => {
     expect(names.slice(7)).toEqual(['Overlay · Token handoff', 'Overlay · Round advance', 'Overlay · Multiple answers', 'Overlay · Outcome', 'Overlay · Current team'])
   })
 })
+
+describe('Screens after a workspace switch (beta.2)', () => {
+  let fake: FakeHost
+  beforeEach(() => {
+    fake = createFakeHost()
+    fake.seed(demoLibrary(), [demoRecipe()])
+    setHostTransport(fake)
+    useNavStore.setState({ route: HOME, back: [], forward: [], guard: null })
+    useNoticeStore.setState({ notices: [] })
+    receivePlayState(null)
+  })
+  afterEach(() => setHostTransport(null))
+
+  it('drops the game of the workspace it left', async () => {
+    const other = await fake.invoke<{ id: string }>('workspace_create', { name: 'Club' })
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'screens' })
+    })
+    await waitFor(() => expect(document.querySelector('iframe')).not.toBeNull())
+    await act(async () => {
+      await fake.invoke('workspace_switch', { id: other.id })
+    })
+    await waitFor(() => expect(document.querySelector('iframe'), 'no editor on the old workspace’s game').toBeNull())
+  })
+})

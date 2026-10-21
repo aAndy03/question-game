@@ -164,6 +164,8 @@ pub fn catalog_changed_many(app: &AppHandle, changes: &[CatalogChange]) {
 pub fn workspace_changed(app: &AppHandle, list: &crate::commands::workspace::Workspaces) {
     let _ = app.emit_to(MAIN, "workspace-changed", list);
     let _ = app.emit_to(STATS, "workspace-changed", list);
+    let name = list.workspaces.iter().find(|w| w.id == list.current).and_then(|w| w.name.as_deref());
+    crate::windows::retitle_stats(app, &crate::windows::stats_title(name));
 }
 
 pub fn recipe_changed(app: &AppHandle, change: &RecipeChange) {

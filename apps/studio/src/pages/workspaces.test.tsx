@@ -177,3 +177,23 @@ describe('review fixes', () => {
     await waitFor(() => expect(calls('catalog_unfollow')).toHaveLength(1))
   })
 })
+
+describe('a switch leaves nothing of the old workspace (beta.2)', () => {
+  it('clears Back and Forward, and drops notices about the rows it left', async () => {
+    await withOperator()
+    const other = await fake.invoke<{ id: string }>('workspace_create', { name: 'Club' })
+    render(<App />)
+    await waitFor(() => expect(calls('workspace_list').length).toBeGreaterThan(0))
+    await useNavStore.getState().go({ tab: 'teams' })
+    await useNavStore.getState().go({ tab: 'library' })
+    expect(useNavStore.getState().back.length).toBeGreaterThan(0)
+    useNoticeStore.getState().pushError('catalog', 'board refused', 'recipe.g1.board')
+    useNoticeStore.getState().pushError('disk', 'disk nearly full', null)
+    await fake.invoke('workspace_switch', { id: other.id })
+    await waitFor(() => expect(useNavStore.getState().back).toEqual([]))
+    expect(useNavStore.getState().forward).toEqual([])
+    const left = useNoticeStore.getState().notices.map((n) => n.detail.message)
+    expect(left).toContain('disk nearly full')
+    expect(left).not.toContain('board refused')
+  })
+})
