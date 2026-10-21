@@ -1829,12 +1829,20 @@ Design: `docs/superpowers/specs/2026-10-21-beta3-copy-import-editor-design.md`. 
 - ☑ **P17.1** — Studio: the editor's one write and `decide`; twin notes; archive confirms naming games, bulk too; theme colour swatch; the import preview's new lines; dialog footers that wrap.
 - ☑ **P17.2** — the workspaces spec asserts the copies dialog inside its frame; docs, *What's new* 2.0.0-beta.3.
 
+### P18 — Beta: games parity (beta.4)  ☑
+
+Design: `docs/superpowers/specs/2026-10-21-beta4-games-parity-design.md`; plan and Sonnet's test list in `docs/superpowers/plans/2026-10-21-beta4-games-parity.md`. On `main` only.
+
+- ☑ **P18.0** — host: an archived team refused at Load by name; `ArchivedOnGame` in the Rules preview; *Apply to original* with `alsoCopies`.
+- ☑ **P18.1** — Studio: `PickerDialog` (Add teams, Add domains, Choose questions) on the list-view model; `DifficultyDialog`; the Game page's *More actions*; the Games bulk bar; Plays by number; refusals on the section in view.
+- ☑ **P18.2** — `games.e2e.ts` on the real app with screenshots; docs, *What's new* 2.0.0-beta.4.
+
 ### Beta parity (from the 2026-10-21 audits)
 
 | Version | Focus |
 | --- | --- |
 | **beta.3** ☑ | Copy, import, the editor: archived rows keep their state on copy; a reused copy that would break a game is copied fresh or named; import resolves domains in this workspace, shows tags and new domains, refuses inside the dialog; the question editor saves question and memberships in one write; readable refusals (names, not ids — no new notice codes: the readable message is the notice); archive confirms name the games that use the row; a soft warning for twin names. |
-| **beta.4** | Games parity: Board and Roster pickers on the list-view model (search, difficulty and tag filters, domain-group headers, select all in group, paging); an archived team on a roster refused at Load; a Rules warning for an archived row on the board; *Apply to original* through *Also update copies*; Game page Copy/Move/Duplicate; a Games bulk bar; Plays by name; the difficulty prompt as a dialog. |
+| **beta.4** ☑ | Games parity: Board and Roster pickers on the list-view model (search, difficulty and tag filters, domain-group headers, select all in group, paging); an archived team on a roster refused at Load; a Rules warning for an archived row on the board; *Apply to original* through *Also update copies*; Game page Copy/Move/Duplicate; a Games bulk bar; Plays by name; the difficulty prompt as a dialog. |
 | **beta.5** | The rest: detail panels (tags, groups, copies, *Stop following*); Statistics by workspace; Settings copy "in this workspace"; Manage workspaces as a list view; vocabulary; a library health check; strings to copy; *Duplicate* within a workspace; the disabled switcher's reason by keyboard. |
 | **stable 1.1.1** | Studio below 1280 px; the board difficulty prompt; the other 1.1 bugs the audits named — on `release/1.x`, merged forward. |
 

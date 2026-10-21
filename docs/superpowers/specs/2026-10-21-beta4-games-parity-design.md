@@ -1,6 +1,6 @@
 # beta.4: games parity
 
-Status: building, 2026-10-21. The scope is the roadmap's beta.4 line (approved with the shared-library design), from the two parity audits. `main` only; rule 9 is also stable 1.1.1's (the board difficulty prompt) and is built so it can be carried to `release/1.x`.
+Status: built, 2026-10-21. The scope is the roadmap's beta.4 line (approved with the shared-library design), from the two parity audits. `main` only; rule 9 is also stable 1.1.1's (the board difficulty prompt) and is built so it can be carried to `release/1.x`.
 
 ## Why
 

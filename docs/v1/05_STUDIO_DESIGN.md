@@ -292,7 +292,7 @@ someone remembers to add.
 | `InlineNotice` | HeroUI `Alert` + up to 3 `Button`s | `notice`, `onAction`, `onDismiss`; stacked confirm frames render *inside* | fields, rows, pages |
 | `ConfirmDialog` | HeroUI `AlertDialog` | `severity`, `arm → confirm` two-click for destructive | archive with references, abandon (P8) |
 | `DirtyGuard` | `AlertDialog` Save / Discard / Cancel | bound to the editor's form state | every editor |
-| `ScopeConfirm` | `AlertDialog` This game / Original / Cancel | §2.17; also used for bulk | Games one-file inline edits |
+| `DifficultyDialog` | `Modal`: a number 1–100, then Cancel · Apply to original · This game only | §2.17, §24 (beta.4: replaced `ScopeConfirm` and the `window.prompt`) | the Board's difficulty edit |
 | `SidebarItem` | `Icon` · label · badge | `active`, `collapsed`, `badge?` | `SidebarNav` |
 | `NavCrumbs` | HeroUI `Breadcrumbs` | from `Route` | `PageHeader` |
 | `MetaList` | label / value pairs | `items`, `columns` | detail views |
@@ -321,8 +321,9 @@ someone remembers to add.
 | `TeamEditor` `DomainEditor` `QuestionEditor` `OperatorEditor` | one item Query | `catalog_upsert` | TanStack Form; validation mirrors host rules; host refusal lands inline |
 | `TeamDetail` `QuestionDetail` `OperatorDetail` | one item Query, `referenced_by` | archive / restore | read view with `MetaList`, `StatCard`s, chips |
 | `RecipeEditor` | recipe, teams, domains, questions Queries | `recipe_upsert`, `recipe_set_membership`, `recipe_set_settings`, `recipe_set_overlay` | sections Roster · Board · Rules · Plays; frozen when that recipe's Play is `playing\|paused` (banner + all controls disabled with reason) |
-| `RosterSection` | recipe, teams | `recipe_set_membership` | order via HeroUI `ListBox` with up/down actions in P7; dnd-kit arrives with P8 |
-| `BoardSection` | recipe, domains, questions | `recipe_set_membership`, `recipe_set_overlay` (ScopeConfirm), `recipe_set_settings` (the repeats switch) | domain chips → question checklist; `BoardBalance` reports the shape (P11.12); **one question per difficulty** — a member whose difficulty is taken is disabled with the reason (§15), unless *Allow repeated difficulties* is on (§15.4) |
+| `RosterSection` | recipe, teams | `recipe_set_membership` | the roster in order with up/down/remove; *Add teams…* is a `PickerDialog` (§24); an archived team by name with *Archived*; its own refusals inline |
+| `PickerDialog` | spec, items, initial, disabledReason | — (its caller writes) | §24: a choice of rows on the list-view model — toolbar, groups with *Select all in …*, pages, Apply / Cancel |
+| `BoardSection` | recipe, domains, questions | `recipe_set_membership`, `recipe_set_overlay` (`DifficultyDialog`, `alsoCopies`), `recipe_set_settings` (the repeats switch) | domain cards with their chosen questions, *Add domains…* and *Choose questions…* (§24); `BoardBalance` reports the shape (P11.12); **one question per difficulty** — a member whose difficulty is taken is disabled with the reason (§15), unless *Allow repeated difficulties* is on (§15.4) |
 | `RulesSection` | recipe settings, `settings_get.disabled` | `recipe_set_settings` | `SettingRow`s; interlocks come from the host's `disabled` list, never recomputed |
 | `PlaysSection` | `play_list(recipeId)` | — | history table; read-only |
 | `DevHarness` | play-state, monitors | any command | **dev builds only** (`import.meta.env.DEV`); the P6 harness restyled, lives under Control until P8 replaces it |
@@ -445,7 +446,7 @@ Toasts · dnd-kit roster drag (P8) · Shape manager dialog (P8+) · hotkey chord
 - **The in-memory host** (`host/fake.ts`) exists and is the second adapter
   behind `HostTransport`; `?fake` on a dev URL installs it with a demo library.
 - **Board difficulty overrides** take the value from a `window.prompt` and the
-  scope from `ScopeConfirm`; an inline number field per row is P8's inline-edit
+  scope from `DifficultyDialog` (beta.4; `ScopeConfirm` before); an inline number field per row is P8's inline-edit
   work.
 - **`RecordRow` grid cards** put chips and meta on a second line; at narrow
   widths the meta wraps rather than truncates.
@@ -2389,3 +2390,16 @@ Design: `docs/superpowers/specs/2026-10-21-beta3-copy-import-editor-design.md`.
 - **Team colour**: a theme colour shows as a checked swatch, *Theme colour*; the hex field, *Colour code*, is then empty, `#RRGGBB` its placeholder.
 - **The import preview**, under each row: *In History (HIS_100)* — "(new)" for a domain the import creates, and "the oldest of 2 named History" / "one of 2 named History" when two share a name — then *Tags: …*, and for a duplicate (status *Duplicate*) *Repeats "…"* or *Repeats row 4 of this file*.
 - **Dialog footers wrap** inside the frame; an action never leaves it.
+
+## 24. Games parity (Beta, beta.4)
+
+Design: `docs/superpowers/specs/2026-10-21-beta4-games-parity-design.md`.
+
+- **Pickers** (`organisms/PickerDialog`, a `Modal` `lg`): *Add teams…* on the Roster, *Add domains…* and, on each domain card, *Choose questions…* on the Board. Each has Search · Filters · Sort · Group (no View, no Status), a *Select all* checkbox for the page with "*n* chosen", a checkbox on every group header (*Select all in {group}* — the whole group, every page), a checkbox per row, the page footer, and *Cancel* · *Apply* (Apply disabled until something changed). Every opening starts from the game and a clean view; ticks survive search, filters and pages. *Choose questions…* opens grouped by the domain's groups when it has them, with Difficulty and Tag filters; a row that cannot be chosen is disabled with its reason (incomplete, or its difficulty taken while repeats are off), and *Select all* skips those, taking the first of each difficulty in list order.
+- **The cards**: a domain card lists only its chosen questions — text, incomplete mark, *Overridden*, the difficulty chip (opens the dialog), *Reset to original*, *Take off the board*. A row the library no longer has says so in words, never by id.
+- **The difficulty dialog** (`molecules/DifficultyDialog`, `md`): the number field, the scope sentence, *Cancel* · *Apply to original* · *This game only*. The buttons are always pressable and judge the value when pressed — the field commits on blur, which the press causes; a whole number 1–100 or it says so; the same value closes without a write. *Apply to original* on a row with copies asks *This row has copies* next.
+- **The Game page header**: *Archive* / *Restore*, then a *More actions* menu — *Duplicate* (opens the copy), *Copy to…*, *Move to…* (disabled while the game plays).
+- **The Games list bulk bar**: *Archive n*, *Restore n*, *Copy or move…*, *Select all*, *Clear*. A playing game is left out of Archive and Move, and a toast says so ("Season opener is playing, so it stays as it is.").
+- **Plays** are *Play 1*, *Play 2*… by start time, the date beneath, the id as the tooltip.
+- **A refused Load** is titled *This game cannot start yet.* and lands on the section that holds the problem (the Roster now shows its own); the collector opens only when that section is not the one in view. An inline notice never shows the routing path in its text.
+- **Rules** warns first, by name, of archived rows the game still uses: "This game still uses archived rows: team Green, question Who…".

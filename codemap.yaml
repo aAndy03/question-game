@@ -404,7 +404,7 @@ commands:
     callers: [main]
     doc: "`recipe_set_overlay` — `this_game` writes the patch, `original` writes the catalog row and drops *this* recipe's patch while leaving every other recipe's standing (§2.17)."
     file: crates/app/src/commands/catalog.rs
-    params: ["id: RecipeId", "target: OverlaySpec", "scope: EditScope"]
+    params: ["id: RecipeId", "target: OverlaySpec", "scope: EditScope", "also_copies: Option<bool>"]
     returns: "AppResult<RecipeChange>"
   recipe_set_settings:
     async: true
@@ -1405,7 +1405,7 @@ host_api:
     "catalog::db::place_for_test": {doc: "Test support: in a file written by [`write_older_schema`] at step 5 or before, put a row in the shared library (`workspace_id` NULL) or in a named workspace — how the beta.2 tests build a beta.1 li...", kind: fn, sig: "fn place_for_test(path: &Path, table: &str, id: &str, workspace: Option<&str>) -> CatalogResult<()>"}
     "catalog::db::write_older_schema": {doc: "Test support: write `to` as the library `from` would look to a build that knew only the first `steps` migrations — the same rows, the columns that build had.", kind: fn, sig: "fn write_older_schema(from: &Path, to: &Path, steps: u32) -> CatalogResult<()>"}
   crates/host/src/catalog/error.rs:
-    "catalog::error::CatalogError": {kind: enum, sig: "enum CatalogError { NotFound { kind: CatalogKind, id: String } | Invalid { target_path: String, reason: &'static str } | Import { reason: String } | Settings(MatchError) | PlayAlreadyOpen { recipe: String, play: String } | SchemaTooNew { found: u32, known: u32 } | BackupFailed { dir: std::path::PathBuf, reason: String } | WrongWorkspace { kind: CatalogKind, id: String, name: String } | NoWorkspace | ScopeRule { rule: &'static str, detail: String } | StillUsed { kind: CatalogKind, id: String, name: String, used_by: String } | Sqlite(rusqlite::Error) | Search(tantivy::TantivyError) | Corrupt(serde_json::Error) }"}
+    "catalog::error::CatalogError": {kind: enum, sig: "enum CatalogError { NotFound { kind: CatalogKind, id: String } | Invalid { target_path: String, reason: &'static str } | Refused { target_path: String, reason: String } | Import { reason: String } | Settings(MatchError) | PlayAlreadyOpen { recipe: String, play: String } | SchemaTooNew { found: u32, known: u32 } | BackupFailed { dir: std::path::PathBuf, reason: String } | WrongWorkspace { kind: CatalogKind, id: String, name: String } | NoWorkspace | ScopeRule { rule: &'static str, detail: String } | StillUsed { kind: CatalogKind, id: String, name: String, used_by: String } | Sqlite(rusqlite::Error) | Search(tantivy::TantivyError) | Corrupt(serde_json::Error) }"}
     "catalog::error::CatalogKind": {doc: "What the catalog was asked about, and what `catalog-changed { kind, … }` reports (§11.A).", kind: enum, sig: "enum CatalogKind { Team | Domain | Question | Operator | Asset | Recipe }"}
     "catalog::error::CatalogKind::ALL": {kind: const, sig: "const ALL: [CatalogKind; 6] = [CatalogKind::Team, CatalogKind::Domain, CatalogKind::Question, CatalogKind::Operator, ..."}
     "catalog::error::CatalogKind::as_str": {doc: "The tab name, and the `kind` field of `catalog-changed`.", kind: method, sig: "fn as_str(self) -> &'static str"}
@@ -1524,6 +1524,7 @@ host_api:
   crates/host/src/catalog/service.rs:
     "catalog::service::CatalogChange": {doc: "What a write did, ready to be emitted as `catalog-changed`.", kind: struct, sig: "struct CatalogChange { kind: CatalogKind, id: String, op: ChangeOp }"}
     "catalog::service::CatalogService": {kind: struct, sig: "struct CatalogService {  }"}
+    "catalog::service::CatalogService::archived_on_game": {doc: "The board flattened for the Rules preview (P11.12).", kind: method, sig: "fn archived_on_game(&self, recipe_id: &RecipeId) -> CatalogResult<Vec<String>>"}
     "catalog::service::CatalogService::asset_put": {doc: "`asset_put` — the same write, named the way §11.A names it.", kind: method, sig: "fn asset_put(&self, asset: &Asset, now_ms: u64) -> CatalogResult<CatalogChange>"}
     "catalog::service::CatalogService::build_snapshot": {doc: "§4.3 — the copy a Play starts from, with the recipe's overlays already applied to every body (§2.17).", kind: method, sig: "fn build_snapshot(&self, recipe_id: &RecipeId, play_id: PlayId, settings: FrozenSettings) -> CatalogResult<PlaySnapshot>"}
     "catalog::service::CatalogService::catalog_archive": {doc: "`catalog_archive` — soft, restorable, and the only kind of delete v1 has (§4.1).", kind: method, sig: "fn catalog_archive(&self, kind: CatalogKind, id: &str, now_ms: u64) -> CatalogResult<CatalogChange>"}
@@ -1546,7 +1547,7 @@ host_api:
     "catalog::service::CatalogService::play_list": {kind: method, sig: "fn play_list(&self, recipe: Option<&RecipeId>) -> CatalogResult<Vec<PlayRecord>>"}
     "catalog::service::CatalogService::play_persist": {doc: "Persist everything in this Play that is not stored yet, then refresh its projection row — one transaction.", kind: method, sig: "fn play_persist(&self, play: &Play) -> CatalogResult<()>"}
     "catalog::service::CatalogService::play_replay": {doc: "Rebuild a Play from its stored log.", kind: method, sig: "fn play_replay(&self, id: &PlayId) -> CatalogResult<Play>"}
-    "catalog::service::CatalogService::preview_board": {doc: "The board flattened for the Rules preview (P11.12).", kind: method, sig: "fn preview_board(&self, recipe_id: &RecipeId) -> CatalogResult<PreviewBoard>"}
+    "catalog::service::CatalogService::preview_board": {kind: method, sig: "fn preview_board(&self, recipe_id: &RecipeId) -> CatalogResult<PreviewBoard>"}
     "catalog::service::CatalogService::rebuild_projections": {doc: "Rebuild every `plays` row from `events`.", kind: method, sig: "fn rebuild_projections(&self) -> CatalogResult<usize>"}
     "catalog::service::CatalogService::rebuild_search_index": {doc: "Throw the index away and index every row again.", kind: method, sig: "fn rebuild_search_index(&self) -> CatalogResult<usize>"}
     "catalog::service::CatalogService::recipe_archive": {kind: method, sig: "fn recipe_archive(&self, id: &RecipeId, now_ms: u64) -> CatalogResult<CatalogChange>"}
@@ -1557,6 +1558,7 @@ host_api:
     "catalog::service::CatalogService::recipe_set_layout": {doc: "`recipe_set_layout` — the Screens canvas auto-save.", kind: method, sig: "fn recipe_set_layout(&self, id: &RecipeId, layout: serde_json::Value, now_ms: u64) -> CatalogResult<RecipeChange>"}
     "catalog::service::CatalogService::recipe_set_membership": {doc: "`recipe_set_membership` — the roster order and the board in one write.", kind: method, sig: "fn recipe_set_membership(&self, id: &RecipeId, teams: Vec<TeamId>, board: Vec<BoardDomain>, now_ms: u64) -> CatalogResult<RecipeChange>"}
     "catalog::service::CatalogService::recipe_set_overlay": {doc: "`recipe_set_overlay` — ScopeConfirm at the data layer (§2.17).", kind: method, sig: "fn recipe_set_overlay(&self, id: &RecipeId, target: OverlayTarget, scope: EditScope, now_ms: u64) -> CatalogResult<RecipeChange>"}
+    "catalog::service::CatalogService::recipe_set_overlay_with": {doc: "The same, where *Apply to original* also updates the row's copies (`also_copies`, beta.4: the editors' *Also update copies*, from the Game page).", kind: method, sig: "fn recipe_set_overlay_with(&self, id: &RecipeId, target: OverlayTarget, scope: EditScope, also_copies: bool, now_ms: u64) -> CatalogResult<(RecipeChange, Vec<CatalogChange>)>"}
     "catalog::service::CatalogService::recipe_set_settings": {doc: "`recipe_set_settings` — the B5 document (§11.L L3).", kind: method, sig: "fn recipe_set_settings(&self, id: &RecipeId, settings: GameSettings, now_ms: u64) -> CatalogResult<RecipeChange>"}
     "catalog::service::CatalogService::recipe_upsert": {doc: "`recipe_upsert` — **one transaction** (§11.B).", kind: method, sig: "fn recipe_upsert(&self, recipe: &Recipe, now_ms: u64) -> CatalogResult<RecipeChange>"}
     "catalog::service::CatalogService::referenced_by": {doc: "What still points at a row — a recipe roster, a board, a domain, an open Play.", kind: method, sig: "fn referenced_by(&self, kind: CatalogKind, id: &str) -> CatalogResult<Option<String>>"}
@@ -1841,7 +1843,7 @@ host_api:
     "preview::PreviewDomain": {kind: struct, sig: "struct PreviewDomain { id: DomainId, name: String, questions: Vec<PreviewQuestion>, incomplete: u32 }"}
     "preview::PreviewQuestion": {kind: struct, sig: "struct PreviewQuestion { id: QuestionId, stem: String, difficulty: u8, duration_ms: Option<u32>, correct_count: u32 }"}
     "preview::PreviewRow": {doc: "One difficulty, and what it pays at every lock sample.", kind: struct, sig: "struct PreviewRow { difficulty: u8, question_count: u32, domains: Vec<String>, base: u32, base_from: BaseSource, correct: Vec<AwardBreakdown>, partial: Option<Vec<AwardBreakdown>>, incorrect: u32 }"}
-    "preview::PreviewWarning": {doc: "Something about this combination that will surprise the operator during a show.", kind: enum, sig: "enum PreviewWarning { MixedDurations { questions: u32 } | SpeedWithoutTimer | BandsNotMonotonic { index: u32 } | UnreachableBand { index: u32, up_to: u8 } | AboveLastBand { questions: u32, up_to: u8 } | BonusUnreachable { count: u32, cap: u32 } | RaggedBoard { min: u32, max: u32 } | FlatBoard { difficulty: u8 } | DuplicateDifficulty { difficulty: u8, questions: u32 } | IncompleteQuestions { questions: u32 } }"}
+    "preview::PreviewWarning": {doc: "Something about this combination that will surprise the operator during a show.", kind: enum, sig: "enum PreviewWarning { ArchivedOnGame { names: Vec<String> } | MixedDurations { questions: u32 } | SpeedWithoutTimer | BandsNotMonotonic { index: u32 } | UnreachableBand { index: u32, up_to: u8 } | AboveLastBand { questions: u32, up_to: u8 } | BonusUnreachable { count: u32, cap: u32 } | RaggedBoard { min: u32, max: u32 } | FlatBoard { difficulty: u8 } | DuplicateDifficulty { difficulty: u8, questions: u32 } | IncompleteQuestions { questions: u32 } }"}
     "preview::RuleEffect": {kind: struct, sig: "struct RuleEffect { key: &'static str, state: RuleState, value: RuleValue }"}
     "preview::RuleState": {doc: "What one award key is doing right now.", kind: enum, sig: "enum RuleState { Active | Off | Disabled { reason: DisabledReason } }"}
     "preview::RuleValue": {doc: "What a key is set to, structured.", kind: enum, sig: "enum RuleValue { Unset | Flag(bool) | Points(u32) | Number(f64) | Ms(u32) | Choice(&'static str) | Linear(f64) | Bands(u32) | Fraction(f64) | Streak { count: u32, award: u32 } | Inherited(bool) }"}
@@ -2108,7 +2110,7 @@ studio_calls:
     play_start: [apps/studio/src/organisms/ActionPanel.tsx]
     play_unload: [apps/studio/src/organisms/ControlTopBar.tsx]
     recipe_archive: [apps/studio/src/organisms/useArchive.tsx]
-    recipe_duplicate: [apps/studio/src/pages/GamesPage.tsx]
+    recipe_duplicate: [apps/studio/src/pages/GamePage.tsx, apps/studio/src/pages/GamesPage.tsx]
     recipe_get: [apps/studio/src/host/queries.ts]
     recipe_list: [apps/studio/src/host/queries.ts]
     recipe_new: [apps/studio/src/pages/GamesPage.tsx]
@@ -2988,6 +2990,7 @@ e2e:
     beta-stable-running.e2e.ts: "null"
     beta-start-empty.e2e.ts: "null"
     first-run.e2e.ts: "null"
+    games.e2e.ts: "[]"
     groups-tags.e2e.ts: "[]"
     library-views.e2e.ts: "['--more-questions', '120']"
     load-refusal.e2e.ts: "['--broken-board']"
@@ -3002,6 +3005,8 @@ e2e:
     e2e/specs/beta-stable-running.e2e.ts: ["questiongame Beta while questiongame is running > asks to close it first, then copies"]
     e2e/specs/beta-start-empty.e2e.ts: ["questiongame Beta, started empty > goes to first run"]
     e2e/specs/first-run.e2e.ts: ["first run > sets up an operator and the Demo"]
+    e2e/specs/games.e2e.ts:
+      - "games parity > builds a roster and a board through the pickers, edits a difficulty, and refuses an archived team"
     e2e/specs/groups-tags.e2e.ts: ["groups, tags and bulk edits > groups a domain, tags across domains, and sets a difficulty at once"]
     e2e/specs/library-views.e2e.ts: ["library views > pages, filters, groups and keeps the operator in place"]
     e2e/specs/load-refusal.e2e.ts: ["a refused Load > says why from the Roster and leads to the Board"]

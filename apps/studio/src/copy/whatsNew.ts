@@ -30,6 +30,47 @@ export interface WhatsNewRelease {
 
 export const WHATS_NEW: readonly WhatsNewRelease[] = [
   {
+    version: '2.0.0-beta.4',
+    notes: {
+      en: [
+        {
+          title: 'Build a board in minutes',
+          body: 'Add teams…, Add domains… and Choose questions… open a list you can search, filter by difficulty or tag, group by the domain’s groups and page through. Tick a group’s header to take all of it: one question per difficulty, unless the game allows repeats.',
+        },
+        {
+          title: 'Difficulty in a dialog',
+          body: 'Changing a question’s difficulty on the board opens a small dialog. Apply to original now offers to update the question’s copies too.',
+        },
+        {
+          title: 'More from the Game page and the Games list',
+          body: 'The Game page can duplicate, copy and move its game from More actions. The Games list has a bulk bar to archive, restore, copy or move several games; the game playing in Control is left as it is.',
+        },
+        {
+          title: 'Clearer before Load',
+          body: 'An archived team on a roster is marked, the Rules tab names any archived team, domain or question a game still uses, and Load says which one stops it, on the Roster. Plays are numbered Play 1, Play 2 and so on.',
+        },
+      ],
+      ro: [
+        {
+          title: 'Un tablou construit în câteva minute',
+          body: 'Add teams…, Add domains… și Choose questions… deschid o listă în care poți căuta, filtra după dificultate sau etichetă, grupa după grupurile domeniului și răsfoi pe pagini. Bifează antetul unui grup ca să-l iei întreg: o întrebare pe dificultate, dacă jocul nu permite repetări.',
+        },
+        {
+          title: 'Dificultatea într-o fereastră',
+          body: 'Schimbarea dificultății unei întrebări pe tablou deschide o fereastră mică. Apply to original se oferă acum să actualizeze și copiile întrebării.',
+        },
+        {
+          title: 'Mai mult din pagina jocului și din lista de jocuri',
+          body: 'Pagina jocului poate duplica, copia și muta jocul din More actions. Lista Games are o bară pentru mai multe jocuri deodată: arhivare, restaurare, copiere sau mutare; jocul care rulează în Control rămâne neatins.',
+        },
+        {
+          title: 'Mai limpede înainte de Load',
+          body: 'O echipă arhivată din listă e marcată, fila Rules numește orice echipă, domeniu sau întrebare arhivată pe care jocul încă o folosește, iar Load spune, pe Roster, care anume îl oprește. Jocurile rulate sunt numerotate Play 1, Play 2 și așa mai departe.',
+        },
+      ],
+    },
+  },
+  {
     version: '2.0.0-beta.3',
     notes: {
       en: [

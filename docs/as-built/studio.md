@@ -130,6 +130,18 @@ The host half is `host.md` ▸ Copy, import and refusals.
 - **Twins are not re-checked on Restore**: restoring an archived row beside an active one of the same name says nothing; the next edit of either shows the note. A soft warning, by design.
 - **Dialog footers wrap** (`studio.css`: `.alert-dialog__footer`, `.modal__footer`), and *This row has copies* is `md`: its three actions spilled out of the frame at `sm` (the maintainer's beta.2 screenshot; `workspaces.e2e.ts` now asserts every button sits inside the dialog).
 
+## Games parity in Studio (beta.4)
+
+The design is `05_STUDIO_DESIGN.md` §24; the host half is `host.md` ▸ Games parity.
+
+- **`PickerDialog` holds its own choice**, not `useListView`'s selection: a library selection clears on any filter (so a bulk action never reaches a hidden row), and a picker must keep a tick the search hid. It resets the picker tab's session view on every opening (`EMPTY_LIST_STATE`); its search is a fold over each row's words, not `catalog_search`. *Select all in a group* walks the group's rows across every page (`listView` with `pageSize: 'all'`) and re-asks `disabledReason` after each tick, so one-per-difficulty holds inside the walk.
+- **Three picker tabs** (`pickTeams`, `pickDomains`, `pickQuestions` in `LibraryTab`): their sort and grouping are remembered per operator like a library tab's; `ListToolbar`'s View and Status are optional and a picker has neither.
+- **A question in the picker is its effective body** (overlay applied): its difficulty filter, band and completeness are what this game would ask.
+- **`DifficultyDialog` judges on press** (found on the real app: HeroUI's `NumberField` commits on blur, and a button disabled until the value changed ate the press that caused the blur). `ScopeConfirm` is gone; *Apply to original* asks `usePropagatingSave.decide` and sends `alsoCopies`.
+- **`RunOptions.code`** renames a refusal's notice code (a refused Load is `play_refused`, *This game cannot start yet.*). `useHostCommand` opens the collector on a refusal only when its Game section is not the one in view (`gameSectionOf` against the route). `InlineNotice` drops the `path: ` the host's message starts with.
+- **`useTransfer.menu(selection, move?)`**: Move can take less than Copy — the Games bulk bar leaves the playing game out of Move and Archive and says so.
+- **`playNumbers`** (`PlaysSection`): ordinal by `startedAtMs`, then id; a wiped Play's number goes with it.
+
 ## Library views as built (stable 1.1, P13.2–P13.4)
 
 The design is `05_STUDIO_DESIGN.md` §20. What a later change must not undo:

@@ -75,7 +75,7 @@ The §4.2 document and the only flag reader. It holds the globals, the recipe in
 - `catalog_*` covers teams, domains, questions, operators and assets. **Recipes are not reachable through it** — §11.A and §11.B are two verb lists, and `catalog_list`/`catalog_get` refuse `CatalogKind::Recipe` on purpose.
 - Archive is `archived_at`. There is no hard-delete path in the crate; `referenced_by` reports what a row is used by.
 - `recipe_upsert` is one transaction and advances `rev` once. `recipe_set_membership` / `set_settings` / `set_layout` / `set_overlay` are the same write, named.
-- `recipe_set_overlay` carries ScopeConfirm (§2.17): `ThisGame` writes the patch, `Original` writes the catalog row, drops *this* recipe's patch, and leaves every other recipe's patch standing. A per-question duration has no original.
+- `recipe_set_overlay` carries the scope choice (§2.17; `DifficultyDialog` since beta.4): `ThisGame` writes the patch, `Original` writes the catalog row, drops *this* recipe's patch, and leaves every other recipe's patch standing. A per-question duration has no original.
 - `build_snapshot` applies overlays to bodies (§4.3) and **refuses a board that names an archived or missing row** rather than quietly dropping a question.
 - The Tantivy index is in RAM, rebuilt at open from the catalog, updated by every write, and committed lazily on the next search. Terms match exactly or by prefix.
 - Bulk (§2.19) is **one transaction and one fsync per batch**: `catalog_upsert_many` / `catalog_archive_many` / `catalog_restore_many`. The whole batch is validated before anything is written, so a bad row at index 199 leaves the library untouched.
@@ -125,6 +125,14 @@ Design: `docs/superpowers/specs/2026-10-21-beta3-copy-import-editor-design.md` (
 - **The editor's *Also update copies* is one transaction**: `catalog_upsert_propagating` takes `with` — rows of this workspace written after the copies, inside the same transaction (`catalog_upsert_propagating_with`) — so a refused membership leaves neither the question nor its copies saved.
 - **Import resolves names in this workspace, oldest first**: of two domains with one name the oldest-created takes it, and codes are walked in the same order; a code names exactly one. Each `ImportRow` carries `landing` ("History (HIS_100)", "Rome (new)", "History (HIS_200), one of 2 named History"), its cleaned `tags`, and for a duplicate either `duplicate_of` (the library question's stem) or `duplicate_row` (the earlier row of the file, 1-based) — a value, so Studio never reads host English. `fake/import.ts` mirrors all of it.
 - `catalog_upsert_many` indexes the question it stored, tags re-spelled, as `catalog_upsert` does.
+
+## Games parity (beta.4)
+
+Design: `docs/superpowers/specs/2026-10-21-beta4-games-parity-design.md`.
+
+- **An archived team on the roster is refused at Load** (`snapshot::build`), as an archived domain or question already was, at `recipe.{id}.roster.team.{team}` and by name — `CatalogError::Refused`, an `Invalid` whose reason is a `String` because it names the row.
+- **`archived_on_game`** lists the archived teams, domains and questions a game names ("team Green"); `rules_preview` puts them first as `PreviewWarning::ArchivedOnGame { names }` (the enum is no longer `Copy`).
+- **`recipe_set_overlay_with(…, also_copies)`**: *Apply to original* writes the library row through `catalog_upsert_propagating` when asked, and returns the copies it changed; the command takes `alsoCopies` and announces each. `recipe_set_overlay` is the same with `false`.
 
 ## Domain groups, tags, bulk edits (P15)
 
