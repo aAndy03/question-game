@@ -535,6 +535,15 @@ export interface Workspace {
   readonly archivedAt: number | null
 }
 
+/** What a workspace holds, active rows only (beta.5). */
+export interface WorkspaceCounts {
+  readonly workspace: string
+  readonly teams: number
+  readonly domains: number
+  readonly questions: number
+  readonly games: number
+}
+
 export interface WorkspaceGroup {
   readonly id: string
   readonly name: string

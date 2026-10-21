@@ -1020,6 +1020,48 @@ impl CatalogService {
         ))
     }
 
+    /// How many question tags are spelled two ways in a workspace (beta.5).
+    pub fn tag_spellings(&self) -> CatalogResult<u32> {
+        super::integrity::tag_spellings(&self.conn())
+    }
+
+    /// One spelling per tag and workspace — the earliest question's — in one
+    /// transaction (beta.5, *Use one spelling*). Returns how many tags changed.
+    pub fn tags_unify(&self) -> CatalogResult<u32> {
+        let changed = {
+            let mut conn = self.conn();
+            let tx = conn.transaction()?;
+            let changed = super::integrity::unify_tags(&tx)?;
+            tx.commit()?;
+            changed
+        };
+        if changed > 0 {
+            self.rebuild_search_index()?;
+        }
+        Ok(changed)
+    }
+
+    /// This workspace's active games that Load would refuse (beta.5): a
+    /// board rule broken, or an archived team, domain or question named. Their
+    /// names, so health can say which.
+    pub fn boards_broken(&self) -> CatalogResult<Vec<String>> {
+        let mut out = Vec::new();
+        for recipe in self.recipe_list(ArchiveScope::Active)? {
+            if self.check_board(&recipe, None).is_err() || !self.archived_on_game(&recipe.id)?.is_empty() {
+                out.push(recipe.name);
+            }
+        }
+        Ok(out)
+    }
+
+    /// What each workspace holds, active rows only (beta.5, *Manage workspaces*).
+    pub fn workspace_counts(&self) -> CatalogResult<Vec<crate::catalog::WorkspaceCounts>> {
+        Ok(super::integrity::workspace_counts(&self.conn())?
+            .into_iter()
+            .map(|(workspace, [teams, domains, questions, games])| crate::catalog::WorkspaceCounts { workspace, teams, domains, questions, games })
+            .collect())
+    }
+
     /// The archived rows a game still names (beta.4), by name, each once —
     /// values for Studio to say, as every preview code is. A row it cannot
     /// read is left out: the preview describes, Load refuses.

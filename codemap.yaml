@@ -641,6 +641,13 @@ commands:
     file: crates/app/src/commands/groups.rs
     params: ["from: String", "to: String", "preview: bool"]
     returns: "AppResult<BulkReport>"
+  tags_unify:
+    async: true
+    callers: [main]
+    doc: "*Use one spelling* (beta.5): the action behind `health.tag_spellings`."
+    file: crates/app/src/commands/workspace.rs
+    params: []
+    returns: "AppResult<u32>"
   transfer_preview:
     async: true
     callers: [main]
@@ -702,6 +709,13 @@ commands:
     file: crates/app/src/commands/workspace.rs
     params: ["id: WorkspaceId"]
     returns: "AppResult<()>"
+  workspace_counts:
+    async: true
+    callers: [main]
+    doc: "What each workspace holds (beta.5: *Manage workspaces*)."
+    file: crates/app/src/commands/workspace.rs
+    params: []
+    returns: "AppResult<Vec<questiongame_host::catalog::WorkspaceCounts>>"
   workspace_create:
     async: true
     callers: [main]
@@ -969,6 +983,8 @@ contract:
       - catalog_family
       - catalog_duplicate
       - library_repair
+      - workspace_counts
+      - tags_unify
   events:
     - catalog-changed
     - workspace-changed
@@ -983,7 +999,7 @@ contract:
   files:
     packages/contract/src/commands.ts:
       COMMANDS: {kind: const, sig: "#e3696517"}
-      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, organise, workspace, app } #db0f7859"}
+      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, organise, workspace, app } #b29d9950"}
       CatalogChange: {doc: "`catalog-changed`.", kind: interface, sig: "{ kind, id, op }"}
       Command: {kind: type, sig: "(typeof COMMAND_GROUPS)[CommandGroup][number]"}
       CommandGroup: {kind: type, sig: "keyof typeof COMMAND_GROUPS"}
@@ -1554,6 +1570,7 @@ host_api:
     "catalog::service::CatalogService": {kind: struct, sig: "struct CatalogService {  }"}
     "catalog::service::CatalogService::archived_on_game": {doc: "The archived rows a game still names (beta.4), by name, each once — values for Studio to say, as every preview code is.", kind: method, sig: "fn archived_on_game(&self, recipe_id: &RecipeId) -> CatalogResult<crate::preview::ArchivedNames>"}
     "catalog::service::CatalogService::asset_put": {doc: "`asset_put` — the same write, named the way §11.A names it.", kind: method, sig: "fn asset_put(&self, asset: &Asset, now_ms: u64) -> CatalogResult<CatalogChange>"}
+    "catalog::service::CatalogService::boards_broken": {doc: "This workspace's active games that Load would refuse (beta.5): a board rule broken, or an archived team, domain or question named.", kind: method, sig: "fn boards_broken(&self) -> CatalogResult<Vec<String>>"}
     "catalog::service::CatalogService::build_snapshot": {doc: "§4.3 — the copy a Play starts from, with the recipe's overlays already applied to every body (§2.17).", kind: method, sig: "fn build_snapshot(&self, recipe_id: &RecipeId, play_id: PlayId, settings: FrozenSettings) -> CatalogResult<PlaySnapshot>"}
     "catalog::service::CatalogService::catalog_archive": {doc: "`catalog_archive` — soft, restorable, and the only kind of delete v1 has (§4.1).", kind: method, sig: "fn catalog_archive(&self, kind: CatalogKind, id: &str, now_ms: u64) -> CatalogResult<CatalogChange>"}
     "catalog::service::CatalogService::catalog_archive_many": {doc: "`catalog_archive_many` — the bulk sibling of [`Self::catalog_archive`].", kind: method, sig: "fn catalog_archive_many(&self, kind: CatalogKind, ids: &[String], now_ms: u64) -> CatalogResult<Vec<CatalogChange>>"}
@@ -1597,7 +1614,10 @@ host_api:
     "catalog::service::CatalogService::settings_load": {doc: "The all-games document (§11.L L1/L2).", kind: method, sig: "fn settings_load(&self) -> CatalogResult<Option<GlobalSettings>>"}
     "catalog::service::CatalogService::settings_store": {doc: "Store the globals.", kind: method, sig: "fn settings_store(&self, settings: &GlobalSettings) -> CatalogResult<()>"}
     "catalog::service::CatalogService::stats_query": {doc: "`stats_query` (§11.K) — the one Statistics command.", kind: method, sig: "fn stats_query(&self, query: &StatsQuery) -> CatalogResult<StatsResult>"}
+    "catalog::service::CatalogService::tag_spellings": {doc: "How many question tags are spelled two ways in a workspace (beta.5).", kind: method, sig: "fn tag_spellings(&self) -> CatalogResult<u32>"}
+    "catalog::service::CatalogService::tags_unify": {doc: "One spelling per tag and workspace — the earliest question's — in one transaction (beta.5, *Use one spelling*).", kind: method, sig: "fn tags_unify(&self) -> CatalogResult<u32>"}
     "catalog::service::CatalogService::wipe_plays": {doc: "`wipe_plays` (§12.3) — every **closed** Play and its log, in one transaction.", kind: method, sig: "fn wipe_plays(&self) -> CatalogResult<WipedPlays>"}
+    "catalog::service::CatalogService::workspace_counts": {doc: "What each workspace holds, active rows only (beta.5, *Manage workspaces*).", kind: method, sig: "fn workspace_counts(&self) -> CatalogResult<Vec<crate::catalog::WorkspaceCounts>>"}
     "catalog::service::ChangeOp": {doc: "The `op` of `catalog-changed { kind, id, op }` (§11.A).", kind: enum, sig: "enum ChangeOp { Upserted | Archived | Restored }"}
     "catalog::service::ChangeOp::as_str": {kind: method, sig: "fn as_str(self) -> &'static str"}
     "catalog::service::OverlayTarget": {doc: "Which overlay a `recipe_set_overlay` writes, and to what.", kind: enum, sig: "enum OverlayTarget { Team(TeamId, Option<TeamOverlay>) | Domain(DomainId, Option<DomainOverlay>) | Question(QuestionId, Option<QuestionOverlay>) }"}
@@ -1638,6 +1658,7 @@ host_api:
     "catalog::workspace::WORKSPACE_NAME_MAX": {doc: "The longest workspace or group name, in characters.", kind: const, sig: "const WORKSPACE_NAME_MAX: usize = 60"}
     "catalog::workspace::Workspace": {kind: struct, sig: "struct Workspace { id: WorkspaceId, name: Option<String>, group_id: Option<WorkspaceGroupId>, sort_key: i64, settings: Option<serde_json::Value>, created_at: u64, updated_at: u64, archived_at: Option<u64> }"}
     "catalog::workspace::Workspace::is_archived": {kind: method, sig: "fn is_archived(&self) -> bool"}
+    "catalog::workspace::WorkspaceCounts": {doc: "What a workspace holds, active rows only (beta.5).", kind: struct, sig: "struct WorkspaceCounts { workspace: String, teams: u32, domains: u32, questions: u32, games: u32 }"}
     "catalog::workspace::WorkspaceGroup": {kind: struct, sig: "struct WorkspaceGroup { id: WorkspaceGroupId, name: String, sort_key: i64, created_at: u64, updated_at: u64 }"}
   crates/host/src/error.rs:
     "error::MatchError": {kind: enum, sig: "enum MatchError { BoardEmpty | WrongStatus { actual: PlayStatus, expected: Vec<PlayStatus> } | NoPlay | WrongPlay(PlayId) | NoToken | UnknownTeam(TeamId) | UnknownDomain(DomainId) | UnknownQuestion(QuestionId) | UnknownOption(OptionId) | DomainEmpty(DomainId) | UnknownRank(u32) | SessionAlreadyIssued | SessionNotIssued | AlreadyLocked | EmptySelection | AlreadyResolved | TimerDisabled | TimerAlreadyRunning | TimerAtZero | TimerNotRunning | IllegalTokenTarget { target: TeamId, legal: Vec<TeamId> } | IllegalReorder(&'static str) | OverrideRefusedUntilReveal | NothingToUndo | NothingToRedo | SettingFrozen(&'static str) | IllegalSettings { key: &'static str, reason: &'static str } | NoRecipeLoaded | FeatureOff(&'static str) | PlayOpen }"}
@@ -1737,7 +1758,7 @@ host_api:
     "flags::validate": {doc: "The §4.2 interlock table over one recipe document.", kind: fn, sig: "fn validate(game: &GameSettings) -> MatchResult<()>"}
   crates/host/src/health.rs:
     "health::DISK_LOW_BYTES": {doc: "Below this the data volume is a problem worth a notice: one show's worth of Plays and a search index fit in a fraction of it, so the warning arrives long before a save can fail.", kind: const, sig: "const DISK_LOW_BYTES: u64 = 500 * 1024 * 1024"}
-    "health::HealthInputs": {doc: "What the app crate can see and the host cannot.", kind: struct, sig: "struct HealthInputs { free_bytes: Option<u64>, last_persist_error: Option<String>, search_ok: bool, stage_window_exists: bool, stage_ready: bool, stage_contract_version: Option<u32>, missing_cues: Vec<(CueKey, String)>, failed_cues: Vec<(CueKey, String)>, unused_displays: Vec<String>, library_refs: u32 }"}
+    "health::HealthInputs": {doc: "What the app crate can see and the host cannot.", kind: struct, sig: "struct HealthInputs { free_bytes: Option<u64>, last_persist_error: Option<String>, search_ok: bool, stage_window_exists: bool, stage_ready: bool, stage_contract_version: Option<u32>, missing_cues: Vec<(CueKey, String)>, failed_cues: Vec<(CueKey, String)>, unused_displays: Vec<String>, library_refs: u32, boards_broken: Vec<String>, tag_spellings: u32 }"}
     "health::HealthReport": {kind: struct, sig: "struct HealthReport { status: HealthStatus, items: Vec<Notice> }"}
     "health::HealthReport::ok": {kind: method, sig: "fn ok() -> Self"}
     "health::HealthStatus": {doc: "The worst severity among the items.", kind: enum, sig: "enum HealthStatus { Ok | Warn | Error }"}
@@ -2203,6 +2224,7 @@ studio_calls:
     tag_delete: [apps/studio/src/organisms/ManageTagsDialog.tsx]
     tag_list: [apps/studio/src/host/queries.ts]
     tag_rename: [apps/studio/src/organisms/ManageTagsDialog.tsx]
+    tags_unify: [apps/studio/src/organisms/NoticeCollector.tsx]
     transfer_preview: [apps/studio/src/organisms/useTransfer.tsx]
     undo_turn:
       - apps/studio/src/organisms/ActionPanel.tsx
@@ -2213,6 +2235,7 @@ studio_calls:
     whats_new_get: [apps/studio/src/host/whatsNew.ts]
     whats_new_seen: [apps/studio/src/host/whatsNew.ts, apps/studio/src/organisms/WhatsNewDialog.tsx]
     wipe_plays: [apps/studio/src/organisms/DataActions.tsx]
+    workspace_counts: [apps/studio/src/host/queries.ts]
     workspace_create: [apps/studio/src/organisms/WorkspaceSwitcher.tsx, apps/studio/src/pages/WorkspacesPage.tsx]
     workspace_delete: [apps/studio/src/pages/WorkspacesPage.tsx]
     workspace_delete_preview: [apps/studio/src/pages/WorkspacesPage.tsx]

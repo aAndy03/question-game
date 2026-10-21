@@ -1844,6 +1844,7 @@ Design: `docs/superpowers/specs/2026-10-21-beta5-the-rest-design.md`; plan and S
 - ☑ **P19.0** — host: `catalog_family`, `catalog_duplicate`, the library check and `library_repair`, `StatsDimension::Workspace`, a team's Plays in its workspace.
 - ☑ **P19.1** — Studio: *Copies* in the panels, *Duplicate*, Manage workspaces as a list, *Workspace group* / *Domain group* / *Question tag* / *Game tag*, `SHELL` strings, the switcher's reason by keyboard, Repair.
 - ☑ **P19.2** — `beta5.e2e.ts` on the real app; docs, *What's new* 2.0.0-beta.5.
+- ☑ **P19.3** — what the line named that the first build left out: workspace counts, the workspace under Statistics' title, members in another domain's group, broken boards and tag spellings in Health.
 
 ### Stable 1.1.1 — the narrow window and the 1.1 bugs  ☑
 

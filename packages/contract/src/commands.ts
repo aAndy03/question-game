@@ -220,6 +220,10 @@ export const COMMAND_GROUPS = {
     'catalog_duplicate',
     /** *Repair*: remove references that point at nothing or at another workspace (beta.5). */
     'library_repair',
+    /** What each workspace holds, active rows only (beta.5). */
+    'workspace_counts',
+    /** One spelling per question tag and workspace (beta.5). */
+    'tags_unify',
   ],
   /** The app itself (P12): the close guard's answers and the uninstaller. */
   app: [

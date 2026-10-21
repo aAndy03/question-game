@@ -14,7 +14,7 @@ import { WORKSPACE } from '@/copy/workspaces'
 import { useHostCommand } from '@/host/commands'
 import { command } from '@/host/host'
 import { usePlayState } from '@/host/playState'
-import { useCatalogItem, useSettings, useWorkspaces } from '@/host/queries'
+import { useCatalogItem, useSettings, useWorkspaceCounts, useWorkspaces } from '@/host/queries'
 import type { DeletePreview, DeleteReport, Workspace, WorkspaceGroup } from '@/host/types'
 
 type Dialog =
@@ -50,6 +50,7 @@ export function WorkspacesPage() {
   const [pending, setPending] = useState(false)
   const data = workspaces.data
   const loaded = isGameLoaded(play)
+  const counts = useWorkspaceCounts()
   const scope = useArchiveScope('workspaces')
   const setScope = useChromeStore((s) => s.setArchiveScope)
   const groups = useMemo(() => [...(data?.groups ?? [])].sort((a, b) => a.sortKey - b.sortKey), [data?.groups])
@@ -65,6 +66,11 @@ export function WorkspacesPage() {
           view: {
             id: w.id,
             title: workspaceName(w),
+            // What it holds (beta.5), once the host has said.
+            subtitle: (() => {
+              const c = counts.data?.find((x) => x.workspace === w.id)
+              return c ? WORKSPACE.counts(c) : undefined
+            })(),
             isArchived: w.archivedAt !== null,
             chips: (
               <>
@@ -74,7 +80,7 @@ export function WorkspacesPage() {
             ),
           },
         })),
-    [data, scope],
+    [data, scope, counts.data],
   )
   const search = useChromeStore((s) => s.listState.workspaces?.search ?? '')
   const hits = useMemo(() => {

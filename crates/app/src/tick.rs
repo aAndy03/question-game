@@ -59,6 +59,14 @@ pub fn health_once(app: &AppHandle) {
         tracing::warn!(%error, "the library check failed");
         0
     });
+    host.health.inputs.boards_broken = host.catalog.boards_broken().unwrap_or_else(|error| {
+        tracing::warn!(%error, "the board check failed");
+        Vec::new()
+    });
+    host.health.inputs.tag_spellings = host.catalog.tag_spellings().unwrap_or_else(|error| {
+        tracing::warn!(%error, "the tag check failed");
+        0
+    });
     let (report, changed) = host.health.report(stage_exists, free);
     if changed {
         emit::health(app, &report);

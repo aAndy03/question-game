@@ -42,6 +42,7 @@ import type {
   Workspaces,
   TagCount,
   FamilyCopy,
+  WorkspaceCounts,
 } from './types'
 
 export const keys = {
@@ -360,6 +361,15 @@ export function useWorkspaceGeneration(): number {
 }
 
 /** Every workspace, every group, and the one Studio works in (Beta 2.0). */
+/** What each workspace holds (beta.5): refreshed with the library and the workspaces. */
+export function useWorkspaceCounts() {
+  return useQuery({
+    queryKey: ['catalog', 'workspace-counts'] as const,
+    queryFn: () => command<WorkspaceCounts[]>('workspace_counts'),
+    enabled: enabled(),
+  })
+}
+
 export function useWorkspaces() {
   return useQuery({
     queryKey: keys.workspaces,

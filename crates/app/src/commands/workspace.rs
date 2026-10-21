@@ -437,6 +437,23 @@ pub fn catalog_duplicate(
     Ok(made)
 }
 
+/// What each workspace holds (beta.5: *Manage workspaces*).
+#[tauri::command(async)]
+pub fn workspace_counts(window: WebviewWindow, state: State<'_, AppState>) -> AppResult<Vec<questiongame_host::catalog::WorkspaceCounts>> {
+    guard::allow(window.label(), "workspace_counts")?;
+    Ok(state.lock().catalog.workspace_counts()?)
+}
+
+/// *Use one spelling* (beta.5): the action behind `health.tag_spellings`.
+#[tauri::command(async)]
+pub fn tags_unify(window: WebviewWindow, app: AppHandle, state: State<'_, AppState>) -> AppResult<u32> {
+    guard::allow(window.label(), "tags_unify")?;
+    let changed = state.lock().catalog.tags_unify()?;
+    emit::catalog_changed(&app, &CatalogChange { kind: CatalogKind::Question, id: String::new(), op: ChangeOp::Upserted });
+    crate::tick::health_once(&app);
+    Ok(changed)
+}
+
 /// *Stop following its copies*.
 #[tauri::command(async)]
 pub fn catalog_unfollow(

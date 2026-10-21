@@ -32,5 +32,8 @@ Status: built, 2026-10-21. The scope is the roadmap's beta.5 line, from the two 
 **Accessibility**
 10. **The disabled switcher's reason is reachable by keyboard**: focusable and named by where you are and the reason, as `DisabledReason` makes every disabled `Button` (both a `role="group"` span, so the name is read).
 
+## Added after the build (P19.3)
+The roadmap's beta.5 line also named, and this design had left out: **counts** in Manage workspaces; **the workspace in Statistics' header** (the window title already named it); and, in the library check, **orphan groups** (a member in another domain's group), **broken boards** (this workspace's games Load would refuse — *Show games*) and **tag spellings** (*Use one spelling*: the earliest question's).
+
 ## Non-goals
 No game-tag or folder editor (the model has them; nothing edits them yet — an interface pass). No automatic repair. No change to what a copy follows.

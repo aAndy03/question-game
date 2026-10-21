@@ -41,6 +41,9 @@ export const STATS = {
     workspace: 'Workspace',
   } as Readonly<Record<string, string>>,
 
+  /** The page's line under its title: which workspace it counts (beta.5). */
+  inWorkspace: (name: string) => `Plays in ${name} — or every workspace, with All workspaces.`,
+
   filters: {
     title: 'Filters',
     time: 'Time',

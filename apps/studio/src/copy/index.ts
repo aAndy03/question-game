@@ -341,6 +341,7 @@ export const SHELL = {
   dismiss: 'Dismiss',
   canvas: 'Canvas',
   id: 'Id',
+  unified: (n: number) => (n === 1 ? 'One tag respelled' : `${n} tags respelled`),
   repairTitle: (n: string) => `Remove ${n} broken references?`,
   repairBody: 'Only the references go: a domain member, a roster or board entry, a logo or media link that points at nothing or across workspaces. No team, domain, question or game is deleted.',
   repaired: (n: number) => (n === 1 ? 'Removed 1 broken reference' : `Removed ${n} broken references`),
@@ -616,6 +617,14 @@ export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Read
   'health.persist_failed': {
     title: 'The last save failed: {message}. The Play continues in memory until a save succeeds.',
     actions: { open_data_folder: 'Open data folder' },
+  },
+  'health.boards_broken': {
+    title: 'Games here that would not load: {count}, {first} among them.',
+    actions: { open_games: 'Show games' },
+  },
+  'health.tag_spellings': {
+    title: 'Question tags spelled two ways: {count}.',
+    actions: { unify_tags: 'Use one spelling' },
   },
   'health.library_refs': {
     title: '{count} references in the library point at nothing, or at another workspace.',

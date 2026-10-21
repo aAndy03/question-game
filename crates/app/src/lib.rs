@@ -277,6 +277,8 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::workspace::catalog_unfollow,
         commands::workspace::catalog_family,
         commands::workspace::catalog_duplicate,
+        commands::workspace::workspace_counts,
+        commands::workspace::tags_unify,
         commands::catalog::library_repair,
         // CatalogService
         commands::catalog::catalog_list,

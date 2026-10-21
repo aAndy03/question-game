@@ -416,3 +416,66 @@ fn a_duplicated_question_skips_an_archived_domain() {
     assert!(holds("d1"));
     assert!(!holds("d2"));
 }
+
+#[test]
+fn a_member_in_another_domains_group_is_repaired_into_no_group() {
+    let dir = std::env::temp_dir().join(format!("qg-beta5-orphan-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("questiongame.sqlite3");
+    let catalog = CatalogService::open(CatalogLocation::file(&path)).unwrap();
+    catalog.catalog_upsert(&question("q1", 10), NOW).unwrap();
+    for id in ["d1", "d2"] {
+        let mut d = Domain::new(id, id, "DOM");
+        d.questions = vec![DomainMember { question_id: QuestionId::from("q1"), sort_key: 0, group_id: None }];
+        catalog.catalog_upsert(&CatalogItem::Domain(Box::new(d)), NOW).unwrap();
+    }
+    let g = catalog.domain_group_create(&"d2".into(), "Theirs", NOW).unwrap();
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute("UPDATE domain_questions SET group_id = ?1 WHERE domain_id = 'd1'", [g.id.as_str()])
+        .unwrap();
+    assert_eq!(catalog.library_check().unwrap(), 1);
+    assert_eq!(catalog.library_repair(NOW).unwrap().0, 1);
+    match catalog.catalog_get(CatalogKind::Domain, "d1").unwrap() {
+        CatalogItem::Domain(d) => assert_eq!(d.questions[0].group_id, None, "the member stays, in no group"),
+        other => panic!("{other:?}"),
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_tag_spelled_two_ways_is_found_and_given_one_spelling() {
+    let dir = std::env::temp_dir().join(format!("qg-beta5-tags-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("questiongame.sqlite3");
+    let catalog = CatalogService::open(CatalogLocation::file(&path)).unwrap();
+    for (id, at) in [("q1", NOW), ("q2", NOW + 1)] {
+        let CatalogItem::Question(mut q) = question(id, 10) else { panic!() };
+        q.tags = vec!["Rome".into()];
+        catalog.catalog_upsert(&CatalogItem::Question(q), at).unwrap();
+    }
+    assert_eq!(catalog.tag_spellings().unwrap(), 0);
+    rusqlite::Connection::open(&path).unwrap().execute("UPDATE question_tags SET tag = 'ROME' WHERE question_id = 'q2'", []).unwrap();
+    assert_eq!(catalog.tag_spellings().unwrap(), 1);
+    assert_eq!(catalog.tags_unify().unwrap(), 1);
+    assert_eq!(catalog.tag_spellings().unwrap(), 0);
+    match catalog.catalog_get(CatalogKind::Question, "q2").unwrap() {
+        CatalogItem::Question(q) => assert_eq!(q.tags, ["Rome"], "the earliest question's spelling"),
+        other => panic!("{other:?}"),
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_game_load_would_refuse_is_named_and_workspaces_say_what_they_hold() {
+    let catalog = CatalogService::open(CatalogLocation::Memory).unwrap();
+    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    assert!(catalog.boards_broken().unwrap().is_empty());
+    catalog.catalog_archive(CatalogKind::Team, "seed-team-red", NOW).unwrap();
+    assert_eq!(catalog.boards_broken().unwrap(), ["Demo"]);
+    let counts = catalog.workspace_counts().unwrap();
+    assert_eq!(counts.len(), 1);
+    assert_eq!((counts[0].teams, counts[0].domains, counts[0].questions, counts[0].games), (1, 2, 6, 1));
+}

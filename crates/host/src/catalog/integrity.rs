@@ -57,6 +57,14 @@ const PROBLEMS: &[Problem] = &[
         clear: "DELETE FROM recipe_questions WHERE rowid IN",
         recipe_of: Some("SELECT recipe_id FROM recipe_questions WHERE rowid IN"),
     },
+    // A member in a domain group of another domain (an orphan group, review of
+    // the roadmap's beta.5 line): the member stays, in no group.
+    Problem {
+        holders: "SELECT dq.rowid FROM domain_questions dq JOIN domain_groups g ON g.id = dq.group_id
+                  WHERE g.domain_id IS NOT dq.domain_id",
+        clear: "UPDATE domain_questions SET group_id = NULL WHERE rowid IN",
+        recipe_of: None,
+    },
     // A team logo.
     Problem {
         holders: "SELECT t.rowid FROM teams t LEFT JOIN assets a ON a.id = t.logo_asset_id
@@ -125,4 +133,55 @@ pub(super) fn repair(
         moved.push((id, rev as u32));
     }
     Ok((total, moved))
+}
+
+/// Question tags of one key spelled two ways inside one workspace ("Rome" and
+/// "rome"): how many such keys. `clean_tags` keeps one spelling on the way
+/// in, so this is a library written before it, or edited from outside.
+pub(super) fn tag_spellings(conn: &Connection) -> CatalogResult<u32> {
+    let n: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM (SELECT q.workspace_id, t.tag_key FROM question_tags t
+           JOIN questions q ON q.id = t.question_id
+          GROUP BY q.workspace_id, t.tag_key HAVING COUNT(DISTINCT t.tag) > 1)",
+        [],
+        |row| row.get(0),
+    )?;
+    Ok(n as u32)
+}
+
+/// One spelling per key and workspace: the one on the earliest-created
+/// question, as `clean_tags` would have kept. Returns how many tags changed.
+pub(super) fn unify_tags(tx: &Transaction<'_>) -> CatalogResult<u32> {
+    let changed = tx.execute(
+        "UPDATE question_tags SET tag = (
+            SELECT t2.tag FROM question_tags t2 JOIN questions q2 ON q2.id = t2.question_id
+             WHERE t2.tag_key = question_tags.tag_key
+               AND q2.workspace_id = (SELECT q.workspace_id FROM questions q WHERE q.id = question_tags.question_id)
+             ORDER BY q2.created_at, q2.id LIMIT 1)
+         WHERE tag <> (
+            SELECT t2.tag FROM question_tags t2 JOIN questions q2 ON q2.id = t2.question_id
+             WHERE t2.tag_key = question_tags.tag_key
+               AND q2.workspace_id = (SELECT q.workspace_id FROM questions q WHERE q.id = question_tags.question_id)
+             ORDER BY q2.created_at, q2.id LIMIT 1)",
+        [],
+    )?;
+    Ok(changed as u32)
+}
+
+/// What each workspace holds, active rows only: teams, domains, questions, games.
+pub(super) fn workspace_counts(conn: &Connection) -> CatalogResult<Vec<(String, [u32; 4])>> {
+    let mut stmt = conn.prepare(
+        "SELECT w.id,
+                (SELECT COUNT(*) FROM teams x WHERE x.workspace_id = w.id AND x.archived_at IS NULL),
+                (SELECT COUNT(*) FROM domains x WHERE x.workspace_id = w.id AND x.archived_at IS NULL),
+                (SELECT COUNT(*) FROM questions x WHERE x.workspace_id = w.id AND x.archived_at IS NULL),
+                (SELECT COUNT(*) FROM recipes x WHERE x.workspace_id = w.id AND x.archived_at IS NULL)
+           FROM workspaces w ORDER BY w.sort_key, w.created_at",
+    )?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, [row.get::<_, i64>(1)? as u32, row.get::<_, i64>(2)? as u32, row.get::<_, i64>(3)? as u32, row.get::<_, i64>(4)? as u32]))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
 }

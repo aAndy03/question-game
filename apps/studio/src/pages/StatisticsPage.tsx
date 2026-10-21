@@ -6,7 +6,8 @@ import { useChromeStore, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { TABS } from '@/copy'
 import { STATS } from '@/copy/stats'
-import { useWorkspaceGeneration } from '@/host/queries'
+import { useWorkspaceGeneration, useWorkspaces } from '@/host/queries'
+import { WORKSPACE } from '@/copy/workspaces'
 
 export type StatsView = 'live' | 'all'
 
@@ -41,11 +42,15 @@ export function StatisticsPage({ view, onView, surface = 'tab' }: StatisticsPage
   const setListView = useChromeStore((s) => s.setView)
   const selected: StatsView = view ?? 'live'
   const generation = useWorkspaceGeneration()
+  // Which workspace these numbers are (beta.5); with All workspaces the filter bar says so.
+  const workspaces = useWorkspaces()
+  const current = workspaces.data?.workspaces.find((w) => w.id === workspaces.data?.current)
+  const here = current ? (current.name ?? WORKSPACE.unnamed) : null
 
   return (
     <SettingsLayout
       width="wide"
-      header={<PageHeader title={TABS.statistics.label} description={TABS.statistics.hint} />}
+      header={<PageHeader title={TABS.statistics.label} description={here ? STATS.inWorkspace(here) : TABS.statistics.hint} />}
       tabs={
         <div className="flex items-end justify-between gap-4">
           <Tabs

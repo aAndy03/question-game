@@ -1767,6 +1767,12 @@ export function createFakeHost(): FakeHost {
     },
     // The fake's library holds no broken references: Repair finds none.
     library_repair: () => 0,
+    tags_unify: () => 0,
+    workspace_counts: () =>
+      fake.workspaces.map((w) => {
+        const count = (kind: string) => [...library.entries()].filter(([k, r]) => k.startsWith(`${kind}:`) && homeOf(k) === w.id && r.item.archivedAt === null).length
+        return { workspace: w.id, teams: count('team'), domains: count('domain'), questions: count('question'), games: [...recipes.values()].filter((r) => recipeHomeOf(r.id) === w.id && r.archivedAt === null).length }
+      }),
     catalog_unfollow: (a: Record<string, unknown>) => {
       families.delete(key(a.kind as string, a.id as string))
       emit('catalog-changed', { kind: a.kind, id: a.id, op: 'upserted' })

@@ -83,6 +83,17 @@ pub(crate) fn fresh_id(prefix: &str) -> String {
     format!("{prefix}-{}", &uuid[..8])
 }
 
+/// What a workspace holds, active rows only (beta.5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceCounts {
+    pub workspace: String,
+    pub teams: u32,
+    pub domains: u32,
+    pub questions: u32,
+    pub games: u32,
+}
+
 /// What *Delete permanently* removed, and where the copy taken first is.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

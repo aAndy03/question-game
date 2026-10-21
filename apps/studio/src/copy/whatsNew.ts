@@ -43,11 +43,11 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
         },
         {
           title: 'Workspaces as a list',
-          body: 'Manage workspaces can be searched, sorted and grouped like the other lists. Statistics can group by workspace when All workspaces is on, and a team’s Plays count only this workspace’s games.',
+          body: 'Manage workspaces can be searched, sorted and grouped like the other lists, and says what each workspace holds. Statistics names the workspace it counts, can group by workspace when All workspaces is on, and a team’s Plays count only this workspace’s games.',
         },
         {
           title: 'Clearer words, and a library check',
-          body: 'Workspace groups and domain groups, question tags and game tags are now named apart. If the library ever holds a reference that points nowhere, Health says so and Repair removes just that reference.',
+          body: 'Workspace groups and domain groups, question tags and game tags are now named apart. Health now says when the library holds a reference that points nowhere (Repair removes just that), when a game here would not load, and when a tag is spelled two ways.',
         },
       ],
       ro: [
@@ -61,11 +61,11 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
         },
         {
           title: 'Spațiile de lucru ca listă',
-          body: 'Manage workspaces poate fi căutat, sortat și grupat ca celelalte liste. Statistics poate grupa după spațiul de lucru când All workspaces e activ, iar Plays ale unei echipe numără doar jocurile din acest spațiu.',
+          body: 'Manage workspaces poate fi căutat, sortat și grupat ca celelalte liste și spune ce conține fiecare spațiu de lucru. Statistics numește spațiul de lucru pe care îl numără, poate grupa după el când All workspaces e activ, iar Plays ale unei echipe numără doar jocurile din acest spațiu.',
         },
         {
           title: 'Cuvinte mai clare și o verificare a bibliotecii',
-          body: 'Grupurile de spații de lucru și grupurile de domenii, etichetele întrebărilor și ale jocurilor au acum nume diferite. Dacă biblioteca ar avea vreodată o trimitere spre nimic, Health o spune, iar Repair elimină doar acea trimitere.',
+          body: 'Grupurile de spații de lucru și grupurile de domenii, etichetele întrebărilor și ale jocurilor au acum nume diferite. Health spune acum când biblioteca are o trimitere spre nimic (Repair o elimină doar pe ea), când un joc de aici nu s-ar încărca și când o etichetă e scrisă în două feluri.',
         },
       ],
     },

@@ -143,6 +143,7 @@ The design is `05_STUDIO_DESIGN.md` §25; the host half is `host.md` ▸ The res
 - **The bulk Edit menu says whose**: *Add question tag… · Remove question tag… · Set domain group…*, the field *Question tag*.
 - **An empty workspace group** is one with nothing shown in the current Status (a group of archived workspaces under Active), listed with its menu beneath the list; none while searching.
 - **Repair** is a two-step notice: *Repair…* pushes a frame naming the count, *Remove them* calls `library_repair`.
+- **Manage workspaces** shows what each workspace holds under its name (`useWorkspaceCounts`); **Statistics** says which workspace it counts under its title; the collector's *Show games* and *Use one spelling* answer `health.boards_broken` and `health.tag_spellings`.
 - **Statistics' *Group by: Workspace*** is offered only with *All workspaces*; turning that off while grouped by workspace goes back to teams.
 
 ## Games parity in Studio (beta.4)

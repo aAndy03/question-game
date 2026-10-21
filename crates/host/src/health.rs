@@ -54,6 +54,10 @@ pub struct HealthInputs {
     /// References in the library that point at nothing or at another
     /// workspace (beta.5): `CatalogService::library_check`.
     pub library_refs: u32,
+    /// This workspace's games Load would refuse, by name (beta.5).
+    pub boards_broken: Vec<String>,
+    /// Question tags spelled two ways in one workspace (beta.5).
+    pub tag_spellings: u32,
 }
 
 /// The worst severity among the items. `Ok` is an empty report.
@@ -110,6 +114,21 @@ pub fn check(inputs: &HealthInputs) -> HealthReport {
         items.push(
             Notice::new("health.library_refs", Severity::Warn, &["repair_library"])
                 .with("count", inputs.library_refs.to_string()),
+        );
+    }
+
+    if let Some(first) = inputs.boards_broken.first() {
+        items.push(
+            Notice::new("health.boards_broken", Severity::Warn, &["open_games"])
+                .with("count", inputs.boards_broken.len().to_string())
+                .with("first", first.clone()),
+        );
+    }
+
+    if inputs.tag_spellings > 0 {
+        items.push(
+            Notice::new("health.tag_spellings", Severity::Warn, &["unify_tags"])
+                .with("count", inputs.tag_spellings.to_string()),
         );
     }
 
@@ -219,9 +238,11 @@ mod tests {
             failed_cues: vec![(CueKey::Correct, "correct.wav".to_owned())],
             unused_displays: vec!["Atomos Ninja V".to_owned()],
             library_refs: 3,
+            boards_broken: vec!["Friday".to_owned()],
+            tag_spellings: 2,
         };
         let report = check(&loud);
-        assert_eq!(report.items.len(), 9, "one item per finding");
+        assert_eq!(report.items.len(), 11, "one item per finding");
         let refs = report
             .items
             .iter()

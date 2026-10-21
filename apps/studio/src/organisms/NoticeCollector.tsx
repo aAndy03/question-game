@@ -82,6 +82,17 @@ export function NoticeCollector() {
       case 'stop_playing':
         pushFrame(notice.id, { title: SCREENS_TAB.stopTitle, body: SCREENS_TAB.stopBody, actions: ['abandon_confirm'] })
         return
+      // beta.5: games Load would refuse; tags spelled two ways.
+      case 'open_games':
+        setOpen(false)
+        await go({ tab: 'games' })
+        return
+      case 'unify_tags': {
+        const changed = await run<number>('tags_unify')
+        if (changed !== null) toast.success(SHELL.unified(changed))
+        dismiss(notice.id)
+        return
+      }
       // beta.5: the library check. Repair asks first, in the same notice.
       case 'repair_library':
         pushFrame(notice.id, { title: SHELL.repairTitle(notice.detail.count ?? ''), body: SHELL.repairBody, actions: ['repair_confirm'] })

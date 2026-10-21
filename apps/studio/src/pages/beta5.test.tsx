@@ -173,3 +173,31 @@ describe('the beta.5 review', () => {
     expect([GROUPS_TAGS.bulkGroup, GROUPS_TAGS.bulkTag, GROUPS_TAGS.bulkUntag, GROUPS_TAGS.pickTag]).toEqual(['Set domain group…', 'Add question tag…', 'Remove question tag…', 'Question tag'])
   })
 })
+
+describe('the rest of the roadmap line (beta.5)', () => {
+  it('Manage workspaces says what each holds', async () => {
+    await at({ tab: 'workspaces' } as Route)
+    expect(await screen.findByText(/\d+ teams? · \d+ domains? · \d+ questions? · \d+ games?/, {}, { timeout: 5000 })).toBeTruthy()
+  })
+
+  it('health: broken boards lead to Games, two spellings are made one', async () => {
+    await at({ tab: 'teams' } as Route)
+    act(() => {
+      useNoticeStore.getState().push({ code: 'health.tag_spellings', severity: 'warn', targetPath: null, actions: ['unify_tags'], detail: { count: '2' } })
+      useNoticeStore.getState().push({ code: 'health.boards_broken', severity: 'warn', targetPath: null, actions: ['open_games'], detail: { count: '1', first: 'Friday' } })
+      useNoticeStore.getState().setCollectorOpen(true)
+    })
+    const panel = await screen.findByRole('dialog', {}, { timeout: 5000 })
+    expect(within(panel).getByText('Games here that would not load: 1, Friday among them.')).toBeTruthy()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Use one spelling' }))
+    await waitFor(() => expect(fake.calls.some((c) => c.name === 'tags_unify')).toBe(true))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Show games' }))
+    await waitFor(() => expect(useNavStore.getState().route).toEqual({ tab: 'games' }))
+  })
+
+  it('Statistics names the workspace it counts', async () => {
+    const first = fake.workspaces[0]
+    await at({ tab: 'statistics' } as Route)
+    expect(await screen.findByText(new RegExp(`Plays in ${first?.name ?? ''}`), {}, { timeout: 5000 })).toBeTruthy()
+  })
+})

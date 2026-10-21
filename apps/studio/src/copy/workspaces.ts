@@ -36,6 +36,8 @@ export const WORKSPACE = {
   // Manage workspaces
   pageTitle: 'Workspaces',
   many: 'workspaces',
+  counts: (c: { teams: number; domains: number; questions: number; games: number }) =>
+    [`${c.teams} ${c.teams === 1 ? 'team' : 'teams'}`, `${c.domains} ${c.domains === 1 ? 'domain' : 'domains'}`, `${c.questions} ${c.questions === 1 ? 'question' : 'questions'}`, `${c.games} ${c.games === 1 ? 'game' : 'games'}`].join(' · '),
   emptyGroup: (name: string) => `${name} — no workspaces yet`,
   pageDescription: 'Libraries in this file, and the workspace groups they sit in',
   newGroup: 'New workspace group',

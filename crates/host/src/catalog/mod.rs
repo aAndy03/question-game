@@ -64,4 +64,4 @@ pub use service::{
     CatalogChange, CatalogService, ChangeOp, OverlayTarget, RecipeChange, WipedPlays,
 };
 pub use transfer::{CopyOptions, Refusal, Selection, Touched, TransferOp, TransferReport};
-pub use workspace::{DeleteReport, WORKSPACE_NAME_MAX, Workspace, WorkspaceGroup};
+pub use workspace::{DeleteReport, WORKSPACE_NAME_MAX, Workspace, WorkspaceCounts, WorkspaceGroup};
