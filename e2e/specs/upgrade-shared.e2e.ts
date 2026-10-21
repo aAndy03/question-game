@@ -34,13 +34,11 @@ async function switchTo(from: string, to: string): Promise<void> {
 describe('an update from beta.1', () => {
   it('keeps what both workspaces saw, as their own rows', async () => {
     await onStudio()
-    // A beta.2 build shows what is new once; this one may not have notes for itself yet.
-    // Wait for the shell or the window — whichever the boot (and migration 6) ends on.
-    await browser.waitUntil(async () => /What’s new in questiongame|Quiz club/.test(await body()), { timeout: 30_000, timeoutMsg: 'Studio never opened' })
-    if ((await body()).includes('What’s new in questiongame')) {
-      await press('Got it')
-      await browser.waitUntil(async () => !(await body()).includes('What’s new in questiongame'), { timeoutMsg: 'What’s new did not close' })
-    }
+    // The seed was last seen by beta.1, so every later build opens What's new over it.
+    await sees('What’s new in questiongame', 30_000)
+    await sees('No more shared library')
+    await press('Got it')
+    await browser.waitUntil(async () => !(await body()).includes('What’s new in questiongame'), { timeoutMsg: 'What’s new did not close' })
 
     await press('Teams')
     await sees('Red')
