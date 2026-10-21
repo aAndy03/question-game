@@ -97,7 +97,7 @@ export const TRANSFER = {
   confirmMove: 'Move',
   done: (n: number) => `Done: ${n} picked, with what ${n === 1 ? 'it needs' : 'they need'}`,
   unfollow: 'Stop following its copies',
-  copiesTitle: (n: number) => (n === 1 ? 'A copy in another workspace' : `Copies in ${n} places`),
+  copiesTitle: (n: number) => (n === 1 ? 'A copy elsewhere' : `${n} copies elsewhere`),
   copiesHint: 'Saving this row can update its copies. Stop following, and it is a row of its own.',
   unnamedWorkspace: 'An unnamed workspace',
 } as const

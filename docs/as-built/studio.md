@@ -139,7 +139,9 @@ The design is `05_STUDIO_DESIGN.md` §25; the host half is `host.md` ▸ The res
 - **Manage workspaces** runs `useListView` over `workspacesSpec` (tab `workspaces`): search is a fold over the names, Status is the page's own (`useArchiveScope('workspaces')`), a workspace group's header carries its menu (`headerActions`, key `wg:<id>`), and a group with no workspace yet is listed under the list with its menu.
 - **Whose group**: workspace groups say *workspace group*, domain groups *domain group*; *Group* alone is only the list's *Group by*. Tags: *Question tag* (`GROUPS_TAGS.tag`), *Game tag* (`VIEWS.tag`).
 - **`SHELL`** (`copy/index.ts`) holds the toasts, column heads, aria-labels and "Id" that had lived at their call sites.
-- **The disabled switcher** is a focusable span named "Workspace: {name}. {why}" around the disabled button.
+- **The disabled switcher** is a focusable `role="group"` span named "Workspace: {name}. {why}" around the disabled button; `DisabledReason` got the same role, so a name on a generic span is read.
+- **The bulk Edit menu says whose**: *Add question tag… · Remove question tag… · Set domain group…*, the field *Question tag*.
+- **An empty workspace group** is one with nothing shown in the current Status (a group of archived workspaces under Active), listed with its menu beneath the list; none while searching.
 - **Repair** is a two-step notice: *Repair…* pushes a frame naming the count, *Remove them* calls `library_repair`.
 - **Statistics' *Group by: Workspace*** is offered only with *All workspaces*; turning that off while grouped by workspace goes back to teams.
 

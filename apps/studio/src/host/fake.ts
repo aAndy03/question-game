@@ -1740,7 +1740,16 @@ export function createFakeHost(): FakeHost {
         if (kind !== 'question') (item as { name: string }).name = named((row.item as { name: string }).name)
         library.set(key(kind, id), { kind, item } as CatalogItem)
         homes.set(key(kind, id), fake.currentWorkspace)
-        if (kind === 'domain') domainGroups.set(id, (domainGroups.get(row.item.id) ?? []).map((g) => ({ ...g, id: freshId('grp'), domainId: id })))
+        if (kind === 'domain') {
+          const remap = new Map<string, string>()
+          domainGroups.set(id, (domainGroups.get(row.item.id) ?? []).map((g) => {
+            const next = freshId('grp')
+            remap.set(g.id, next)
+            return { ...g, id: next, domainId: id }
+          }))
+          const d = library.get(key('domain', id))
+          if (d?.kind === 'domain') library.set(key('domain', id), { kind: 'domain', item: { ...d.item, questions: d.item.questions.map((m) => ({ ...m, groupId: m.groupId ? (remap.get(m.groupId) ?? null) : null })) } })
+        }
         if (kind === 'question') {
           for (const [k, d] of library) {
             if (d.kind !== 'domain' || !inView(k)) continue

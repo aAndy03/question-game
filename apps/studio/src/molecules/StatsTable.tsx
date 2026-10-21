@@ -1,5 +1,6 @@
 import { Panel, Text } from '@/atoms'
 import { STATS } from '@/copy/stats'
+import { WORKSPACE } from '@/copy/workspaces'
 import { statsUnit, type StatsMetric, type StatsResult, type StatsRow } from '@/host/types'
 
 export interface StatsTableProps {
@@ -47,7 +48,7 @@ export function StatsTable({ result, markedKey, hideTotals }: StatsTableProps) {
             >
               <th scope="row" className="max-w-[22rem] py-2 pr-4 text-left font-normal">
                 <Text variant="studio-label" truncate>
-                  {row.label || row.key}
+                  {row.label || (result.groupBy === 'workspace' ? WORKSPACE.unnamed : row.key)}
                 </Text>
               </th>
               {result.metrics.map((metric, index) => (
@@ -107,7 +108,7 @@ export function seriesOf(result: StatsResult, metricIndex = 0): { label: string;
   return result.rows
     .map((row: StatsRow) => ({
       key: row.key,
-      label: row.label || row.key,
+      label: row.label || (result.groupBy === 'workspace' ? WORKSPACE.unnamed : row.key),
       value: row.values[metricIndex] ?? null,
     }))
     .filter((point): point is { key: string; label: string; value: number } => point.value !== null)

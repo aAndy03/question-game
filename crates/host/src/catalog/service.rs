@@ -984,27 +984,40 @@ impl CatalogService {
 
     /// How many references in the library point at nothing or at another
     /// workspace (beta.5, `health.library_refs`). Every workspace's.
+    ///
+    /// The count is the repair itself, run and rolled back (review: clearing
+    /// a bad board domain also strands its board questions, so counting each
+    /// kind apart said fewer than *Repair* removed). A clean library is the
+    /// cheap case: nothing matches, nothing is written.
     pub fn library_check(&self) -> CatalogResult<u32> {
-        super::integrity::count(&self.conn())
+        let mut conn = self.conn();
+        if super::integrity::count(&conn)? == 0 {
+            return Ok(0);
+        }
+        let tx = conn.transaction()?;
+        let (removed, _) = super::integrity::repair(&tx, 0)?;
+        tx.rollback()?;
+        Ok(removed)
     }
 
     /// Remove those references and nothing else (beta.5, *Repair*), in one
-    /// transaction. Returns how many, and the games whose `rev` moved.
+    /// transaction with the `rev` of every game it touched. Returns how
+    /// many, and those games.
     pub fn library_repair(&self, now_ms: u64) -> CatalogResult<(u32, Vec<RecipeChange>)> {
-        let (removed, recipes) = {
-            let mut conn = self.conn();
-            let tx = conn.transaction()?;
-            let done = super::integrity::repair(&tx)?;
-            tx.commit()?;
-            done
-        };
-        let mut changes = Vec::new();
-        for id in recipes {
-            let id = RecipeId::new(id);
-            let rev = self.bump_rev(&id, now_ms)?;
-            changes.push(RecipeChange { id, rev });
-        }
-        Ok((removed, changes))
+        let mut conn = self.conn();
+        let tx = conn.transaction()?;
+        let (removed, recipes) = super::integrity::repair(&tx, now_ms)?;
+        tx.commit()?;
+        Ok((
+            removed,
+            recipes
+                .into_iter()
+                .map(|(id, rev)| RecipeChange {
+                    id: RecipeId::new(id),
+                    rev,
+                })
+                .collect(),
+        ))
     }
 
     /// The archived rows a game still names (beta.4), by name, each once —
@@ -1370,7 +1383,8 @@ fn relabel(conn: &Connection, result: &mut StatsResult) {
                 store::workspace_get(conn, &crate::ids::WorkspaceId::new(row.key.clone()))
                     .ok()
                     .flatten()
-                    .and_then(|w| w.name)
+                    // Unnamed: an empty label, which Studio says as its unnamed workspace.
+                    .map(|w| w.name.unwrap_or_default())
             }
             // A difficulty band, a day and a Play id label themselves.
             _ => None,

@@ -46,7 +46,12 @@ impl CatalogService {
             tx.commit()?;
             (made, changes)
         };
-        self.rebuild_search_index()?;
+        // The rows are written: an index that will not rebuild now is the
+        // health check's to report, not a reason to say the duplicate failed
+        // and have it pressed again (review).
+        if let Err(error) = self.rebuild_search_index() {
+            tracing::warn!(%error, "search index not rebuilt after a duplicate");
+        }
         Ok((made, changes))
     }
 }
@@ -111,7 +116,11 @@ fn duplicate_one(
         }
         CatalogKind::Question => {
             let mut question = store::question_get(tx, &QuestionId::from(id))?;
-            let homes = store::domains_holding(tx, id)?;
+            // An archived domain is not a home for a new row (review).
+            let homes: Vec<_> = store::domains_holding(tx, id)?
+                .into_iter()
+                .filter(|d| !d.stamps.is_archived())
+                .collect();
             question.id = QuestionId::new(fresh_id("q"));
             question.stamps = fresh_stamps(now_ms);
             store::question_upsert(tx, &question, now_ms)?;

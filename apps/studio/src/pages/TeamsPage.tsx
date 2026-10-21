@@ -28,11 +28,11 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
   const go = useNavStore((s) => s.go)
   const archive = useArchive()
   const transfer = useTransfer()
+  const run = useHostCommand()
   // *Duplicate* here (beta.5): new rows, "(copy)" names, no family.
   const duplicate = async (ids: readonly string[]) => {
     if (await run.ok('catalog_duplicate', { kind: 'team', ids })) toast.success(SHELL.duplicated(ids.length, TEAM.one, TEAM.many))
   }
-  const run = useHostCommand()
   const list = useCatalogList('team', scope)
   const session = useListState('teams')
   const hits = useListHits('team', session.search, scope, list.data?.length)

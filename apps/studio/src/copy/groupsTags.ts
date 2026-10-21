@@ -58,13 +58,13 @@ export const GROUPS_TAGS = {
 
   // bulk Edit…
   edit: 'Edit…',
-  bulkTag: 'Tag…',
-  bulkUntag: 'Untag…',
-  bulkGroup: 'Group…',
+  bulkTag: 'Add question tag…',
+  bulkUntag: 'Remove question tag…',
+  bulkGroup: 'Set domain group…',
   bulkAdd: 'Add to domain…',
   bulkRemove: 'Remove from domain',
   bulkDifficulty: 'Set difficulty…',
-  pickTag: 'Tag',
+  pickTag: 'Question tag',
   pickTagHint: 'A tag already used, or a new one.',
   pickGroup: 'Domain group',
   pickDomain: 'Domain',

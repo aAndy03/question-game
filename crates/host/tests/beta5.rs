@@ -333,3 +333,86 @@ fn statistics_group_by_workspace_and_a_teams_plays_are_its_workspaces() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn the_check_counts_what_repair_will_remove_even_when_one_fix_strands_another() {
+    let dir = std::env::temp_dir().join(format!("qg-beta5-strand-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("questiongame.sqlite3");
+    let catalog = CatalogService::open(CatalogLocation::file(&path)).unwrap();
+    catalog
+        .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW)
+        .unwrap();
+    let b = catalog.workspace_create("B", None, NOW).unwrap().id;
+    // Geography itself moved to B: its members, the board's domain — and the
+    // board's Geography questions, stranded once that domain goes.
+    let raw = rusqlite::Connection::open(&path).unwrap();
+    raw.execute(
+        "UPDATE domains SET workspace_id = ?1 WHERE id = 'seed-dom-geo'",
+        [b.as_str()],
+    )
+    .unwrap();
+    // A logo and a media link to nothing (as a file edited outside the app could hold).
+    raw.execute_batch("PRAGMA foreign_keys = OFF").unwrap();
+    raw.execute(
+        "UPDATE teams SET logo_asset_id = 'asset-gone' WHERE id = 'seed-team-blue'",
+        [],
+    )
+    .unwrap();
+    raw.execute(
+        "UPDATE questions SET media_asset_id = 'asset-gone' WHERE id = 'seed-q-sci-1'",
+        [],
+    )
+    .unwrap();
+    drop(raw);
+    let counted = catalog.library_check().unwrap();
+    assert!(counted > 5, "{counted}");
+    let (removed, games) = catalog.library_repair(NOW + 1).unwrap();
+    assert_eq!(
+        removed, counted,
+        "the notice's count is what Repair removes"
+    );
+    assert_eq!(games.len(), 1);
+    assert_eq!(catalog.library_check().unwrap(), 0);
+    match catalog
+        .catalog_get(CatalogKind::Team, "seed-team-blue")
+        .unwrap()
+    {
+        CatalogItem::Team(t) => assert_eq!(t.logo_asset_id, None),
+        other => panic!("{other:?}"),
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_duplicated_question_skips_an_archived_domain() {
+    let catalog = CatalogService::open(CatalogLocation::Memory).unwrap();
+    catalog.catalog_upsert(&question("q1", 10), NOW).unwrap();
+    for id in ["d1", "d2"] {
+        let mut d = Domain::new(id, id, "DOM");
+        d.questions = vec![DomainMember {
+            question_id: QuestionId::from("q1"),
+            sort_key: 0,
+            group_id: None,
+        }];
+        catalog
+            .catalog_upsert(&CatalogItem::Domain(Box::new(d)), NOW)
+            .unwrap();
+    }
+    catalog
+        .catalog_archive(CatalogKind::Domain, "d2", NOW)
+        .unwrap();
+    let (made, _) = catalog
+        .catalog_duplicate(CatalogKind::Question, &["q1".into()], NOW)
+        .unwrap();
+    let holds = |id: &str| match catalog.catalog_get(CatalogKind::Domain, id).unwrap() {
+        CatalogItem::Domain(d) => d
+            .questions
+            .iter()
+            .any(|m| m.question_id.as_str() == made[0]),
+        other => panic!("{other:?}"),
+    };
+    assert!(holds("d1"));
+    assert!(!holds("d2"));
+}

@@ -87,9 +87,13 @@ pub(super) fn count(conn: &Connection) -> CatalogResult<u32> {
     Ok(total)
 }
 
-/// Clear every bad reference. Returns how many, and the games whose boards
-/// or rosters changed (their `rev` must move).
-pub(super) fn repair(tx: &Transaction<'_>) -> CatalogResult<(u32, Vec<String>)> {
+/// Clear every bad reference, moving the `rev` of each game whose board or
+/// roster changed, in `tx`. Returns how many, and those games with their new
+/// `rev`.
+pub(super) fn repair(
+    tx: &Transaction<'_>,
+    now_ms: u64,
+) -> CatalogResult<(u32, Vec<(String, u32)>)> {
     let mut total = 0u32;
     let mut recipes: Vec<String> = Vec::new();
     for problem in PROBLEMS {
@@ -107,5 +111,18 @@ pub(super) fn repair(tx: &Transaction<'_>) -> CatalogResult<(u32, Vec<String>)> 
         }
         total += tx.execute(&format!("{} ({})", problem.clear, problem.holders), [])? as u32;
     }
-    Ok((total, recipes))
+    let mut moved = Vec::with_capacity(recipes.len());
+    for id in recipes {
+        tx.execute(
+            "UPDATE recipes SET rev = rev + 1, updated_at = ?2 WHERE id = ?1",
+            params![id, now_ms as i64],
+        )?;
+        let rev: i64 = tx.query_row(
+            "SELECT rev FROM recipes WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )?;
+        moved.push((id, rev as u32));
+    }
+    Ok((total, moved))
 }

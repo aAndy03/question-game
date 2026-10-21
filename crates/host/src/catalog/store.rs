@@ -134,14 +134,12 @@ fn carried_created_at(
 /// Play that was loaded and never started is not one anybody played.
 const TEAM_COLUMNS: &str = "t.id, t.name, t.short_code, t.color, t.logo_asset_id, t.notes,
      t.origin, t.created_at, t.updated_at, t.archived_at, t.workspace_id, t.family_id,
-     (SELECT COUNT(*) FROM plays p
+     (SELECT COUNT(*) FROM plays p JOIN recipes r ON r.id = p.recipe_id AND r.workspace_id = t.workspace_id
        WHERE p.started_at_ms IS NOT NULL
-         AND p.recipe_id IN (SELECT r.id FROM recipes r WHERE r.workspace_id = t.workspace_id)
          AND EXISTS (SELECT 1 FROM json_each(p.scores_json) j WHERE j.key = t.id))
        AS play_count,
-     (SELECT MAX(p.started_at_ms) FROM plays p
+     (SELECT MAX(p.started_at_ms) FROM plays p JOIN recipes r ON r.id = p.recipe_id AND r.workspace_id = t.workspace_id
        WHERE p.started_at_ms IS NOT NULL
-         AND p.recipe_id IN (SELECT r.id FROM recipes r WHERE r.workspace_id = t.workspace_id)
          AND EXISTS (SELECT 1 FROM json_each(p.scores_json) j WHERE j.key = t.id))
        AS last_play_at";
 

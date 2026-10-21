@@ -1566,7 +1566,7 @@ host_api:
     "catalog::service::CatalogService::catalog_upsert_many": {doc: "`catalog_upsert_many` — §2.19's bulk edit as **one** transaction.", kind: method, sig: "fn catalog_upsert_many(&self, items: &[CatalogItem], now_ms: u64) -> CatalogResult<Vec<CatalogChange>>"}
     "catalog::service::CatalogService::in_memory": {doc: "The test adapter: the same code path, the same SQL, no file.", kind: method, sig: "fn in_memory() -> CatalogResult<Self>"}
     "catalog::service::CatalogService::library_check": {doc: "How many references in the library point at nothing or at another workspace (beta.5, `health.library_refs`).", kind: method, sig: "fn library_check(&self) -> CatalogResult<u32>"}
-    "catalog::service::CatalogService::library_repair": {doc: "Remove those references and nothing else (beta.5, *Repair*), in one transaction.", kind: method, sig: "fn library_repair(&self, now_ms: u64) -> CatalogResult<(u32, Vec<RecipeChange>)>"}
+    "catalog::service::CatalogService::library_repair": {doc: "Remove those references and nothing else (beta.5, *Repair*), in one transaction with the `rev` of every game it touched.", kind: method, sig: "fn library_repair(&self, now_ms: u64) -> CatalogResult<(u32, Vec<RecipeChange>)>"}
     "catalog::service::CatalogService::location": {kind: method, sig: "fn location(&self) -> &CatalogLocation"}
     "catalog::service::CatalogService::meta_get": {doc: "A string the app keeps beside the settings document — [`super::META_LAST_OPENED`], [`super::META_LAST_SEEN`].", kind: method, sig: "fn meta_get(&self, key: &str) -> CatalogResult<Option<String>>"}
     "catalog::service::CatalogService::meta_set": {kind: method, sig: "fn meta_set(&self, key: &str, value: &str) -> CatalogResult<()>"}

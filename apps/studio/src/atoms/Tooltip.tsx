@@ -34,7 +34,7 @@ export function DisabledReason({ reason, children }: { reason: string | null | u
   if (!reason) return <>{children}</>
   return (
     <Tooltip content={reason}>
-      <span className="inline-flex cursor-not-allowed" tabIndex={0} aria-label={reason}>
+      <span className="inline-flex cursor-not-allowed" role="group" tabIndex={0} aria-label={reason}>
         {children}
       </span>
     </Tooltip>

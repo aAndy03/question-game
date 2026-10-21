@@ -2407,12 +2407,12 @@ Design: `docs/superpowers/specs/2026-10-21-beta4-games-parity-design.md`.
 
 Design: `docs/superpowers/specs/2026-10-21-beta5-the-rest-design.md`.
 
-- **Copies** (Team and Question detail, a domain's edit form): "A copy in another workspace" / "Copies in *n* places", each by workspace name with *Archived*, a line that saving can update them, and *Stop following its copies*. Nothing for a row never copied.
+- **Copies** (Team and Question detail, a domain's edit form), a titled region: "A copy elsewhere" / "*n* copies elsewhere", each by workspace name with *Archived*, a line that saving can update them, and *Stop following its copies*. Nothing for a row never copied.
 - **Question detail** shows *Tags* as chips (or *No tag*) and, under *In domains*, each domain with its domain group: "History · Ancient".
 - ***Duplicate*** (Teams, Questions, a domain's menu; Teams and Questions bulk bars): toast "Duplicated *n* teams". The copy is a row of its own — no *Copies* — named "Red (copy)", then "Red (copy 2)"; a question keeps its text and the editor's twin note says so.
 - **Statistics**: *Group by: Workspace* appears with *All workspaces* on.
 - **Settings**: *Wipe Plays* and the Demo rows say "this workspace"; other workspaces are not touched.
 - **Manage workspaces**: the library toolbar (Search · Sort · Group, Status) and list; grouped by *Workspace group* by default, *No workspace group* last; a workspace group's header has *Rename workspace group · Move up · Move down · Delete workspace group*; an empty workspace group is listed beneath, with the same menu.
-- **Words**: *Workspace group* and *Domain group* everywhere, never a bare *group*; *Question tag* and *Game tag*.
+- **Words**: *Workspace group* and *Domain group* everywhere, never a bare *group*; *Question tag* and *Game tag*; the bulk *Edit…* menu reads *Add question tag… · Remove question tag… · Set domain group… · Add to domain… · Remove from domain · Set difficulty…*.
 - **Health**: "*n* references in the library point at nothing, or at another workspace." · *Repair…* → "Remove *n* broken references?" (only the references go) · *Remove them*.
 - **The workspace switcher**, disabled while a game is loaded, is reached by Tab and read as "Workspace: {name}. Unload the game in Control to change workspace".

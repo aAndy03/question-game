@@ -20,7 +20,7 @@ let fake: FakeHost
 
 beforeEach(() => {
   useNavStore.setState({ route: HOME, back: [], forward: [], guard: null })
-  useNoticeStore.setState({ notices: [] })
+  useNoticeStore.setState({ notices: [], collectorOpen: false })
   useChromeStore.setState({ listState: {}, prefs: {}, operatorId: '', archiveScope: {} })
   receivePlayState(null)
   fake = createFakeHost()
@@ -143,5 +143,33 @@ describe('Repair (beta.5)', () => {
     expect(fake.calls.some((c) => c.name === 'library_repair')).toBe(false)
     fireEvent.click(within(panel).getByRole('button', { name: 'Remove them' }))
     await waitFor(() => expect(fake.calls.some((c) => c.name === 'library_repair')).toBe(true))
+  })
+})
+
+describe('the beta.5 review', () => {
+  it('a workspace group of only archived workspaces keeps its menu under Active', async () => {
+    const first = fake.workspaces[0]
+    if (!first) throw new Error('workspace')
+    fake.workspaceGroups = [{ id: 'wg-old', name: 'Past seasons', sortKey: 0, createdAt: 0, updatedAt: 0 }]
+    fake.workspaces = [first, { ...first, id: 'ws-old', name: 'Spring', groupId: 'wg-old', archivedAt: 5 }]
+    await at({ tab: 'workspaces' } as Route)
+    expect(await screen.findByText(WORKSPACE.emptyGroup('Past seasons'), {}, { timeout: 5000 })).toBeTruthy()
+    const row = screen.getByText(WORKSPACE.emptyGroup('Past seasons')).closest('[data-empty-group]') as HTMLElement
+    expect(within(row).getByRole('button', { name: `${WORKSPACE.actions}: Past seasons` })).toBeTruthy()
+  })
+
+  it('an unnamed workspace in Statistics is said as one, not by its id', async () => {
+    const { StatsTable } = await import('@/molecules/StatsTable')
+    render(
+      <StatsTable
+        result={{ groupBy: 'workspace', metrics: [], rows: [{ key: 'ws-1', label: '', values: [], turns: 1, plays: 1 }], totals: { key: '', label: '', values: [], turns: 1, plays: 1 }, playCount: 1, turnCount: 1 }}
+      />,
+    )
+    expect(screen.getByText(WORKSPACE.unnamed)).toBeTruthy()
+    expect(screen.queryByText('ws-1')).toBeNull()
+  })
+
+  it('the bulk menu says whose group and whose tag', () => {
+    expect([GROUPS_TAGS.bulkGroup, GROUPS_TAGS.bulkTag, GROUPS_TAGS.bulkUntag, GROUPS_TAGS.pickTag]).toEqual(['Set domain group…', 'Add question tag…', 'Remove question tag…', 'Question tag'])
   })
 })

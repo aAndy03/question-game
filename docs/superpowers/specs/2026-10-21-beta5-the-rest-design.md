@@ -30,7 +30,7 @@ Status: built, 2026-10-21. The scope is the roadmap's beta.5 line, from the two 
 9. ***Duplicate* within a workspace** for teams, domains and questions (`catalog_duplicate(kind, ids)`): a new row with a new id, its name with " (copy)" (a question keeps its text — the twin note says it), **not** in the source's family (a duplicate is a variant to edit, not a copy to follow — *My call*). A duplicated question joins the source's domains, at the end, in the same group; a duplicated domain holds the same questions (members, not copies) and copies of its groups. Row action and bulk action; the transfer refusal for the same workspace now points at it truthfully.
 
 **Accessibility**
-10. **The disabled switcher's reason is reachable by keyboard**: it uses `DisabledReason` (focusable, named by the reason), as every disabled `Button` does.
+10. **The disabled switcher's reason is reachable by keyboard**: focusable and named by where you are and the reason, as `DisabledReason` makes every disabled `Button` (both a `role="group"` span, so the name is read).
 
 ## Non-goals
 No game-tag or folder editor (the model has them; nothing edits them yet — an interface pass). No automatic repair. No change to what a copy follows.

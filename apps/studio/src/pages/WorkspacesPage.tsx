@@ -87,7 +87,9 @@ export function WorkspacesPage() {
 
   if (!data) return null
   // A group with no workspace yet still shows, so it can be filled or deleted.
-  const emptyGroups = groups.filter((g) => !data.workspaces.some((w) => w.groupId === g.id))
+  // Empty in this view (review: a group of only archived workspaces had no
+  // header under Active, and its menu could not be reached); not while searching.
+  const emptyGroups = search.trim() ? [] : groups.filter((g) => !(items ?? []).some((i) => i.data.groupId === g.id))
   const groupMenu = (group: WorkspaceGroup) => (
     <ActionMenu
       label={`${WORKSPACE.actions}: ${group.name}`}
