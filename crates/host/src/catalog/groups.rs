@@ -27,8 +27,6 @@ pub const TAGS_PER_QUESTION: usize = 20;
 pub struct TagCount {
     pub tag: String,
     pub questions: usize,
-    /// How many of those questions are shared: a change reaches every workspace.
-    pub shared: usize,
 }
 
 /// The fold a tag is compared by.
@@ -126,7 +124,7 @@ impl CatalogService {
         Ok(row.domain_id)
     }
 
-    /// Every tag in view (this workspace and shared), with counts.
+    /// Every tag in this workspace, with counts.
     pub fn tag_list(&self) -> CatalogResult<Vec<TagCount>> {
         store::tag_counts(&self.conn())
     }

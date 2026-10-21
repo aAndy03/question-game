@@ -49,7 +49,7 @@ pub fn catalog_bulk_edit(
     Ok(report)
 }
 
-/// Every tag in view, with how many questions carry it and how many are shared.
+/// Every tag in this workspace, with how many questions carry it.
 #[tauri::command(async)]
 pub fn tag_list(window: WebviewWindow, state: State<'_, AppState>) -> AppResult<Vec<TagCount>> {
     guard::allow(window.label(), "tag_list")?;

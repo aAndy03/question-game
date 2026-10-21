@@ -278,7 +278,7 @@ fn w4_a_reused_domain_keeps_its_groups_and_arrivals_have_none() {
 }
 
 #[test]
-fn w8_w11_shared_domains_share_their_groups_and_duplicate_copies_them() {
+fn w11_duplicate_copies_a_domains_groups() {
     let catalog = setup();
     let (a, b) = two(&catalog);
     let romans = catalog.domain_group_create(&DomainId::from("d1"), "Romans", NOW).unwrap();
@@ -290,11 +290,7 @@ fn w8_w11_shared_domains_share_their_groups_and_duplicate_copies_them() {
     assert_eq!(dup.groups[0].name, "Romans");
     assert!(dup.questions.iter().any(|m| m.group_id.as_ref() == Some(&dup.groups[0].id)));
     assert_eq!(catalog.tag_list().unwrap()[0].tag, "Rome");
-
-    catalog.workspace_switch(&a).unwrap();
-    catalog.catalog_make_shared(&Selection { domains: vec![DomainId::from("d1")], ..Selection::default() }, NOW).unwrap();
-    catalog.workspace_switch(&b).unwrap();
-    assert_eq!(domain(&catalog, "d1").groups[0].name, "Romans");
+    let _ = b;
 }
 
 #[test]

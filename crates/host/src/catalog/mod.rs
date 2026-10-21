@@ -9,7 +9,7 @@
 //! snapshot  the §4.3 copy: catalog bodies with overlays applied
 //! search    Tantivy, inside the service — there is no `SearchService`
 //! seed      the two shipped Demos, and Restore sample game (§12.1, P11.17)
-//! workspace several libraries in one file, and the shared one (Beta 2.0)
+//! workspace several libraries in one file (Beta 2.0)
 //! store     every SQL statement in the project
 //! db        the connection, the pragmas, the forward-only migrations
 //! error     the reject table for stored data

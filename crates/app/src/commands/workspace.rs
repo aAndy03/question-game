@@ -1,5 +1,5 @@
-//! Workspaces (Beta 2.0): several libraries in one file, a shared one, and the
-//! switcher that picks which one Studio works in.
+//! Workspaces (Beta 2.0): several libraries in one file, and the switcher
+//! that picks which one Studio works in.
 //!
 //! The scope itself is the host's — `CatalogService` binds its writer
 //! connection to the current workspace. This layer adds what only the app
@@ -301,8 +301,7 @@ fn refuse_moving_the_loaded_game(host: &Host, selection: &Selection) -> AppResul
 }
 
 /// Every row a transfer touched, as `catalog-changed`: the rows that left
-/// this workspace and the ones that arrived in the shared library both change
-/// what its lists show.
+/// this workspace change what its lists show.
 fn transferred(app: &AppHandle, report: &TransferReport) {
     for touched in report.created.iter().chain(&report.moved) {
         emit::catalog_changed(
@@ -312,7 +311,7 @@ fn transferred(app: &AppHandle, report: &TransferReport) {
     }
 }
 
-/// What a copy, move or share would do — what comes along, what is reused,
+/// What a copy or move would do — what comes along, what is reused,
 /// what refuses — before the operator confirms it.
 #[tauri::command(async)]
 pub fn transfer_preview(
@@ -353,34 +352,6 @@ pub fn catalog_move_to(
     let host = state.lock();
     refuse_moving_the_loaded_game(&host, &selection)?;
     let report = host.catalog.catalog_move_to(&selection, &target, now_ms())?;
-    transferred(&app, &report);
-    Ok(report)
-}
-
-#[tauri::command(async)]
-pub fn catalog_make_shared(
-    window: WebviewWindow,
-    app: AppHandle,
-    state: State<'_, AppState>,
-    selection: Selection,
-) -> AppResult<TransferReport> {
-    guard::allow(window.label(), "catalog_make_shared")?;
-    let host = state.lock();
-    let report = host.catalog.catalog_make_shared(&selection, now_ms())?;
-    transferred(&app, &report);
-    Ok(report)
-}
-
-#[tauri::command(async)]
-pub fn catalog_make_local(
-    window: WebviewWindow,
-    app: AppHandle,
-    state: State<'_, AppState>,
-    selection: Selection,
-) -> AppResult<TransferReport> {
-    guard::allow(window.label(), "catalog_make_local")?;
-    let host = state.lock();
-    let report = host.catalog.catalog_make_local(&selection, now_ms())?;
     transferred(&app, &report);
     Ok(report)
 }
@@ -481,7 +452,7 @@ mod tests {
             "workspace_duplicate", "workspace_archive", "workspace_restore", "workspace_delete_preview",
             "workspace_delete", "workspace_switch", "workspace_group_create", "workspace_group_rename",
             "workspace_group_reorder", "workspace_group_delete", "transfer_preview",
-            "catalog_copy_to", "catalog_move_to", "catalog_make_shared", "catalog_make_local",
+            "catalog_copy_to", "catalog_move_to",
             "catalog_propagation_preview", "catalog_upsert_propagating", "catalog_unfollow",
         ] {
             assert!(!guard::stage_may_call(command), "{command}");

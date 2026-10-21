@@ -110,21 +110,6 @@ fn b30_b31_b37_add_to_domain_appends_in_selection_order_ungrouped() {
 }
 
 #[test]
-fn b32_add_to_a_shared_domain_refuses_local_questions_nothing_written() {
-    let c = setup();
-    let mut shared = question("qs", 60, &[]);
-    shared.stamps.shared = true;
-    c.catalog_upsert(&shared.into(), NOW).unwrap();
-    let mut ds = Domain::new("ds", "Everyone", "ALL");
-    ds.stamps.shared = true;
-    c.catalog_upsert(&ds.into(), NOW).unwrap();
-    assert!(c.catalog_bulk_edit(&ids(&["qs", "q1"]), &BulkEdit::AddToDomain { domain_id: DomainId::from("ds") }, true, NOW).is_err());
-    assert!(members(&c, "ds").is_empty());
-    edit(&c, &["qs"], BulkEdit::AddToDomain { domain_id: DomainId::from("ds") });
-    assert_eq!(members(&c, "ds"), ["qs"]);
-}
-
-#[test]
 fn b38_b39_b40_remove_from_domain_keeps_the_question_and_its_other_domains() {
     let c = setup();
     edit(&c, &["q1"], BulkEdit::AddToDomain { domain_id: DomainId::from("d2") });
@@ -185,7 +170,6 @@ fn b2_b8_a_preview_writes_nothing_and_counts_duplicates_once() {
     let c = setup();
     let r = c.catalog_bulk_edit(&ids(&["q1", "q1", "q2"]), &BulkEdit::Tag { tag: "x".into() }, false, NOW).unwrap();
     assert_eq!(r.changed.len(), 2);
-    assert_eq!(r.shared, 0);
     assert!(get_q(&c, "q1").tags.is_empty());
 }
 
@@ -205,24 +189,21 @@ fn b6_a_bulk_edit_leaves_copies_in_other_workspaces_alone() {
 // --------------------------------------------------------------- Manage tags
 
 #[test]
-fn mt1_mt8_rename_reaches_every_question_in_view_and_counts_shared() {
+fn mt1_mt8_rename_reaches_every_question_in_view() {
     let c = setup();
     c.catalog_upsert(&question("q1", 10, &["Rome"]).into(), NOW).unwrap();
     c.catalog_upsert(&question("q2", 20, &["rome"]).into(), NOW).unwrap();
-    let mut shared = question("qs", 60, &["Rome"]);
-    shared.stamps.shared = true;
-    c.catalog_upsert(&shared.into(), NOW).unwrap();
     let preview = c.tag_rename("ROME", "Romans", false, NOW).unwrap();
-    assert_eq!((preview.changed.len(), preview.shared), (3, 1));
+    assert_eq!(preview.changed.len(), 2);
     assert_eq!(get_q(&c, "q1").tags, ["Rome"], "a preview writes nothing");
     c.tag_rename("ROME", "Romans", true, NOW).unwrap();
-    for q in ["q1", "q2", "qs"] {
+    for q in ["q1", "q2"] {
         assert_eq!(get_q(&c, q).tags, ["Romans"]);
     }
     let hits = c
         .catalog_search(&SearchQuery { text: "romans".into(), kinds: vec![CatalogKind::Question], scope: ArchiveScope::All, limit: 10 })
         .unwrap();
-    assert_eq!(hits.len(), 3, "T15: search follows the rename");
+    assert_eq!(hits.len(), 2, "T15: search follows the rename");
 }
 
 #[test]

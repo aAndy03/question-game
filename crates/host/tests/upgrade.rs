@@ -400,14 +400,6 @@ fn migration_4_puts_every_row_into_one_unnamed_workspace() {
             .len(),
         2
     );
-    assert!(
-        service
-            .catalog_list(CatalogKind::Question, ArchiveScope::All)
-            .unwrap()
-            .iter()
-            .all(|q| !q.is_shared()),
-        "nothing is shared after the migration"
-    );
     drop(service);
 
     let conn = rusqlite::Connection::open(dir.library()).unwrap();

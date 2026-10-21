@@ -1,6 +1,6 @@
-//! Workspaces (Beta 2.0): several libraries in one file, and a shared library
-//! every workspace sees. What a workspace sees is its own rows and the shared
-//! ones — in every read, decided in the host.
+//! Workspaces (Beta 2.0): several libraries in one file. What a workspace sees
+//! is its own rows — in every read, decided in the host. There is no shared
+//! library since beta.2.
 
 use questiongame_host::catalog::{
     ArchiveScope, CatalogError, CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo,
@@ -14,21 +14,15 @@ const NOW: u64 = 1_790_000_000_000;
 fn team(id: &str) -> CatalogItem {
     CatalogItem::Team(Box::new(Team::new(id, id, "TM")))
 }
-fn shared_team(id: &str) -> CatalogItem {
-    let mut t = Team::new(id, id, "TM");
-    t.stamps.shared = true;
-    CatalogItem::Team(Box::new(t))
-}
-fn question(id: &str, shared: bool) -> CatalogItem {
+fn question(id: &str) -> CatalogItem {
     let mut q = Question::new(id, format!("Question {id}"), 10);
     q.options = vec![
         QuestionOption::new(format!("{id}-a"), "Yes", true),
         QuestionOption::new(format!("{id}-b"), "No", false),
     ];
-    q.stamps.shared = shared;
     CatalogItem::Question(Box::new(q))
 }
-fn domain(id: &str, shared: bool, questions: &[&str]) -> CatalogItem {
+fn domain(id: &str, questions: &[&str]) -> CatalogItem {
     let mut d = Domain::new(id, id, "DOM");
     d.questions = questions
         .iter()
@@ -39,7 +33,6 @@ fn domain(id: &str, shared: bool, questions: &[&str]) -> CatalogItem {
             group_id: None,
         })
         .collect();
-    d.stamps.shared = shared;
     CatalogItem::Domain(Box::new(d))
 }
 fn ids(catalog: &CatalogService, kind: CatalogKind) -> Vec<String> {
@@ -83,19 +76,16 @@ fn a_new_library_has_one_unnamed_workspace_in_use() {
 }
 
 #[test]
-fn rows_live_in_their_workspace_and_shared_rows_in_every_one() {
+fn rows_live_in_their_workspace_only() {
     let (catalog, a, b) = two();
     catalog.catalog_upsert(&team("a-team"), NOW).unwrap();
-    catalog
-        .catalog_upsert(&shared_team("everyone"), NOW)
-        .unwrap();
-    assert_eq!(ids(&catalog, CatalogKind::Team), ["a-team", "everyone"]);
+    assert_eq!(ids(&catalog, CatalogKind::Team), ["a-team"]);
     catalog.workspace_switch(&b.as_str().into()).unwrap();
-    assert_eq!(ids(&catalog, CatalogKind::Team), ["everyone"]);
+    assert!(ids(&catalog, CatalogKind::Team).is_empty());
     catalog.catalog_upsert(&team("b-team"), NOW).unwrap();
-    assert_eq!(ids(&catalog, CatalogKind::Team), ["b-team", "everyone"]);
+    assert_eq!(ids(&catalog, CatalogKind::Team), ["b-team"]);
     catalog.workspace_switch(&a.as_str().into()).unwrap();
-    assert_eq!(ids(&catalog, CatalogKind::Team), ["a-team", "everyone"]);
+    assert_eq!(ids(&catalog, CatalogKind::Team), ["a-team"]);
 }
 
 #[test]
@@ -112,24 +102,33 @@ fn another_workspaces_row_is_not_found() {
 }
 
 #[test]
-fn an_upsert_never_moves_a_row() {
-    let (catalog, _a, _b) = two();
-    catalog.catalog_upsert(&team("t"), NOW).unwrap();
-    // Sent back with `shared: true`, as a confused client might: still local.
-    catalog.catalog_upsert(&shared_team("t"), NOW + 1).unwrap();
-    let CatalogItem::Team(t) = catalog.catalog_get(CatalogKind::Team, "t").unwrap() else {
-        panic!()
-    };
-    assert!(!t.stamps.shared);
+fn an_old_payload_that_says_shared_still_lands_in_this_workspace() {
+    let (catalog, _a, b) = two();
+    // What a beta.1 Studio sent: `shared: true` beside the stamps. Ignored.
+    let mut json = serde_json::to_value(team("t")).unwrap();
+    fn mark(value: &mut serde_json::Value) {
+        if let Some(object) = value.as_object_mut() {
+            if object.contains_key("createdAt") {
+                object.insert("shared".into(), serde_json::Value::Bool(true));
+            }
+            for child in object.values_mut() {
+                mark(child);
+            }
+        }
+    }
+    mark(&mut json);
+    assert!(json.to_string().contains("\"shared\":true"), "{json}");
+    let item: CatalogItem = serde_json::from_value(json).unwrap();
+    catalog.catalog_upsert(&item, NOW).unwrap();
+    assert_eq!(ids(&catalog, CatalogKind::Team), ["t"]);
+    catalog.workspace_switch(&b.as_str().into()).unwrap();
+    assert!(ids(&catalog, CatalogKind::Team).is_empty(), "nothing is shared");
 }
 
 #[test]
-fn search_sees_this_workspace_and_the_shared_library() {
+fn search_sees_this_workspace_only() {
     let (catalog, _a, b) = two();
     catalog.catalog_upsert(&team("alpha-local"), NOW).unwrap();
-    catalog
-        .catalog_upsert(&shared_team("alpha-shared"), NOW)
-        .unwrap();
     catalog.workspace_switch(&b.as_str().into()).unwrap();
     catalog.catalog_upsert(&team("alpha-beta"), NOW).unwrap();
     let hits = catalog
@@ -142,33 +141,20 @@ fn search_sees_this_workspace_and_the_shared_library() {
         .unwrap();
     let mut found: Vec<String> = hits.iter().map(|h| h.id.clone()).collect();
     found.sort();
-    assert_eq!(found, ["alpha-beta", "alpha-shared"]);
+    assert_eq!(found, ["alpha-beta"]);
 }
 
 #[test]
-fn a_shared_domain_holds_only_shared_questions() {
-    let (catalog, _a, _b) = two();
-    catalog
-        .catalog_upsert(&question("local-q", false), NOW)
-        .unwrap();
-    catalog
-        .catalog_upsert(&question("shared-q", true), NOW)
-        .unwrap();
-    assert!(matches!(
-        catalog.catalog_upsert(&domain("everyone", true, &["local-q"]), NOW),
-        Err(CatalogError::ScopeRule { .. })
-    ));
-    catalog
-        .catalog_upsert(&domain("everyone", true, &["shared-q"]), NOW)
-        .unwrap();
-    // a local domain may hold both
-    catalog
-        .catalog_upsert(&domain("mine", false, &["local-q", "shared-q"]), NOW)
-        .unwrap();
+fn a_domain_holds_only_its_own_workspaces_questions() {
+    let (catalog, _a, b) = two();
+    catalog.catalog_upsert(&question("a-q"), NOW).unwrap();
+    catalog.catalog_upsert(&domain("mine", &["a-q"]), NOW).unwrap();
+    catalog.workspace_switch(&b.as_str().into()).unwrap();
+    assert!(catalog.catalog_upsert(&domain("theirs", &["a-q"]), NOW).is_err(), "another workspace's question");
 }
 
 #[test]
-fn a_game_uses_its_own_workspaces_rows_and_shared_ones_only() {
+fn a_game_uses_its_own_workspaces_rows_only() {
     let (catalog, a, b) = two();
     catalog.catalog_upsert(&team("a-team"), NOW).unwrap();
     catalog.workspace_switch(&b.as_str().into()).unwrap();
@@ -287,11 +273,11 @@ mod generated {
         #![proptest_config(ProptestConfig::with_cases(24))]
 
         /// Whatever lives where, a workspace's lists and searches return its
-        /// own rows and shared ones — never another workspace's.
+        /// own rows — never another workspace's.
         #[test]
         fn no_list_or_search_in_one_workspace_returns_anothers_row(
             extra in 0usize..3,
-            homes in proptest::collection::vec(proptest::option::of(0usize..3), 1..12),
+            homes in proptest::collection::vec(0usize..3, 1..12),
         ) {
             let catalog = CatalogService::open(CatalogLocation::Memory).unwrap();
             let mut spaces = vec![catalog.current_workspace()];
@@ -299,21 +285,14 @@ mod generated {
                 spaces.push(catalog.workspace_create(&format!("W{n}"), None, NOW).unwrap().id);
             }
             for (i, home) in homes.iter().enumerate() {
-                match home.map(|h| h % spaces.len()) {
-                    None => {
-                        catalog.catalog_upsert(&shared_team(&format!("row-shared-{i}")), NOW).unwrap();
-                        catalog.catalog_upsert(&question(&format!("q-shared-{i}"), true), NOW).unwrap();
-                    }
-                    Some(h) => {
-                        catalog.workspace_switch(&spaces[h]).unwrap();
-                        catalog.catalog_upsert(&team(&format!("row-w{h}-{i}")), NOW).unwrap();
-                        catalog.catalog_upsert(&question(&format!("q-w{h}-{i}"), false), NOW).unwrap();
-                    }
-                }
+                let h = home % spaces.len();
+                catalog.workspace_switch(&spaces[h]).unwrap();
+                catalog.catalog_upsert(&team(&format!("row-w{h}-{i}")), NOW).unwrap();
+                catalog.catalog_upsert(&question(&format!("q-w{h}-{i}")), NOW).unwrap();
             }
             for (h, space) in spaces.iter().enumerate() {
                 catalog.workspace_switch(space).unwrap();
-                let mine = |id: &str| id.contains("-shared-") || id.contains(&format!("-w{h}-"));
+                let mine = |id: &str| id.contains(&format!("-w{h}-"));
                 for kind in [CatalogKind::Team, CatalogKind::Question] {
                     for id in ids(&catalog, kind) {
                         prop_assert!(mine(&id), "workspace {h} lists {id}");
@@ -325,7 +304,7 @@ mod generated {
                 for hit in hits {
                     prop_assert!(mine(&hit.id), "workspace {h} finds {}", hit.id);
                 }
-                let expected = homes.iter().filter(|home| home.map(|x| x % spaces.len()).is_none_or(|x| x == h)).count();
+                let expected = homes.iter().filter(|home| *home % spaces.len() == h).count();
                 prop_assert_eq!(ids(&catalog, CatalogKind::Team).len(), expected);
             }
         }
@@ -377,7 +356,6 @@ fn duplicate_copies_local_rows_and_games_into_one_family_and_no_plays() {
 
     let (catalog, a, _b) = two();
     catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
-    catalog.catalog_upsert(&shared_team("everyone"), NOW).unwrap();
     catalog.catalog_upsert(&team("gone"), NOW).unwrap();
     catalog.catalog_archive(CatalogKind::Team, "gone", NOW).unwrap();
     let mut flags = FlagService::default();
@@ -394,9 +372,8 @@ fn duplicate_copies_local_rows_and_games_into_one_family_and_no_plays() {
     assert_eq!(catalog.current_workspace().as_str(), a, "the operator stays where they were");
     catalog.workspace_switch(&copy.id).unwrap();
     let teams = catalog.catalog_list(CatalogKind::Team, ArchiveScope::All).unwrap();
-    assert_eq!(teams.len(), 4, "two Demo teams, the archived one, and the shared one");
-    assert!(teams.iter().any(|t| t.id() == "everyone"), "a shared row is not copied, it is already here");
-    let local: Vec<_> = teams.iter().filter(|t| !t.is_shared()).collect();
+    assert_eq!(teams.len(), 3, "two Demo teams and the archived one");
+    let local: Vec<_> = teams.iter().collect();
     assert!(local.iter().all(|t| !t.id().starts_with("seed-") && t.id() != "gone"), "new ids");
     assert!(local.iter().all(|t| t.stamps().family_id.is_some()));
     assert_eq!(local.iter().filter(|t| t.stamps().is_archived()).count(), 1, "archived stays archived");
@@ -417,14 +394,11 @@ fn duplicate_copies_local_rows_and_games_into_one_family_and_no_plays() {
 }
 
 #[test]
-fn delete_permanently_takes_only_an_archived_workspace_and_never_a_shared_row() {
+fn delete_permanently_takes_only_an_archived_workspace_and_leaves_the_others() {
     let (catalog, a, b) = two();
-    catalog.catalog_upsert(&shared_team("everyone"), NOW).unwrap();
+    catalog.catalog_upsert(&team("a-team"), NOW).unwrap();
     catalog.workspace_switch(&b.as_str().into()).unwrap();
     catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
-    let mut game = catalog.recipe_list(ArchiveScope::All).unwrap().remove(0);
-    game.teams.push(questiongame_host::TeamId::from("everyone"));
-    catalog.recipe_upsert(&game, NOW).unwrap();
     catalog.workspace_switch(&a.as_str().into()).unwrap();
 
     let (dir, options) = backup_options("delete");
@@ -435,7 +409,7 @@ fn delete_permanently_takes_only_an_archived_workspace_and_never_a_shared_row() 
     let report = catalog.workspace_delete(&b.as_str().into(), &options).unwrap();
     assert_eq!((report.rows, report.games), (rows, games));
     assert!(report.backup.exists(), "a copy first");
-    assert!(catalog.catalog_get(CatalogKind::Team, "everyone").is_ok(), "the shared row stays");
+    assert!(catalog.catalog_get(CatalogKind::Team, "a-team").is_ok(), "this workspace's rows stay");
     let (all, _) = catalog.workspace_list().unwrap();
     assert_eq!(all.len(), 1);
     let _ = std::fs::remove_dir_all(dir);

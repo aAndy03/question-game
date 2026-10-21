@@ -1,10 +1,10 @@
-//! Workspaces (Beta 2.0): several libraries in one file, and a shared library
-//! every workspace sees.
+//! Workspaces (Beta 2.0): several libraries in one file. Since beta.2 there is
+//! no shared library: a row reaches another workspace only by Copy or Move.
 //!
 //! A workspace is a name the operator typed and nothing else — no kind, no
-//! template, no suggested name. What a workspace sees is its own rows and the
-//! shared ones, and that scope is decided in the host, on the writer
-//! connection ([`super::db::bind_workspace`]), for every read and write.
+//! template, no suggested name. What a workspace sees is its own rows, and
+//! that scope is decided in the host, on the writer connection
+//! ([`super::db::bind_workspace`]), for every read and write.
 //! Operators, shortcuts and the app's own settings stay global.
 
 use rusqlite::Connection;
@@ -233,7 +233,7 @@ impl CatalogService {
     }
 
     /// *Delete permanently*: an **archived** workspace, its rows, games, Plays
-    /// and logs — never a shared row, never an asset file. The library is
+    /// and logs — never an asset file. The library is
     /// copied first (the normal rotation), and the delete is one transaction.
     pub fn workspace_delete(&self, id: &WorkspaceId, backup: &OpenOptions) -> CatalogResult<DeleteReport> {
         let mut conn = self.conn();
@@ -259,7 +259,7 @@ impl CatalogService {
     }
 
     /// A new workspace holding a copy of every local row and game of `id` —
-    /// new ids, the same shared references, archived rows as archived — and
+    /// new ids, archived rows as archived — and
     /// none of its Plays. Each copy joins its original's family, so an edit
     /// can follow it later. One transaction.
     pub fn workspace_duplicate(&self, id: &WorkspaceId, name: &str, now_ms: u64) -> CatalogResult<Workspace> {
@@ -432,15 +432,10 @@ fn duplicate_into(
 
     store::workspace_insert(tx, target)?;
     db::bind_workspace(tx, source.as_str())?;
-    let local = |shared: bool| !shared;
-    let assets: Vec<Asset> =
-        store::asset_list(tx, ArchiveScope::All)?.into_iter().filter(|r| local(r.stamps.shared)).collect();
-    let questions: Vec<Question> =
-        store::question_list(tx, ArchiveScope::All)?.into_iter().filter(|r| local(r.stamps.shared)).collect();
-    let teams: Vec<Team> =
-        store::team_list(tx, ArchiveScope::All)?.into_iter().filter(|r| local(r.stamps.shared)).collect();
-    let domains: Vec<Domain> =
-        store::domain_list(tx, ArchiveScope::All)?.into_iter().filter(|r| local(r.stamps.shared)).collect();
+    let assets: Vec<Asset> = store::asset_list(tx, ArchiveScope::All)?;
+    let questions: Vec<Question> = store::question_list(tx, ArchiveScope::All)?;
+    let teams: Vec<Team> = store::team_list(tx, ArchiveScope::All)?;
+    let domains: Vec<Domain> = store::domain_list(tx, ArchiveScope::All)?;
     let recipes: Vec<Recipe> = store::recipe_list(tx, ArchiveScope::All)?;
     db::bind_workspace(tx, target.id.as_str())?;
 
@@ -466,7 +461,6 @@ fn duplicate_into(
     let question_ids = fresh(questions.iter().map(|r| r.id.to_string()).collect(), "q");
     let team_ids = fresh(teams.iter().map(|r| r.id.to_string()).collect(), "team");
     let domain_ids = fresh(domains.iter().map(|r| r.id.to_string()).collect(), "dom");
-    // A shared reference is kept as it is: only local rows get new ids.
     let map = |ids: &HashMap<String, String>, id: &str| ids.get(id).cloned().unwrap_or_else(|| id.to_owned());
 
     for asset in &assets {

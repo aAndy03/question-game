@@ -1,18 +1,15 @@
-//! Copy, move and share between workspaces (Beta 2.0).
+//! Copy and move between workspaces (Beta 2.0; the shared library went in
+//! beta.2, so these are the only ways a row reaches another workspace).
 //!
-//! The rows the operator picks never arrive alone: a domain brings its local
-//! questions, a game its local roster, domains and questions, a team or a
-//! question its asset — the **closure** — so nothing that arrives points at a
-//! row the target cannot see. Shared rows are already everywhere and are
-//! referenced, never copied or moved.
+//! The rows the operator picks never arrive alone: a domain brings its
+//! questions, a game its roster, domains and questions, a team or a question
+//! its asset — the **closure** — so nothing that arrives points at a row the
+//! target cannot see.
 //!
 //! - **Copy** — the picked rows are always new rows in the target; a needed
 //!   row that already has an active copy there (same family) is reused.
 //! - **Move** — the same rows, `workspace_id` changed; refused, naming each
 //!   user, if anything that stays behind still uses one of them.
-//! - **Make shared / make local** — the current workspace's rows into the
-//!   shared library and back; make local is refused while another workspace
-//!   uses the row.
 //!
 //! Each operation is one transaction; a refusal writes nothing. The preview
 //! runs the same plan and rolls it back, so it cannot disagree with the write.
@@ -61,8 +58,6 @@ impl Selection {
 pub enum TransferOp {
     Copy,
     Move,
-    MakeShared,
-    MakeLocal,
 }
 
 /// One row a transfer touched: its kind, its id where it ends up, and the id
@@ -95,9 +90,6 @@ pub struct TransferReport {
     pub created: Vec<Touched>,
     pub reused: Vec<Touched>,
     pub moved: Vec<Touched>,
-    /// Picked rows left as they are: a shared row a move cannot take, or one
-    /// already shared — named, so the operator is not told it moved.
-    pub unchanged: Vec<Touched>,
     pub refused: Vec<Refusal>,
 }
 
@@ -108,14 +100,6 @@ impl CatalogService {
 
     pub fn catalog_move_to(&self, selection: &Selection, target: &WorkspaceId, now_ms: u64) -> CatalogResult<TransferReport> {
         self.transfer(TransferOp::Move, selection, Some(target), now_ms, true)
-    }
-
-    pub fn catalog_make_shared(&self, selection: &Selection, now_ms: u64) -> CatalogResult<TransferReport> {
-        self.transfer(TransferOp::MakeShared, selection, None, now_ms, true)
-    }
-
-    pub fn catalog_make_local(&self, selection: &Selection, now_ms: u64) -> CatalogResult<TransferReport> {
-        self.transfer(TransferOp::MakeLocal, selection, None, now_ms, true)
     }
 
     /// What the operation would do — what comes along, what is reused, what
@@ -141,20 +125,13 @@ impl CatalogService {
             let mut conn = self.conn();
             let current = store::current_workspace(&conn)?;
             let tx = conn.transaction()?;
+            let target = target.ok_or_else(|| {
+                CatalogError::invalid("transfer.target", "copy and move need a workspace to go to")
+            })?;
+            check_target(&tx, &current, target)?;
             let result = match op {
-                TransferOp::Copy | TransferOp::Move => {
-                    let target = target.ok_or_else(|| {
-                        CatalogError::invalid("transfer.target", "copy and move need a workspace to go to")
-                    })?;
-                    check_target(&tx, &current, target)?;
-                    if op == TransferOp::Copy {
-                        copy(&tx, selection, &current, target, now_ms)
-                    } else {
-                        relocate(&tx, selection, &current, Some(target))
-                    }
-                }
-                TransferOp::MakeShared => relocate(&tx, selection, &current, None),
-                TransferOp::MakeLocal => make_local(&tx, selection, &current),
+                TransferOp::Copy => copy(&tx, selection, &current, target, now_ms),
+                TransferOp::Move => relocate(&tx, selection, &current, target),
             };
             // Whatever happened, the operator is still where they were.
             db::bind_workspace(&tx, current.as_str())?;
@@ -193,8 +170,8 @@ fn check_target(conn: &Connection, current: &WorkspaceId, target: &WorkspaceId) 
     }
 }
 
-/// The picked rows and every local row they need, read while the connection
-/// is bound to the current workspace.
+/// The picked rows and every row they need, read while the connection is
+/// bound to the current workspace.
 #[derive(Default)]
 struct Closure {
     assets: BTreeMap<String, Asset>,
@@ -228,11 +205,8 @@ impl Closure {
     }
 }
 
-/// `include_shared_picks`: a copy may start from a shared row (the copy is
-/// local); a move or a share has nothing to do with one.
-fn closure(conn: &Connection, selection: &Selection, include_shared_picks: bool) -> CatalogResult<Closure> {
+fn closure(conn: &Connection, selection: &Selection) -> CatalogResult<Closure> {
     let mut out = Closure { picked: selection.picked(), ..Closure::default() };
-    let wanted = |shared: bool, picked: bool| !shared || (picked && include_shared_picks);
 
     for id in &selection.recipes {
         let recipe = store::recipe_get(conn, id)?;
@@ -248,19 +222,17 @@ fn closure(conn: &Connection, selection: &Selection, include_shared_picks: bool)
             question_ids.extend(board.question_ids.iter().map(|q| (q.to_string(), false)));
         }
     }
-    for (id, picked) in domain_ids {
+    for (id, _) in domain_ids {
         let domain = store::domain_get(conn, &DomainId::new(id.clone()))?;
-        if !wanted(domain.stamps.shared, picked) || out.domains.contains_key(&id) {
+        if out.domains.contains_key(&id) {
             continue;
         }
         question_ids.extend(domain.questions.iter().map(|m| (m.question_id.to_string(), false)));
         out.domains.insert(id, domain);
     }
-    for (id, picked) in team_ids {
+    for (id, _) in team_ids {
         let team = store::team_get(conn, &TeamId::new(id.clone()))?;
-        if wanted(team.stamps.shared, picked) && !out.teams.contains_key(&id) {
-            out.teams.insert(id, team);
-        }
+        out.teams.entry(id).or_insert(team);
     }
     for (id, picked) in question_ids {
         if out.questions.contains_key(&id) {
@@ -273,17 +245,13 @@ fn closure(conn: &Connection, selection: &Selection, include_shared_picks: bool)
             Err(CatalogError::NotFound { .. }) if !picked => continue,
             Err(error) => return Err(error),
         };
-        if wanted(question.stamps.shared, picked) {
-            out.questions.insert(id, question);
-        }
+        out.questions.insert(id, question);
     }
     let mut asset_ids: BTreeSet<String> = BTreeSet::new();
     asset_ids.extend(out.teams.values().filter_map(|t| t.logo_asset_id.as_ref().map(|a| a.to_string())));
     asset_ids.extend(out.questions.values().filter_map(|q| q.media_asset_id.as_ref().map(|a| a.to_string())));
     for id in asset_ids {
-        if let Ok(asset) = store::asset_get(conn, &AssetId::new(id.clone()))
-            && !asset.stamps.shared
-        {
+        if let Ok(asset) = store::asset_get(conn, &AssetId::new(id.clone())) {
             out.assets.insert(id, asset);
         }
     }
@@ -299,7 +267,7 @@ fn copy(
     target: &WorkspaceId,
     now_ms: u64,
 ) -> CatalogResult<TransferReport> {
-    let mut rows = closure(tx, selection, true)?;
+    let mut rows = closure(tx, selection)?;
     let mut report = TransferReport::default();
     let mut next_family = store::next_family(tx)?;
     // source id → id in the target, per kind
@@ -409,7 +377,6 @@ fn copy(
         }
         let mut row = asset.clone();
         row.id = AssetId::new(map(CatalogKind::Asset, id));
-        row.stamps.shared = false;
         store::asset_upsert(tx, &row, now_ms)?;
         store::set_family(tx, CatalogKind::Asset, row.id.as_str(), family_of.get(&(CatalogKind::Asset, id.clone())).copied())?;
         created(CatalogKind::Asset, id, &mut report);
@@ -421,7 +388,6 @@ fn copy(
         let mut row = question.clone();
         row.id = QuestionId::new(map(CatalogKind::Question, id));
         row.media_asset_id = question.media_asset_id.as_ref().map(|a| AssetId::new(map(CatalogKind::Asset, a.as_str())));
-        row.stamps.shared = false;
         store::question_upsert(tx, &row, now_ms)?;
         store::set_family(tx, CatalogKind::Question, row.id.as_str(), family_of.get(&(CatalogKind::Question, id.clone())).copied())?;
         created(CatalogKind::Question, id, &mut report);
@@ -433,7 +399,6 @@ fn copy(
         let mut row = team.clone();
         row.id = TeamId::new(map(CatalogKind::Team, id));
         row.logo_asset_id = team.logo_asset_id.as_ref().map(|a| AssetId::new(map(CatalogKind::Asset, a.as_str())));
-        row.stamps.shared = false;
         store::team_upsert(tx, &row, now_ms)?;
         store::set_family(tx, CatalogKind::Team, row.id.as_str(), family_of.get(&(CatalogKind::Team, id.clone())).copied())?;
         created(CatalogKind::Team, id, &mut report);
@@ -447,7 +412,6 @@ fn copy(
         for member in &mut row.questions {
             member.question_id = QuestionId::new(map(CatalogKind::Question, member.question_id.as_str()));
         }
-        row.stamps.shared = false;
         super::groups::write_copy_with_groups(tx, domain, &mut row, now_ms)?;
         store::set_family(tx, CatalogKind::Domain, row.id.as_str(), family_of.get(&(CatalogKind::Domain, id.clone())).copied())?;
         created(CatalogKind::Domain, id, &mut report);
@@ -482,105 +446,37 @@ fn copy(
     Ok(report)
 }
 
-// -------------------------------------------------- move and make shared
+// ------------------------------------------------------------------- move
 
-/// Move the closure to `target`, or into the shared library with `None`.
+/// Move the closure to `target`.
 fn relocate(
     tx: &Transaction<'_>,
     selection: &Selection,
     current: &WorkspaceId,
-    target: Option<&WorkspaceId>,
+    target: &WorkspaceId,
 ) -> CatalogResult<TransferReport> {
-    let rows = closure(tx, selection, false)?;
+    let rows = closure(tx, selection)?;
     let mut report = TransferReport::default();
-    // A shared row reaches nothing local: a game in this workspace may go on
-    // using it, and the closure already brought a shared domain's questions.
-    if target.is_none()
-        && let Some(recipe) = rows.recipes.keys().next()
-    {
-        return Err(CatalogError::ScopeRule {
-            rule: "a game always lives in one workspace",
-            detail: format!("game {recipe}"),
-        });
-    }
-    // Picked rows already shared: a move cannot take them (they are already
-    // everywhere) and a share has nothing to do. Said, not swallowed (review).
-    for (kind, id) in &rows.picked {
-        if !rows.contains(*kind, id) && store::home_of(tx, *kind, id)? == Some(None) {
-            report.unchanged.push(Touched { kind: *kind, id: id.clone(), from: id.clone(), picked: true });
-        }
-    }
     // What stays behind and still uses something that would go.
-    let staying_users = store::local_users(tx, current)?;
-    for user in staying_users {
+    for user in store::local_users(tx, current)? {
         if rows.contains(user.kind, &user.id) && !rows.contains(user.user_kind, &user.user_id) {
-            // Making a question shared leaves the games and domains of this
-            // workspace able to use it; only a move takes it out of reach.
-            if target.is_none() {
-                continue;
-            }
             report.refused.push(Refusal { kind: user.kind, id: user.id.clone(), used_by: user.used_by.clone() });
         }
     }
     if !report.refused.is_empty() {
         return Ok(report);
     }
-    let destination = target.map(|t| t.as_str());
     for (kind, id) in rows.ids() {
-        store::set_workspace(tx, kind, &id, destination)?;
+        store::set_workspace(tx, kind, &id, target.as_str())?;
         report.moved.push(Touched { kind, id: id.clone(), from: id.clone(), picked: rows.picked.contains(&(kind, id)) });
     }
     // A moved question takes the target's spelling of a tag both use (review).
-    if let Some(target) = target {
-        super::db::bind_workspace(tx, target.as_str())?;
-        for (kind, id) in rows.ids() {
-            if kind == CatalogKind::Question {
-                store::tags_respell(tx, &id)?;
-            }
-        }
-        super::db::bind_workspace(tx, current.as_str())?;
-    }
-    // A row that goes shared has to pass the reference rules in its new place.
-    for id in rows.domains.keys() {
-        store::domain_rule(tx, id)?;
-    }
-    Ok(report)
-}
-
-// ------------------------------------------------------------- make local
-
-fn make_local(tx: &Transaction<'_>, selection: &Selection, current: &WorkspaceId) -> CatalogResult<TransferReport> {
-    let mut report = TransferReport::default();
-    if let Some(recipe) = selection.recipes.first() {
-        return Err(CatalogError::ScopeRule { rule: "a game is already local", detail: format!("game {recipe}") });
-    }
-    let mut picked: Vec<(CatalogKind, String)> = Vec::new();
-    for (kind, id) in selection.picked() {
-        let shared = match kind {
-            CatalogKind::Team => store::team_get(tx, &TeamId::new(id.clone()))?.stamps.shared,
-            CatalogKind::Domain => store::domain_get(tx, &DomainId::new(id.clone()))?.stamps.shared,
-            CatalogKind::Question => store::question_get(tx, &QuestionId::new(id.clone()))?.stamps.shared,
-            _ => false,
-        };
-        if shared {
-            picked.push((kind, id));
+    super::db::bind_workspace(tx, target.as_str())?;
+    for (kind, id) in rows.ids() {
+        if kind == CatalogKind::Question {
+            store::tags_respell(tx, &id)?;
         }
     }
-    for (kind, id) in &picked {
-        for user in store::users_elsewhere(tx, *kind, id, current)? {
-            // A row picked with it goes local too, so it is no longer a user.
-            if picked.iter().any(|(k, i)| *k == user.user_kind && i == &user.user_id) {
-                continue;
-            }
-            report.refused.push(Refusal { kind: *kind, id: id.clone(), used_by: user.used_by });
-        }
-    }
-    if !report.refused.is_empty() {
-        return Ok(report);
-    }
-    for (kind, id) in picked {
-        store::set_workspace(tx, kind, &id, Some(current.as_str()))?;
-        report.moved.push(Touched { kind, id: id.clone(), from: id, picked: true });
-    }
+    super::db::bind_workspace(tx, current.as_str())?;
     Ok(report)
 }

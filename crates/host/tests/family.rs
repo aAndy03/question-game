@@ -207,7 +207,7 @@ fn a_changed_asset_follows_to_the_copy_as_the_copys_own() {
 }
 
 #[test]
-fn a_shared_copy_keeps_its_own_asset_and_the_preview_matches_the_save() {
+fn a_copy_keeps_its_workspaces_asset_and_the_preview_matches_the_save() {
     let (catalog, a, b) = setup();
     catalog.catalog_upsert(&asset("logo"), NOW).unwrap();
     let mut t = Team::new("t1", "Lions", "LIO");
@@ -216,29 +216,29 @@ fn a_shared_copy_keeps_its_own_asset_and_the_preview_matches_the_save() {
     catalog.catalog_copy_to(&Selection { teams: vec![TeamId::from("t1")], ..Selection::default() }, &b, NOW).unwrap();
     catalog.workspace_switch(&b).unwrap();
     let copy = only(&catalog, CatalogKind::Team);
-    catalog.catalog_make_shared(&Selection { teams: vec![TeamId::from(copy.as_str())], ..Selection::default() }, NOW).unwrap();
     catalog.workspace_switch(&a).unwrap();
 
     t.name = "Lions FC".into();
     let preview = catalog.propagation_preview(&CatalogItem::Team(Box::new(t.clone()))).unwrap();
     assert_eq!(preview.update.len(), 1);
     catalog.catalog_upsert_propagating(&CatalogItem::Team(Box::new(t)), NOW).expect("the save the preview promised");
-    let CatalogItem::Team(shared) = catalog.catalog_get(CatalogKind::Team, &copy).unwrap() else { panic!() };
-    assert_eq!(shared.name, "Lions FC");
+    catalog.workspace_switch(&b).unwrap();
+    let CatalogItem::Team(updated) = catalog.catalog_get(CatalogKind::Team, &copy).unwrap() else { panic!() };
+    assert_eq!(updated.name, "Lions FC");
+    assert_ne!(updated.logo_asset_id.as_ref().map(|a| a.as_str()), Some("logo"), "B's own asset, not A's");
     let _ = TransferOp::Copy;
 }
 
 #[test]
-fn a_shared_copy_on_another_workspaces_board_is_skipped_when_it_would_break_it() {
+fn a_copy_on_another_workspaces_board_is_skipped_when_it_would_break_it() {
     let (catalog, a, b) = setup();
-    // Share q1's copy and q2's copy in B, and put both on B's board.
+    // q1's copy and q2's copy in B, both on B's board.
     catalog.workspace_switch(&b).unwrap();
     let d = get_domain(&catalog, &only(&catalog, CatalogKind::Domain));
     let ids: Vec<QuestionId> = d.questions.iter().map(|m| m.question_id.clone()).collect();
     let mut game = Recipe::new("gb", "B's game", GameSettings::default());
     game.board = vec![BoardDomain { domain_id: d.id.clone(), question_ids: ids.clone() }];
     catalog.recipe_upsert(&game, NOW).unwrap();
-    catalog.catalog_make_shared(&Selection { questions: vec![ids[0].clone()], ..Selection::default() }, NOW).unwrap();
     catalog.workspace_switch(&a).unwrap();
 
     let mut edited = question("q1", 20);

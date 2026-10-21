@@ -127,8 +127,8 @@ pub enum CatalogError {
     #[error("the library has no active workspace")]
     NoWorkspace,
 
-    /// A reference rule between workspaces and the shared library: a shared
-    /// domain holds only shared questions; a game uses its own and shared rows.
+    /// A reference rule between workspaces: a domain holds its own workspace's
+    /// questions; a game uses its own workspace's rows.
     #[error("{rule}: {detail}")]
     ScopeRule { rule: &'static str, detail: String },
 

@@ -489,7 +489,7 @@ impl CatalogService {
         }
         let conn = self.conn();
         let elsewhere = |kind: CatalogKind, id: &str| -> CatalogResult<bool> {
-            Ok(matches!(super::store::home_of(&conn, kind, id)?, Some(Some(home)) if home != current.as_str()))
+            Ok(matches!(super::store::home_of(&conn, kind, id)?, Some(home) if home != current.as_str()))
         };
         let moved = elsewhere(CatalogKind::Recipe, document.1.id.as_str())?
             || document.0.iter().map(|i| elsewhere(i.kind(), &i.id())).collect::<CatalogResult<Vec<_>>>()?.into_iter().any(|m| m);

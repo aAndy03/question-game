@@ -69,25 +69,6 @@ fn a_deleted_groups_id_is_a_readable_refusal() {
 }
 
 #[test]
-fn a_membership_edit_reaches_other_workspaces_only_through_a_shared_domain() {
-    let c = CatalogService::open(CatalogLocation::Memory).unwrap();
-    let mut shared = question("qs", &[]);
-    shared.stamps.shared = true;
-    c.catalog_upsert(&shared.into(), NOW).unwrap();
-    history(&c, &[]);
-    let local = c.catalog_bulk_edit(&ids(&["qs"]), &BulkEdit::AddToDomain { domain_id: DomainId::from("d1") }, false, NOW).unwrap();
-    assert_eq!(local.shared, 0, "a local domain changes nothing elsewhere");
-    let mut sd = Domain::new("d2", "Shared", "SHA");
-    sd.stamps.shared = true;
-    c.catalog_upsert(&sd.into(), NOW).unwrap();
-    let reach = c.catalog_bulk_edit(&ids(&["qs"]), &BulkEdit::AddToDomain { domain_id: DomainId::from("d2") }, false, NOW).unwrap();
-    assert_eq!(reach.shared, 1);
-    // A tag still counts the shared questions themselves.
-    let tag = c.catalog_bulk_edit(&ids(&["qs"]), &BulkEdit::Tag { tag: "x".into() }, false, NOW).unwrap();
-    assert_eq!(tag.shared, 1);
-}
-
-#[test]
 fn the_cap_refusal_says_how_many() {
     let c = CatalogService::open(CatalogLocation::Memory).unwrap();
     let twenty: Vec<String> = (0..20).map(|i| format!("t{i}")).collect();

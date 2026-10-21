@@ -272,8 +272,6 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::workspace::transfer_preview,
         commands::workspace::catalog_copy_to,
         commands::workspace::catalog_move_to,
-        commands::workspace::catalog_make_shared,
-        commands::workspace::catalog_make_local,
         commands::workspace::catalog_propagation_preview,
         commands::workspace::catalog_upsert_propagating,
         commands::workspace::catalog_unfollow,

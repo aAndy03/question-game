@@ -40,11 +40,6 @@ pub struct BulkReport {
     pub changed: Vec<QuestionId>,
     /// Selected, and already as asked (already tagged, not a member, …).
     pub unchanged: Vec<QuestionId>,
-    /// How many changes reach every workspace: shared questions for a tag or a
-    /// difficulty; for a membership edit (Group, Add to / Remove from domain)
-    /// every change when the domain is shared and none when it is not — it is
-    /// the domain that changes, not the question.
-    pub shared: usize,
 }
 
 impl CatalogService {
@@ -120,7 +115,6 @@ impl CatalogService {
 fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64) -> CatalogResult<BulkReport> {
     let mut report = BulkReport::default();
     let questions: Vec<Question> = ids.iter().map(|id| store::question_get(tx, id)).collect::<CatalogResult<_>>()?;
-    report.shared = questions.iter().filter(|q| q.stamps.shared).count();
 
     match edit {
         BulkEdit::Tag { tag } => {
@@ -200,15 +194,6 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
         }
         BulkEdit::AddToDomain { domain_id } => {
             let mut domain = store::domain_get(tx, domain_id)?;
-            if domain.stamps.shared {
-                let local = questions.iter().filter(|q| !q.stamps.shared).count();
-                if local > 0 {
-                    return Err(CatalogError::ScopeRule {
-                        rule: "a shared domain holds only shared questions",
-                        detail: format!("domain {}: {local} of the selected questions are this workspace's", domain.name),
-                    });
-                }
-            }
             let mut next = domain.questions.iter().map(|m| m.sort_key + 1).max().unwrap_or(0);
             for q in &questions {
                 if domain.questions.iter().any(|m| m.question_id == q.id) {
@@ -238,9 +223,8 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
 }
 
 /// The domain written once, its changed questions stamped as updated too (a
-/// *recently updated* sort moves them), and the reach counted as the domain's.
+/// *recently updated* sort moves them).
 fn membership(tx: &Transaction<'_>, domain: &super::model::Domain, report: &mut BulkReport, now_ms: u64) -> CatalogResult<()> {
-    report.shared = if domain.stamps.shared { report.changed.len() } else { 0 };
     if report.changed.is_empty() {
         return Ok(());
     }

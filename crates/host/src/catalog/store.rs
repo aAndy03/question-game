@@ -49,31 +49,27 @@ fn stamps(row: &Row<'_>) -> rusqlite::Result<Stamps> {
         created_at: read_u64(row, "created_at")?,
         updated_at: read_u64(row, "updated_at")?,
         archived_at: read_opt_u64(row, "archived_at")?,
-        shared: false,
         family_id: None,
     })
 }
 
-/// A library row is **in view** when it lives in the current workspace or in
-/// the shared library (Beta 2.0). The current workspace is the one row of the
-/// `current_ws` TEMP table on this connection ([`super::db::bind_workspace`]),
-/// so the scope cannot be forgotten by a caller: every statement below that
-/// reads or writes a library row names it.
-pub(super) const IN_VIEW: &str =
-    "(workspace_id IS NULL OR workspace_id = (SELECT id FROM temp.current_ws))";
-/// A game is never shared: it is in view only in its own workspace.
-pub(super) const IN_WORKSPACE: &str = "workspace_id = (SELECT id FROM temp.current_ws)";
+/// A library row is **in view** when it lives in the current workspace — the
+/// one row of the `current_ws` TEMP table on this connection
+/// ([`super::db::bind_workspace`]) — so the scope cannot be forgotten by a
+/// caller: every statement below that reads or writes a library row names it.
+/// There is no shared library since beta.2 (migration 6): every row lives in
+/// exactly one workspace.
+pub(super) const IN_VIEW: &str = "workspace_id = (SELECT id FROM temp.current_ws)";
+/// Games are scoped the same way; the name is kept where a game is meant.
+pub(super) const IN_WORKSPACE: &str = IN_VIEW;
 
 fn in_view(alias: &str) -> String {
-    format!(
-        "({alias}.workspace_id IS NULL OR {alias}.workspace_id = (SELECT id FROM temp.current_ws))"
-    )
+    format!("{alias}.workspace_id = (SELECT id FROM temp.current_ws)")
 }
 
-/// [`stamps`] for a library row, which also says where it lives.
+/// [`stamps`] for a library row, with its family.
 fn library_stamps(row: &Row<'_>) -> rusqlite::Result<Stamps> {
     Ok(Stamps {
-        shared: row.get::<_, Option<String>>("workspace_id")?.is_none(),
         family_id: row.get("family_id")?,
         ..stamps(row)?
     })
@@ -101,11 +97,9 @@ fn ensure_in_view(conn: &Connection, kind: CatalogKind, id: &str) -> CatalogResu
     }
 }
 
-/// Where a **new** row lands: the shared library, or the current workspace.
-/// `ON CONFLICT` never touches the column, so an existing row stays put.
-fn land(param: usize) -> String {
-    format!("CASE WHEN ?{param} THEN NULL ELSE (SELECT id FROM temp.current_ws) END")
-}
+/// Where a **new** row lands: the current workspace. `ON CONFLICT` never
+/// touches the column, so an existing row stays put.
+const LAND: &str = "(SELECT id FROM temp.current_ws)";
 
 /// `created_at` is kept from the stored row; `updated_at` moves to now. This is
 /// the one place metadata is decided, so a caller cannot backdate a row.
@@ -206,7 +200,7 @@ pub(super) fn team_upsert(tx: &Transaction<'_>, team: &Team, now_ms: u64) -> Cat
              color = excluded.color, logo_asset_id = excluded.logo_asset_id,
              notes = excluded.notes, origin = excluded.origin,
              updated_at = excluded.updated_at",
-            land = land(10)
+            land = LAND
         ),
         params![
             team.id.as_str(),
@@ -218,7 +212,6 @@ pub(super) fn team_upsert(tx: &Transaction<'_>, team: &Team, now_ms: u64) -> Cat
             team.origin.as_str(),
             ms(created_at),
             ms(now_ms),
-            team.stamps.shared,
         ],
     )?;
     asset_rule(tx, "teams", "logo_asset_id", team.id.as_str())?;
@@ -392,7 +385,7 @@ pub(super) fn domain_upsert(
              name = excluded.name, code = excluded.code,
              description = excluded.description, origin = excluded.origin,
              updated_at = excluded.updated_at",
-            land = land(8)
+            land = LAND
         ),
         params![
             domain.id.as_str(),
@@ -402,7 +395,6 @@ pub(super) fn domain_upsert(
             domain.origin.as_str(),
             ms(created_at),
             ms(now_ms),
-            domain.stamps.shared,
         ],
     )?;
     // Every group a member names is one of this domain's, checked before the
@@ -446,43 +438,34 @@ pub(super) fn domain_upsert(
     Ok(())
 }
 
-/// A shared domain holds only shared questions; a domain in a workspace holds
-/// that workspace's questions and shared ones. Checked after the write, inside
-/// its transaction, so the stored row — not the caller's `shared` flag — is
-/// what is judged.
+/// A domain holds its own workspace's questions. Checked after the write,
+/// inside its transaction, so the stored rows are what is judged.
 pub(super) fn domain_rule(conn: &Connection, domain: &str) -> CatalogResult<()> {
-    let offender: Option<(String, bool)> = conn
+    let offender: Option<String> = conn
         .query_row(
-            "SELECT q.id, d.workspace_id IS NULL FROM domain_questions dq
+            "SELECT q.id FROM domain_questions dq
                JOIN domains d ON d.id = dq.domain_id
                JOIN questions q ON q.id = dq.question_id
-             WHERE dq.domain_id = ?1 AND q.workspace_id IS NOT NULL
-               AND (d.workspace_id IS NULL OR q.workspace_id <> d.workspace_id)
+             WHERE dq.domain_id = ?1 AND q.workspace_id <> d.workspace_id
              LIMIT 1",
             params![domain],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| row.get(0),
         )
         .optional()?;
     match offender {
         None => Ok(()),
-        Some((question, true)) => Err(CatalogError::ScopeRule {
-            rule: "a shared domain holds only shared questions",
-            detail: format!("domain {domain}, question {question}"),
-        }),
-        Some((question, false)) => Err(CatalogError::ScopeRule {
-            rule: "a domain holds its own workspace's questions and shared ones",
+        Some(question) => Err(CatalogError::ScopeRule {
+            rule: "a domain holds its own workspace's questions",
             detail: format!("domain {domain}, question {question}"),
         }),
     }
 }
 
-/// A shared team or question has a shared asset, or none: a workspace's logo
-/// on a row every workspace sees would be a file only one of them can manage.
+/// A team's logo and a question's media are its own workspace's assets.
 fn asset_rule(conn: &Connection, table: &str, column: &str, id: &str) -> CatalogResult<()> {
     let sql = format!(
         "SELECT a.id FROM {table} r JOIN assets a ON a.id = r.{column}
-         WHERE r.id = ?1 AND a.workspace_id IS NOT NULL
-           AND (r.workspace_id IS NULL OR a.workspace_id <> r.workspace_id)"
+         WHERE r.id = ?1 AND a.workspace_id <> r.workspace_id"
     );
     let offender: Option<String> = conn
         .query_row(&sql, params![id], |row| row.get(0))
@@ -490,7 +473,7 @@ fn asset_rule(conn: &Connection, table: &str, column: &str, id: &str) -> Catalog
     match offender {
         None => Ok(()),
         Some(asset) => Err(CatalogError::ScopeRule {
-            rule: "a row uses its own workspace's assets and shared ones",
+            rule: "a row uses its own workspace's assets",
             detail: format!("{id}, asset {asset}"),
         }),
     }
@@ -587,7 +570,7 @@ pub(super) fn question_upsert(
              stem = excluded.stem, media_asset_id = excluded.media_asset_id,
              difficulty = excluded.difficulty, explanation = excluded.explanation,
              origin = excluded.origin, updated_at = excluded.updated_at",
-            land = land(9)
+            land = LAND
         ),
         params![
             question.id.as_str(),
@@ -598,7 +581,6 @@ pub(super) fn question_upsert(
             question.origin.as_str(),
             ms(created_at),
             ms(now_ms),
-            question.stamps.shared,
         ],
     )?;
     asset_rule(tx, "questions", "media_asset_id", question.id.as_str())?;
@@ -709,7 +691,6 @@ fn asset_row(row: &Row<'_>) -> rusqlite::Result<Asset> {
             created_at: read_u64(row, "created_at")?,
             updated_at: read_u64(row, "created_at")?,
             archived_at: read_opt_u64(row, "archived_at")?,
-            shared: row.get::<_, Option<String>>("workspace_id")?.is_none(),
             family_id: row.get("family_id")?,
         },
     })
@@ -744,14 +725,13 @@ pub(super) fn asset_upsert(tx: &Transaction<'_>, asset: &Asset, now_ms: u64) -> 
             "INSERT INTO assets (id, path, kind, created_at, archived_at, workspace_id)
          VALUES (?1, ?2, ?3, ?4, (SELECT archived_at FROM assets WHERE id = ?1), {land})
          ON CONFLICT(id) DO UPDATE SET path = excluded.path, kind = excluded.kind",
-            land = land(5)
+            land = LAND
         ),
         params![
             asset.id.as_str(),
             asset.path,
             asset.kind,
             ms(created_at),
-            asset.stamps.shared,
         ],
     )?;
     Ok(())
@@ -930,8 +910,8 @@ pub(super) fn recipe_upsert(
     Ok(rev as u32)
 }
 
-/// A game uses its own workspace's teams, domains and questions and shared
-/// ones — never a row local to another workspace.
+/// A game uses its own workspace's teams, domains and questions — never
+/// another workspace's.
 pub(super) fn recipe_rule(conn: &Connection, recipe: &str) -> CatalogResult<()> {
     let checks: [(&str, &str, &str); 3] = [
         (
@@ -953,15 +933,14 @@ pub(super) fn recipe_rule(conn: &Connection, recipe: &str) -> CatalogResult<()> 
     for (noun, _, select) in checks {
         let sql = format!(
             "{select} JOIN recipes r ON r.id = x.recipe_id
-             WHERE x.recipe_id = ?1 AND t.workspace_id IS NOT NULL
-               AND t.workspace_id IS NOT r.workspace_id LIMIT 1"
+             WHERE x.recipe_id = ?1 AND t.workspace_id IS NOT r.workspace_id LIMIT 1"
         );
         let offender: Option<String> = conn
             .query_row(&sql, params![recipe], |row| row.get(0))
             .optional()?;
         if let Some(id) = offender {
             return Err(CatalogError::ScopeRule {
-                rule: "a game uses its own workspace's rows and shared ones",
+                rule: "a game uses its own workspace's rows",
                 detail: format!("game {recipe}, {noun} {id}"),
             });
         }
@@ -1654,9 +1633,8 @@ pub(super) fn workspace_counts(
 }
 
 /// The one place library rows are deleted: a whole archived workspace, its
-/// games, their Plays and logs, inside the caller's transaction. Shared rows
-/// are never touched — a workspace does not own them. Asset **files** are not
-/// touched either; only rows go.
+/// games, their Plays and logs, inside the caller's transaction. Asset
+/// **files** are not touched; only rows go.
 pub(super) fn workspace_purge(tx: &Transaction<'_>, id: &crate::ids::WorkspaceId) -> CatalogResult<()> {
     let id = id.as_str();
     tx.execute(
@@ -1694,12 +1672,12 @@ pub(super) fn family_member_in(
         .optional()?)
 }
 
-/// Where a row lives from now on: a workspace, or the shared library.
+/// Where a row lives from now on.
 pub(super) fn set_workspace(
     conn: &Connection,
     kind: CatalogKind,
     id: &str,
-    workspace: Option<&str>,
+    workspace: &str,
 ) -> CatalogResult<()> {
     let sql = format!("UPDATE {} SET workspace_id = ?1 WHERE id = ?2", kind.table());
     conn.execute(&sql, params![workspace, id])?;
@@ -1781,44 +1759,8 @@ pub(super) fn local_users(conn: &Connection, workspace: &crate::ids::WorkspaceId
     Ok(out)
 }
 
-/// Who uses `(kind, id)` outside `workspace` — another workspace's rows, or a
-/// shared one. What *Make local* must not strand.
-pub(super) fn users_elsewhere(
-    conn: &Connection,
-    kind: CatalogKind,
-    id: &str,
-    workspace: &crate::ids::WorkspaceId,
-) -> CatalogResult<Vec<Use>> {
-    let mut out = Vec::new();
-    for (used_kind, user_kind, select) in USES {
-        if used_kind != kind {
-            continue;
-        }
-        let sql = format!("{select} WHERE r.id = ?1 AND u.workspace_id IS NOT ?2");
-        let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt.query_map(params![id, workspace.as_str()], |row| {
-            let what: String = row.get(2)?;
-            let home: Option<String> = row.get(3)?;
-            let home_name: Option<String> = row.get(4)?;
-            let used_by = match home {
-                None => format!("{what} (shared)"),
-                Some(home) => format!("{what} in workspace {}", home_name.unwrap_or(home)),
-            };
-            Ok(Use {
-                kind,
-                id: row.get(0)?,
-                user_kind,
-                user_id: row.get(1)?,
-                used_by,
-            })
-        })?;
-        out.extend(rows.collect::<rusqlite::Result<Vec<_>>>()?);
-    }
-    Ok(out)
-}
-
 /// `(id, workspace, workspace name, archived)` — one member of a family.
-pub(super) type Member = (String, Option<String>, Option<String>, bool);
+pub(super) type Member = (String, String, Option<String>, bool);
 
 /// Every row of `family`, wherever it lives, archived ones included.
 pub(super) fn family_members(
@@ -1850,12 +1792,11 @@ pub(super) fn recipes_with_question(conn: &Connection, question: &str) -> Catalo
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
-/// Where a row lives, whatever the current workspace: `None` — no such row;
-/// `Some(None)` — shared; `Some(Some(ws))` — that workspace.
-pub(super) fn home_of(conn: &Connection, kind: CatalogKind, id: &str) -> CatalogResult<Option<Option<String>>> {
+/// The workspace a row lives in, whatever the current one; `None` — no such row.
+pub(super) fn home_of(conn: &Connection, kind: CatalogKind, id: &str) -> CatalogResult<Option<String>> {
     let sql = format!("SELECT workspace_id FROM {} WHERE id = ?1", kind.table());
     Ok(conn
-        .query_row(&sql, params![id], |row| row.get::<_, Option<String>>(0))
+        .query_row(&sql, params![id], |row| row.get::<_, String>(0))
         .optional()?)
 }
 
@@ -1929,11 +1870,11 @@ fn tags_put(tx: &Transaction<'_>, question: &Question) -> CatalogResult<()> {
     Ok(())
 }
 
-/// Every tag in view, with how many questions carry it and how many of those
-/// are shared — archived questions included.
+/// Every tag in view, with how many questions carry it — archived questions
+/// included.
 pub(super) fn tag_counts(conn: &Connection) -> CatalogResult<Vec<super::groups::TagCount>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT MIN(qt.tag), qt.tag_key, COUNT(*), SUM(q.workspace_id IS NULL)
+        "SELECT MIN(qt.tag), qt.tag_key, COUNT(*)
            FROM question_tags qt JOIN questions q ON q.id = qt.question_id
           WHERE {}
           GROUP BY qt.tag_key ORDER BY qt.tag_key",
@@ -1943,36 +1884,34 @@ pub(super) fn tag_counts(conn: &Connection) -> CatalogResult<Vec<super::groups::
         Ok(super::groups::TagCount {
             tag: row.get(0)?,
             questions: row.get::<_, i64>(2)? as usize,
-            shared: row.get::<_, i64>(3)? as usize,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
-/// The questions in view carrying `key`, with whether each is shared.
-fn tagged_in_view(conn: &Connection, key: &str) -> CatalogResult<Vec<(String, bool)>> {
-    Ok(spelled_in_view(conn, key)?.into_iter().map(|(id, shared, _)| (id, shared)).collect())
+/// The questions in view carrying `key`.
+fn tagged_in_view(conn: &Connection, key: &str) -> CatalogResult<Vec<String>> {
+    Ok(spelled_in_view(conn, key)?.into_iter().map(|(id, _)| id).collect())
 }
 
 /// The same, with each one's spelling of it.
-fn spelled_in_view(conn: &Connection, key: &str) -> CatalogResult<Vec<(String, bool, String)>> {
+fn spelled_in_view(conn: &Connection, key: &str) -> CatalogResult<Vec<(String, String)>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT q.id, q.workspace_id IS NULL, qt.tag FROM question_tags qt JOIN questions q ON q.id = qt.question_id
+        "SELECT q.id, qt.tag FROM question_tags qt JOIN questions q ON q.id = qt.question_id
           WHERE qt.tag_key = ?1 AND {} ORDER BY q.id",
         in_view("q")
     ))?;
-    let rows = stmt.query_map(params![key], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+    let rows = stmt.query_map(params![key], |row| Ok((row.get(0)?, row.get(1)?)))?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
-fn touched(tx: &Transaction<'_>, ids: &[(String, bool)], now_ms: u64) -> CatalogResult<super::bulk::BulkReport> {
-    for (id, _) in ids {
+fn touched(tx: &Transaction<'_>, ids: &[String], now_ms: u64) -> CatalogResult<super::bulk::BulkReport> {
+    for id in ids {
         tx.execute("UPDATE questions SET updated_at = ?1 WHERE id = ?2", params![ms(now_ms), id])?;
     }
     Ok(super::bulk::BulkReport {
-        changed: ids.iter().map(|(id, _)| QuestionId::new(id.clone())).collect(),
+        changed: ids.iter().map(|id| QuestionId::new(id.clone())).collect(),
         unchanged: Vec::new(),
-        shared: ids.iter().filter(|(_, shared)| *shared).count(),
     })
 }
 
@@ -1996,19 +1935,19 @@ pub(super) fn tag_rename(
     // What changes: a carrier spelled otherwise (all of them, for a merge or a
     // new name), and on a merge each question that had the target spelled
     // otherwise. A rename to the spelling it has touches nothing (review).
-    let mut changed: Vec<(String, bool)> = carriers
+    let mut changed: Vec<String> = carriers
         .iter()
-        .filter(|(_, _, tag)| to_key != from_key || tag != &spelling)
-        .map(|(id, shared, _)| (id.clone(), *shared))
+        .filter(|(_, tag)| to_key != from_key || tag != &spelling)
+        .map(|(id, _)| id.clone())
         .collect();
     if to_key != from_key {
-        for (id, shared, tag) in spelled_in_view(tx, to_key)? {
-            if tag != spelling && !changed.iter().any(|(c, _)| c == &id) {
-                changed.push((id, shared));
+        for (id, tag) in spelled_in_view(tx, to_key)? {
+            if tag != spelling && !changed.contains(&id) {
+                changed.push(id);
             }
         }
     }
-    for (id, _, _) in &carriers {
+    for (id, _) in &carriers {
         let has_target: bool = to_key != from_key
             && tx
                 .query_row(
@@ -2048,7 +1987,7 @@ fn tagged_spelling(conn: &Connection, key: &str) -> CatalogResult<Option<String>
 /// *Manage tags* ▸ Delete over the questions in view.
 pub(super) fn tag_delete(tx: &Transaction<'_>, key: &str, now_ms: u64) -> CatalogResult<super::bulk::BulkReport> {
     let carriers = tagged_in_view(tx, key)?;
-    for (id, _) in &carriers {
+    for id in &carriers {
         tx.execute("DELETE FROM question_tags WHERE question_id = ?1 AND tag_key = ?2", params![id, key])?;
     }
     touched(tx, &carriers, now_ms)
