@@ -42,9 +42,22 @@ fn windows_ships_one_per_user_installer() {
     let bundle = &config["bundle"];
     assert_eq!(bundle["targets"], serde_json::json!(["nsis"]));
     assert_eq!(bundle["windows"]["nsis"]["installMode"], "currentUser");
-    assert_eq!(bundle["licenseFile"], "../../LICENSE");
+    assert_eq!(bundle["licenseFile"], "installer/LICENSE.txt");
     assert!(bundle["publisher"].as_str().is_some_and(|s| !s.is_empty()));
-    assert!(bundle["copyright"].as_str().is_some_and(|s| s.contains("GPL-3.0-or-later")));
+    let copyright = bundle["copyright"].as_str().unwrap_or_default();
+    assert!(copyright.contains("GPL-3.0-or-later"), "{copyright}");
+    assert!(copyright.contains("Andy (aAndy03)") && copyright.contains("Darius"), "both co-founders: {copyright}");
+}
+
+/// The installer's licence page names the co-founders, then shows the GPL
+/// exactly as `LICENSE` has it — the two cannot drift apart.
+#[test]
+fn the_installer_licence_credits_both_founders_and_carries_the_gpl_verbatim() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let page = std::fs::read_to_string(dir.join("installer/LICENSE.txt")).unwrap().replace("\r\n", "\n");
+    let gpl = std::fs::read_to_string(dir.join("../../LICENSE")).unwrap().replace("\r\n", "\n");
+    assert!(page.starts_with("questiongame\nCreated by Darius and Andy (aAndy03), co-founders."), "{}", &page[..80]);
+    assert!(page.ends_with(&gpl), "the GPL text follows unchanged");
 }
 
 #[test]

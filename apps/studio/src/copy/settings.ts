@@ -101,6 +101,14 @@ export const SETTINGS = {
     tagline: 'An offline quiz show: Studio for the operator, Stage for the audience.',
     version: (version: string, build: string) => `Version ${version} · ${build === 'release' ? 'installed build' : 'dev build'}`,
     loading: 'Loading…',
+    creditsTitle: 'Credits',
+    creditsBody: 'questiongame was created by its two co-founders.',
+    founders: [
+      { name: 'Darius', handle: null, role: 'Co-founder' },
+      { name: 'Andy', handle: 'aAndy03', role: 'Co-founder' },
+    ],
+    founderLine: (f: { name: string; handle: string | null; role: string }) => `${f.name}${f.handle ? ` (${f.handle})` : ''} — ${f.role}`,
+    copyright: '© 2026 Darius and Andy (aAndy03)',
     licenceTitle: 'Licence',
     gplSummary:
       'questiongame is free software under the GNU General Public License, version 3 or later. You may use it for anything, share it, and change it, as long as what you share stays under the same licence. It comes with no warranty.',

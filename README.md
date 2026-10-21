@@ -395,7 +395,13 @@ document disagree, the document is right and the code is a bug.
 
 ## Contributors
 
-- [@aAndy03](https://github.com/aAndy03) — creator and maintainer
+questiongame was created by its two co-founders:
+
+- **Darius** — co-founder
+- **Andy** ([@aAndy03](https://github.com/aAndy03)) — co-founder and maintainer
+
+Copyright (C) 2026 Darius and Andy (aAndy03). Licensed under the GNU General
+Public License, version 3 or later ([`LICENSE`](LICENSE)).
 
 Contributions are welcome. Read [`CLAUDE.md`](CLAUDE.md) and
 [`docs/v1/03_CONTEXT.md`](docs/v1/03_CONTEXT.md) before opening a pull
