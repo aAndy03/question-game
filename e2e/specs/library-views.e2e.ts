@@ -58,7 +58,12 @@ describe('library views', () => {
     await sees(`51–100 of ${total} questions`)
     // Open a question, then its editor: a full page, so the list really goes
     // away — beside an open aside it would still be standing (review).
-    await (await $('[data-list-body]').$('.//*[starts-with(text(),"Extra question")]')).click()
+    // The row itself, scrolled to the middle: on CI's smaller window its title
+    // sat under the sticky header row and WebView2 refused the click (v1.1.0 run).
+    const row = await $('[data-list-body]').$('.//*[@role="button"][.//*[starts-with(text(),"Extra question")]]')
+    await row.scrollIntoView({ block: 'center' })
+    await row.waitForClickable({ timeout: 15_000 })
+    await row.click()
     await press('Edit')
     await browser.waitUntil(async () => !(await body()).includes(`of ${total} questions`), { timeoutMsg: 'the list did not leave the screen' })
     await press('Back')
