@@ -2854,7 +2854,7 @@ config:
       bundle.windows.nsis.installMode: currentUser
       identifier: org.questiongame.desktop
       productName: questiongame
-      version: "2.0.0-beta.1"
+      version: "2.0.0-beta.2"
     crates/app/tauri.dev.conf.json:
       identifier: org.questiongame.app
     crates/app/tauri.e2e.conf.json:
