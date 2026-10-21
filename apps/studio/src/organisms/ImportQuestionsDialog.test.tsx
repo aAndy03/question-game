@@ -60,10 +60,20 @@ describe('Import questions (§2.32)', () => {
     expect(screen.getByText('New domains: Geografie')).toBeTruthy()
     expect(screen.getByText('Rejected: no question and no options')).toBeTruthy()
     expect(screen.getByText('Fewer than two options · No correct answer · No difficulty · In no domain')).toBeTruthy()
+    // beta.3: where each row lands, said once.
+    expect(screen.getByText('In Geografie (new)')).toBeTruthy()
     const calls = fake.calls.filter((c) => c.name === 'catalog_import_questions')
     expect(calls.length).toBeGreaterThan(0)
     expect(calls.every((c) => c.args?.commit === false)).toBe(true)
     expect(questionsIn(fake)).toHaveLength(0)
+  })
+
+  it('names the tags and what a duplicate repeats (beta.3)', async () => {
+    draw()
+    const row = { question: 'Q?', options: [{ text: 'A', correct: true }, 'B'], difficulty: 10, tags: ['Rome', ' rome '] }
+    await paste(JSON.stringify([row, row]))
+    expect(await screen.findByText('Tags: Rome')).toBeTruthy()
+    expect(screen.getByText('Repeats row 1 of this file')).toBeTruthy()
   })
 
   it('writes the plan on Import, and closes', async () => {

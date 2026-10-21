@@ -194,7 +194,11 @@ impl CatalogService {
         // Saving the new one can fail too: then the old one is bound and
         // indexed again, as above (review).
         // The guard is dropped before the error path takes it again.
-        let saved = store::global_set(&self.conn(), db::META_CURRENT_WORKSPACE, &serde_json::to_string(id.as_str())?);
+        let saved = store::global_set(
+            &self.conn(),
+            db::META_CURRENT_WORKSPACE,
+            &serde_json::to_string(id.as_str())?,
+        );
         if let Err(error) = saved {
             let conn = self.conn();
             db::bind_workspace(&conn, previous.as_str())?;
@@ -257,7 +261,10 @@ impl CatalogService {
 
     /// What *Delete permanently* would remove — rows, games, Plays — for the
     /// confirm that names them.
-    pub fn workspace_delete_preview(&self, id: &WorkspaceId) -> CatalogResult<(usize, usize, usize)> {
+    pub fn workspace_delete_preview(
+        &self,
+        id: &WorkspaceId,
+    ) -> CatalogResult<(usize, usize, usize)> {
         let conn = self.conn();
         workspace_row(&conn, id)?;
         store::workspace_counts(&conn, id)
@@ -266,7 +273,11 @@ impl CatalogService {
     /// *Delete permanently*: an **archived** workspace, its rows, games, Plays
     /// and logs — never an asset file. The library is
     /// copied first (the normal rotation), and the delete is one transaction.
-    pub fn workspace_delete(&self, id: &WorkspaceId, backup: &OpenOptions) -> CatalogResult<DeleteReport> {
+    pub fn workspace_delete(
+        &self,
+        id: &WorkspaceId,
+        backup: &OpenOptions,
+    ) -> CatalogResult<DeleteReport> {
         let mut conn = self.conn();
         let workspace = workspace_row(&conn, id)?;
         if !workspace.is_archived() {
@@ -293,7 +304,12 @@ impl CatalogService {
     /// new ids, archived rows as archived — and
     /// none of its Plays. Each copy joins its original's family, so an edit
     /// can follow it later. One transaction.
-    pub fn workspace_duplicate(&self, id: &WorkspaceId, name: &str, now_ms: u64) -> CatalogResult<Workspace> {
+    pub fn workspace_duplicate(
+        &self,
+        id: &WorkspaceId,
+        name: &str,
+        now_ms: u64,
+    ) -> CatalogResult<Workspace> {
         let mut conn = self.conn();
         let source = workspace_row(&conn, id)?;
         let current = store::current_workspace(&conn)?;
@@ -365,7 +381,12 @@ impl CatalogService {
         Ok(group)
     }
 
-    pub fn group_rename(&self, id: &WorkspaceGroupId, name: &str, now_ms: u64) -> CatalogResult<()> {
+    pub fn group_rename(
+        &self,
+        id: &WorkspaceGroupId,
+        name: &str,
+        now_ms: u64,
+    ) -> CatalogResult<()> {
         let conn = self.conn();
         let groups = store::group_list(&conn)?;
         let mut group = group_row(&conn, id)?;
@@ -382,13 +403,29 @@ impl CatalogService {
         let mut key = 0;
         for id in order {
             let Some(group) = groups.iter().find(|g| &g.id == id) else {
-                return Err(CatalogError::invalid(format!("workspace-group/{id}"), "no such group"));
+                return Err(CatalogError::invalid(
+                    format!("workspace-group/{id}"),
+                    "no such group",
+                ));
             };
-            store::group_insert(&tx, &WorkspaceGroup { sort_key: key, updated_at: now_ms, ..group.clone() })?;
+            store::group_insert(
+                &tx,
+                &WorkspaceGroup {
+                    sort_key: key,
+                    updated_at: now_ms,
+                    ..group.clone()
+                },
+            )?;
             key += 1;
         }
         for group in groups.iter().filter(|g| !order.contains(&g.id)) {
-            store::group_insert(&tx, &WorkspaceGroup { sort_key: key, ..group.clone() })?;
+            store::group_insert(
+                &tx,
+                &WorkspaceGroup {
+                    sort_key: key,
+                    ..group.clone()
+                },
+            )?;
             key += 1;
         }
         tx.commit()?;
@@ -429,7 +466,10 @@ fn free_name(conn: &Connection, name: &str, except: Option<&WorkspaceId>) -> Cat
             && w.name.as_deref().is_some_and(|n| same_name(n, &name))
     });
     if taken {
-        return Err(CatalogError::invalid(path, "another workspace has this name"));
+        return Err(CatalogError::invalid(
+            path,
+            "another workspace has this name",
+        ));
     }
     Ok(name)
 }
@@ -444,7 +484,10 @@ fn free_group_name(
         None => "workspace-group/new/name".to_owned(),
     };
     let name = clean_name(name, &path)?;
-    if groups.iter().any(|g| Some(&g.id) != except && same_name(&g.name, &name)) {
+    if groups
+        .iter()
+        .any(|g| Some(&g.id) != except && same_name(&g.name, &name))
+    {
         return Err(CatalogError::invalid(path, "another group has this name"));
     }
     Ok(name)
@@ -487,7 +530,10 @@ fn duplicate_into(
 
     // A Demo row keeps being a Demo row: it takes the new workspace's own seed
     // id, so *Restore sample game* there recognises it (R5).
-    let spaces: Vec<String> = store::workspace_list(tx)?.into_iter().map(|w| w.id.to_string()).collect();
+    let spaces: Vec<String> = store::workspace_list(tx)?
+        .into_iter()
+        .map(|w| w.id.to_string())
+        .collect();
     let target_id = target.id.to_string();
     // Two generations of the Demo in one workspace map onto one seed id: the
     // first keeps it, the next gets a fresh id (review: they had merged).
@@ -508,7 +554,9 @@ fn duplicate_into(
     let question_ids = fresh(questions.iter().map(|r| r.id.to_string()).collect(), "q");
     let team_ids = fresh(teams.iter().map(|r| r.id.to_string()).collect(), "team");
     let domain_ids = fresh(domains.iter().map(|r| r.id.to_string()).collect(), "dom");
-    let map = |ids: &HashMap<String, String>, id: &str| ids.get(id).cloned().unwrap_or_else(|| id.to_owned());
+    let map = |ids: &HashMap<String, String>, id: &str| {
+        ids.get(id).cloned().unwrap_or_else(|| id.to_owned())
+    };
 
     for asset in &assets {
         let mut copy = asset.clone();
@@ -529,9 +577,16 @@ fn duplicate_into(
                 option.id = format!("{}{rest}", copy.id).into();
             }
         }
-        copy.media_asset_id = question.media_asset_id.as_ref().map(|a| AssetId::new(map(&asset_ids, a.as_str())));
+        copy.media_asset_id = question
+            .media_asset_id
+            .as_ref()
+            .map(|a| AssetId::new(map(&asset_ids, a.as_str())));
         store::question_upsert(tx, &copy, now_ms)?;
-        join(CatalogKind::Question, question.id.as_str(), copy.id.as_str())?;
+        join(
+            CatalogKind::Question,
+            question.id.as_str(),
+            copy.id.as_str(),
+        )?;
         if let Some(at) = question.stamps.archived_at {
             archived.push((CatalogKind::Question, copy.id.to_string(), at));
         }
@@ -539,7 +594,10 @@ fn duplicate_into(
     for team in &teams {
         let mut copy = team.clone();
         copy.id = TeamId::new(map(&team_ids, team.id.as_str()));
-        copy.logo_asset_id = team.logo_asset_id.as_ref().map(|a| AssetId::new(map(&asset_ids, a.as_str())));
+        copy.logo_asset_id = team
+            .logo_asset_id
+            .as_ref()
+            .map(|a| AssetId::new(map(&asset_ids, a.as_str())));
         store::team_upsert(tx, &copy, now_ms)?;
         join(CatalogKind::Team, team.id.as_str(), copy.id.as_str())?;
         if let Some(at) = team.stamps.archived_at {
@@ -562,7 +620,11 @@ fn duplicate_into(
         let mut copy = recipe.clone();
         copy.id = RecipeId::new(map(&recipe_ids, recipe.id.as_str()));
         copy.rev = 0;
-        copy.teams = recipe.teams.iter().map(|t| TeamId::new(map(&team_ids, t.as_str()))).collect();
+        copy.teams = recipe
+            .teams
+            .iter()
+            .map(|t| TeamId::new(map(&team_ids, t.as_str())))
+            .collect();
         for board in &mut copy.board {
             board.domain_id = DomainId::new(map(&domain_ids, board.domain_id.as_str()));
             for q in &mut board.question_ids {
@@ -572,7 +634,9 @@ fn duplicate_into(
         copy.overlays.teams = std::mem::take(&mut copy.overlays.teams)
             .into_iter()
             .map(|(k, mut v)| {
-                v.logo_asset_id = v.logo_asset_id.map(|a| AssetId::new(map(&asset_ids, a.as_str())));
+                v.logo_asset_id = v
+                    .logo_asset_id
+                    .map(|a| AssetId::new(map(&asset_ids, a.as_str())));
                 (TeamId::new(map(&team_ids, k.as_str())), v)
             })
             .collect();

@@ -12,7 +12,7 @@ import type { Domain, ImportIgnored, ImportReport, ImportRow, Question } from '.
 export const IMPORT_FORMAT = 'questiongame.questions'
 export const IMPORT_VERSION = 1
 export const IMPORT_MAX_ROWS = 2000
-const ROW_FIELDS = ['question', 'options', 'difficulty', 'domains', 'explanation']
+const ROW_FIELDS = ['question', 'options', 'difficulty', 'domains', 'explanation', 'tags']
 
 /** A file refused whole. `message` is what the host would send: `import: …`. */
 export class ImportRefused extends Error {}
@@ -62,11 +62,12 @@ interface Read {
   difficulty: number | null
   domains: string[]
   explanation: string | null
+  tags: string[]
   ignored: ImportIgnored[]
 }
 
 function readRow(fields: Record<string, unknown>): Read {
-  const read: Read = { stem: '', options: [], difficulty: null, domains: [], explanation: null, ignored: [] }
+  const read: Read = { stem: '', options: [], difficulty: null, domains: [], explanation: null, tags: [], ignored: [] }
   const drop = (field: string, why: ImportIgnored['why']) => void read.ignored.push({ field, why })
   // Unknown keys first, sorted — as the host does, so the lists match.
   for (const key of Object.keys(fields)
@@ -111,6 +112,18 @@ function readRow(fields: Record<string, unknown>): Read {
   const explanation = fields.explanation
   if (typeof explanation === 'string') read.explanation = explanation.trim() || null
   else if (explanation !== undefined && explanation !== null) drop('explanation', 'wrong_type')
+
+  // Tags as the host cleans them: trimmed, one per fold, at most 20 of at most 40 characters.
+  const tags = fields.tags
+  if (Array.isArray(tags) && tags.every((t) => typeof t === 'string')) {
+    const out: string[] = []
+    for (const raw of tags as string[]) {
+      const tag = raw.trim()
+      if (tag && !out.some((t) => t.toLowerCase() === tag.toLowerCase())) out.push(tag)
+    }
+    if (out.length > 20 || out.some((t) => [...t].length > 40)) drop('tags', 'out_of_range')
+    else read.tags = out
+  } else if (tags !== undefined && tags !== null) drop('tags', 'wrong_type')
   return read
 }
 
@@ -128,11 +141,22 @@ export function planImport(
     throw refused('the domain chosen for questions without one is not in the active library')
   }
 
-  const seen = new Set(library.questions.map((q) => fingerprint(q.stem, q.options.map((o) => [o.text, o.correct] as const))))
-  // Names before codes, so a code that spells another domain's name never shadows it.
+  // Each fingerprint with what the operator would recognise it by.
+  const seen = new Map(library.questions.map((q) => [fingerprint(q.stem, q.options.map((o) => [o.text, o.correct] as const)), q.stem]))
+  // Names before codes, so a code that spells another domain's name never shadows it;
+  // of two domains with one name the oldest takes it (beta.3).
+  const oldest = [...library.domains].sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   const byKey = new Map<string, string>()
-  for (const d of library.domains) if (!byKey.has(fold(d.name))) byKey.set(fold(d.name), d.id)
-  for (const d of library.domains) if (!byKey.has(fold(d.code))) byKey.set(fold(d.code), d.id)
+  for (const d of oldest) if (!byKey.has(fold(d.name))) byKey.set(fold(d.name), d.id)
+  for (const d of oldest) if (!byKey.has(fold(d.code))) byKey.set(fold(d.code), d.id)
+  const landing = (id: string): string => {
+    const domain = find(id)
+    if (!domain) return ''
+    if (created.some((d) => d.id === id)) return `${domain.name} (new)`
+    const twins = oldest.filter((d) => fold(d.name) === fold(domain.name))
+    if (twins.length < 2) return `${domain.name} (${domain.code})`
+    return `${domain.name} (${domain.code}), ${twins[0]?.id === id ? 'the oldest' : 'one'} of ${twins.length} named ${domain.name}`
+  }
   const created: Domain[] = []
   // Insertion order is the order the import first touched each domain.
   const members = new Map<string, string[]>()
@@ -165,22 +189,23 @@ export function planImport(
     const index = i + 1
     if (!isObject(raw)) {
       counts.rejected += 1
-      reportRows.push({ index, status: 'rejected', stem: '', domains: [], gaps: [], ignored: [], reason: 'not_an_object' })
+      reportRows.push({ index, status: 'rejected', stem: '', domains: [], landing: [], tags: [], duplicateOf: null, gaps: [], ignored: [], reason: 'not_an_object' })
       return
     }
     const read = readRow(raw)
     if (!read.stem && read.options.length === 0) {
       counts.rejected += 1
-      reportRows.push({ index, status: 'rejected', stem: read.stem, domains: [], gaps: [], ignored: read.ignored, reason: 'no_content' })
+      reportRows.push({ index, status: 'rejected', stem: read.stem, domains: [], landing: [], tags: [], duplicateOf: null, gaps: [], ignored: read.ignored, reason: 'no_content' })
       return
     }
     const print = fingerprint(read.stem, read.options)
-    if (seen.has(print)) {
+    const of = seen.get(print)
+    if (of !== undefined) {
       counts.duplicate += 1
-      reportRows.push({ index, status: 'duplicate', stem: read.stem, domains: [], gaps: [], ignored: read.ignored, reason: null })
+      reportRows.push({ index, status: 'duplicate', stem: read.stem, domains: [], landing: [], tags: [], duplicateOf: of, gaps: [], ignored: read.ignored, reason: null })
       return
     }
-    seen.add(print)
+    seen.set(print, `row ${index}`)
 
     const domainIds: string[] = []
     for (const name of read.domains) {
@@ -198,6 +223,7 @@ export function planImport(
       options: read.options.map(([text, correct], k) => ({ id: `${id}-${suffix(k)}`, text, correct })),
       difficulty: read.difficulty,
       explanation: read.explanation,
+      tags: read.tags,
       createdAt: 0,
       updatedAt: 0,
       archivedAt: null,
@@ -206,7 +232,7 @@ export function planImport(
     const status = gaps.length === 0 ? 'complete' : 'incomplete'
     counts[status] += 1
     for (const d of domainIds) members.set(d, [...(members.get(d) ?? []), id])
-    reportRows.push({ index, status, stem: read.stem, domains: domainIds.map((d) => find(d)?.name ?? ''), gaps, ignored: read.ignored, reason: null })
+    reportRows.push({ index, status, stem: read.stem, domains: domainIds.map((d) => find(d)?.name ?? ''), landing: domainIds.map(landing), tags: read.tags, duplicateOf: null, gaps, ignored: read.ignored, reason: null })
     questions.push(question)
   })
 

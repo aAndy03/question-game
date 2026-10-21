@@ -66,7 +66,12 @@ pub(crate) fn clean_tags(tags: &[String], question: &str) -> CatalogResult<Vec<(
 
 impl CatalogService {
     /// A group in a domain, named by the operator.
-    pub fn domain_group_create(&self, domain: &DomainId, name: &str, now_ms: u64) -> CatalogResult<DomainGroup> {
+    pub fn domain_group_create(
+        &self,
+        domain: &DomainId,
+        name: &str,
+        now_ms: u64,
+    ) -> CatalogResult<DomainGroup> {
         let conn = self.conn();
         let existing = store::domain_get(&conn, domain)?.groups;
         let name = free_group_name(&existing, name, domain, None)?;
@@ -82,7 +87,12 @@ impl CatalogService {
     }
 
     /// Returns the group's domain — the stored one, never the caller's word for it.
-    pub fn domain_group_rename(&self, group: &DomainGroupId, name: &str, now_ms: u64) -> CatalogResult<DomainId> {
+    pub fn domain_group_rename(
+        &self,
+        group: &DomainGroupId,
+        name: &str,
+        now_ms: u64,
+    ) -> CatalogResult<DomainId> {
         let conn = self.conn();
         let mut row = group_in_view(&conn, group)?;
         let siblings = store::domain_get(&conn, &row.domain_id)?.groups;
@@ -93,20 +103,42 @@ impl CatalogService {
     }
 
     /// The domain's groups in this order; one not named keeps its place after them.
-    pub fn domain_group_reorder(&self, domain: &DomainId, order: &[DomainGroupId], now_ms: u64) -> CatalogResult<()> {
+    pub fn domain_group_reorder(
+        &self,
+        domain: &DomainId,
+        order: &[DomainGroupId],
+        now_ms: u64,
+    ) -> CatalogResult<()> {
         let mut conn = self.conn();
         let groups = store::domain_get(&conn, domain)?.groups;
         let tx = conn.transaction()?;
         let mut key = 0;
         for id in order {
             let Some(group) = groups.iter().find(|g| &g.id == id) else {
-                return Err(CatalogError::invalid(format!("domain.{domain}.group.{id}"), "no such group in this domain"));
+                return Err(CatalogError::invalid(
+                    format!("domain.{domain}.group.{id}"),
+                    "no such group in this domain",
+                ));
             };
-            store::domain_group_put(&tx, &DomainGroup { sort_key: key, ..group.clone() }, now_ms)?;
+            store::domain_group_put(
+                &tx,
+                &DomainGroup {
+                    sort_key: key,
+                    ..group.clone()
+                },
+                now_ms,
+            )?;
             key += 1;
         }
         for group in groups.iter().filter(|g| !order.contains(&g.id)) {
-            store::domain_group_put(&tx, &DomainGroup { sort_key: key, ..group.clone() }, now_ms)?;
+            store::domain_group_put(
+                &tx,
+                &DomainGroup {
+                    sort_key: key,
+                    ..group.clone()
+                },
+                now_ms,
+            )?;
             key += 1;
         }
         store::domain_touch(&tx, domain, now_ms)?;
@@ -116,7 +148,11 @@ impl CatalogService {
 
     /// The group goes; its questions stay in the domain, in no group.
     /// Returns the group's domain, as rename does.
-    pub fn domain_group_delete(&self, group: &DomainGroupId, now_ms: u64) -> CatalogResult<DomainId> {
+    pub fn domain_group_delete(
+        &self,
+        group: &DomainGroupId,
+        now_ms: u64,
+    ) -> CatalogResult<DomainId> {
         let conn = self.conn();
         let row = group_in_view(&conn, group)?;
         store::domain_group_delete(&conn, group)?;
@@ -146,8 +182,14 @@ fn free_group_name(
 ) -> CatalogResult<String> {
     let path = format!("domain.{domain}.group.name");
     let name = clean_name(name, &path)?;
-    if siblings.iter().any(|g| Some(&g.id) != except && same_name(&g.name, &name)) {
-        return Err(CatalogError::invalid(path, "another group in this domain has this name"));
+    if siblings
+        .iter()
+        .any(|g| Some(&g.id) != except && same_name(&g.name, &name))
+    {
+        return Err(CatalogError::invalid(
+            path,
+            "another group in this domain has this name",
+        ));
     }
     Ok(name)
 }
@@ -162,7 +204,8 @@ pub(crate) fn write_copy_with_groups(
     copy: &mut super::model::Domain,
     now_ms: u64,
 ) -> CatalogResult<()> {
-    let wanted: Vec<Option<DomainGroupId>> = copy.questions.iter().map(|m| m.group_id.clone()).collect();
+    let wanted: Vec<Option<DomainGroupId>> =
+        copy.questions.iter().map(|m| m.group_id.clone()).collect();
     for member in &mut copy.questions {
         member.group_id = None;
     }
@@ -170,7 +213,8 @@ pub(crate) fn write_copy_with_groups(
     if original.groups.is_empty() {
         return Ok(());
     }
-    let mut ids: std::collections::BTreeMap<DomainGroupId, DomainGroupId> = std::collections::BTreeMap::new();
+    let mut ids: std::collections::BTreeMap<DomainGroupId, DomainGroupId> =
+        std::collections::BTreeMap::new();
     for group in &original.groups {
         let new = DomainGroup {
             id: DomainGroupId::new(fresh_id("grp")),

@@ -337,11 +337,15 @@ export const IMPORT = {
     ]
       .filter(Boolean)
       .join(' · '),
-  status: { complete: 'Complete', incomplete: 'Incomplete', duplicate: 'Already in the library', rejected: 'Rejected' },
+  status: { complete: 'Complete', incomplete: 'Incomplete', duplicate: 'Duplicate', rejected: 'Rejected' },
   reason: { not_an_object: 'Rejected: not a question', no_content: 'Rejected: no question and no options' },
   ignored: (i: ImportIgnored): string =>
     `${i.field}: ${{ unknown: 'unknown field, ignored', wrong_type: 'wrong type, ignored', out_of_range: 'outside 1–100, ignored', empty: 'empty, ignored' }[i.why]}`,
   newDomains: (names: readonly string[]) => `New domains: ${names.join(', ')}`,
+  landsIn: (landing: readonly string[]) => `In ${landing.join(' · ')}`,
+  tags: (tags: readonly string[]) => `Tags: ${tags.join(', ')}`,
+  /** What a duplicate repeats: a question here, or an earlier row of the same file. */
+  duplicateOf: (of: string) => (/^row \d+$/.test(of) ? `Repeats ${of} of this file` : `Repeats “${of}”`),
   submit: (n: number) => (n === 1 ? 'Import 1 question' : `Import ${n} questions`),
   done: (c: ImportCounts) => {
     const n = c.complete + c.incomplete

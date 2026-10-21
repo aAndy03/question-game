@@ -222,7 +222,12 @@ const ROMANIAN: Document = Document {
                 ),
                 (
                     "Care este, aproximativ, viteza luminii în vid?",
-                    ["300.000 km/s", "150.000 km/s", "30.000 km/s", "3.000.000 km/s"],
+                    [
+                        "300.000 km/s",
+                        "150.000 km/s",
+                        "30.000 km/s",
+                        "3.000.000 km/s",
+                    ],
                 ),
             ],
         ),
@@ -235,10 +240,7 @@ const ROMANIAN: Document = Document {
                     "Cine a construit arca?",
                     ["Noe", "Moise", "Avraam", "David"],
                 ),
-                (
-                    "Câți apostoli și-a ales Iisus?",
-                    ["12", "7", "10", "40"],
-                ),
+                ("Câți apostoli și-a ales Iisus?", ["12", "7", "10", "40"]),
                 (
                     "Cine a fost primul rege al lui Israel?",
                     ["Saul", "David", "Solomon", "Samuel"],
@@ -483,15 +485,28 @@ impl CatalogService {
     /// another workspace (its Demo was moved there), the next generation is
     /// taken — `seed-<workspace>-r2-…` — so a Demo is always this
     /// workspace's own rows (R5; review P4: a moved Demo collided).
-    fn demo_here(&self, demo: Demo, settings: GameSettings) -> CatalogResult<(Vec<CatalogItem>, Recipe)> {
+    fn demo_here(
+        &self,
+        demo: Demo,
+        settings: GameSettings,
+    ) -> CatalogResult<(Vec<CatalogItem>, Recipe)> {
         let current = self.current_workspace();
         let conn = self.conn();
         let elsewhere = |kind: CatalogKind, id: &str| -> CatalogResult<bool> {
-            Ok(matches!(super::store::home_of(&conn, kind, id)?, Some(home) if home != current.as_str()))
+            Ok(
+                matches!(super::store::home_of(&conn, kind, id)?, Some(home) if home != current.as_str()),
+            )
         };
         let build_at = |scope: &str| match demo {
             Demo::En => build(&ENGLISH, settings.clone(), scope),
-            Demo::Ro => build(&ROMANIAN, GameSettings { language: Language::Ro, ..settings.clone() }, scope),
+            Demo::Ro => build(
+                &ROMANIAN,
+                GameSettings {
+                    language: Language::Ro,
+                    ..settings.clone()
+                },
+                scope,
+            ),
         };
         let first = current.as_str() == FIRST_WORKSPACE;
         for generation in 1.. {
@@ -503,7 +518,13 @@ impl CatalogService {
             };
             let document = build_at(&scope);
             let taken = elsewhere(CatalogKind::Recipe, document.1.id.as_str())?
-                || document.0.iter().map(|i| elsewhere(i.kind(), &i.id())).collect::<CatalogResult<Vec<_>>>()?.into_iter().any(|m| m);
+                || document
+                    .0
+                    .iter()
+                    .map(|i| elsewhere(i.kind(), &i.id()))
+                    .collect::<CatalogResult<Vec<_>>>()?
+                    .into_iter()
+                    .any(|m| m);
             if !taken {
                 return Ok(document);
             }
@@ -555,7 +576,11 @@ impl CatalogService {
         if !to_write.is_empty() {
             self.catalog_upsert_many(&to_write, now_ms)?;
         }
-        for kind in [CatalogKind::Team, CatalogKind::Question, CatalogKind::Domain] {
+        for kind in [
+            CatalogKind::Team,
+            CatalogKind::Question,
+            CatalogKind::Domain,
+        ] {
             let ids: Vec<String> = to_restore
                 .iter()
                 .filter(|(k, _)| *k == kind)

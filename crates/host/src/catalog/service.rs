@@ -41,9 +41,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::event::Event;
 use crate::flags::{GameSettings, GlobalSettings};
-use crate::ids::{
-    AssetId, DomainId, OperatorId, PlayId, QuestionId, RecipeId, TeamId,
-};
+use crate::ids::{AssetId, DomainId, OperatorId, PlayId, QuestionId, RecipeId, TeamId};
 use crate::play::Play;
 use crate::preview::{PreviewBoard, PreviewDomain, PreviewQuestion};
 use crate::settings::FrozenSettings;
@@ -280,12 +278,16 @@ impl CatalogService {
         }
         // A question's tags are cleaned and re-spelled on the way in: index those.
         let text = match item {
-            CatalogItem::Question(question) => CatalogItem::Question(Box::new(store::question_get(&tx, &question.id)?)).search_text(),
+            CatalogItem::Question(question) => {
+                CatalogItem::Question(Box::new(store::question_get(&tx, &question.id)?))
+                    .search_text()
+            }
             _ => item.search_text(),
         };
         tx.commit()?;
         drop(guard);
-        self.search.put(item.kind(), &item.id(), item.is_archived(), &text)?;
+        self.search
+            .put(item.kind(), &item.id(), item.is_archived(), &text)?;
         Ok(CatalogChange {
             kind: item.kind(),
             id: item.id(),
@@ -489,11 +491,7 @@ impl CatalogService {
     /// at" (§4.1). v1 has no purge, so today this is what the Archive
     /// confirmation shows the operator before they archive something a show
     /// depends on.
-    pub fn referenced_by(
-        &self,
-        kind: CatalogKind,
-        id: &str,
-    ) -> CatalogResult<Option<String>> {
+    pub fn referenced_by(&self, kind: CatalogKind, id: &str) -> CatalogResult<Option<String>> {
         store::referenced_by(&self.conn(), kind, id)
     }
 
@@ -807,7 +805,6 @@ pub(super) fn board_problem(
 }
 
 impl CatalogService {
-
     fn write_overlay<F>(&self, id: &RecipeId, write: F) -> CatalogResult<()>
     where
         F: FnOnce(&rusqlite::Transaction<'_>) -> CatalogResult<()>,
@@ -926,17 +923,13 @@ impl CatalogService {
                             .iter()
                             .filter(|option| option.correct)
                             .count() as u32,
-                        stem: patch
-                            .and_then(|p| p.stem.clone())
-                            .unwrap_or(question.stem),
+                        stem: patch.and_then(|p| p.stem.clone()).unwrap_or(question.stem),
                         id: question.id,
                     })
                 })
                 .collect();
             domains.push(PreviewDomain {
-                name: overlay
-                    .and_then(|o| o.name.clone())
-                    .unwrap_or(domain.name),
+                name: overlay.and_then(|o| o.name.clone()).unwrap_or(domain.name),
                 id: domain.id,
                 questions,
                 incomplete,

@@ -370,7 +370,10 @@ pub fn write_older_schema(from: &Path, to: &Path, steps: u32) -> CatalogResult<(
         ))?;
     }
     if steps < WORKSPACES_STEP {
-        conn.execute("DELETE FROM main.globals WHERE key = ?1", [META_CURRENT_WORKSPACE])?;
+        conn.execute(
+            "DELETE FROM main.globals WHERE key = ?1",
+            [META_CURRENT_WORKSPACE],
+        )?;
     }
     conn.execute_batch("DETACH DATABASE newer")?;
     Ok(())
@@ -380,7 +383,12 @@ pub fn write_older_schema(from: &Path, to: &Path, steps: u32) -> CatalogResult<(
 /// before, put a row in the shared library (`workspace_id` NULL) or in a named
 /// workspace — how the beta.2 tests build a beta.1 library without beta.1.
 #[doc(hidden)]
-pub fn place_for_test(path: &Path, table: &str, id: &str, workspace: Option<&str>) -> CatalogResult<()> {
+pub fn place_for_test(
+    path: &Path,
+    table: &str,
+    id: &str,
+    workspace: Option<&str>,
+) -> CatalogResult<()> {
     assert!(
         ["teams", "domains", "questions", "assets", "recipes"].contains(&table),
         "a library table"
@@ -652,7 +660,8 @@ mod tests {
             for n in 1..=behind {
                 apply_step(&conn, n).unwrap();
             }
-            conn.execute_batch(&format!("PRAGMA user_version = {behind}")).unwrap();
+            conn.execute_batch(&format!("PRAGMA user_version = {behind}"))
+                .unwrap();
             super::super::store::global_set(&conn, META_LAST_OPENED, "\"1.0.2\"").unwrap();
         }
 
@@ -664,7 +673,8 @@ mod tests {
         };
         let (conn, report) = open_guarded(&path, &options).unwrap();
         let version = |c: &Connection| -> u32 {
-            c.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap()
+            c.pragma_query_value(None, "user_version", |row| row.get(0))
+                .unwrap()
         };
         assert_eq!(version(&conn), MIGRATIONS.len() as u32);
         let backup = report.backup.expect("a backup before migrating");

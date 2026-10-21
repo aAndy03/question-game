@@ -460,6 +460,12 @@ export interface ImportRow {
   readonly stem: string
   /** The domains it lands in, by name — existing or new. */
   readonly domains: readonly string[]
+  /** The same, as the preview says them (beta.3): "History (HIS_204)", "Rome (new)", which of two twins. */
+  readonly landing: readonly string[]
+  /** Its tags, as they will be written. */
+  readonly tags: readonly string[]
+  /** For a duplicate: the question it repeats — its text, or "row 4" of this file. */
+  readonly duplicateOf: string | null
   readonly gaps: readonly QuestionGap[]
   readonly ignored: readonly ImportIgnored[]
   readonly reason: 'not_an_object' | 'no_content' | null

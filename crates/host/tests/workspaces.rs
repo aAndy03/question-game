@@ -122,7 +122,10 @@ fn an_old_payload_that_says_shared_still_lands_in_this_workspace() {
     catalog.catalog_upsert(&item, NOW).unwrap();
     assert_eq!(ids(&catalog, CatalogKind::Team), ["t"]);
     catalog.workspace_switch(&b.as_str().into()).unwrap();
-    assert!(ids(&catalog, CatalogKind::Team).is_empty(), "nothing is shared");
+    assert!(
+        ids(&catalog, CatalogKind::Team).is_empty(),
+        "nothing is shared"
+    );
 }
 
 #[test]
@@ -148,9 +151,16 @@ fn search_sees_this_workspace_only() {
 fn a_domain_holds_only_its_own_workspaces_questions() {
     let (catalog, _a, b) = two();
     catalog.catalog_upsert(&question("a-q"), NOW).unwrap();
-    catalog.catalog_upsert(&domain("mine", &["a-q"]), NOW).unwrap();
+    catalog
+        .catalog_upsert(&domain("mine", &["a-q"]), NOW)
+        .unwrap();
     catalog.workspace_switch(&b.as_str().into()).unwrap();
-    assert!(catalog.catalog_upsert(&domain("theirs", &["a-q"]), NOW).is_err(), "another workspace's question");
+    assert!(
+        catalog
+            .catalog_upsert(&domain("theirs", &["a-q"]), NOW)
+            .is_err(),
+        "another workspace's question"
+    );
 }
 
 #[test]
@@ -317,7 +327,10 @@ fn backup_options(tag: &str) -> (std::path::PathBuf, questiongame_host::catalog:
     let dir = std::env::temp_dir().join(format!(
         "questiongame-ws-{tag}-{}-{}",
         std::process::id(),
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
     ));
     let options = questiongame_host::catalog::OpenOptions {
         app_version: "2.0.0-beta.1".into(),
@@ -333,8 +346,15 @@ fn an_archived_workspaces_name_is_free_again_until_it_is_restored() {
     let (catalog, a, b) = two();
     catalog.workspace_archive(&b.as_str().into(), NOW).unwrap();
     catalog.workspace_create("beta", None, NOW).unwrap();
-    assert!(catalog.workspace_restore(&b.as_str().into(), NOW).is_err(), "its name is taken now");
-    assert!(catalog.workspace_rename(&a.as_str().into(), "BETA", NOW).is_err());
+    assert!(
+        catalog.workspace_restore(&b.as_str().into(), NOW).is_err(),
+        "its name is taken now"
+    );
+    assert!(
+        catalog
+            .workspace_rename(&a.as_str().into(), "BETA", NOW)
+            .is_err()
+    );
 }
 
 #[test]
@@ -344,7 +364,13 @@ fn the_current_workspace_cannot_be_archived_nor_an_archived_one_opened() {
     catalog.workspace_archive(&b.as_str().into(), NOW).unwrap();
     assert!(catalog.workspace_switch(&b.as_str().into()).is_err());
     let (all, _) = catalog.workspace_list().unwrap();
-    assert!(all.iter().find(|w| w.id.as_str() == b).unwrap().is_archived(), "archived, still listed");
+    assert!(
+        all.iter()
+            .find(|w| w.id.as_str() == b)
+            .unwrap()
+            .is_archived(),
+        "archived, still listed"
+    );
     catalog.workspace_restore(&b.as_str().into(), NOW).unwrap();
     catalog.workspace_switch(&b.as_str().into()).unwrap();
 }
@@ -355,44 +381,101 @@ fn duplicate_copies_local_rows_and_games_into_one_family_and_no_plays() {
     use questiongame_host::{MatchService, PlayId, RecipeId};
 
     let (catalog, a, _b) = two();
-    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    catalog
+        .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW)
+        .unwrap();
     catalog.catalog_upsert(&team("gone"), NOW).unwrap();
-    catalog.catalog_archive(CatalogKind::Team, "gone", NOW).unwrap();
+    catalog
+        .catalog_archive(CatalogKind::Team, "gone", NOW)
+        .unwrap();
     let mut flags = FlagService::default();
     flags.load_recipe(GameSettings::default()).unwrap();
     let snapshot = catalog
-        .build_snapshot(&RecipeId::from("seed-recipe-demo"), PlayId::from("play-a"), flags.freeze().unwrap())
+        .build_snapshot(
+            &RecipeId::from("seed-recipe-demo"),
+            PlayId::from("play-a"),
+            flags.freeze().unwrap(),
+        )
         .unwrap();
     let mut play = MatchService::new();
     play.play_load(snapshot, 0).unwrap();
     play.play_start(0).unwrap();
     catalog.play_persist(play.get_state().unwrap()).unwrap();
 
-    let copy = catalog.workspace_duplicate(&a.as_str().into(), "Alpha 2027", NOW).unwrap();
-    assert_eq!(catalog.current_workspace().as_str(), a, "the operator stays where they were");
+    let copy = catalog
+        .workspace_duplicate(&a.as_str().into(), "Alpha 2027", NOW)
+        .unwrap();
+    assert_eq!(
+        catalog.current_workspace().as_str(),
+        a,
+        "the operator stays where they were"
+    );
     catalog.workspace_switch(&copy.id).unwrap();
-    let teams = catalog.catalog_list(CatalogKind::Team, ArchiveScope::All).unwrap();
+    let teams = catalog
+        .catalog_list(CatalogKind::Team, ArchiveScope::All)
+        .unwrap();
     assert_eq!(teams.len(), 3, "two Demo teams and the archived one");
     let local: Vec<_> = teams.iter().collect();
-    assert!(local.iter().all(|t| t.id() != "gone" && !t.id().starts_with("seed-team")), "new ids");
-    assert!(local.iter().filter(|t| t.id().starts_with("seed-")).all(|t| t.id().starts_with(&format!("seed-{}-", copy.id))), "a Demo row takes the copy's own seed id (R5)");
-    assert_eq!(catalog.seed_status(Demo::En, GameSettings::default()).unwrap().missing, 0, "the copy recognises its Demo: no second one");
+    assert!(
+        local
+            .iter()
+            .all(|t| t.id() != "gone" && !t.id().starts_with("seed-team")),
+        "new ids"
+    );
+    assert!(
+        local
+            .iter()
+            .filter(|t| t.id().starts_with("seed-"))
+            .all(|t| t.id().starts_with(&format!("seed-{}-", copy.id))),
+        "a Demo row takes the copy's own seed id (R5)"
+    );
+    assert_eq!(
+        catalog
+            .seed_status(Demo::En, GameSettings::default())
+            .unwrap()
+            .missing,
+        0,
+        "the copy recognises its Demo: no second one"
+    );
     assert!(local.iter().all(|t| t.stamps().family_id.is_some()));
-    assert_eq!(local.iter().filter(|t| t.stamps().is_archived()).count(), 1, "archived stays archived");
+    assert_eq!(
+        local.iter().filter(|t| t.stamps().is_archived()).count(),
+        1,
+        "archived stays archived"
+    );
 
     let games = catalog.recipe_list(ArchiveScope::All).unwrap();
     assert_eq!(games.len(), 1);
-    assert!(catalog.play_list(None).unwrap().is_empty(), "no Plays come along");
+    assert!(
+        catalog.play_list(None).unwrap().is_empty(),
+        "no Plays come along"
+    );
     let mut flags = FlagService::default();
     flags.load_recipe(games[0].settings.clone()).unwrap();
     catalog
-        .build_snapshot(&games[0].id, PlayId::from("play-copy"), flags.freeze().unwrap())
+        .build_snapshot(
+            &games[0].id,
+            PlayId::from("play-copy"),
+            flags.freeze().unwrap(),
+        )
         .expect("the copied game works in its new workspace");
 
     catalog.workspace_switch(&a.as_str().into()).unwrap();
-    let CatalogItem::Team(red) = catalog.catalog_get(CatalogKind::Team, "seed-team-red").unwrap() else { panic!() };
-    assert!(red.stamps.family_id.is_some(), "the original joins the family too");
-    assert!(local.iter().any(|t| t.stamps().family_id == red.stamps.family_id));
+    let CatalogItem::Team(red) = catalog
+        .catalog_get(CatalogKind::Team, "seed-team-red")
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(
+        red.stamps.family_id.is_some(),
+        "the original joins the family too"
+    );
+    assert!(
+        local
+            .iter()
+            .any(|t| t.stamps().family_id == red.stamps.family_id)
+    );
 }
 
 #[test]
@@ -400,18 +483,32 @@ fn delete_permanently_takes_only_an_archived_workspace_and_leaves_the_others() {
     let (catalog, a, b) = two();
     catalog.catalog_upsert(&team("a-team"), NOW).unwrap();
     catalog.workspace_switch(&b.as_str().into()).unwrap();
-    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    catalog
+        .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW)
+        .unwrap();
     catalog.workspace_switch(&a.as_str().into()).unwrap();
 
     let (dir, options) = backup_options("delete");
-    assert!(catalog.workspace_delete(&b.as_str().into(), &options).is_err(), "an active workspace");
+    assert!(
+        catalog
+            .workspace_delete(&b.as_str().into(), &options)
+            .is_err(),
+        "an active workspace"
+    );
     catalog.workspace_archive(&b.as_str().into(), NOW).unwrap();
-    let (rows, games, _) = catalog.workspace_delete_preview(&b.as_str().into()).unwrap();
+    let (rows, games, _) = catalog
+        .workspace_delete_preview(&b.as_str().into())
+        .unwrap();
     assert!(rows > 0 && games == 1);
-    let report = catalog.workspace_delete(&b.as_str().into(), &options).unwrap();
+    let report = catalog
+        .workspace_delete(&b.as_str().into(), &options)
+        .unwrap();
     assert_eq!((report.rows, report.games), (rows, games));
     assert!(report.backup.exists(), "a copy first");
-    assert!(catalog.catalog_get(CatalogKind::Team, "a-team").is_ok(), "this workspace's rows stay");
+    assert!(
+        catalog.catalog_get(CatalogKind::Team, "a-team").is_ok(),
+        "this workspace's rows stay"
+    );
     let (all, _) = catalog.workspace_list().unwrap();
     assert_eq!(all.len(), 1);
     let _ = std::fs::remove_dir_all(dir);
@@ -422,14 +519,26 @@ fn deleting_a_group_leaves_its_workspaces_ungrouped() {
     let (catalog, _a, b) = two();
     let group = catalog.group_create("Seasons", NOW).unwrap();
     assert!(catalog.group_create(" seasons ", NOW).is_err());
-    catalog.workspace_set_group(&b.as_str().into(), Some(&group.id), 0, NOW).unwrap();
+    catalog
+        .workspace_set_group(&b.as_str().into(), Some(&group.id), 0, NOW)
+        .unwrap();
     let (all, groups) = catalog.workspace_list().unwrap();
     assert_eq!(groups.len(), 1);
-    assert_eq!(all.iter().find(|w| w.id.as_str() == b).unwrap().group_id.as_ref(), Some(&group.id));
+    assert_eq!(
+        all.iter()
+            .find(|w| w.id.as_str() == b)
+            .unwrap()
+            .group_id
+            .as_ref(),
+        Some(&group.id)
+    );
     catalog.group_delete(&group.id).unwrap();
     let (all, groups) = catalog.workspace_list().unwrap();
     assert!(groups.is_empty());
-    assert_eq!(all.iter().find(|w| w.id.as_str() == b).unwrap().group_id, None);
+    assert_eq!(
+        all.iter().find(|w| w.id.as_str() == b).unwrap().group_id,
+        None
+    );
 }
 
 #[test]
@@ -437,22 +546,41 @@ fn groups_reorder_as_told() {
     let (catalog, _a, _b) = two();
     let one = catalog.group_create("One", NOW).unwrap();
     let two = catalog.group_create("Two", NOW).unwrap();
-    catalog.group_reorder(&[two.id.clone(), one.id.clone()], NOW).unwrap();
+    catalog
+        .group_reorder(&[two.id.clone(), one.id.clone()], NOW)
+        .unwrap();
     let (_, groups) = catalog.workspace_list().unwrap();
-    assert_eq!(groups.iter().map(|g| g.name.as_str()).collect::<Vec<_>>(), ["Two", "One"]);
+    assert_eq!(
+        groups.iter().map(|g| g.name.as_str()).collect::<Vec<_>>(),
+        ["Two", "One"]
+    );
 }
 
 #[test]
 fn a_workspace_keeps_its_own_defaults() {
     use questiongame_host::flags::{FlagService, GlobalSettings, WorkspaceDefaults};
     let (catalog, a, b) = two();
-    assert_eq!(catalog.workspace_defaults(&a.as_str().into()).unwrap(), None);
+    assert_eq!(
+        catalog.workspace_defaults(&a.as_str().into()).unwrap(),
+        None
+    );
     let mut flags = FlagService::new(GlobalSettings::default());
     let mut defaults: WorkspaceDefaults = flags.workspace_defaults();
     defaults.timer = questiongame_host::settings::TimerLevel::new(true, 45_000);
-    catalog.workspace_set_defaults(&b.as_str().into(), &defaults, NOW).unwrap();
-    assert_eq!(catalog.workspace_defaults(&b.as_str().into()).unwrap().as_ref(), Some(&defaults));
-    assert_eq!(catalog.workspace_defaults(&a.as_str().into()).unwrap(), None);
+    catalog
+        .workspace_set_defaults(&b.as_str().into(), &defaults, NOW)
+        .unwrap();
+    assert_eq!(
+        catalog
+            .workspace_defaults(&b.as_str().into())
+            .unwrap()
+            .as_ref(),
+        Some(&defaults)
+    );
+    assert_eq!(
+        catalog.workspace_defaults(&a.as_str().into()).unwrap(),
+        None
+    );
     flags.adopt_workspace_defaults(defaults.clone()).unwrap();
     assert_eq!(flags.workspace_defaults(), defaults);
 }
@@ -469,23 +597,33 @@ fn wipe_plays_removes_only_this_workspaces_closed_plays() {
         let recipe = catalog.recipe_list(ArchiveScope::All).unwrap().remove(0);
         let mut flags = FlagService::default();
         flags.load_recipe(GameSettings::default()).unwrap();
-        let snapshot = catalog.build_snapshot(&recipe.id, PlayId::from(play), flags.freeze().unwrap()).unwrap();
+        let snapshot = catalog
+            .build_snapshot(&recipe.id, PlayId::from(play), flags.freeze().unwrap())
+            .unwrap();
         let mut service = MatchService::new();
         service.play_load(snapshot, 0).unwrap();
         service.play_start(0).unwrap();
         service.abandon(10).unwrap();
         catalog.play_persist(service.get_state().unwrap()).unwrap();
     };
-    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    catalog
+        .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW)
+        .unwrap();
     close_one(&catalog, "play-a");
     catalog.workspace_switch(&b.as_str().into()).unwrap();
-    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    catalog
+        .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW)
+        .unwrap();
     close_one(&catalog, "play-b");
 
     assert_eq!(catalog.wipe_plays().unwrap().removed, 1);
     assert!(catalog.play_list(None).unwrap().is_empty());
     catalog.workspace_switch(&a.as_str().into()).unwrap();
-    assert_eq!(catalog.play_list(None).unwrap().len(), 1, "A's Play is A's to wipe");
+    assert_eq!(
+        catalog.play_list(None).unwrap().len(),
+        1,
+        "A's Play is A's to wipe"
+    );
     let _ = RecipeId::from("unused");
 }
 
@@ -494,14 +632,31 @@ fn restore_sample_game_works_after_the_first_demo_moved_away() {
     use questiongame_host::RecipeId;
     use questiongame_host::catalog::Selection;
     let (catalog, _a, b) = two();
-    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
     catalog
-        .catalog_move_to(&Selection { recipes: vec![RecipeId::from("seed-recipe-demo")], ..Selection::default() }, &b.as_str().into(), NOW)
+        .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW)
         .unwrap();
-    let again = catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    catalog
+        .catalog_move_to(
+            &Selection {
+                recipes: vec![RecipeId::from("seed-recipe-demo")],
+                ..Selection::default()
+            },
+            &b.as_str().into(),
+            NOW,
+        )
+        .unwrap();
+    let again = catalog
+        .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW)
+        .unwrap();
     assert!(again.inserted > 0);
     assert_eq!(catalog.recipe_list(ArchiveScope::All).unwrap().len(), 1);
-    assert!(catalog.seed_status(Demo::En, GameSettings::default()).unwrap().missing == 0);
+    assert!(
+        catalog
+            .seed_status(Demo::En, GameSettings::default())
+            .unwrap()
+            .missing
+            == 0
+    );
 }
 
 #[test]
@@ -510,13 +665,38 @@ fn a_second_workspaces_demo_can_be_restored_after_it_moved_away() {
     let (catalog, a, b) = two();
     let c = catalog.workspace_create("C", None, NOW).unwrap().id;
     catalog.workspace_switch(&b.as_str().into()).unwrap();
-    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    catalog
+        .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW)
+        .unwrap();
     let game = catalog.recipe_list(ArchiveScope::All).unwrap().remove(0).id;
-    catalog.catalog_move_to(&Selection { recipes: vec![game], ..Selection::default() }, &c, NOW).unwrap();
+    catalog
+        .catalog_move_to(
+            &Selection {
+                recipes: vec![game],
+                ..Selection::default()
+            },
+            &c,
+            NOW,
+        )
+        .unwrap();
     // B's Demo went to C; restoring it in B builds B's own again, beside it.
-    assert!(catalog.seed_status(Demo::En, GameSettings::default()).unwrap().missing > 0);
-    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).expect("review P4: no collision");
-    assert_eq!(catalog.seed_status(Demo::En, GameSettings::default()).unwrap().missing, 0);
+    assert!(
+        catalog
+            .seed_status(Demo::En, GameSettings::default())
+            .unwrap()
+            .missing
+            > 0
+    );
+    catalog
+        .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW)
+        .expect("review P4: no collision");
+    assert_eq!(
+        catalog
+            .seed_status(Demo::En, GameSettings::default())
+            .unwrap()
+            .missing,
+        0
+    );
     assert_eq!(catalog.recipe_list(ArchiveScope::All).unwrap().len(), 1);
     let _ = (a, CopyOptions::default());
 }
@@ -544,12 +724,21 @@ fn a_switch_that_cannot_read_the_new_workspace_leaves_the_old_one_current() {
     assert_eq!(catalog.current_workspace(), a, "still bound to A");
     assert_eq!(ids(&catalog, CatalogKind::Team), ["a-team"]);
     let hits = catalog
-        .catalog_search(&SearchQuery { text: "team".into(), kinds: vec![CatalogKind::Team], scope: ArchiveScope::All, limit: 5 })
+        .catalog_search(&SearchQuery {
+            text: "team".into(),
+            kinds: vec![CatalogKind::Team],
+            scope: ArchiveScope::All,
+            limit: 5,
+        })
         .unwrap();
     assert_eq!(hits.len(), 1, "A's index is back");
     drop(catalog);
     let reopened = CatalogService::open(CatalogLocation::file(&path)).unwrap();
-    assert_eq!(reopened.current_workspace(), a, "and A is what the file says");
+    assert_eq!(
+        reopened.current_workspace(),
+        a,
+        "and A is what the file says"
+    );
     drop(reopened);
     let _ = std::fs::remove_dir_all(dir);
 }

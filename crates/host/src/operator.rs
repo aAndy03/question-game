@@ -11,9 +11,9 @@
 //! and on the two data actions, which is why the cost is modest and there is
 //! no lockout. Live Play commands never ask for it.
 
+use argon2::Argon2;
 use argon2::password_hash::phc::PasswordHash;
 use argon2::password_hash::{PasswordHasher, PasswordVerifier};
-use argon2::Argon2;
 use thiserror::Error;
 
 /// A pin is 4–8 ASCII digits — the shape of a keypad entry, and short enough

@@ -115,7 +115,13 @@ fn one_overlay_runs_at_a_time_and_a_newer_pending_replaces_an_older_one() {
     assert!(presentation.overlay_busy());
 
     // The middle one never plays: queue depth is one, newest wins (§2.6).
-    let state = presentation.play_state(dummy_game(), auto(false), ON, AudioSettings::default(), Language::En);
+    let state = presentation.play_state(
+        dummy_game(),
+        auto(false),
+        ON,
+        AudioSettings::default(),
+        Language::En,
+    );
     assert_eq!(state.overlay.pending.as_ref(), Some(&third));
 }
 
@@ -168,7 +174,15 @@ fn the_same_overlay_twice_is_two_runs() {
     let mut presentation = PresentationService::new();
     let modes = auto(false);
     let request = OverlayRequest::RoundAdvance { round_index: 2 };
-    let state = |p: &PresentationService| p.play_state(dummy_game(), modes, ON, AudioSettings::default(), Language::En);
+    let state = |p: &PresentationService| {
+        p.play_state(
+            dummy_game(),
+            modes,
+            ON,
+            AudioSettings::default(),
+            Language::En,
+        )
+    };
 
     assert_eq!(state(&presentation).overlay.run_id, 0, "nothing has run");
 
@@ -177,14 +191,21 @@ fn the_same_overlay_twice_is_two_runs() {
     assert!(first > 0);
 
     presentation.show_overlay(request.clone(), ON);
-    assert_eq!(state(&presentation).overlay.run_id, first, "still the first run");
+    assert_eq!(
+        state(&presentation).overlay.run_id,
+        first,
+        "still the first run"
+    );
 
     presentation
         .anim_complete(&request.anim_key(), &mut service, modes, 200)
         .unwrap();
     let promoted = state(&presentation).overlay;
     assert_eq!(promoted.active.as_ref(), Some(&request));
-    assert!(promoted.run_id > first, "the promoted duplicate is a new run");
+    assert!(
+        promoted.run_id > first,
+        "the promoted duplicate is a new run"
+    );
 
     // And it retires on its own ack, like any other run.
     presentation
@@ -214,7 +235,13 @@ fn overlays_off_skips_the_queue_and_the_token_still_moves() {
     );
 
     // And the emission still reports the setting, so Stage knows why.
-    let state = presentation.play_state(after, auto(false), OFF, AudioSettings::default(), Language::En);
+    let state = presentation.play_state(
+        after,
+        auto(false),
+        OFF,
+        AudioSettings::default(),
+        Language::En,
+    );
     assert!(!state.overlay.enabled);
 }
 
@@ -239,14 +266,26 @@ fn a_resolve_enqueues_the_outcome_and_the_next_token_enqueues_the_handoff() {
     // A wrong answer ends the token and moves it nowhere: the ring is empty
     // between a resolve and the next token, so there is no handoff to draw yet
     // (§2.6 — Stage does not auto-advance).
-    let state = presentation.play_state(snap(&service, 20), auto(false), ON, AudioSettings::default(), Language::En);
+    let state = presentation.play_state(
+        snap(&service, 20),
+        auto(false),
+        ON,
+        AudioSettings::default(),
+        Language::En,
+    );
     assert_eq!(state.overlay.pending, None);
     assert_eq!(state.game.ring.current_team_id, None);
 
     observed(&mut presentation, &mut service, 30, |s| {
         s.give_token(&team_id(1), 30).unwrap()
     });
-    let state = presentation.play_state(snap(&service, 30), auto(false), ON, AudioSettings::default(), Language::En);
+    let state = presentation.play_state(
+        snap(&service, 30),
+        auto(false),
+        ON,
+        AudioSettings::default(),
+        Language::En,
+    );
     assert_eq!(
         state.overlay.pending,
         Some(OverlayRequest::TokenHandoff {
@@ -372,7 +411,13 @@ fn a_restart_empties_the_queue_and_opens_the_new_play_with_its_first_token() {
     );
     assert_eq!(
         presentation
-            .play_state(snap(&service, 20), auto(false), ON, AudioSettings::default(), Language::En)
+            .play_state(
+                snap(&service, 20),
+                auto(false),
+                ON,
+                AudioSettings::default(),
+                Language::En
+            )
             .overlay
             .pending,
         None,

@@ -25,17 +25,20 @@
 //!   shared library, as *Make shared* left them. The first boot of beta.2
 //!   turns them into linked copies in both workspaces (migration 6).
 
+use questiongame_host::OperatorId;
 use questiongame_host::catalog::{
-    CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo, Operator, Question, QuestionOption, SeedMode,
+    CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo, Operator, Question,
+    QuestionOption, SeedMode,
 };
 use questiongame_host::flags::{GameSettings, GlobalSettings};
-use questiongame_host::OperatorId;
 
 const NOW: u64 = 1_790_000_000_000;
 
 fn main() {
     let mut args = std::env::args().skip(1);
-    let path = args.next().expect("usage: e2e_library <path> [--broken-board]");
+    let path = args
+        .next()
+        .expect("usage: e2e_library <path> [--broken-board]");
     let rest: Vec<String> = args.collect();
     let broken = rest.iter().any(|a| a == "--broken-board");
     let beta1_shared = rest.iter().any(|a| a == "--beta1-shared");
@@ -86,16 +89,30 @@ fn main() {
             .expect("a library edit the catalog allows");
     }
     for i in 0..more {
-        let mut question = Question::new(format!("e2e-extra-{i:03}"), format!("Extra question {i:03}"), (i % 100) as u8 + 1);
-        question.options = vec![QuestionOption::new(format!("e2e-extra-{i:03}-a"), "Yes", true), QuestionOption::new(format!("e2e-extra-{i:03}-b"), "No", false)];
+        let mut question = Question::new(
+            format!("e2e-extra-{i:03}"),
+            format!("Extra question {i:03}"),
+            (i % 100) as u8 + 1,
+        );
+        question.options = vec![
+            QuestionOption::new(format!("e2e-extra-{i:03}-a"), "Yes", true),
+            QuestionOption::new(format!("e2e-extra-{i:03}-b"), "No", false),
+        ];
         catalog
-            .catalog_upsert(&CatalogItem::Question(Box::new(question)), NOW + 2 + i as u64)
+            .catalog_upsert(
+                &CatalogItem::Question(Box::new(question)),
+                NOW + 2 + i as u64,
+            )
             .expect("an extra question");
     }
     if beta1_shared {
         let first = catalog.current_workspace();
-        catalog.workspace_rename(&first, "Quiz club", NOW).expect("the first workspace's name");
-        catalog.workspace_create("Second", None, NOW).expect("a second workspace");
+        catalog
+            .workspace_rename(&first, "Quiz club", NOW)
+            .expect("the first workspace's name");
+        catalog
+            .workspace_create("Second", None, NOW)
+            .expect("a second workspace");
         for (key, value) in [
             (questiongame_host::catalog::META_LAST_OPENED, "2.0.0-beta.1"),
             (questiongame_host::catalog::META_LAST_SEEN, "2.0.0-beta.1"),
@@ -106,11 +123,19 @@ fn main() {
     drop(catalog);
     if beta1_shared {
         let (from, to) = (std::path::Path::new(&head), std::path::Path::new(&path));
-        questiongame_host::catalog::db::write_older_schema(from, to, 5).expect("the library as beta.1 left it");
+        questiongame_host::catalog::db::write_older_schema(from, to, 5)
+            .expect("the library as beta.1 left it");
         let geography: Vec<String> = {
             let conn = rusqlite::Connection::open(to).expect("the beta.1 file");
-            let mut stmt = conn.prepare("SELECT question_id FROM domain_questions WHERE domain_id = 'seed-dom-geo'").expect("a query");
-            stmt.query_map([], |row| row.get(0)).expect("members").map(|r| r.expect("a member")).collect()
+            let mut stmt = conn
+                .prepare(
+                    "SELECT question_id FROM domain_questions WHERE domain_id = 'seed-dom-geo'",
+                )
+                .expect("a query");
+            stmt.query_map([], |row| row.get(0))
+                .expect("members")
+                .map(|r| r.expect("a member"))
+                .collect()
         };
         let place = questiongame_host::catalog::db::place_for_test;
         place(to, "teams", "seed-team-red", None).expect("Red, shared");
@@ -119,8 +144,12 @@ fn main() {
             place(to, "questions", question, None).expect("its questions, shared");
         }
     } else {
-        questiongame_host::catalog::db::write_older_schema(std::path::Path::new(&head), std::path::Path::new(&path), 3)
-            .expect("the library as 1.x left it");
+        questiongame_host::catalog::db::write_older_schema(
+            std::path::Path::new(&head),
+            std::path::Path::new(&path),
+            3,
+        )
+        .expect("the library as 1.x left it");
     }
     for suffix in ["", "-wal", "-shm"] {
         let _ = std::fs::remove_file(format!("{head}{suffix}"));

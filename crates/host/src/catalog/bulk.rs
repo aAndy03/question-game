@@ -24,13 +24,26 @@ use super::store;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", rename_all_fields = "camelCase")]
 pub enum BulkEdit {
-    Tag { tag: String },
-    Untag { tag: String },
+    Tag {
+        tag: String,
+    },
+    Untag {
+        tag: String,
+    },
     /// Inside one domain: a group of it, or `None` for *No group*.
-    Group { domain_id: DomainId, group_id: Option<DomainGroupId> },
-    AddToDomain { domain_id: DomainId },
-    RemoveFromDomain { domain_id: DomainId },
-    SetDifficulty { difficulty: Option<u8> },
+    Group {
+        domain_id: DomainId,
+        group_id: Option<DomainGroupId>,
+    },
+    AddToDomain {
+        domain_id: DomainId,
+    },
+    RemoveFromDomain {
+        domain_id: DomainId,
+    },
+    SetDifficulty {
+        difficulty: Option<u8>,
+    },
 }
 
 /// What a bulk edit did — or, previewed, would do.
@@ -52,7 +65,11 @@ impl CatalogService {
         now_ms: u64,
     ) -> CatalogResult<BulkReport> {
         let mut seen = BTreeSet::new();
-        let ids: Vec<QuestionId> = ids.iter().filter(|id| seen.insert((*id).clone())).cloned().collect();
+        let ids: Vec<QuestionId> = ids
+            .iter()
+            .filter(|id| seen.insert((*id).clone()))
+            .cloned()
+            .collect();
         if ids.is_empty() {
             return Err(CatalogError::invalid("bulk", "nothing is selected"));
         }
@@ -74,7 +91,13 @@ impl CatalogService {
     /// *Manage tags* ▸ Rename: every question in view carrying `from` carries
     /// `to` instead. To a tag that exists, it is a merge — a question that has
     /// both keeps one. A change of case only re-spells it.
-    pub fn tag_rename(&self, from: &str, to: &str, write: bool, now_ms: u64) -> CatalogResult<BulkReport> {
+    pub fn tag_rename(
+        &self,
+        from: &str,
+        to: &str,
+        write: bool,
+        now_ms: u64,
+    ) -> CatalogResult<BulkReport> {
         let clean = super::groups::clean_tags(&[to.to_owned()], "tag")?;
         let Some((to, to_key)) = clean.into_iter().next() else {
             return Err(CatalogError::invalid("tag.name", "a tag needs a name"));
@@ -112,9 +135,17 @@ impl CatalogService {
     }
 }
 
-fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64) -> CatalogResult<BulkReport> {
+fn apply(
+    tx: &Transaction<'_>,
+    ids: &[QuestionId],
+    edit: &BulkEdit,
+    now_ms: u64,
+) -> CatalogResult<BulkReport> {
     let mut report = BulkReport::default();
-    let questions: Vec<Question> = ids.iter().map(|id| store::question_get(tx, id)).collect::<CatalogResult<_>>()?;
+    let questions: Vec<Question> = ids
+        .iter()
+        .map(|id| store::question_get(tx, id))
+        .collect::<CatalogResult<_>>()?;
 
     match edit {
         BulkEdit::Tag { tag } => {
@@ -122,12 +153,21 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
             let Some((tag, key)) = clean.into_iter().next() else {
                 return Err(CatalogError::invalid("tag.name", "a tag needs a name"));
             };
-            let lacking: Vec<&Question> = questions.iter().filter(|q| !q.tags.iter().any(|t| tag_key(t) == key)).collect();
-            let full = lacking.iter().filter(|q| q.tags.len() >= TAGS_PER_QUESTION).count();
+            let lacking: Vec<&Question> = questions
+                .iter()
+                .filter(|q| !q.tags.iter().any(|t| tag_key(t) == key))
+                .collect();
+            let full = lacking
+                .iter()
+                .filter(|q| q.tags.len() >= TAGS_PER_QUESTION)
+                .count();
             if full > 0 {
                 return Err(CatalogError::ScopeRule {
                     rule: "a question has at most 20 tags",
-                    detail: format!("{full} {} would have more than 20", if full == 1 { "question" } else { "questions" }),
+                    detail: format!(
+                        "{full} {} would have more than 20",
+                        if full == 1 { "question" } else { "questions" }
+                    ),
                 });
             }
             for q in &questions {
@@ -158,7 +198,10 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
             if let Some(d) = difficulty
                 && !(1..=100).contains(d)
             {
-                return Err(CatalogError::invalid("bulk.difficulty", "a difficulty is 1 to 100"));
+                return Err(CatalogError::invalid(
+                    "bulk.difficulty",
+                    "a difficulty is 1 to 100",
+                ));
             }
             for q in &questions {
                 if q.difficulty == *difficulty {
@@ -171,7 +214,10 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
                 }
             }
         }
-        BulkEdit::Group { domain_id, group_id } => {
+        BulkEdit::Group {
+            domain_id,
+            group_id,
+        } => {
             let mut domain = store::domain_get(tx, domain_id)?;
             if let Some(group) = group_id
                 && !domain.groups.iter().any(|g| &g.id == group)
@@ -194,12 +240,21 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
         }
         BulkEdit::AddToDomain { domain_id } => {
             let mut domain = store::domain_get(tx, domain_id)?;
-            let mut next = domain.questions.iter().map(|m| m.sort_key + 1).max().unwrap_or(0);
+            let mut next = domain
+                .questions
+                .iter()
+                .map(|m| m.sort_key + 1)
+                .max()
+                .unwrap_or(0);
             for q in &questions {
                 if domain.questions.iter().any(|m| m.question_id == q.id) {
                     report.unchanged.push(q.id.clone());
                 } else {
-                    domain.questions.push(DomainMember { question_id: q.id.clone(), sort_key: next, group_id: None });
+                    domain.questions.push(DomainMember {
+                        question_id: q.id.clone(),
+                        sort_key: next,
+                        group_id: None,
+                    });
                     next += 1;
                     report.changed.push(q.id.clone());
                 }
@@ -215,7 +270,9 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
                     report.unchanged.push(q.id.clone());
                 }
             }
-            domain.questions.retain(|m| !report.changed.contains(&m.question_id));
+            domain
+                .questions
+                .retain(|m| !report.changed.contains(&m.question_id));
             membership(tx, &domain, &mut report, now_ms)?;
         }
     }
@@ -224,7 +281,12 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
 
 /// The domain written once, its changed questions stamped as updated too (a
 /// *recently updated* sort moves them).
-fn membership(tx: &Transaction<'_>, domain: &super::model::Domain, report: &mut BulkReport, now_ms: u64) -> CatalogResult<()> {
+fn membership(
+    tx: &Transaction<'_>,
+    domain: &super::model::Domain,
+    report: &mut BulkReport,
+    now_ms: u64,
+) -> CatalogResult<()> {
     if report.changed.is_empty() {
         return Ok(());
     }

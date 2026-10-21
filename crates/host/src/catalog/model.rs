@@ -790,7 +790,10 @@ mod tests {
     fn the_floor_is_a_stem_or_an_option() {
         let mut q = question();
         q.options.clear();
-        assert!(q.validate().is_ok(), "a stem alone is incomplete, not refused");
+        assert!(
+            q.validate().is_ok(),
+            "a stem alone is incomplete, not refused"
+        );
         q.stem = "   ".to_owned();
         assert!(q.validate().is_err(), "nothing at all is refused");
 

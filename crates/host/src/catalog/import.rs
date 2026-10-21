@@ -13,7 +13,7 @@
 //! imported. The fake host's mirror is `apps/studio/src/host/fake/import.ts`;
 //! change both in one commit.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -33,7 +33,14 @@ pub const VERSION: u64 = 1;
 pub const MAX_ROWS: usize = 2_000;
 
 /// The fields a row may carry, in the order they are read and reported.
-const ROW_FIELDS: [&str; 6] = ["question", "options", "difficulty", "domains", "explanation", "tags"];
+const ROW_FIELDS: [&str; 6] = [
+    "question",
+    "options",
+    "difficulty",
+    "domains",
+    "explanation",
+    "tags",
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -89,6 +96,13 @@ pub struct ImportRow {
     pub stem: String,
     /// The domains the row lands in, by name — existing or new.
     pub domains: Vec<String>,
+    /// The same, as the preview says them (beta.3): "History (HIS_204)", "Rome
+    /// (new)", and when two domains here share the name, which one it is.
+    pub landing: Vec<String>,
+    /// Its tags, as they will be written.
+    pub tags: Vec<String>,
+    /// For a duplicate: the question it repeats — its stem, or "row 4".
+    pub duplicate_of: Option<String>,
     pub gaps: Vec<QuestionGap>,
     pub ignored: Vec<Ignored>,
     pub reason: Option<RejectReason>,
@@ -101,6 +115,9 @@ impl ImportRow {
             status: RowStatus::Rejected,
             stem,
             domains: Vec::new(),
+            landing: Vec::new(),
+            tags: Vec::new(),
+            duplicate_of: None,
             gaps: Vec::new(),
             ignored,
             reason: Some(reason),
@@ -169,10 +186,19 @@ pub fn plan(
         ));
     }
 
-    let mut seen: BTreeSet<Fingerprint> = library
+    // Each fingerprint with what the operator would recognise it by.
+    let mut seen: BTreeMap<Fingerprint, String> = library
         .questions
         .iter()
-        .map(|q| fingerprint(&q.stem, q.options.iter().map(|o| (o.text.as_str(), o.correct))))
+        .map(|q| {
+            (
+                fingerprint(
+                    &q.stem,
+                    q.options.iter().map(|o| (o.text.as_str(), o.correct)),
+                ),
+                q.stem.clone(),
+            )
+        })
         .collect();
     let mut resolver = Resolver::new(library.domains);
     let mut report_rows = Vec::with_capacity(rows.len());
@@ -204,21 +230,27 @@ pub fn plan(
         }
         let print = fingerprint(
             &read.stem,
-            read.options.iter().map(|(text, correct)| (text.as_str(), *correct)),
+            read.options
+                .iter()
+                .map(|(text, correct)| (text.as_str(), *correct)),
         );
-        if !seen.insert(print) {
+        if let Some(of) = seen.get(&print) {
             counts.duplicate += 1;
             report_rows.push(ImportRow {
                 index,
                 status: RowStatus::Duplicate,
                 stem: read.stem,
                 domains: Vec::new(),
+                landing: Vec::new(),
+                tags: Vec::new(),
+                duplicate_of: Some(of.clone()),
                 gaps: Vec::new(),
                 ignored: read.ignored,
                 reason: None,
             });
             continue;
         }
+        seen.insert(print, format!("row {index}"));
 
         let mut domain_ids: Vec<DomainId> = Vec::new();
         for name in &read.domains {
@@ -238,6 +270,9 @@ pub fn plan(
         question.difficulty = read.difficulty;
         question.explanation = read.explanation;
         question.tags = read.tags;
+        let tags = super::groups::clean_tags(&question.tags, question.id.as_str())
+            .map(|clean| clean.into_iter().map(|(tag, _)| tag).collect())
+            .unwrap_or_default();
         question.options = read
             .options
             .iter()
@@ -263,6 +298,9 @@ pub fn plan(
             status,
             stem: read.stem,
             domains: domain_ids.iter().map(|d| resolver.name_of(d)).collect(),
+            landing: domain_ids.iter().map(|d| resolver.landing_of(d)).collect(),
+            tags,
+            duplicate_of: None,
             gaps,
             ignored: read.ignored,
             reason: None,
@@ -423,7 +461,9 @@ fn read_row(fields: &Map<String, Value>) -> Read {
                 let field = format!("domains[{k}]");
                 match item {
                     Value::String(name) => push_domain(&mut read, &field, name),
-                    _ => read.ignored.push(Ignored::new(field, IgnoredWhy::WrongType)),
+                    _ => read
+                        .ignored
+                        .push(Ignored::new(field, IgnoredWhy::WrongType)),
                 }
             }
         }
@@ -442,13 +482,20 @@ fn read_row(fields: &Map<String, Value>) -> Read {
     match fields.get("tags") {
         None | Some(Value::Null) => {}
         Some(Value::Array(items)) if items.iter().all(Value::is_string) => {
-            let tags: Vec<String> = items.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect();
+            let tags: Vec<String> = items
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect();
             match super::groups::clean_tags(&tags, "import") {
                 Ok(clean) => read.tags = clean.into_iter().map(|(tag, _)| tag).collect(),
-                Err(_) => read.ignored.push(Ignored::new("tags", IgnoredWhy::OutOfRange)),
+                Err(_) => read
+                    .ignored
+                    .push(Ignored::new("tags", IgnoredWhy::OutOfRange)),
             }
         }
-        Some(_) => read.ignored.push(Ignored::new("tags", IgnoredWhy::WrongType)),
+        Some(_) => read
+            .ignored
+            .push(Ignored::new("tags", IgnoredWhy::WrongType)),
     }
     read
 }
@@ -459,7 +506,8 @@ fn read_option(read: &mut Read, k: usize, item: &Value) {
         Value::String(text) => (text, false),
         Value::Object(option) => {
             let Some(Value::String(text)) = option.get("text") else {
-                read.ignored.push(Ignored::new(field, IgnoredWhy::WrongType));
+                read.ignored
+                    .push(Ignored::new(field, IgnoredWhy::WrongType));
                 return;
             };
             let correct = match option.get("correct") {
@@ -476,7 +524,8 @@ fn read_option(read: &mut Read, k: usize, item: &Value) {
             (text, correct)
         }
         _ => {
-            read.ignored.push(Ignored::new(field, IgnoredWhy::WrongType));
+            read.ignored
+                .push(Ignored::new(field, IgnoredWhy::WrongType));
             return;
         }
     };
@@ -539,9 +588,18 @@ struct Resolver<'a> {
 impl<'a> Resolver<'a> {
     fn new(library: &'a [Domain]) -> Self {
         let mut by_key = BTreeMap::new();
+        // Two domains of one name: the oldest takes it (beta.3), and the
+        // preview says which; a code always names exactly one.
+        let mut oldest: Vec<&Domain> = library.iter().collect();
+        oldest.sort_by(|a, b| {
+            a.stamps
+                .created_at
+                .cmp(&b.stamps.created_at)
+                .then_with(|| a.id.cmp(&b.id))
+        });
         // Names before codes, so a code that happens to spell another
         // domain's name never shadows it.
-        for domain in library {
+        for domain in oldest {
             by_key
                 .entry(fold(&domain.name))
                 .or_insert_with(|| domain.id.clone());
@@ -592,6 +650,43 @@ impl<'a> Resolver<'a> {
 
     fn name_of(&self, id: &DomainId) -> String {
         self.find(id).map(|d| d.name.clone()).unwrap_or_default()
+    }
+
+    /// How the preview says where a row lands.
+    fn landing_of(&self, id: &DomainId) -> String {
+        let Some(domain) = self.find(id) else {
+            return String::new();
+        };
+        if self.created.iter().any(|d| &d.id == id) {
+            return format!("{} (new)", domain.name);
+        }
+        let mut twins: Vec<&Domain> = self
+            .library
+            .iter()
+            .filter(|d| fold(&d.name) == fold(&domain.name))
+            .collect();
+        if twins.len() > 1 {
+            twins.sort_by(|a, b| {
+                a.stamps
+                    .created_at
+                    .cmp(&b.stamps.created_at)
+                    .then_with(|| a.id.cmp(&b.id))
+            });
+            let which = if twins[0].id == domain.id {
+                "the oldest"
+            } else {
+                "one"
+            };
+            format!(
+                "{} ({}), {which} of {} named {}",
+                domain.name,
+                domain.code,
+                twins.len(),
+                domain.name
+            )
+        } else {
+            format!("{} ({})", domain.name, domain.code)
+        }
     }
 
     fn finish(self) -> (Vec<Domain>, Vec<NewDomain>) {
@@ -757,7 +852,13 @@ mod tests {
 
     #[test]
     fn options_alone_are_accepted_as_incomplete() {
-        let plan = run(r#"[ { "question": "", "options": ["A", "B"] } ]"#, &[], &[], None).unwrap();
+        let plan = run(
+            r#"[ { "question": "", "options": ["A", "B"] } ]"#,
+            &[],
+            &[],
+            None,
+        )
+        .unwrap();
         assert_eq!(statuses(&plan), vec![RowStatus::Incomplete]);
         assert_eq!(plan.report.rows[0].gaps[0], QuestionGap::Stem);
     }
@@ -844,7 +945,13 @@ mod tests {
 
     #[test]
     fn a_row_without_a_domain_goes_to_the_default_one() {
-        let plan = run(r#"[ { "question": "Q?" } ]"#, &[], &[geo()], Some("dom-geo")).unwrap();
+        let plan = run(
+            r#"[ { "question": "Q?" } ]"#,
+            &[],
+            &[geo()],
+            Some("dom-geo"),
+        )
+        .unwrap();
         assert_eq!(plan.report.rows[0].domains, vec!["Geografie".to_owned()]);
         assert!(!plan.report.rows[0].gaps.contains(&QuestionGap::Domain));
     }

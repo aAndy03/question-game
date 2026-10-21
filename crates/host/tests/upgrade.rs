@@ -221,7 +221,10 @@ fn an_unwritable_backup_dir_refuses_to_open_and_leaves_the_file_unchanged() {
 #[test]
 fn retention_never_deletes_the_backup_just_taken() {
     let dir = TempDir::new("clock-behind");
-    drop(CatalogService::open_file(&dir.library(), &options(&dir, "1.0.1", "20300101-000000")).unwrap());
+    drop(
+        CatalogService::open_file(&dir.library(), &options(&dir, "1.0.1", "20300101-000000"))
+            .unwrap(),
+    );
     std::fs::create_dir_all(dir.backups()).unwrap();
     for day in 1..=5 {
         let name = format!("questiongame-1.0.0-203001{day:02}-000000.sqlite3");
@@ -243,7 +246,10 @@ fn retention_never_deletes_the_backup_just_taken() {
 #[test]
 fn a_boot_that_fails_after_the_backup_still_keeps_only_five() {
     let dir = TempDir::new("fails-after");
-    drop(CatalogService::open_file(&dir.library(), &options(&dir, "1.0.1", "20261001-000000")).unwrap());
+    drop(
+        CatalogService::open_file(&dir.library(), &options(&dir, "1.0.1", "20261001-000000"))
+            .unwrap(),
+    );
     // A schema this build does not know, as a newer build would leave it.
     rusqlite::Connection::open(dir.library())
         .unwrap()
@@ -300,7 +306,10 @@ fn a_compact_copy_refuses_a_library_newer_than_this_build() {
         conn.execute_batch("PRAGMA user_version = 999").unwrap();
     }
     let to = dir.0.join("copy.sqlite3");
-    assert!(matches!(compact_copy(&from, &to), Err(CatalogError::SchemaTooNew { found: 999, .. })));
+    assert!(matches!(
+        compact_copy(&from, &to),
+        Err(CatalogError::SchemaTooNew { found: 999, .. })
+    ));
     assert!(!to.exists());
 }
 
@@ -523,12 +532,31 @@ fn a_second_failed_boot_does_not_pin_a_second_copy() {
     library_1_0_2(&dir, false);
     std::fs::create_dir_all(dir.backups()).unwrap();
     // A copy pinned by an earlier boot that did not get past the migration.
-    std::fs::copy(dir.library(), dir.backups().join(format!("{PRE_WORKSPACES_PREFIX}20261020-120000.sqlite3"))).unwrap();
-    let (service, report) = CatalogService::open_file(&dir.library(), &options(&dir, "2.0.0-beta.1", "20261021-120000")).unwrap();
+    std::fs::copy(
+        dir.library(),
+        dir.backups()
+            .join(format!("{PRE_WORKSPACES_PREFIX}20261020-120000.sqlite3")),
+    )
+    .unwrap();
+    let (service, report) = CatalogService::open_file(
+        &dir.library(),
+        &options(&dir, "2.0.0-beta.1", "20261021-120000"),
+    )
+    .unwrap();
     drop(service);
     let names = backups_in(&dir.backups());
-    assert_eq!(names.iter().filter(|n| n.starts_with(PRE_WORKSPACES_PREFIX)).count(), 1, "{names:?}");
-    assert!(report.backup.is_some(), "still no copy, no change: {names:?}");
+    assert_eq!(
+        names
+            .iter()
+            .filter(|n| n.starts_with(PRE_WORKSPACES_PREFIX))
+            .count(),
+        1,
+        "{names:?}"
+    );
+    assert!(
+        report.backup.is_some(),
+        "still no copy, no change: {names:?}"
+    );
 }
 
 // --------------------------------------------------------- groups, tags (5)
@@ -539,26 +567,49 @@ fn m2_m3_migration_5_keeps_every_membership_adds_nothing_and_backs_up_first() {
     let newer = dir.0.join("newer.sqlite3");
     {
         let service = CatalogService::open(CatalogLocation::file(&newer)).unwrap();
-        service.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), 1_000).unwrap();
+        service
+            .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), 1_000)
+            .unwrap();
     }
     questiongame_host::catalog::db::write_older_schema(&newer, &dir.library(), 4).unwrap();
     let before: i64 = rusqlite::Connection::open(dir.library())
         .unwrap()
         .query_row("SELECT count(*) FROM domain_questions", [], |r| r.get(0))
         .unwrap();
-    let (service, report) = CatalogService::open_file(&dir.library(), &options(&dir, "2.1.0-beta.1", "20261022-120000")).unwrap();
+    let (service, report) = CatalogService::open_file(
+        &dir.library(),
+        &options(&dir, "2.1.0-beta.1", "20261022-120000"),
+    )
+    .unwrap();
     drop(service);
     let backup = report.backup.expect("a copy first");
     let name = backup.file_name().unwrap().to_string_lossy().into_owned();
-    assert!(!name.starts_with(PRE_WORKSPACES_PREFIX), "{name}: an ordinary rotated copy");
-    let version: u32 = rusqlite::Connection::open(&backup).unwrap().pragma_query_value(None, "user_version", |r| r.get(0)).unwrap();
+    assert!(
+        !name.starts_with(PRE_WORKSPACES_PREFIX),
+        "{name}: an ordinary rotated copy"
+    );
+    let version: u32 = rusqlite::Connection::open(&backup)
+        .unwrap()
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
     assert_eq!(version, 4);
 
     let conn = rusqlite::Connection::open(dir.library()).unwrap();
-    assert_eq!(count(&conn, "SELECT count(*) FROM domain_questions"), before);
-    assert_eq!(count(&conn, "SELECT count(*) FROM domain_questions WHERE group_id IS NOT NULL"), 0);
+    assert_eq!(
+        count(&conn, "SELECT count(*) FROM domain_questions"),
+        before
+    );
+    assert_eq!(
+        count(
+            &conn,
+            "SELECT count(*) FROM domain_questions WHERE group_id IS NOT NULL"
+        ),
+        0
+    );
     assert_eq!(count(&conn, "SELECT count(*) FROM domain_groups"), 0);
     assert_eq!(count(&conn, "SELECT count(*) FROM question_tags"), 0);
-    let head: u32 = conn.pragma_query_value(None, "user_version", |r| r.get(0)).unwrap();
+    let head: u32 = conn
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
     assert_eq!(head, 6, "through 5, then 6");
 }

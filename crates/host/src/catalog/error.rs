@@ -114,7 +114,10 @@ pub enum CatalogError {
     /// written (P12.6). Nothing was migrated and nothing was written: the
     /// library is as the previous build left it.
     #[error("could not back up the library to {}: {reason}. Nothing was changed; the previous version can still open it.", dir.display())]
-    BackupFailed { dir: std::path::PathBuf, reason: String },
+    BackupFailed {
+        dir: std::path::PathBuf,
+        reason: String,
+    },
 
     /// An id that belongs to a row local to another workspace. A save cannot
     /// reach across: only copy and move change where a row lives.

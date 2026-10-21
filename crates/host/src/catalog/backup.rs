@@ -133,9 +133,11 @@ pub(super) fn prune(dir: &Path, keep: usize, taken: &Path) {
 pub(super) fn has_pinned(dir: &Path) -> bool {
     std::fs::read_dir(dir)
         .map(|entries| {
-            entries
-                .filter_map(|e| e.ok())
-                .any(|e| e.file_name().to_string_lossy().starts_with(PRE_WORKSPACES_PREFIX))
+            entries.filter_map(|e| e.ok()).any(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with(PRE_WORKSPACES_PREFIX)
+            })
         })
         .unwrap_or(false)
 }
@@ -204,4 +206,3 @@ mod tests {
         assert_eq!(stamp_of("questiongame-1.0.1-2026101x-120000.sqlite3"), None);
     }
 }
-

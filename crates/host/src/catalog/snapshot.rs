@@ -55,7 +55,11 @@ pub(super) fn build(
             "the roster is empty",
         ));
     }
-    if recipe.board.iter().all(|board| board.question_ids.is_empty()) {
+    if recipe
+        .board
+        .iter()
+        .all(|board| board.question_ids.is_empty())
+    {
         return Err(CatalogError::invalid(
             format!("recipe.{}.board", recipe.id),
             "the board has no questions",
@@ -357,7 +361,10 @@ mod tests {
             FrozenSettings::default(),
         )
         .unwrap_err();
-        assert_eq!(error.to_string(), "recipe.recipe-1.roster: the roster is empty");
+        assert_eq!(
+            error.to_string(),
+            "recipe.recipe-1.roster: the roster is empty"
+        );
 
         let (mut recipe, bodies) = fixture();
         recipe.board[0].question_ids.clear();

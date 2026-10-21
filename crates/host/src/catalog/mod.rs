@@ -44,22 +44,22 @@ pub use backup::{
     META_LAST_OPENED, META_LAST_SEEN, OpenOptions, OpenReport, PRE_WORKSPACES_LABEL,
     PRE_WORKSPACES_PREFIX, UNSTAMPED_VERSION, compact_copy,
 };
+pub use bulk::{BulkEdit, BulkReport};
 pub use complete::QuestionGap;
 pub use db::{CatalogLocation, META_CURRENT_WORKSPACE};
 pub use error::{CatalogError, CatalogKind, CatalogResult};
+pub use family::{FamilyCopy, PropagationPreview, SkippedCopy};
+pub use groups::{TAG_MAX, TAGS_PER_QUESTION, TagCount, tag_key};
 pub use import::{ImportCounts, ImportReport, ImportRow, RowStatus};
 pub use model::{
-    ArchiveScope, Asset, BoardDomain, CatalogItem, Domain, DomainGroup, DomainMember, DomainOverlay, EditScope,
-    Operator, Origin, PlayRecord, Question, QuestionOption, QuestionOverlay, Recipe,
-    RecipeOverlays, Stamps, Team, TeamOverlay,
+    ArchiveScope, Asset, BoardDomain, CatalogItem, Domain, DomainGroup, DomainMember,
+    DomainOverlay, EditScope, Operator, Origin, PlayRecord, Question, QuestionOption,
+    QuestionOverlay, Recipe, RecipeOverlays, Stamps, Team, TeamOverlay,
 };
 pub use search::{SearchHit, SearchQuery};
 pub use seed::{Demo, SeedMode, SeedResult, SeedStatus};
 pub use service::{
     CatalogChange, CatalogService, ChangeOp, OverlayTarget, RecipeChange, WipedPlays,
 };
-pub use bulk::{BulkEdit, BulkReport};
-pub use groups::{TAG_MAX, TAGS_PER_QUESTION, TagCount, tag_key};
-pub use family::{FamilyCopy, PropagationPreview, SkippedCopy};
 pub use transfer::{CopyOptions, Refusal, Selection, Touched, TransferOp, TransferReport};
 pub use workspace::{DeleteReport, WORKSPACE_NAME_MAX, Workspace, WorkspaceGroup};

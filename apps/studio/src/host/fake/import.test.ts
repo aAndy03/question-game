@@ -37,6 +37,29 @@ describe('the fake import mirrors the host (§2.32)', () => {
     expect(plan.domains[0]?.questions).toHaveLength(2)
   })
 
+  it('says where a row lands, its tags, and what a duplicate repeats; twins resolve to the oldest (beta.3)', () => {
+    const old: Domain = { ...geo, id: 'dom-old', name: 'History', code: 'HIS_100', createdAt: 1 }
+    const young: Domain = { ...geo, id: 'dom-young', name: 'History', code: 'HIS_200', createdAt: 5 }
+    const rome: Question = { id: 'q1', origin: 'operator', stem: 'Who built Rome?', mediaAssetId: null, options: [{ id: 'q1-a', text: 'Romulus', correct: true }, { id: 'q1-b', text: 'Remus', correct: false }], difficulty: 10, explanation: null, ...stamps }
+    const plan = run(
+      JSON.stringify([
+        { question: 'When did Rome fall?', options: [{ text: '476', correct: true }, '1453'], domains: ['history'], tags: [' Empire ', 'empire', 'Rome'] },
+        { question: 'Who built Rome?', options: [{ text: 'Romulus', correct: true }, 'Remus'] },
+        { question: 'Name a river', options: [{ text: 'Tiber', correct: true }, 'Nile'], domains: ['Geography', 'HIS_200'] },
+        { question: 'When did Rome fall?', options: [{ text: '476', correct: true }, '1453'] },
+      ]),
+      [rome],
+      [young, old],
+    )
+    const rows = plan.report.rows
+    expect(rows[0]?.landing).toEqual(['History (HIS_100), the oldest of 2 named History'])
+    expect(rows[0]?.tags).toEqual(['Empire', 'Rome'])
+    expect(plan.questions[0]?.tags).toEqual(['Empire', 'Rome'])
+    expect(rows[1]?.duplicateOf).toBe('Who built Rome?')
+    expect(rows[2]?.landing).toEqual(['Geography (new)', 'History (HIS_200), one of 2 named History'])
+    expect(rows[3]?.duplicateOf).toBe('row 1')
+  })
+
   it('sends a row with no domain to the default one', () => {
     const plan = run('[{ "question": "Q?" }]', [], [geo], 'dom-geo')
     expect(plan.report.rows[0]?.domains).toEqual(['Geografie'])

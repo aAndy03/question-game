@@ -19,7 +19,7 @@
 use crate::award::award_points;
 use crate::error::{MatchError, MatchResult};
 use crate::event::{EventKind, active_inversions, is_inverted};
-use crate::ids::{DomainId, OperatorId, PlayId, OptionId, TeamId};
+use crate::ids::{DomainId, OperatorId, OptionId, PlayId, TeamId};
 use crate::play::{Play, PlayStatus};
 use crate::rules::{Verdict, judge};
 use crate::session::Session;

@@ -197,6 +197,22 @@ function PreviewRow({ row }: { row: ImportRow }) {
           {row.gaps.map((g) => QUESTION.gap[g]).join(' · ')}
         </Text>
       ) : null}
+      {/* No domain is already a gap on the line above. */}
+      {row.landing.length > 0 ? (
+        <Text as="div" variant="studio-caption" tone="muted" className="pl-10">
+          {IMPORT.landsIn(row.landing)}
+        </Text>
+      ) : null}
+      {row.tags.length > 0 ? (
+        <Text as="div" variant="studio-caption" tone="muted" className="pl-10">
+          {IMPORT.tags(row.tags)}
+        </Text>
+      ) : null}
+      {row.duplicateOf ? (
+        <Text as="div" variant="studio-caption" tone="muted" className="pl-10">
+          {IMPORT.duplicateOf(row.duplicateOf)}
+        </Text>
+      ) : null}
       {row.ignored.map((i) => (
         <Text key={i.field} as="div" variant="studio-caption" tone="muted" className="pl-10">
           {IMPORT.ignored(i)}

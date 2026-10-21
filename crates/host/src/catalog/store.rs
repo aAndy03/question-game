@@ -242,14 +242,19 @@ fn domain_members(conn: &Connection, id: &DomainId) -> CatalogResult<Vec<DomainM
         Ok(DomainMember {
             question_id: QuestionId::new(row.get::<_, String>(0)?),
             sort_key: row.get(1)?,
-            group_id: row.get::<_, Option<String>>(2)?.map(crate::ids::DomainGroupId::new),
+            group_id: row
+                .get::<_, Option<String>>(2)?
+                .map(crate::ids::DomainGroupId::new),
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
 /// A domain's groups, in the operator's order.
-pub(super) fn domain_groups(conn: &Connection, id: &DomainId) -> CatalogResult<Vec<super::model::DomainGroup>> {
+pub(super) fn domain_groups(
+    conn: &Connection,
+    id: &DomainId,
+) -> CatalogResult<Vec<super::model::DomainGroup>> {
     let mut stmt = conn.prepare(
         "SELECT id, domain_id, name, sort_key FROM domain_groups
          WHERE domain_id = ?1 ORDER BY sort_key, created_at, id",
@@ -286,13 +291,23 @@ pub(super) fn domain_group_get(
         .optional()?)
 }
 
-pub(super) fn domain_group_put(conn: &Connection, group: &super::model::DomainGroup, now_ms: u64) -> CatalogResult<()> {
+pub(super) fn domain_group_put(
+    conn: &Connection,
+    group: &super::model::DomainGroup,
+    now_ms: u64,
+) -> CatalogResult<()> {
     conn.execute(
         "INSERT INTO domain_groups (id, domain_id, name, sort_key, created_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?5)
          ON CONFLICT(id) DO UPDATE SET name = excluded.name, sort_key = excluded.sort_key,
                                        updated_at = excluded.updated_at",
-        params![group.id.as_str(), group.domain_id.as_str(), group.name, group.sort_key, ms(now_ms)],
+        params![
+            group.id.as_str(),
+            group.domain_id.as_str(),
+            group.name,
+            group.sort_key,
+            ms(now_ms)
+        ],
     )?;
     Ok(())
 }
@@ -301,21 +316,35 @@ pub(super) fn domain_group_put(conn: &Connection, group: &super::model::DomainGr
 /// (`ON DELETE SET NULL`).
 /// A domain's `updated_at`, moved by a change to its groups.
 pub(super) fn domain_touch(conn: &Connection, id: &DomainId, now_ms: u64) -> CatalogResult<()> {
-    conn.execute("UPDATE domains SET updated_at = ?1 WHERE id = ?2", params![ms(now_ms), id.as_str()])?;
+    conn.execute(
+        "UPDATE domains SET updated_at = ?1 WHERE id = ?2",
+        params![ms(now_ms), id.as_str()],
+    )?;
     Ok(())
 }
 
 /// Questions' `updated_at`, moved by a change to their membership.
-pub(super) fn questions_touch(conn: &Connection, ids: &[QuestionId], now_ms: u64) -> CatalogResult<()> {
+pub(super) fn questions_touch(
+    conn: &Connection,
+    ids: &[QuestionId],
+    now_ms: u64,
+) -> CatalogResult<()> {
     for id in ids {
-        conn.execute("UPDATE questions SET updated_at = ?1 WHERE id = ?2", params![ms(now_ms), id.as_str()])?;
+        conn.execute(
+            "UPDATE questions SET updated_at = ?1 WHERE id = ?2",
+            params![ms(now_ms), id.as_str()],
+        )?;
     }
     Ok(())
 }
 
 /// Every domain's groups in one read, for a list (review: not one query a row).
-fn all_domain_groups(conn: &Connection) -> CatalogResult<std::collections::HashMap<String, Vec<super::model::DomainGroup>>> {
-    let mut stmt = conn.prepare("SELECT id, domain_id, name, sort_key FROM domain_groups ORDER BY sort_key, created_at, id")?;
+fn all_domain_groups(
+    conn: &Connection,
+) -> CatalogResult<std::collections::HashMap<String, Vec<super::model::DomainGroup>>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, domain_id, name, sort_key FROM domain_groups ORDER BY sort_key, created_at, id",
+    )?;
     let rows = stmt.query_map([], |row| {
         Ok(super::model::DomainGroup {
             id: crate::ids::DomainGroupId::new(row.get::<_, String>(0)?),
@@ -324,16 +353,25 @@ fn all_domain_groups(conn: &Connection) -> CatalogResult<std::collections::HashM
             sort_key: row.get(3)?,
         })
     })?;
-    let mut by: std::collections::HashMap<String, Vec<super::model::DomainGroup>> = std::collections::HashMap::new();
+    let mut by: std::collections::HashMap<String, Vec<super::model::DomainGroup>> =
+        std::collections::HashMap::new();
     for group in rows {
         let group = group?;
-        by.entry(group.domain_id.as_str().to_owned()).or_default().push(group);
+        by.entry(group.domain_id.as_str().to_owned())
+            .or_default()
+            .push(group);
     }
     Ok(by)
 }
 
-pub(super) fn domain_group_delete(conn: &Connection, id: &crate::ids::DomainGroupId) -> CatalogResult<()> {
-    conn.execute("DELETE FROM domain_groups WHERE id = ?1", params![id.as_str()])?;
+pub(super) fn domain_group_delete(
+    conn: &Connection,
+    id: &crate::ids::DomainGroupId,
+) -> CatalogResult<()> {
+    conn.execute(
+        "DELETE FROM domain_groups WHERE id = ?1",
+        params![id.as_str()],
+    )?;
     Ok(())
 }
 
@@ -401,7 +439,11 @@ pub(super) fn domain_upsert(
     // write so a stale pick is a readable refusal, not a foreign-key failure.
     for group in domain.questions.iter().filter_map(|m| m.group_id.as_ref()) {
         let owner: Option<String> = tx
-            .query_row("SELECT domain_id FROM domain_groups WHERE id = ?1", params![group.as_str()], |row| row.get(0))
+            .query_row(
+                "SELECT domain_id FROM domain_groups WHERE id = ?1",
+                params![group.as_str()],
+                |row| row.get(0),
+            )
             .optional()?;
         match owner {
             Some(owner) if owner == domain.id.as_str() => {}
@@ -409,13 +451,13 @@ pub(super) fn domain_upsert(
                 return Err(CatalogError::invalid(
                     format!("domain.{}.group.{group}", domain.id),
                     "that group belongs to another domain",
-                ))
+                ));
             }
             None => {
                 return Err(CatalogError::invalid(
                     format!("domain.{}.group.{group}", domain.id),
                     "that group no longer exists",
-                ))
+                ));
             }
         }
     }
@@ -456,7 +498,11 @@ pub(super) fn domain_rule(conn: &Connection, domain: &str) -> CatalogResult<()> 
         None => Ok(()),
         Some(question) => Err(CatalogError::ScopeRule {
             rule: "a domain holds its own workspace's questions",
-            detail: format!("domain {}, question {}", row_name(conn, CatalogKind::Domain, domain)?, row_name(conn, CatalogKind::Question, &question)?),
+            detail: format!(
+                "domain {}, question {}",
+                row_name(conn, CatalogKind::Domain, domain)?,
+                row_name(conn, CatalogKind::Question, &question)?
+            ),
         }),
     }
 }
@@ -474,7 +520,19 @@ fn asset_rule(conn: &Connection, table: &str, column: &str, id: &str) -> Catalog
         None => Ok(()),
         Some(asset) => Err(CatalogError::ScopeRule {
             rule: "a row uses its own workspace's assets",
-            detail: format!("{} uses asset {}", row_name(conn, if table == "teams" { CatalogKind::Team } else { CatalogKind::Question }, id)?, row_name(conn, CatalogKind::Asset, &asset)?),
+            detail: format!(
+                "{} uses asset {}",
+                row_name(
+                    conn,
+                    if table == "teams" {
+                        CatalogKind::Team
+                    } else {
+                        CatalogKind::Question
+                    },
+                    id
+                )?,
+                row_name(conn, CatalogKind::Asset, &asset)?
+            ),
         }),
     }
 }
@@ -727,12 +785,7 @@ pub(super) fn asset_upsert(tx: &Transaction<'_>, asset: &Asset, now_ms: u64) -> 
          ON CONFLICT(id) DO UPDATE SET path = excluded.path, kind = excluded.kind",
             land = LAND
         ),
-        params![
-            asset.id.as_str(),
-            asset.path,
-            asset.kind,
-            ms(created_at),
-        ],
+        params![asset.id.as_str(), asset.path, asset.kind, ms(created_at),],
     )?;
     Ok(())
 }
@@ -944,7 +997,15 @@ pub(super) fn recipe_rule(conn: &Connection, recipe: &str) -> CatalogResult<()> 
                 detail: format!(
                     "game {}, {noun} {}",
                     row_name(conn, CatalogKind::Recipe, recipe)?,
-                    row_name(conn, match noun { "team" => CatalogKind::Team, "domain" => CatalogKind::Domain, _ => CatalogKind::Question }, &id)?
+                    row_name(
+                        conn,
+                        match noun {
+                            "team" => CatalogKind::Team,
+                            "domain" => CatalogKind::Domain,
+                            _ => CatalogKind::Question,
+                        },
+                        &id
+                    )?
                 ),
             });
         }
@@ -1173,7 +1234,11 @@ pub(super) fn referenced_by(
             ),
         ],
         CatalogKind::Asset => &[
-            ("SELECT DISTINCT name FROM teams WHERE logo_asset_id = ?1 ORDER BY name", "team", "teams"),
+            (
+                "SELECT DISTINCT name FROM teams WHERE logo_asset_id = ?1 ORDER BY name",
+                "team",
+                "teams",
+            ),
             (
                 "SELECT DISTINCT substr(stem, 1, 40) FROM questions WHERE media_asset_id = ?1 ORDER BY stem",
                 "question",
@@ -1189,7 +1254,9 @@ pub(super) fn referenced_by(
     };
     for (sql, one, many) in queries {
         let mut stmt = conn.prepare(sql)?;
-        let names: Vec<String> = stmt.query_map(params![id], |row| row.get(0))?.collect::<rusqlite::Result<_>>()?;
+        let names: Vec<String> = stmt
+            .query_map(params![id], |row| row.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
         if names.is_empty() {
             continue;
         }
@@ -1401,14 +1468,12 @@ pub(super) fn open_play_id(conn: &Connection) -> CatalogResult<Option<PlayId>> {
 /// workspace's, like every other view of Plays (review, Beta 2.0). A `loaded`, `playing` or `paused` row is not in the list:
 /// the operator may be about to sit down at it.
 pub(super) fn closed_plays(conn: &Connection) -> CatalogResult<Vec<(PlayId, RecipeId)>> {
-    let mut stmt = conn.prepare(
-        &format!(
-            "SELECT id, recipe_id FROM plays
+    let mut stmt = conn.prepare(&format!(
+        "SELECT id, recipe_id FROM plays
              WHERE status IN ('completed', 'abandoned', 'restarted')
                AND recipe_id IN (SELECT id FROM recipes WHERE {IN_WORKSPACE})
              ORDER BY started_at_ms, id"
-        ),
-    )?;
+    ))?;
     Ok(stmt
         .query_map([], |row| {
             Ok((
@@ -1598,8 +1663,14 @@ pub(super) fn group_insert(
 }
 
 /// The group goes; its workspaces become ungrouped (`ON DELETE SET NULL`).
-pub(super) fn group_delete(conn: &Connection, id: &crate::ids::WorkspaceGroupId) -> CatalogResult<usize> {
-    Ok(conn.execute("DELETE FROM workspace_groups WHERE id = ?1", params![id.as_str()])?)
+pub(super) fn group_delete(
+    conn: &Connection,
+    id: &crate::ids::WorkspaceGroupId,
+) -> CatalogResult<usize> {
+    Ok(conn.execute(
+        "DELETE FROM workspace_groups WHERE id = ?1",
+        params![id.as_str()],
+    )?)
 }
 
 // -------------------------------------------------------------------- families
@@ -1619,7 +1690,11 @@ pub(super) fn next_family(conn: &Connection) -> CatalogResult<i64> {
 }
 
 /// A row's family, wherever the row lives.
-pub(super) fn family_of(conn: &Connection, kind: CatalogKind, id: &str) -> CatalogResult<Option<i64>> {
+pub(super) fn family_of(
+    conn: &Connection,
+    kind: CatalogKind,
+    id: &str,
+) -> CatalogResult<Option<i64>> {
     let sql = format!("SELECT family_id FROM {} WHERE id = ?1", kind.table());
     Ok(conn
         .query_row(&sql, params![id], |row| row.get::<_, Option<i64>>(0))
@@ -1669,7 +1744,10 @@ pub(super) fn workspace_counts(
 /// The one place library rows are deleted: a whole archived workspace, its
 /// games, their Plays and logs, inside the caller's transaction. Asset
 /// **files** are not touched; only rows go.
-pub(super) fn workspace_purge(tx: &Transaction<'_>, id: &crate::ids::WorkspaceId) -> CatalogResult<()> {
+pub(super) fn workspace_purge(
+    tx: &Transaction<'_>,
+    id: &crate::ids::WorkspaceId,
+) -> CatalogResult<()> {
     let id = id.as_str();
     tx.execute(
         "DELETE FROM events WHERE play_id IN (SELECT p.id FROM plays p
@@ -1681,7 +1759,10 @@ pub(super) fn workspace_purge(tx: &Transaction<'_>, id: &crate::ids::WorkspaceId
         params![id],
     )?;
     for table in ["recipes", "domains", "questions", "teams", "assets"] {
-        tx.execute(&format!("DELETE FROM {table} WHERE workspace_id = ?1"), params![id])?;
+        tx.execute(
+            &format!("DELETE FROM {table} WHERE workspace_id = ?1"),
+            params![id],
+        )?;
     }
     tx.execute("DELETE FROM workspaces WHERE id = ?1", params![id])?;
     Ok(())
@@ -1713,7 +1794,10 @@ pub(super) fn set_workspace(
     id: &str,
     workspace: &str,
 ) -> CatalogResult<()> {
-    let sql = format!("UPDATE {} SET workspace_id = ?1 WHERE id = ?2", kind.table());
+    let sql = format!(
+        "UPDATE {} SET workspace_id = ?1 WHERE id = ?2",
+        kind.table()
+    );
     conn.execute(&sql, params![workspace, id])?;
     Ok(())
 }
@@ -1774,7 +1858,10 @@ const USES: [(CatalogKind, CatalogKind, &str); 6] = [
 
 /// Every use, inside `workspace`, of a row local to it: what a move would
 /// break if the used row went and the user stayed.
-pub(super) fn local_users(conn: &Connection, workspace: &crate::ids::WorkspaceId) -> CatalogResult<Vec<Use>> {
+pub(super) fn local_users(
+    conn: &Connection,
+    workspace: &crate::ids::WorkspaceId,
+) -> CatalogResult<Vec<Use>> {
     let mut out = Vec::new();
     for (kind, user_kind, select) in USES {
         let sql = format!("{select} WHERE r.workspace_id = ?1 AND u.workspace_id = ?1");
@@ -1823,13 +1910,19 @@ pub(super) fn domains_holding(conn: &Connection, question: &str) -> CatalogResul
              WHERE dq.question_id = ?1 AND {} ORDER BY d.name, d.id",
             in_view("d")
         ))?;
-        stmt.query_map(params![question], |row| row.get(0))?.collect::<rusqlite::Result<_>>()?
+        stmt.query_map(params![question], |row| row.get(0))?
+            .collect::<rusqlite::Result<_>>()?
     };
-    ids.into_iter().map(|id| domain_get(conn, &DomainId::new(id))).collect()
+    ids.into_iter()
+        .map(|id| domain_get(conn, &DomainId::new(id)))
+        .collect()
 }
 
 /// The games whose board names this question.
-pub(super) fn recipes_with_question(conn: &Connection, question: &str) -> CatalogResult<Vec<RecipeId>> {
+pub(super) fn recipes_with_question(
+    conn: &Connection,
+    question: &str,
+) -> CatalogResult<Vec<RecipeId>> {
     let mut stmt = conn.prepare(
         "SELECT DISTINCT recipe_id FROM recipe_questions WHERE question_id = ?1 ORDER BY recipe_id",
     )?;
@@ -1840,7 +1933,11 @@ pub(super) fn recipes_with_question(conn: &Connection, question: &str) -> Catalo
 }
 
 /// The workspace a row lives in, whatever the current one; `None` — no such row.
-pub(super) fn home_of(conn: &Connection, kind: CatalogKind, id: &str) -> CatalogResult<Option<String>> {
+pub(super) fn home_of(
+    conn: &Connection,
+    kind: CatalogKind,
+    id: &str,
+) -> CatalogResult<Option<String>> {
     let sql = format!("SELECT workspace_id FROM {} WHERE id = ?1", kind.table());
     Ok(conn
         .query_row(&sql, params![id], |row| row.get::<_, String>(0))
@@ -1850,15 +1947,21 @@ pub(super) fn home_of(conn: &Connection, kind: CatalogKind, id: &str) -> Catalog
 // ------------------------------------------------------------------------ tags
 
 fn question_tags(conn: &Connection, id: &QuestionId) -> CatalogResult<Vec<String>> {
-    let mut stmt = conn.prepare("SELECT tag FROM question_tags WHERE question_id = ?1 ORDER BY position")?;
+    let mut stmt =
+        conn.prepare("SELECT tag FROM question_tags WHERE question_id = ?1 ORDER BY position")?;
     let rows = stmt.query_map(params![id.as_str()], |row| row.get(0))?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
 /// Every question's tags in one read, for a list.
-fn all_question_tags(conn: &Connection) -> CatalogResult<std::collections::HashMap<String, Vec<String>>> {
-    let mut stmt = conn.prepare("SELECT question_id, tag FROM question_tags ORDER BY question_id, position")?;
-    let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+fn all_question_tags(
+    conn: &Connection,
+) -> CatalogResult<std::collections::HashMap<String, Vec<String>>> {
+    let mut stmt =
+        conn.prepare("SELECT question_id, tag FROM question_tags ORDER BY question_id, position")?;
+    let rows = stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
     let mut by: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
     for row in rows {
         let (id, tag) = row?;
@@ -1888,7 +1991,11 @@ pub(super) fn tags_respell(tx: &Transaction<'_>, id: &str) -> CatalogResult<()> 
 
 /// The spelling a tag already has in view, if any: typing *christmas* where
 /// *Christmas* exists keeps *Christmas*.
-pub(super) fn tag_spelling(conn: &Connection, key: &str, except: &str) -> CatalogResult<Option<String>> {
+pub(super) fn tag_spelling(
+    conn: &Connection,
+    key: &str,
+    except: &str,
+) -> CatalogResult<Option<String>> {
     Ok(conn
         .query_row(
             &format!(
@@ -1906,7 +2013,10 @@ pub(super) fn tag_spelling(conn: &Connection, key: &str, except: &str) -> Catalo
 /// transaction.
 fn tags_put(tx: &Transaction<'_>, question: &Question) -> CatalogResult<()> {
     let clean = super::groups::clean_tags(&question.tags, question.id.as_str())?;
-    tx.execute("DELETE FROM question_tags WHERE question_id = ?1", params![question.id.as_str()])?;
+    tx.execute(
+        "DELETE FROM question_tags WHERE question_id = ?1",
+        params![question.id.as_str()],
+    )?;
     for (position, (tag, key)) in clean.iter().enumerate() {
         let spelling = tag_spelling(tx, key, question.id.as_str())?.unwrap_or_else(|| tag.clone());
         tx.execute(
@@ -1938,7 +2048,10 @@ pub(super) fn tag_counts(conn: &Connection) -> CatalogResult<Vec<super::groups::
 
 /// The questions in view carrying `key`.
 fn tagged_in_view(conn: &Connection, key: &str) -> CatalogResult<Vec<String>> {
-    Ok(spelled_in_view(conn, key)?.into_iter().map(|(id, _)| id).collect())
+    Ok(spelled_in_view(conn, key)?
+        .into_iter()
+        .map(|(id, _)| id)
+        .collect())
 }
 
 /// The same, with each one's spelling of it.
@@ -1952,9 +2065,16 @@ fn spelled_in_view(conn: &Connection, key: &str) -> CatalogResult<Vec<(String, S
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
-fn touched(tx: &Transaction<'_>, ids: &[String], now_ms: u64) -> CatalogResult<super::bulk::BulkReport> {
+fn touched(
+    tx: &Transaction<'_>,
+    ids: &[String],
+    now_ms: u64,
+) -> CatalogResult<super::bulk::BulkReport> {
     for id in ids {
-        tx.execute("UPDATE questions SET updated_at = ?1 WHERE id = ?2", params![ms(now_ms), id])?;
+        tx.execute(
+            "UPDATE questions SET updated_at = ?1 WHERE id = ?2",
+            params![ms(now_ms), id],
+        )?;
     }
     Ok(super::bulk::BulkReport {
         changed: ids.iter().map(|id| QuestionId::new(id.clone())).collect(),
@@ -2005,7 +2125,10 @@ pub(super) fn tag_rename(
                 .optional()?
                 .is_some();
         if has_target {
-            tx.execute("DELETE FROM question_tags WHERE question_id = ?1 AND tag_key = ?2", params![id, from_key])?;
+            tx.execute(
+                "DELETE FROM question_tags WHERE question_id = ?1 AND tag_key = ?2",
+                params![id, from_key],
+            )?;
         } else {
             tx.execute(
                 "UPDATE question_tags SET tag = ?1, tag_key = ?2 WHERE question_id = ?3 AND tag_key = ?4",
@@ -2032,10 +2155,17 @@ fn tagged_spelling(conn: &Connection, key: &str) -> CatalogResult<Option<String>
 }
 
 /// *Manage tags* ▸ Delete over the questions in view.
-pub(super) fn tag_delete(tx: &Transaction<'_>, key: &str, now_ms: u64) -> CatalogResult<super::bulk::BulkReport> {
+pub(super) fn tag_delete(
+    tx: &Transaction<'_>,
+    key: &str,
+    now_ms: u64,
+) -> CatalogResult<super::bulk::BulkReport> {
     let carriers = tagged_in_view(tx, key)?;
     for id in &carriers {
-        tx.execute("DELETE FROM question_tags WHERE question_id = ?1 AND tag_key = ?2", params![id, key])?;
+        tx.execute(
+            "DELETE FROM question_tags WHERE question_id = ?1 AND tag_key = ?2",
+            params![id, key],
+        )?;
     }
     touched(tx, &carriers, now_ms)
 }

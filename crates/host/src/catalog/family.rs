@@ -134,10 +134,7 @@ fn upsert(tx: &Transaction<'_>, item: &CatalogItem, now_ms: u64) -> CatalogResul
     }
 }
 
-fn preview(
-    conn: &Connection,
-    item: &CatalogItem,
-) -> CatalogResult<PropagationPreview> {
+fn preview(conn: &Connection, item: &CatalogItem) -> CatalogResult<PropagationPreview> {
     let mut out = PropagationPreview::default();
     if !matches!(
         item.kind(),
@@ -182,20 +179,23 @@ fn with_body(
     source: &CatalogItem,
     home: &WorkspaceId,
 ) -> CatalogResult<CatalogItem> {
-    let asset = |from: &Option<AssetId>, kept: &Option<AssetId>| -> CatalogResult<Option<AssetId>> {
-        let Some(from) = from else { return Ok(None) };
-        match store::home_of(conn, CatalogKind::Asset, from.as_str())? {
-            None => Ok(kept.clone()),
-            Some(_) => {
-                Ok(match store::family_of(conn, CatalogKind::Asset, from.as_str())? {
-                    Some(family) => store::family_member_in(conn, CatalogKind::Asset, family, home)?
-                        .map(AssetId::new)
-                        .or_else(|| kept.clone()),
-                    None => kept.clone(),
-                })
+    let asset =
+        |from: &Option<AssetId>, kept: &Option<AssetId>| -> CatalogResult<Option<AssetId>> {
+            let Some(from) = from else { return Ok(None) };
+            match store::home_of(conn, CatalogKind::Asset, from.as_str())? {
+                None => Ok(kept.clone()),
+                Some(_) => Ok(
+                    match store::family_of(conn, CatalogKind::Asset, from.as_str())? {
+                        Some(family) => {
+                            store::family_member_in(conn, CatalogKind::Asset, family, home)?
+                                .map(AssetId::new)
+                                .or_else(|| kept.clone())
+                        }
+                        None => kept.clone(),
+                    },
+                ),
             }
-        }
-    };
+        };
     Ok(match (stored, source) {
         (CatalogItem::Team(stored), CatalogItem::Team(source)) => {
             let mut out = stored.clone();
