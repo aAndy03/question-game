@@ -544,10 +544,13 @@ pub fn rules_preview(
     };
 
     let effects = host.flags.interlocks_for(&game, frozen);
-    Ok(questiongame_host::preview::build(
-        &game,
-        &board,
-        host.flags.globals().timer,
-        effects,
-    ))
+    let mut preview = questiongame_host::preview::build(&game, &board, host.flags.globals().timer, effects);
+    // beta.4: archived rows the game still names, by name, first — Load refuses them.
+    if let Some(id) = recipe_id.as_deref() {
+        let names = host.catalog.archived_on_game(&questiongame_host::RecipeId::from(id))?;
+        if !names.is_empty() {
+            preview.warnings.insert(0, questiongame_host::preview::PreviewWarning::ArchivedOnGame { names });
+        }
+    }
+    Ok(preview)
 }

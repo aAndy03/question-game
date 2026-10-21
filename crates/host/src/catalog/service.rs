@@ -636,6 +636,41 @@ impl CatalogService {
         scope: EditScope,
         now_ms: u64,
     ) -> CatalogResult<RecipeChange> {
+        self.recipe_set_overlay_with(id, target, scope, false, now_ms)
+            .map(|(change, _)| change)
+    }
+
+    /// The same, where *Apply to original* also updates the row's copies
+    /// (`also_copies`, beta.4: the editors' *Also update copies*, from the
+    /// Game page). Returns the copies it updated.
+    pub fn recipe_set_overlay_with(
+        &self,
+        id: &RecipeId,
+        target: OverlayTarget,
+        scope: EditScope,
+        also_copies: bool,
+        now_ms: u64,
+    ) -> CatalogResult<(RecipeChange, Vec<CatalogChange>)> {
+        let mut copies = Vec::new();
+        let mut original = |item: CatalogItem| -> CatalogResult<()> {
+            if also_copies {
+                let kind = item.kind();
+                copies = self
+                    .catalog_upsert_propagating(&item, now_ms)?
+                    .1
+                    .update
+                    .into_iter()
+                    .map(|copy| CatalogChange {
+                        kind,
+                        id: copy.id,
+                        op: ChangeOp::Upserted,
+                    })
+                    .collect();
+            } else {
+                self.catalog_upsert(&item, now_ms)?;
+            }
+            Ok(())
+        };
         // Read outside the transaction: `recipe_get` needs its own statements,
         // and the write below is what has to be atomic.
         let mut recipe = self.recipe_get(id)?;
@@ -683,7 +718,7 @@ impl CatalogService {
                 if patch.logo_asset_id.is_some() {
                     team.logo_asset_id = patch.logo_asset_id;
                 }
-                self.catalog_upsert(&team.into(), now_ms)?;
+                original(team.into())?;
                 recipe.overlays.teams.remove(&team_id);
                 self.write_overlay(id, |tx| store::overlay_set_team(tx, id, &team_id, None))?;
             }
@@ -696,7 +731,7 @@ impl CatalogService {
                 if let Some(code) = patch.code {
                     domain.code = code;
                 }
-                self.catalog_upsert(&domain.into(), now_ms)?;
+                original(domain.into())?;
                 self.write_overlay(id, |tx| store::overlay_set_domain(tx, id, &domain_id, None))?;
             }
             (EditScope::Original, OverlayTarget::Question(question_id, patch)) => {
@@ -726,7 +761,7 @@ impl CatalogService {
                 let mut prospective = recipe.clone();
                 prospective.overlays.questions.remove(&question_id);
                 self.check_board(&prospective, Some(&question))?;
-                self.catalog_upsert(&question.into(), now_ms)?;
+                original(question.into())?;
                 self.write_overlay(id, |tx| {
                     store::overlay_set_question(tx, id, &question_id, None)
                 })?;
@@ -736,10 +771,13 @@ impl CatalogService {
         // An overlay is part of the recipe, so it moves `rev`: Stage and the
         // Game tab both read a body that just changed.
         let rev = self.bump_rev(id, now_ms)?;
-        Ok(RecipeChange {
-            id: id.clone(),
-            rev,
-        })
+        Ok((
+            RecipeChange {
+                id: id.clone(),
+                rev,
+            },
+            copies,
+        ))
     }
 
     /// The board rules a write must keep, on the recipe this write would
@@ -907,6 +945,39 @@ impl CatalogService {
     /// of refusing the whole board: a Play must not start on a board with a
     /// hole in it, while a preview of an unfinished board is the normal case
     /// and returning nothing would be the unhelpful answer.
+    /// The archived rows a game still names, as the Rules preview says them
+    /// (beta.4): "team Red", "domain History", "question Who built…".
+    pub fn archived_on_game(&self, recipe_id: &RecipeId) -> CatalogResult<Vec<String>> {
+        let recipe = self.recipe_get(recipe_id)?;
+        let conn = self.conn();
+        let mut out = Vec::new();
+        for id in &recipe.teams {
+            if let Ok(team) = store::team_get(&conn, id)
+                && team.stamps.is_archived()
+            {
+                out.push(format!("team {}", team.name));
+            }
+        }
+        for board in &recipe.board {
+            if let Ok(domain) = store::domain_get(&conn, &board.domain_id)
+                && domain.stamps.is_archived()
+            {
+                out.push(format!("domain {}", domain.name));
+            }
+            for id in &board.question_ids {
+                if let Ok(question) = store::question_get(&conn, id)
+                    && question.stamps.is_archived()
+                {
+                    out.push(format!(
+                        "question {}",
+                        store::row_name(&conn, CatalogKind::Question, id.as_str())?
+                    ));
+                }
+            }
+        }
+        Ok(out)
+    }
+
     pub fn preview_board(&self, recipe_id: &RecipeId) -> CatalogResult<PreviewBoard> {
         let recipe = self.recipe_get(recipe_id)?;
         let conn = self.conn();

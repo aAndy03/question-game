@@ -568,11 +568,15 @@ pub fn recipe_set_overlay(
     id: RecipeId,
     target: OverlaySpec,
     scope: EditScope,
+    also_copies: Option<bool>,
 ) -> AppResult<RecipeChange> {
-    let change = catalog_write(&window, &state, "recipe_set_overlay", |h, now| {
-        Ok(h.catalog
-            .recipe_set_overlay(&id, target.into(), scope, now)?)
+    // `alsoCopies` (beta.4): *Apply to original* updates the row's copies too.
+    let (change, copies) = catalog_write(&window, &state, "recipe_set_overlay", |h, now| {
+        Ok(h.catalog.recipe_set_overlay_with(&id, target.into(), scope, also_copies.unwrap_or(false), now)?)
     })?;
     emit::recipe_changed(&app, &change);
+    for copy in &copies {
+        emit::catalog_changed(&app, copy);
+    }
     Ok(change)
 }

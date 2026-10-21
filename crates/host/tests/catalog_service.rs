@@ -2003,3 +2003,114 @@ fn a_bulk_archive_is_all_or_nothing_and_restores_the_same_way() {
         );
     });
 }
+
+// ------------------------------------------------------------------- beta.4
+
+#[test]
+fn an_archived_team_on_the_roster_is_refused_at_load_and_said_in_the_preview() {
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed(&service);
+    service
+        .catalog_archive(CatalogKind::Team, "team-b", 2_000)
+        .unwrap();
+    let err = service
+        .build_snapshot(&recipe.id, PlayId::from("play-1"), frozen())
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("recipe.recipe-1.roster.team.team-b"), "{err}");
+    assert!(err.contains("archived team"), "{err}");
+    assert_eq!(
+        service.archived_on_game(&recipe.id).unwrap(),
+        ["team TEAM team-b"]
+    );
+    service
+        .catalog_restore(CatalogKind::Team, "team-b")
+        .unwrap();
+    service
+        .build_snapshot(&recipe.id, PlayId::from("play-1"), frozen())
+        .expect("restored, it loads");
+    assert!(service.archived_on_game(&recipe.id).unwrap().is_empty());
+}
+
+#[test]
+fn the_preview_names_an_archived_domain_and_question_on_the_board() {
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed(&service);
+    service
+        .catalog_archive(CatalogKind::Question, "q-2", 2_000)
+        .unwrap();
+    service
+        .catalog_archive(CatalogKind::Domain, "dom-1", 2_000)
+        .unwrap();
+    let names = service.archived_on_game(&recipe.id).unwrap();
+    assert_eq!(names.len(), 2, "{names:?}");
+    assert_eq!(names[0], "domain Science");
+    assert!(names[1].starts_with("question "), "{names:?}");
+}
+
+#[test]
+fn apply_to_original_also_updates_the_copies_when_asked() {
+    use questiongame_host::catalog::{CopyOptions, Selection};
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed(&service);
+    let b = service.workspace_create("B", None, 1_000).unwrap().id;
+    let copied = service
+        .catalog_copy_to(
+            &Selection {
+                questions: vec![QuestionId::from("q-1")],
+                ..Selection::default()
+            },
+            &b,
+            CopyOptions::default(),
+            1_000,
+        )
+        .unwrap();
+    let there = copied
+        .created
+        .iter()
+        .find(|t| t.from == "q-1")
+        .unwrap()
+        .id
+        .clone();
+    let patch = |d| {
+        OverlayTarget::Question(
+            QuestionId::from("q-1"),
+            Some(QuestionOverlay {
+                difficulty: Some(d),
+                ..QuestionOverlay::default()
+            }),
+        )
+    };
+    let difficulty_there = |service: &CatalogService| {
+        let here = service.current_workspace();
+        service.workspace_switch(&b).unwrap();
+        let d = match service.catalog_get(CatalogKind::Question, &there).unwrap() {
+            questiongame_host::catalog::CatalogItem::Question(q) => q.difficulty,
+            other => panic!("{other:?}"),
+        };
+        service.workspace_switch(&here).unwrap();
+        d
+    };
+    // Here only: the copy keeps its difficulty.
+    service
+        .recipe_set_overlay_with(&recipe.id, patch(15), EditScope::Original, false, 2_000)
+        .unwrap();
+    assert_eq!(difficulty_there(&service), Some(10));
+    // With the copies: it follows, and the change names it.
+    let (_, copies) = service
+        .recipe_set_overlay_with(&recipe.id, patch(16), EditScope::Original, true, 3_000)
+        .unwrap();
+    assert_eq!(
+        copies.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+        [there.as_str()]
+    );
+    assert_eq!(difficulty_there(&service), Some(16));
+    assert!(
+        service
+            .recipe_get(&recipe.id)
+            .unwrap()
+            .overlays
+            .questions
+            .is_empty()
+    );
+}

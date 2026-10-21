@@ -224,9 +224,12 @@ pub enum BoardShape {
 
 /// Something about this combination that will surprise the operator during a
 /// show. Codes, not sentences: Studio renders the copy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "code")]
 pub enum PreviewWarning {
+    /// Rows the game names that are archived (beta.4): Load refuses them, so
+    /// the operator hears it here first, by name — "team Red".
+    ArchivedOnGame { names: Vec<String> },
     /// Questions carry their own durations, so the same answer *time* is not
     /// worth the same across the board — unless the window is absolute.
     MixedDurations { questions: u32 },
