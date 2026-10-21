@@ -40,6 +40,7 @@ import type {
   StatsQuery,
   StatsResult,
   Workspaces,
+  TagCount,
 } from './types'
 
 export const keys = {
@@ -64,6 +65,8 @@ export const keys = {
   betaWelcome: ['betaWelcome'] as const,
   /** `workspace_list` — replaced whole by every `workspace-changed`. */
   workspaces: ['workspaces'] as const,
+  /** `tag_list` (P15) — refetched with any question change. */
+  tags: ['catalog', 'question', 'tags'] as const,
   /** `catalog_seed_status`, per Demo — invalidated by every catalog/recipe change. */
   seedStatus: {
     all: ['seed-status'] as const,
@@ -309,6 +312,15 @@ export function usePlayEvents(playId: string | null) {
     queryKey: keys.plays.events(playId ?? ''),
     queryFn: () => command<PlayEvent[]>('play_events', { playId }),
     enabled: enabled() && playId !== null,
+  })
+}
+
+/** Every tag in view, with counts (P15). Under the question key, so a question change refetches it. */
+export function useTags() {
+  return useQuery({
+    queryKey: keys.tags,
+    queryFn: () => command<TagCount[]>('tag_list'),
+    enabled: enabled(),
   })
 }
 

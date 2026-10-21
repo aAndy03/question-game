@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Button, MeaningChip, Panel, Text, TextAreaField } from '@/atoms'
+import { Button, MeaningChip, Panel, Text, TextAreaField, SelectField } from '@/atoms'
 import {
   DifficultyField,
   DirtyGuard,
   DomainPicker,
   EditorFooter,
+  TagField,
   GapNotice,
   InlineNotice,
   NavCrumbs,
@@ -13,12 +14,13 @@ import {
   type DomainFormValue,
 } from '@/molecules'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
+import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { useNavStore, type Route } from '@/chrome/nav'
 import { LIST, QUESTION, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import { acceptsQuestion, questionGaps } from '@/host/question'
-import { useCatalogItem, useCatalogList } from '@/host/queries'
+import { useCatalogItem, useCatalogList, useTags } from '@/host/queries'
 import { answerMode, type Domain, type Question, type QuestionOption } from '@/host/types'
 import { useDirtyGuard, useDraft } from './useDraft'
 import { usePropagatingSave } from './usePropagatingSave'
@@ -35,6 +37,8 @@ interface QuestionDraft {
   /** Domain membership is on the domains, not the question (§4.1); the editor
    * carries it as a set and writes each changed domain. */
   readonly domainIds: readonly string[]
+  /** Its group in each of those domains (P15), written with the memberships. */
+  readonly groupIds: Readonly<Record<string, string | null>>
 }
 
 function newOption(index: number): QuestionOption {
@@ -50,6 +54,7 @@ function emptyQuestion(): Question {
     options: [newOption(0), newOption(1)],
     difficulty: 50,
     explanation: null,
+    tags: [],
     createdAt: 0,
     updatedAt: 0,
     archivedAt: null,
@@ -72,6 +77,7 @@ function emptyQuestion(): Question {
 export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
   const source = useCatalogItem('question', id)
   const domains = useCatalogList('domain', 'active')
+  const tags = useTags()
   const run = useHostCommand()
   const propagating = usePropagatingSave()
   const go = useNavStore((s) => s.go)
@@ -87,12 +93,14 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
    * editor a fresh empty question with a new id and wiped what had just been
    * typed. An existing question re-reads its row and its membership.
    */
-  const [blank] = useState<QuestionDraft>(() => ({ question: emptyQuestion(), domainIds: domainId ? [domainId] : [] }))
+  const [blank] = useState<QuestionDraft>(() => ({ question: emptyQuestion(), domainIds: domainId ? [domainId] : [], groupIds: {} }))
   const sourceDraft = useMemo<QuestionDraft | null>(() => {
     if (!id || !source.data) return null
     const question = source.data
-    const memberOf = (domains.data ?? []).filter((d) => d.questions.some((m) => m.questionId === question.id)).map((d) => d.id)
-    return { question, domainIds: memberOf }
+    const memberOf = (domains.data ?? []).filter((d) => d.questions.some((m) => m.questionId === question.id))
+    const groupIds: Record<string, string | null> = {}
+    for (const d of memberOf) groupIds[d.id] = d.questions.find((m) => m.questionId === question.id)?.groupId ?? null
+    return { question, domainIds: memberOf.map((d) => d.id), groupIds }
   }, [id, source.data, domains.data])
 
   const draft = useDraft<QuestionDraft>(sourceDraft, blank)
@@ -134,9 +142,13 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
     const after = new Set(draft.value.domainIds)
     const changed: Domain[] = []
     for (const d of domains.data ?? []) {
+      const groupId = draft.value.groupIds[d.id] ?? null
       if (after.has(d.id) && !before.has(d.id)) {
         const sortKey = Math.max(0, ...d.questions.map((m) => m.sortKey)) + 1
-        changed.push({ ...d, questions: [...d.questions, { questionId: item.id, sortKey }] })
+        changed.push({ ...d, questions: [...d.questions, { questionId: item.id, sortKey, groupId }] })
+      } else if (after.has(d.id) && (d.questions.find((m) => m.questionId === item.id)?.groupId ?? null) !== groupId) {
+        // The same membership in another group: the other members as they are (P15).
+        changed.push({ ...d, questions: d.questions.map((m) => (m.questionId === item.id ? { ...m, groupId } : m)) })
       } else if (!after.has(d.id) && before.has(d.id)) {
         changed.push({ ...d, questions: d.questions.filter((m) => m.questionId !== item.id) })
       }
@@ -145,7 +157,7 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
       await run('catalog_upsert_many', { items: changed.map((d) => ({ kind: 'domain', item: d })) })
     }
     setSaving(false)
-    draft.adopt({ question: item, domainIds: draft.value.domainIds })
+    draft.adopt({ question: item, domainIds: draft.value.domainIds, groupIds: draft.value.groupIds })
     toast.success('Question saved')
     return true
   }
@@ -238,6 +250,7 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
           </div>
         </div>
         <DifficultyField value={q.difficulty} onChange={(difficulty) => setQ({ difficulty })} error={fieldError('difficulty')} />
+        <TagField value={q.tags ?? []} onChange={(tags) => setQ({ tags })} known={(tags.data ?? []).map((t) => t.tag)} error={fieldError('tags')} />
         <TextAreaField
           label={QUESTION.explanation}
           value={q.explanation ?? ''}
@@ -253,6 +266,18 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
           onChange={(domainIds) => draft.set({ domainIds })}
           onCreate={createDomain}
         />
+        {(domains.data ?? [])
+          .filter((d) => draft.value.domainIds.includes(d.id) && (d.groups?.length ?? 0) > 0)
+          .map((d) => (
+            <div key={d.id} className="pt-3" data-group-picker={d.id}>
+              <SelectField
+                label={GROUPS_TAGS.groupIn(d.name)}
+                value={draft.value.groupIds[d.id] ?? '~none'}
+                onChange={(v) => draft.set({ groupIds: { ...draft.value.groupIds, [d.id]: v === '~none' ? null : v } })}
+                options={[{ value: '~none', label: GROUPS_TAGS.noGroup }, ...(d.groups ?? []).map((g) => ({ value: g.id, label: g.name }))]}
+              />
+            </div>
+          ))}
       </Panel>
       <EditorFooter canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={() => void go(id ? { tab: 'library', questionId: id, mode: 'view', ...(domainId ? { domainId } : {}) } : back)} />
       <DirtyGuard

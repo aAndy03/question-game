@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, MeaningChip, Text } from '@/atoms'
 import { ActionMenu, IncompleteMark, PageHeader } from '@/molecules'
-import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, type RecordView } from '@/organisms'
+import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, useBulkEdit, GroupsDialog, ManageTagsDialog, type RecordView } from '@/organisms'
 import { SplitLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { DOMAIN, fmt, IMPORT, LIST, QUESTION, TABS, VIEWS } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
+import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { activeMemberIds, questionGaps } from '@/host/question'
 import { questionsSpec, type QuestionItem } from '@/host/listSpecs'
 import type { ListItem } from '@/host/listView'
-import { useCatalogList, useListHits } from '@/host/queries'
+import { useCatalogList, useListHits, useTags } from '@/host/queries'
 import { answerMode, difficultyBand, isArchived } from '@/host/types'
 import { useListView } from '@/host/useListView'
 import { useHostCommand } from '@/host/commands'
@@ -38,10 +39,14 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
   const replace = useNavStore((s) => s.replace)
   const archive = useArchive()
   const transfer = useTransfer()
+  const bulkEdit = useBulkEdit()
+  const [groupsOpen, setGroupsOpen] = useState(false)
+  const [tagsOpen, setTagsOpen] = useState(false)
   const run = useHostCommand()
   const [importing, setImporting] = useState(false)
 
   const questions = useCatalogList('question', scope)
+  const tagList = useTags()
   const domains = useCatalogList('domain', 'all')
   const domain = domains.data?.find((d) => d.id === domainId) ?? null
   const memberIds = useMemo(() => (domain ? new Set(domain.questions.map((m) => m.questionId)) : null), [domain])
@@ -87,19 +92,31 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                 {band ? <MeaningChip meaning={band}>{QUESTION.band[band]}</MeaningChip> : null}
                 {mode === 'multiple' ? <MeaningChip meaning="multiple">{QUESTION.multiple}</MeaningChip> : null}
                 {q.shared ? <MeaningChip meaning="shared">{TRANSFER.whereShared}</MeaningChip> : null}
+                {(q.tags ?? []).slice(0, 3).map((t) => (
+                  <MeaningChip key={t} meaning="tag">{t}</MeaningChip>
+                ))}
+                {(q.tags?.length ?? 0) > 3 ? <MeaningChip meaning="tag">{`+${(q.tags?.length ?? 0) - 3}`}</MeaningChip> : null}
                 {isArchived(q) ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null}
               </>
             ),
             meta: [domain ? '' : fmt.count(inDomains, DOMAIN.one, DOMAIN.many), fmt.dateShort(q.updatedAt)].filter(Boolean),
             isArchived: isArchived(q),
           }
-          return { id: q.id, data: { question: q, gaps, domains: domainsOf.get(q.id) ?? [] }, view: record }
+          const member = domain?.questions.find((m) => m.questionId === q.id)
+          const group = member?.groupId ? (domain?.groups ?? []).find((g) => g.id === member.groupId) : undefined
+          return { id: q.id, data: { question: q, gaps, domains: domainsOf.get(q.id) ?? [], group: group ? { id: group.id, name: group.name } : null }, view: record }
         }),
     [scoped, inActiveDomain, domainsOf, domain],
   )
   const spec = useMemo(
-    () => questionsSpec({ allQuestions: domainId === null, domains: activeDomains.map((d) => ({ id: d.id, name: d.name })) }),
-    [domainId, activeDomains],
+    () =>
+      questionsSpec({
+        allQuestions: domainId === null,
+        domains: activeDomains.map((d) => ({ id: d.id, name: d.name })),
+        groups: (domain?.groups ?? []).map((g) => ({ id: g.id, name: g.name })),
+        tags: (tagList.data ?? []).map((t) => t.tag),
+      }),
+    [domainId, activeDomains, domain?.groups, tagList.data],
   )
   const lv = useListView(spec, items, hits)
   const sharedQ = (id: string) => questions.data?.find((q) => q.id === id)?.shared === true
@@ -133,9 +150,19 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
             </Button>
           }
           secondaryActions={
+            <>
+            {domain && domain.archivedAt === null ? (
+              <Button variant="secondary" icon="folder" onPress={() => setGroupsOpen(true)}>
+                {GROUPS_TAGS.groupsButton}
+              </Button>
+            ) : null}
+            <Button variant="secondary" icon="tag" onPress={() => setTagsOpen(true)}>
+              {GROUPS_TAGS.manageButton}
+            </Button>
             <Button variant="secondary" icon="import" onPress={() => setImporting(true)}>
               {IMPORT.open}
             </Button>
+            </>
           }
         />
       }
@@ -217,7 +244,13 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                 onRestore: (ids) => void archive.restore({ kind: 'question', ids, what: QUESTION.many }),
                 extra: (ids) => {
                   const flags = new Set(ids.map(sharedQ))
-                  return transfer.menu({ questions: ids }, { shared: flags.size === 1 ? [...flags][0] : undefined })
+                  const picked = (questions.data ?? []).filter((q) => ids.includes(q.id))
+                  return (
+                    <>
+                      {bulkEdit.menu(ids, { domain: domain && domain.archivedAt === null ? domain : null, questions: picked })}
+                      {transfer.menu({ questions: ids }, { shared: flags.size === 1 ? [...flags][0] : undefined })}
+                    </>
+                  )
                 },
                 isPending: archive.isPending,
               }}
@@ -231,6 +264,9 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
           ) : null}
           {archive.dialog}
           {transfer.dialog}
+          {bulkEdit.dialog}
+          <GroupsDialog domain={groupsOpen ? domain : null} onClose={() => setGroupsOpen(false)} />
+          <ManageTagsDialog isOpen={tagsOpen} onClose={() => setTagsOpen(false)} />
           <ImportQuestionsDialog
             isOpen={importing}
             onOpenChange={setImporting}

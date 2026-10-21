@@ -63,6 +63,10 @@ import type {
   Workspace,
   WorkspaceGroup,
   Workspaces,
+  BulkEdit,
+  BulkReport,
+  DomainGroup,
+  TagCount,
 } from './types'
 import { FAKE_LEDGER, FAKE_PREVIEW } from './fake/preview'
 import { ImportRefused, planImport } from './fake/import'
@@ -135,6 +139,8 @@ export interface FakeHost extends HostTransport {
   currentWorkspace: string
   /** `kind:id` → family number, for the propagation commands. */
   readonly families: Map<string, number>
+  /** Domain id → its groups (P15). */
+  readonly domainGroups: Map<string, DomainGroup[]>
 }
 
 const now = () => Date.now()
@@ -281,6 +287,7 @@ export function createFakeHost(): FakeHost {
   const homes = new Map<string, string | null>()
   const recipeHomes = new Map<string, string>()
   const families = new Map<string, number>()
+  const domainGroups = new Map<string, DomainGroup[]>()
   let activeOperatorId: string | null = null
   let globalsTimer = { enabled: true as boolean | null, duration_ms: 30_000 as number | null }
   let gameDefaults: GameSettings = DEFAULT_GAME_SETTINGS
@@ -319,7 +326,41 @@ export function createFakeHost(): FakeHost {
     archivedAt: existing?.archivedAt ?? null,
   })
 
-  const upsert = (item: CatalogItem): CatalogItem => {
+  /** Tags as the host stores them (P15): trimmed, one per fold, the spelling in view, at most 20. */
+  const cleanTags = (q: Question): Question => {
+    const out: string[] = []
+    for (const raw of q.tags ?? []) {
+      const tag = raw.trim()
+      if (!tag) continue
+      if ([...tag].length > 40) refuse('catalog', `question.${q.id}.tags: a tag is at most 40 characters`)
+      const fold = tag.toLowerCase()
+      if (out.some((t) => t.toLowerCase() === fold)) continue
+      out.push(spellingInView(fold, q.id) ?? tag)
+    }
+    if (out.length > 20) refuse('catalog', `question.${q.id}.tags: a question has at most 20 tags`)
+    return { ...q, tags: out }
+  }
+  const spellingInView = (fold: string, except: string): string | undefined => {
+    for (const [k, row] of library) {
+      if (row.kind !== 'question' || row.item.id === except || !inView(k)) continue
+      const hit = (row.item.tags ?? []).find((t) => t.toLowerCase() === fold)
+      if (hit) return hit
+    }
+    return undefined
+  }
+
+  const upsert = (input: CatalogItem): CatalogItem => {
+    let item = input
+    if (item.kind === 'question') item = { kind: 'question', item: cleanTags(item.item) }
+    if (item.kind === 'domain') {
+      const own = domainGroups.get(item.item.id) ?? []
+      const foreign = item.item.questions.find((m) => m.groupId && !own.some((g) => g.id === m.groupId))
+      if (foreign) refuse('catalog', `domain.${item.item.id}.group.${foreign.groupId}: that group belongs to another domain`)
+      // Groups are the group commands' to write, never a domain save's.
+      const rest = { ...item.item }
+      delete (rest as { groups?: unknown }).groups
+      item = { kind: 'domain', item: rest }
+    }
     const k = key(item.kind, item.item.id)
     const existing = library.get(k)
     // A new row lands in this workspace, or shared; an existing one stays put.
@@ -1010,7 +1051,14 @@ export function createFakeHost(): FakeHost {
   }
   const visibleRecipe = (id: string) => recipeHomeOf(id) === fake.currentWorkspace
   const asRead = (row: CatalogItem): CatalogItem =>
-    ({ kind: row.kind, item: { ...row.item, shared: homeOf(key(row.kind, row.item.id)) === null } }) as CatalogItem
+    ({
+      kind: row.kind,
+      item: {
+        ...row.item,
+        shared: homeOf(key(row.kind, row.item.id)) === null,
+        ...(row.kind === 'domain' ? { groups: domainGroups.get(row.item.id) ?? [] } : {}),
+      },
+    }) as CatalogItem
 
   const workspaceView = (): Workspaces => ({
     current: fake.currentWorkspace,
@@ -1183,6 +1231,190 @@ export function createFakeHost(): FakeHost {
         return { id: row.item.id, workspace: home, workspaceName: home ? (workspaceRow(home).name ?? null) : null, archived: row.item.archivedAt !== null }
       })
   }
+
+  // ---------------------------------------------------- groups, tags, bulk (P15)
+
+  const questionInView = (id: string): Question => {
+    const row = library.get(key('question', id))
+    if (!row || row.kind !== 'question' || !inView(key('question', id))) refuse('catalog', `question ${id} not found`)
+    return row.item
+  }
+  const domainInView = (id: string) => {
+    const row = library.get(key('domain', id))
+    if (!row || row.kind !== 'domain' || !inView(key('domain', id))) refuse('catalog', `domain ${id} not found`)
+    return row.item
+  }
+  const putGroups = (domainId: string, groups: DomainGroup[]) => {
+    domainGroups.set(domainId, groups.map((g, i) => ({ ...g, sortKey: i })))
+    emit('catalog-changed', { kind: 'domain', id: domainId, op: 'upserted' })
+  }
+  const groupName = (domainId: string, name: string, except?: string) => {
+    const clean = name.trim()
+    const path = `domain.${domainId}.group.name`
+    if (!clean) refuse('catalog', `${path}: a name is required`)
+    if ([...clean].length > 60) refuse('catalog', `${path}: a name is at most 60 characters`)
+    if ((domainGroups.get(domainId) ?? []).some((g) => g.id !== except && g.name.toLowerCase() === clean.toLowerCase())) {
+      refuse('catalog', `${path}: another group in this domain has this name`)
+    }
+    return clean
+  }
+  const tagsInView = (): TagCount[] => {
+    const by = new Map<string, TagCount>()
+    for (const [k, row] of library) {
+      if (row.kind !== 'question' || !inView(k)) continue
+      for (const t of row.item.tags ?? []) {
+        const fold = t.toLowerCase()
+        const was = by.get(fold)
+        const shared = homeOf(k) === null ? 1 : 0
+        by.set(fold, was ? { ...was, questions: was.questions + 1, shared: was.shared + shared } : { tag: t, questions: 1, shared })
+      }
+    }
+    return [...by.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([, v]) => v)
+  }
+  const bulk = (ids: readonly string[], edit: BulkEdit, write: boolean): BulkReport => {
+    const unique = [...new Set(ids)]
+    if (unique.length === 0) refuse('catalog', 'bulk: nothing is selected')
+    const questions = unique.map(questionInView)
+    const shared = unique.filter((id) => homeOf(key('question', id)) === null).length
+    const changed: string[] = []
+    const unchanged: string[] = []
+    const writes: Array<() => void> = []
+    const fold = (t: string) => t.trim().toLowerCase()
+    switch (edit.op) {
+      case 'tag': {
+        const tag = edit.tag.trim()
+        if (!tag) refuse('catalog', 'tag.name: a tag needs a name')
+        const lacking = questions.filter((q) => !(q.tags ?? []).some((t) => fold(t) === fold(tag)))
+        if (lacking.some((q) => (q.tags ?? []).length >= 20)) refuse('catalog', 'bulk.tag: a question would have more than 20 tags')
+        for (const q of questions) {
+          if (lacking.includes(q)) {
+            changed.push(q.id)
+            writes.push(() => void upsert({ kind: 'question', item: { ...q, tags: [...(q.tags ?? []), tag] } }))
+          } else unchanged.push(q.id)
+        }
+        break
+      }
+      case 'untag':
+        for (const q of questions) {
+          if ((q.tags ?? []).some((t) => fold(t) === fold(edit.tag))) {
+            changed.push(q.id)
+            writes.push(() => void upsert({ kind: 'question', item: { ...q, tags: (q.tags ?? []).filter((t) => fold(t) !== fold(edit.tag)) } }))
+          } else unchanged.push(q.id)
+        }
+        break
+      case 'set_difficulty':
+        if (edit.difficulty !== null && (edit.difficulty < 1 || edit.difficulty > 100)) refuse('catalog', 'bulk.difficulty: a difficulty is 1 to 100')
+        for (const q of questions) {
+          if (q.difficulty === edit.difficulty) unchanged.push(q.id)
+          else {
+            changed.push(q.id)
+            writes.push(() => void upsert({ kind: 'question', item: { ...q, difficulty: edit.difficulty } }))
+          }
+        }
+        break
+      case 'group':
+      case 'add_to_domain':
+      case 'remove_from_domain': {
+        const d = domainInView(edit.domainId)
+        let members = [...d.questions]
+        if (edit.op === 'group') {
+          if (edit.groupId && !(domainGroups.get(d.id) ?? []).some((g) => g.id === edit.groupId)) {
+            refuse('catalog', `domain.${d.id}.group.${edit.groupId}: that group belongs to another domain`)
+          }
+          members = members.map((m) => {
+            if (!unique.includes(m.questionId) || (m.groupId ?? null) === edit.groupId) return m
+            changed.push(m.questionId)
+            return { ...m, groupId: edit.groupId }
+          })
+          unchanged.push(...unique.filter((id) => !changed.includes(id)))
+        } else if (edit.op === 'add_to_domain') {
+          if (homeOf(key('domain', d.id)) === null && unique.some((id) => homeOf(key('question', id)) !== null)) {
+            refuse('catalog', `a shared domain holds only shared questions: domain ${d.name}`)
+          }
+          let next = Math.max(-1, ...members.map((m) => m.sortKey)) + 1
+          for (const id of unique) {
+            if (members.some((m) => m.questionId === id)) unchanged.push(id)
+            else {
+              members.push({ questionId: id, sortKey: next++, groupId: null })
+              changed.push(id)
+            }
+          }
+        } else {
+          for (const id of unique) (members.some((m) => m.questionId === id) ? changed : unchanged).push(id)
+          members = members.filter((m) => !changed.includes(m.questionId))
+        }
+        if (changed.length > 0) writes.push(() => void upsert({ kind: 'domain', item: { ...d, questions: members } }))
+        break
+      }
+    }
+    if (write) {
+      writes.forEach((w) => w())
+      changed.forEach((id) => emit('catalog-changed', { kind: 'question', id, op: 'upserted' }))
+      if ('domainId' in edit && changed.length > 0) emit('catalog-changed', { kind: 'domain', id: edit.domainId, op: 'upserted' })
+    }
+    return { changed, unchanged, shared }
+  }
+  const retag = (from: string, to: string | null, write: boolean): BulkReport => {
+    const fold = (t: string) => t.trim().toLowerCase()
+    if (to !== null && !to.trim()) refuse('catalog', 'tag.name: a tag needs a name')
+    const target = to === null ? null : (fold(to) === fold(from) ? to.trim() : (tagsInView().find((t) => fold(t.tag) === fold(to))?.tag ?? to.trim()))
+    const changed: string[] = []
+    let shared = 0
+    for (const [k, row] of [...library]) {
+      if (row.kind !== 'question' || !inView(k) || !(row.item.tags ?? []).some((t) => fold(t) === fold(from))) continue
+      changed.push(row.item.id)
+      if (homeOf(k) === null) shared += 1
+      if (!write) continue
+      const next: string[] = []
+      for (const t of row.item.tags ?? []) {
+        const v = fold(t) === fold(from) ? target : t
+        if (v !== null && !next.some((n) => fold(n) === fold(v))) next.push(target !== null && fold(v) === fold(target) ? target : v)
+      }
+      library.set(k, { kind: 'question', item: { ...row.item, tags: next, updatedAt: now() } })
+      emit('catalog-changed', { kind: 'question', id: row.item.id, op: 'upserted' })
+    }
+    return { changed, unchanged: [], shared }
+  }
+
+  Object.assign(commands, {
+    tag_list: () => tagsInView(),
+    catalog_bulk_edit: (a: Record<string, unknown>) => bulk(a.ids as string[], a.edit as BulkEdit, a.preview !== true),
+    tag_rename: (a: Record<string, unknown>) => retag(a.from as string, a.to as string, a.preview !== true),
+    tag_delete: (a: Record<string, unknown>) => retag(a.tag as string, null, a.preview !== true),
+    domain_group_create: (a: Record<string, unknown>) => {
+      const domainId = domainInView(a.domainId as string).id
+      const group: DomainGroup = { id: `grp-${crypto.randomUUID().slice(0, 8)}`, domainId, name: groupName(domainId, a.name as string), sortKey: 0 }
+      putGroups(domainId, [...(domainGroups.get(domainId) ?? []), group])
+      return group
+    },
+    domain_group_rename: (a: Record<string, unknown>) => {
+      const domainId = a.domainId as string
+      const name = groupName(domainId, a.name as string, a.id as string)
+      putGroups(domainId, (domainGroups.get(domainId) ?? []).map((g) => (g.id === a.id ? { ...g, name } : g)))
+      return null
+    },
+    domain_group_reorder: (a: Record<string, unknown>) => {
+      const domainId = a.domainId as string
+      const order = a.order as string[]
+      const groups = domainGroups.get(domainId) ?? []
+      if (order.some((id) => !groups.some((g) => g.id === id))) refuse('catalog', `domain.${domainId}.group: no such group in this domain`)
+      const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length)
+      putGroups(domainId, [...groups].sort((x, y) => rank(x.id) - rank(y.id)))
+      return null
+    },
+    domain_group_delete: (a: Record<string, unknown>) => {
+      const domainId = a.domainId as string
+      putGroups(domainId, (domainGroups.get(domainId) ?? []).filter((g) => g.id !== a.id))
+      const row = library.get(key('domain', domainId))
+      if (row?.kind === 'domain') {
+        library.set(key('domain', domainId), {
+          kind: 'domain',
+          item: { ...row.item, questions: row.item.questions.map((m) => (m.groupId === a.id ? { ...m, groupId: null } : m)) },
+        })
+      }
+      return null
+    },
+  })
 
   Object.assign(commands, {
     workspace_list: () => workspaceView(),
@@ -1371,6 +1603,7 @@ export function createFakeHost(): FakeHost {
     workspaceGroups: [],
     currentWorkspace: FIRST_WORKSPACE,
     families,
+    domainGroups,
     library,
     recipes,
     plays: [],
@@ -1400,7 +1633,11 @@ export function createFakeHost(): FakeHost {
       return total
     },
     seed(items, seededRecipes = []) {
-      items.forEach((i) => library.set(key(i.kind, i.item.id), i))
+      items.forEach((i) => {
+        library.set(key(i.kind, i.item.id), i)
+        // A seeded shared row lives in the shared library (P15 tests seed them).
+        if (i.kind !== 'operator' && (i.item as { shared?: boolean }).shared === true) homes.set(key(i.kind, i.item.id), null)
+      })
       seededRecipes.forEach((r) => recipes.set(r.id, r))
     },
     async invoke<T>(name: Command, args?: Record<string, unknown>): Promise<T> {

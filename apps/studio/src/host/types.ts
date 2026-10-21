@@ -72,6 +72,16 @@ export interface Team extends Stamps {
 export interface DomainMember {
   readonly questionId: string
   readonly sortKey: number
+  /** The domain group it sits in here (P15). Part of the membership: a domain save writes exactly what it is sent, so carry it. */
+  readonly groupId?: string | null
+}
+
+/** An operator-made group of questions in one domain (P15). Organising only. */
+export interface DomainGroup {
+  readonly id: string
+  readonly domainId: string
+  readonly name: string
+  readonly sortKey: number
 }
 
 export interface Domain extends Stamps {
@@ -82,6 +92,8 @@ export interface Domain extends Stamps {
   readonly code: string
   readonly description: string | null
   readonly questions: readonly DomainMember[]
+  /** Its groups in order (P15); read-only on a save — the group commands write them. */
+  readonly groups?: readonly DomainGroup[]
 }
 
 export interface QuestionOption {
@@ -99,6 +111,30 @@ export interface Question extends Stamps {
   /** 1–100, or `null` while unset — an incomplete question (§2.32). */
   readonly difficulty: number | null
   readonly explanation: string | null
+  /** The operator's tags (P15): across domains, part of the body. */
+  readonly tags?: readonly string[]
+}
+
+/** One tag in view (P15): how many questions carry it, how many of them are shared. */
+export interface TagCount {
+  readonly tag: string
+  readonly questions: number
+  readonly shared: number
+}
+
+export type BulkEdit =
+  | { readonly op: 'tag'; readonly tag: string }
+  | { readonly op: 'untag'; readonly tag: string }
+  | { readonly op: 'group'; readonly domainId: string; readonly groupId: string | null }
+  | { readonly op: 'add_to_domain'; readonly domainId: string }
+  | { readonly op: 'remove_from_domain'; readonly domainId: string }
+  | { readonly op: 'set_difficulty'; readonly difficulty: number | null }
+
+/** What a bulk edit or a tag rename/delete did — or, previewed, would do. */
+export interface BulkReport {
+  readonly changed: readonly string[]
+  readonly unchanged: readonly string[]
+  readonly shared: number
 }
 
 export interface Operator extends Stamps {

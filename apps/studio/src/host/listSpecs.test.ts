@@ -38,7 +38,7 @@ describe('the Questions tab (T-01–T-09, T-19)', () => {
     expect(all.filters.map((f) => f.id)).toEqual(['band', 'difficulty', 'answer', 'completeness', 'domain', 'origin', 'where'])
     expect(one.filters.map((f) => f.id)).toEqual(['band', 'difficulty', 'answer', 'completeness', 'origin', 'where'])
     expect(all.sorts.map((s) => s.id)).toEqual(['difficulty', 'text', 'domains', 'changed', 'created'])
-    expect(all.groups.map((g) => g.id)).toEqual(['domain', 'band', 'answer', 'completeness', 'where'])
+    expect(all.groups.map((g) => g.id)).toEqual(['domain', 'band', 'answer', 'completeness', 'where', 'tag'])
     expect(all.defaults).toEqual({ sort: { id: 'difficulty', desc: false }, group: null, pageSize: 100 })
   })
 
@@ -129,6 +129,43 @@ describe('the Operators tab (T-17, T-18)', () => {
 
 describe('deferred fixes', () => {
   it('does not offer domain grouping inside one domain', () => {
-    expect(questionsSpec({ allQuestions: false, domains: [] }).groups.map((g) => g.id)).toEqual(['band', 'answer', 'completeness', 'where'])
+    expect(questionsSpec({ allQuestions: false, domains: [] }).groups.map((g) => g.id)).toEqual(['band', 'answer', 'completeness', 'where', 'tag'])
+  })
+})
+
+describe('domain groups and tags (P15)', () => {
+  const groups = [{ id: 'g-c', name: 'Classical' }, { id: 'g-m', name: 'Medieval' }]
+  const inGroup = (question: Question, group: { id: string; name: string } | null): QuestionItem => ({ question, gaps: [], domains: [], group })
+  const items = [
+    inGroup(q('a', { tags: ['Rome', 'Empire'] }), groups[1] ?? null),
+    inGroup(q('b', { tags: ['rome'] }), groups[0] ?? null),
+    inGroup(q('c'), null),
+  ]
+  const inside = questionsSpec({ allQuestions: false, domains: [], groups, tags: ['Rome', 'Empire'] })
+  const all = questionsSpec({ allQuestions: true, domains: [], groups, tags: ['Rome', 'Empire'] })
+
+  it('L2 L7 a domain with groups opens grouped by them; All questions never offers it', () => {
+    expect(inside.defaults.group).toBe('groups')
+    expect(questionsSpec({ allQuestions: false, domains: [] }).defaults.group).toBeNull()
+    expect(all.groups.some((g) => g.id === 'groups')).toBe(false)
+    expect(all.filters.some((f) => f.id === 'group')).toBe(false)
+  })
+
+  it('L5 group headers follow the operator order, No group last', () => {
+    expect(ids(items, inside, { group: 'groups' })).toEqual(['#Classical', 'g:g-c:b', '#Medieval', 'g:g-m:a', '#No group', '~none:c'])
+  })
+
+  it('L1 the Group filter keeps a group, or No group', () => {
+    expect(ids(items, inside, { filters: { group: ['g-m'] } })).toEqual(['a'])
+    expect(ids(items, inside, { filters: { group: ['~none'] } })).toEqual(['c'])
+  })
+
+  it('L9 L10 the Tag filter is any-of, ignoring case', () => {
+    expect(ids(items, all, { filters: { tag: ['rome'] } })).toEqual(['a', 'b'])
+    expect(ids(items, all, { filters: { tag: ['empire'] } })).toEqual(['a'])
+  })
+
+  it('L11 grouping by tag lists a question under each of its tags, No tag last', () => {
+    expect(ids(items, all, { group: 'tag' })).toEqual(['#Empire', 't:empire:a', '#Rome', 't:rome:a', 't:rome:b', '#No tag', '~none:c'])
   })
 })

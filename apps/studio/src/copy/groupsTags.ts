@@ -1,0 +1,80 @@
+/**
+ * Groups inside a domain, tags on questions, bulk edits (Beta, P15). Nothing
+ * here suggests a group or tag name: a field starts empty, and the tag picker
+ * lists only tags already used.
+ */
+
+export const GROUPS_TAGS = {
+  group: 'Domain group',
+  groups: 'Domain groups',
+  noGroup: 'No group',
+  tag: 'Tag',
+  tags: 'Tags',
+  noTag: 'No tag',
+
+  // the Groups dialog
+  groupsButton: 'Groups…',
+  groupsTitle: (domain: string) => `Groups in ${domain}`,
+  groupsBody: 'Groups organise this domain’s questions. Boards and Plays do not use them.',
+  noGroupsYet: 'No groups yet.',
+  newGroup: 'New group',
+  groupName: 'Group name',
+  rename: 'Rename',
+  moveUp: 'Move up',
+  moveDown: 'Move down',
+  deleteGroup: 'Delete group',
+  deleteGroupTitle: (name: string) => `Delete the group ${name}?`,
+  deleteGroupBody: (n: number) => `Its ${n} ${n === 1 ? 'question stays' : 'questions stay'} in the domain, in no group.`,
+  create: 'Create',
+  save: 'Save',
+  close: 'Close',
+
+  // the editor
+  tagsLabel: 'Tags',
+  tagsHint: 'Type a tag and press Enter. Tags you have used are offered as you type.',
+  tagRemove: (tag: string) => `Remove the tag ${tag}`,
+  tagsFull: 'A question has at most 20 tags.',
+  tagTooLong: 'A tag is at most 40 characters.',
+  groupIn: (domain: string) => `Group in ${domain}`,
+
+  // Manage tags
+  manageButton: 'Manage tags…',
+  manageTitle: 'Manage tags',
+  manageBody: 'Every tag on the questions you can see, here and in the shared library.',
+  noTagsYet: 'No tags yet. Add them on a question, or to many at once from the selection’s Edit menu.',
+  carried: (n: number, shared: number) => `${n} ${n === 1 ? 'question' : 'questions'}${shared > 0 ? `, ${shared} shared` : ''}`,
+  renameTitle: (tag: string) => `Rename ${tag}`,
+  renameTo: 'New name',
+  mergeNote: (into: string) => `${into} exists: the two become one.`,
+  deleteTagTitle: (tag: string) => `Delete the tag ${tag}?`,
+  deleteTagBody: (n: number) => `It comes off ${n} ${n === 1 ? 'question' : 'questions'}.`,
+  deleteTag: 'Delete tag',
+  sharedReach: (n: number) => `${n} of them ${n === 1 ? 'is' : 'are'} shared: the change reaches every workspace.`,
+
+  // bulk Edit…
+  edit: 'Edit…',
+  bulkTag: 'Tag…',
+  bulkUntag: 'Untag…',
+  bulkGroup: 'Group…',
+  bulkAdd: 'Add to domain…',
+  bulkRemove: 'Remove from domain',
+  bulkDifficulty: 'Set difficulty…',
+  pickTag: 'Tag',
+  pickGroup: 'Group',
+  pickDomain: 'Domain',
+  difficulty: 'Difficulty',
+  notSet: 'Not set',
+  applyTo: (n: number) => `Applies to ${n} ${n === 1 ? 'question' : 'questions'}.`,
+  already: (n: number, what: string) => `${n} already ${what}.`,
+  alreadyTagged: (tag: string) => `tagged ${tag}`,
+  alreadyUntagged: (tag: string) => `without ${tag}`,
+  alreadyGrouped: 'there, or not in this domain',
+  alreadyInDomain: 'in that domain',
+  alreadyOut: 'not in this domain',
+  alreadyDifficulty: 'at that difficulty',
+  removeBody: 'They stay in the library and in their other domains.',
+  sharedDomainReach: 'This domain is shared: the change reaches every workspace.',
+  difficultyNote: 'A board holding two at one difficulty says so when the game loads.',
+  apply: 'Apply',
+  done: (n: number) => `${n} ${n === 1 ? 'question' : 'questions'} changed`,
+} as const

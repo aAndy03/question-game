@@ -6,6 +6,7 @@
 
 import { QUESTION, VIEWS } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
+import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { compareText, type FilterDef, type ListSpec } from './listView'
 import { answerMode, difficultyBand, isArchived, type Operator, type Question, type QuestionGap, type Recipe, type Team } from './types'
 
@@ -46,6 +47,8 @@ function whereGroup<T>(shared: (item: T) => boolean) {
 
 export interface QuestionItem {
   readonly question: Question
+  /** Its group in the domain the list is inside (P15), `null` for none or under All questions. */
+  readonly group?: { readonly id: string; readonly name: string } | null
   readonly gaps: readonly QuestionGap[]
   /** The **active** domains it is in; a question only in archived ones has none. */
   readonly domains: readonly { readonly id: string; readonly name: string }[]
@@ -54,7 +57,18 @@ export interface QuestionItem {
 const BANDS = ['easy', 'medium', 'hard'] as const
 
 /** `allQuestions`: the domain pane is on *All questions*, the only place the Domain filter is offered. */
-export function questionsSpec(opts: { allQuestions: boolean; domains: readonly { id: string; name: string }[] }): ListSpec<QuestionItem> {
+const foldTag = (t: string) => t.trim().toLowerCase()
+
+export function questionsSpec(opts: {
+  allQuestions: boolean
+  domains: readonly { id: string; name: string }[]
+  /** The groups of the domain the list is inside, in order (P15). */
+  groups?: readonly { id: string; name: string }[]
+  /** Every tag in view (P15). */
+  tags?: readonly string[]
+}): ListSpec<QuestionItem> {
+  const groups = opts.allQuestions ? [] : (opts.groups ?? [])
+  const tags = opts.tags ?? []
   const filters: FilterDef<QuestionItem>[] = [
     {
       id: 'band',
@@ -116,6 +130,28 @@ export function questionsSpec(opts: { allQuestions: boolean; domains: readonly {
       test: (q, v) => q.question.origin === choice(v),
     },
     whereFilter<QuestionItem>((q) => q.question.shared === true),
+    ...(groups.length > 0
+      ? [
+          {
+            id: 'group',
+            label: GROUPS_TAGS.group,
+            kind: 'multi' as const,
+            options: [...groups.map((g) => ({ value: g.id, label: g.name })), { value: '~none', label: GROUPS_TAGS.noGroup }],
+            test: (q: QuestionItem, v: unknown) => multi(v).includes(q.group?.id ?? '~none'),
+          },
+        ]
+      : []),
+    ...(tags.length > 0
+      ? [
+          {
+            id: 'tag',
+            label: GROUPS_TAGS.tag,
+            kind: 'multi' as const,
+            options: tags.map((t) => ({ value: foldTag(t), label: t })),
+            test: (q: QuestionItem, v: unknown) => (q.question.tags ?? []).some((t) => multi(v).includes(foldTag(t))),
+          },
+        ]
+      : []),
   ]
   return {
     tab: 'library',
@@ -164,8 +200,33 @@ export function questionsSpec(opts: { allQuestions: boolean; domains: readonly {
         groupsOf: (q) => (q.gaps.length > 0 ? [{ key: 'incomplete', label: VIEWS.incomplete, order: 0 }] : [{ key: 'complete', label: VIEWS.complete, order: 1 }]),
       },
       whereGroup<QuestionItem>((q) => q.question.shared === true),
+      ...(groups.length > 0
+        ? [
+            {
+              id: 'groups',
+              label: GROUPS_TAGS.groups,
+              groupsOf: (q: QuestionItem) => {
+                const at = q.group ? groups.findIndex((g) => g.id === q.group?.id) : -1
+                return at >= 0
+                  ? [{ key: `g:${groups[at]?.id}`, label: groups[at]?.name ?? '', order: at }]
+                  : [{ key: '~none', label: GROUPS_TAGS.noGroup, order: 0, last: true }]
+              },
+            },
+          ]
+        : []),
+      {
+        id: 'tag',
+        label: GROUPS_TAGS.tag,
+        groupsOf: (q: QuestionItem) => {
+          const own = q.question.tags ?? []
+          return own.length > 0
+            ? own.map((t) => ({ key: `t:${foldTag(t)}`, label: t, order: foldTag(t) }))
+            : [{ key: '~none', label: GROUPS_TAGS.noTag, order: 0, last: true }]
+        },
+      },
     ],
-    defaults: { sort: { id: 'difficulty', desc: false }, group: null, pageSize: 100 },
+    // A domain with groups opens grouped by them, unless the operator picked a grouping (P15).
+    defaults: { sort: { id: 'difficulty', desc: false }, group: groups.length > 0 ? 'groups' : null, pageSize: 100 },
     tiebreak: (q) => q.question.stem,
     changedAt: (q) => q.question.updatedAt,
     isArchived: (q) => isArchived(q.question),
