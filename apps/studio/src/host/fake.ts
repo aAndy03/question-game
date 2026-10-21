@@ -1711,6 +1711,53 @@ export function createFakeHost(): FakeHost {
       followCopies(item)
       return { update: copies, skipped: [] } satisfies PropagationPreview
     },
+    catalog_family: (a: Record<string, unknown>) => {
+      const row = library.get(key(a.kind as string, a.id as string))
+      return row ? familyCopies(row) : []
+    },
+    // *Duplicate* here (beta.5), as the host does: new ids, no family, "(copy)" names numbered when taken.
+    catalog_duplicate: (a: Record<string, unknown>) => {
+      const kind = a.kind as 'team' | 'domain' | 'question'
+      const ids = a.ids as string[]
+      const sources = ids.map((id) => {
+        const row = library.get(key(kind, id))
+        if (!row || !inView(key(kind, id))) refuse('catalog', `${kind} ${id} not found`)
+        return row
+      })
+      const named = (name: string) => {
+        const taken = [...library.entries()]
+          .filter(([k]) => k.startsWith(`${kind}:`) && inView(k))
+          .map(([, r]) => (r.item as { name?: string }).name?.trim().toLowerCase())
+        for (let n = 1; ; n++) {
+          const candidate = n === 1 ? `${name} (copy)` : `${name} (copy ${n})`
+          if (!taken.includes(candidate.toLowerCase())) return candidate
+        }
+      }
+      const made: string[] = []
+      for (const row of sources) {
+        const id = freshId(kind === 'question' ? 'q' : kind === 'domain' ? 'dom' : 'team')
+        const item = { ...row.item, id, createdAt: now(), updatedAt: now(), archivedAt: null, familyId: null } as CatalogItem['item']
+        if (kind !== 'question') (item as { name: string }).name = named((row.item as { name: string }).name)
+        library.set(key(kind, id), { kind, item } as CatalogItem)
+        homes.set(key(kind, id), fake.currentWorkspace)
+        if (kind === 'domain') domainGroups.set(id, (domainGroups.get(row.item.id) ?? []).map((g) => ({ ...g, id: freshId('grp'), domainId: id })))
+        if (kind === 'question') {
+          for (const [k, d] of library) {
+            if (d.kind !== 'domain' || !inView(k)) continue
+            const member = d.item.questions.find((m) => m.questionId === row.item.id)
+            if (!member) continue
+            const sortKey = Math.max(-1, ...d.item.questions.map((m) => m.sortKey)) + 1
+            library.set(k, { kind: 'domain', item: { ...d.item, questions: [...d.item.questions, { questionId: id, sortKey, groupId: member.groupId ?? null }] } })
+            emit('catalog-changed', { kind: 'domain', id: d.item.id, op: 'upserted' })
+          }
+        }
+        emit('catalog-changed', { kind, id, op: 'upserted' })
+        made.push(id)
+      }
+      return made
+    },
+    // The fake's library holds no broken references: Repair finds none.
+    library_repair: () => 0,
     catalog_unfollow: (a: Record<string, unknown>) => {
       families.delete(key(a.kind as string, a.id as string))
       emit('catalog-changed', { kind: a.kind, id: a.id, op: 'upserted' })

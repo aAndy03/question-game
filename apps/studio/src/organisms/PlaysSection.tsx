@@ -1,6 +1,6 @@
 import { MeaningChip, Panel, Skeleton, Text } from '@/atoms'
 import { EmptyState } from '@/molecules'
-import { fmt, GAME, PLAY_STATUS } from '@/copy'
+import { GAME, PLAY_STATUS, SHELL, fmt } from '@/copy'
 import { useCatalogList, usePlayList } from '@/host/queries'
 import type { PlayRecord, Recipe } from '@/host/types'
 
@@ -40,7 +40,7 @@ export function PlaysSection({ recipe }: PlaysSectionProps) {
       ) : (
         <div className="rounded-[var(--radius)] border border-[var(--border)]">
           <div className="grid grid-cols-[1fr_7rem_6rem_1fr] gap-3 border-b border-[var(--separator)] px-3 py-2">
-            {['Play', 'Status', 'Questions', 'Scores'].map((h) => (
+            {[SHELL.playsColumns.play, SHELL.playsColumns.status, SHELL.playsColumns.questions, SHELL.playsColumns.scores].map((h) => (
               <Text key={h} variant="studio-caption" tone="muted">
                 {h}
               </Text>

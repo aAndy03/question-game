@@ -152,7 +152,7 @@ describe('domain groups and tags (P15)', () => {
   })
 
   it('L5 group headers follow the operator order, No group last', () => {
-    expect(ids(items, inside, { group: 'groups' })).toEqual(['#Classical', 'g:g-c:b', '#Medieval', 'g:g-m:a', '#No group', '~none:c'])
+    expect(ids(items, inside, { group: 'groups' })).toEqual(['#Classical', 'g:g-c:b', '#Medieval', 'g:g-m:a', '#No domain group', '~none:c'])
   })
 
   it('L1 the Group filter keeps a group, or No group', () => {

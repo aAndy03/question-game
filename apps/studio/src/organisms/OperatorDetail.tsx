@@ -1,7 +1,7 @@
 import { Button, InitialsAvatar, MeaningChip, Panel, Skeleton, Text } from '@/atoms'
 import { EmptyState, MetaList, NavCrumbs, PageHeader, StatCard } from '@/molecules'
 import { useNavStore } from '@/chrome/nav'
-import { fmt, LIST, OPERATOR, TABS } from '@/copy'
+import { LIST, OPERATOR, SHELL, TABS, fmt } from '@/copy'
 import { useCatalogItem, useSettings } from '@/host/queries'
 import { isArchived } from '@/host/types'
 import { useActivateOperator } from './useActivateOperator'
@@ -102,7 +102,7 @@ export function OperatorDetail({ id, compact }: OperatorDetailProps) {
             { label: OPERATOR.pinned, value: o.pinHash ? OPERATOR.pinned : OPERATOR.notPinned },
             { label: LIST.updated, value: fmt.date(o.updatedAt) },
             { label: LIST.created, value: fmt.date(o.createdAt) },
-            { label: 'id', value: o.id, mono: true },
+            { label: SHELL.id, value: o.id, mono: true },
           ]}
         />
       </Panel>

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Button, Text } from '@/atoms'
-import { LIST } from '@/copy'
+import { LIST, SHELL } from '@/copy'
 
 export interface BulkAction {
   readonly count: number
@@ -35,7 +35,7 @@ export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, i
   return (
     <div
       role="toolbar"
-      aria-label="Bulk actions"
+      aria-label={SHELL.bulkActions}
       className="flex h-11 items-center gap-3 rounded-[var(--radius)] border border-[var(--border)] px-3"
       style={{ background: 'var(--surface-secondary)' }}
     >

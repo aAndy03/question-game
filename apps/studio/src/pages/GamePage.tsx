@@ -7,7 +7,7 @@ import type { Recipe } from '@/host/types'
 import { RecordPageLayout } from '@/templates'
 import { useNavStore, type GameSection } from '@/chrome/nav'
 import { gameSectionOf, useNoticeStore } from '@/chrome/notices'
-import { CHROME, CONFIRM, GAME, LIST, TABS } from '@/copy'
+import { CHROME, CONFIRM, GAME, LIST, SHELL, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import { isPlayOpen, usePlayState } from '@/host/playState'
@@ -89,7 +89,7 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
     const ok = await run.ok('play_load', { recipeId: r.id, playId: `play-${Date.now()}` }, { openCollectorOnRefusal: true, code: 'play_refused' })
     setLoading(false)
     if (ok) {
-      toast.success(`${r.name} is in Control`, 'Stage is open on the primary display.')
+      toast.success(SHELL.inControl(r.name), SHELL.inControlHint)
       void go({ tab: 'control' })
     }
   }
@@ -98,7 +98,7 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
     <RecordPageLayout
       width="wide"
       rail={
-        <nav aria-label="Game sections" className="flex flex-col gap-0.5">
+        <nav aria-label={SHELL.gameSections} className="flex flex-col gap-0.5">
           {SECTIONS.map((s) => (
             <button
               key={s}

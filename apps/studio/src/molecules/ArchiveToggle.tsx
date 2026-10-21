@@ -1,5 +1,5 @@
 import { Tabs } from '@heroui/react'
-import { LIST } from '@/copy'
+import { LIST, SHELL } from '@/copy'
 
 export type ArchiveView = 'active' | 'archived' | 'all'
 
@@ -24,7 +24,7 @@ export function ArchiveToggle({ value, onChange, counts, withAll }: ArchiveToggl
       }}
     >
       <Tabs.ListContainer>
-        <Tabs.List aria-label="Archive scope">
+        <Tabs.List aria-label={SHELL.archiveScope}>
           <Tabs.Tab id="active">
             {label(LIST.active, counts?.active)}
             <Tabs.Indicator />

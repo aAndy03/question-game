@@ -1,7 +1,7 @@
 import { Alert } from '@heroui/react'
 import type { Notice } from '@questiongame/contract'
 import { Button, IconButton, Text } from '@/atoms'
-import { CONFIRM, noticeAction, noticeTitle } from '@/copy'
+import { CONFIRM, SHELL, noticeAction, noticeTitle } from '@/copy'
 
 export interface ConfirmFrameView {
   readonly title: string
@@ -70,7 +70,7 @@ export function InlineNotice({ notice, frames = [], onAction, onDismiss, onCance
           </div>
         ) : null}
       </Alert.Content>
-      {onDismiss ? <IconButton icon="close" label="Dismiss" size="sm" onPress={onDismiss} hideTooltip /> : null}
+      {onDismiss ? <IconButton icon="close" label={SHELL.dismiss} size="sm" onPress={onDismiss} hideTooltip /> : null}
     </Alert>
   )
 }

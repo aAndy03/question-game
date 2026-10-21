@@ -38,6 +38,7 @@ export const STATS = {
     recipe: 'Game',
     play: 'Play',
     day: 'Day',
+    workspace: 'Workspace',
   } as Readonly<Record<string, string>>,
 
   filters: {

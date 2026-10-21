@@ -9,7 +9,7 @@
  */
 
 /** The four tabs, and the Game page's three pickers (beta.4), each with its own view. */
-export type LibraryTab = 'teams' | 'library' | 'games' | 'operators' | 'pickTeams' | 'pickDomains' | 'pickQuestions'
+export type LibraryTab = 'teams' | 'library' | 'games' | 'operators' | 'workspaces' | 'pickTeams' | 'pickDomains' | 'pickQuestions'
 export type PageSize = 50 | 100 | 250 | 'all'
 export const PAGE_SIZES: readonly PageSize[] = [50, 100, 250, 'all']
 export type Changed = 'any' | 'today' | '7d' | '30d'

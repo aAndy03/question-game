@@ -1,11 +1,13 @@
 import { Button, Icon, MeaningChip, Panel, Skeleton, Text } from '@/atoms'
 import { EmptyState, GapNotice, IncompleteMark, MetaList, NavCrumbs, PageHeader } from '@/molecules'
 import { useNavStore } from '@/chrome/nav'
-import { DOMAIN, fmt, LIST, QUESTION, TABS } from '@/copy'
+import { DOMAIN, LIST, QUESTION, SHELL, TABS, fmt } from '@/copy'
 import { questionGaps } from '@/host/question'
 import { useCatalogItem, useCatalogList } from '@/host/queries'
 import { answerMode, difficultyBand, isArchived } from '@/host/types'
 import { useArchive } from './useArchive'
+import { CopiesBlock } from './CopiesBlock'
+import { GROUPS_TAGS } from '@/copy/groupsTags'
 
 export interface QuestionDetailProps {
   id: string
@@ -105,16 +107,42 @@ export function QuestionDetail({ id, domainId, compact }: QuestionDetailProps) {
           items={[
             {
               label: QUESTION.inDomains,
-              value: inDomains.length > 0 ? inDomains.map((d) => d.name).join(', ') : QUESTION.noDomains,
+              // Its domain group in each (beta.5): "History · Capitals".
+              value:
+                inDomains.length > 0
+                  ? inDomains
+                      .map((d) => {
+                        const groupId = d.questions.find((m) => m.questionId === q.id)?.groupId
+                        const group = groupId ? (d.groups ?? []).find((g) => g.id === groupId) : undefined
+                        return group ? `${d.name} · ${group.name}` : d.name
+                      })
+                      .join(', ')
+                  : QUESTION.noDomains,
+            },
+            {
+              label: GROUPS_TAGS.tags,
+              value:
+                (q.tags ?? []).length > 0 ? (
+                  <span className="flex flex-wrap gap-1">
+                    {(q.tags ?? []).map((t) => (
+                      <MeaningChip key={t} meaning="tag">
+                        {t}
+                      </MeaningChip>
+                    ))}
+                  </span>
+                ) : (
+                  GROUPS_TAGS.noTag
+                ),
             },
             { label: QUESTION.explanation, value: q.explanation ?? '—' },
             { label: LIST.updated, value: fmt.date(q.updatedAt) },
             { label: LIST.created, value: fmt.date(q.createdAt) },
-            { label: 'id', value: q.id, mono: true },
+            { label: SHELL.id, value: q.id, mono: true },
             { label: DOMAIN.many, value: String(inDomains.length) },
           ]}
         />
       </Panel>
+      <CopiesBlock kind="question" id={q.id} />
       {compact ? <div className="flex justify-end">{actions}</div> : null}
       {archive.dialog}
     </div>

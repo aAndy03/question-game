@@ -152,12 +152,12 @@ export const SETTINGS = {
     'audio.cues': { label: 'Cue map', description: 'Which file each cue plays, from the bundled pack.' },
     'feat.audio': { label: 'Audio', description: 'The audio feature. Off silences Stage regardless of the pack.' },
     'feat.audio.synth': { label: 'Generated tones', description: 'No generated tones in v1.' },
-    'library.restore_demo': { label: 'Sample game', description: 'The Demo game: two teams, two domains, six questions.' },
+    'library.restore_demo': { label: 'Sample game', description: 'The Demo game in this workspace: two teams, two domains, six questions.' },
     'library.restore_demo_ro': {
       label: 'Sample game (Română)',
-      description: 'Demo (Română): two teams, five domains — Istorie, Geografie, Științe, Biblie, Sport — fifteen questions, Stage in Romanian.',
+      description: 'Demo (Română) in this workspace: two teams, five domains — Istorie, Geografie, Științe, Biblie, Sport — fifteen questions, Stage in Romanian.',
     },
-    'data.wipe_plays': { label: 'Wipe Plays', description: 'Deletes every closed Play and its events. Games and the library stay.' },
+    'data.wipe_plays': { label: 'Wipe Plays', description: 'Deletes every closed Play of this workspace and its events. Games and the library stay, and other workspaces are not touched.' },
     'data.uninstall': { label: 'Remove generated data', description: 'Deletes the catalog, search index, assets and per-operator files, then quits.' },
     'data.uninstall_app': { label: 'Uninstall questiongame', description: 'Opens the Windows uninstaller and quits. It asks there whether to delete generated data too.' },
   } as const satisfies Readonly<Record<string, { label: string; description: string }>>,
@@ -278,7 +278,7 @@ export const SETTINGS = {
   library: {
     /** One Restore button per Demo (§17.5); two with one name would be one control to a screen reader. */
     restore: { en: 'Restore Demo', ro: 'Restore Demo (Română)' } as const,
-    restoreDemoHint: 'Inserts the missing sample rows and restores archived ones. Your edits stay.',
+    restoreDemoHint: 'Inserts this workspace’s missing sample rows and restores archived ones. Your edits stay.',
     loadDemo: 'Load Demo',
     overwrite: 'Overwrite edits',
     keepEdits: 'Keep edits',
@@ -291,7 +291,7 @@ export const SETTINGS = {
   data: {
     wipePlays: 'Wipe Plays',
     wipeTitle: (n: number) => (n === 1 ? 'Wipe 1 Play?' : `Wipe ${n} Plays?`),
-    wipeBody: 'Every closed Play and its events are deleted. Games, teams, domains and questions stay.',
+    wipeBody: 'Every closed Play of this workspace and its events are deleted. Games, teams, domains and questions stay; other workspaces are not touched.',
     wipeArm: 'Wipe',
     wipeArmed: 'Confirm wipe',
     wiped: (n: number) => (n === 1 ? '1 Play wiped' : `${n} Plays wiped`),

@@ -41,6 +41,7 @@ import type {
   StatsResult,
   Workspaces,
   TagCount,
+  FamilyCopy,
 } from './types'
 
 export const keys = {
@@ -50,6 +51,8 @@ export const keys = {
     list: (kind: LibraryKind, scope: ArchiveScope) => ['catalog', kind, 'list', scope] as const,
     item: (kind: LibraryKind, id: string) => ['catalog', kind, 'item', id] as const,
     referencedBy: (kind: LibraryKind, id: string) => ['catalog', kind, 'refs', id] as const,
+    /** Under the kind, so any change to that kind refetches it (beta.5). */
+    family: (kind: LibraryKind, id: string) => ['catalog', kind, 'family', id] as const,
   },
   search: (query: SearchQuery) => ['search', query] as const,
   recipes: {
@@ -108,6 +111,15 @@ export function useCatalogList<K extends LibraryKind>(kind: K, scope: ArchiveSco
       const items = await command<CatalogItem[]>('catalog_list', { kind, scope })
       return items.map((row) => row.item as ItemOf<K>)
     },
+    enabled: enabled(),
+  })
+}
+
+/** The other members of a row's family, wherever they live (beta.5). */
+export function useFamily(kind: LibraryKind, id: string) {
+  return useQuery({
+    queryKey: keys.catalog.family(kind, id),
+    queryFn: () => command<FamilyCopy[]>('catalog_family', { kind, id }),
     enabled: enabled(),
   })
 }

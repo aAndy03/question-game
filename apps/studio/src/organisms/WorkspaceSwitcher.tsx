@@ -70,7 +70,8 @@ export function WorkspaceSwitcher({ collapsed }: WorkspaceSwitcherProps) {
     return (
       <div className={collapsed ? 'flex justify-center' : ''} data-workspace-switcher>
         <Tooltip content={WORKSPACE.loaded} placement="right" delay={200}>
-          <span className="block w-full">
+          {/* Focusable and named by the reason, as every disabled control is (beta.5: hover only before). */}
+          <span className="block w-full cursor-not-allowed" tabIndex={0} aria-label={WORKSPACE.disabledName(name, WORKSPACE.loaded)}>
             <Button variant="ghost" fullWidth={!collapsed} isDisabled className="justify-start">
               {face}
             </Button>

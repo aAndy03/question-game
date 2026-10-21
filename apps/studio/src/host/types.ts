@@ -659,7 +659,8 @@ export function difficultyBand(difficulty: number): DifficultyBandName {
 // ------------------------------------------------------------------ statistics
 
 /** What one row of a `stats_query` answer stands for (§11.K). */
-export type StatsDimension = 'team' | 'domain' | 'question' | 'difficulty' | 'operator' | 'recipe' | 'play' | 'day'
+/** `workspace` (beta.5): only with *All workspaces* — inside one it is one row. */
+export type StatsDimension = 'team' | 'domain' | 'question' | 'difficulty' | 'operator' | 'recipe' | 'play' | 'day' | 'workspace'
 
 /** A column. The unit is the metric's, so a table and a chart agree. */
 export type StatsMetric =

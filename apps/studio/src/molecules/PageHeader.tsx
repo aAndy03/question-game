@@ -1,3 +1,4 @@
+import { SHELL } from '@/copy'
 import type { ReactNode } from 'react'
 import { Text } from '@/atoms'
 
@@ -40,7 +41,7 @@ export function PageHeader({
             </Text>
             {isDirty ? (
               <span
-                aria-label="Unsaved changes"
+                aria-label={SHELL.unsavedChanges}
                 role="img"
                 className="inline-block h-2 w-2 shrink-0 rounded-full"
                 style={{ background: 'var(--warning)' }}

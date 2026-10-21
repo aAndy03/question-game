@@ -5,7 +5,8 @@ import { LibraryList, ListToolbar, TeamDetail, useArchive, useTransfer, type Rec
 import { LibraryTabLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
-import { fmt, LIST, TABS, TEAM, VIEWS } from '@/copy'
+import { toast } from '@/chrome/toast'
+import { LIST, SHELL, TABS, TEAM, VIEWS, fmt } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
 import { teamsSpec } from '@/host/listSpecs'
 import type { ListItem } from '@/host/listView'
@@ -27,6 +28,10 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
   const go = useNavStore((s) => s.go)
   const archive = useArchive()
   const transfer = useTransfer()
+  // *Duplicate* here (beta.5): new rows, "(copy)" names, no family.
+  const duplicate = async (ids: readonly string[]) => {
+    if (await run.ok('catalog_duplicate', { kind: 'team', ids })) toast.success(SHELL.duplicated(ids.length, TEAM.one, TEAM.many))
+  }
   const run = useHostCommand()
   const list = useCatalogList('team', scope)
   const session = useListState('teams')
@@ -99,6 +104,7 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
             items={[
               { id: 'open', label: LIST.open, icon: 'open' },
               { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: row.isArchived },
+              { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
               { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
               { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
               ...(family(row.id) ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
@@ -108,6 +114,7 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
             ]}
             onAction={(a) => {
               if (a === 'copy' || a === 'move') transfer.open(a, { teams: [row.id] })
+              if (a === 'duplicate') void duplicate([row.id])
               if (a === 'unfollow') void run.ok('catalog_unfollow', { kind: 'team', id: row.id })
               if (a === 'open') void go({ tab: 'teams', id: row.id, mode: 'view' })
               if (a === 'edit') void go({ tab: 'teams', id: row.id, mode: 'edit' })
@@ -119,7 +126,14 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
         bulk={{
           onArchive: (ids) => archive.archive({ kind: 'team', ids, what: TEAM.many }),
           onRestore: (ids) => void archive.restore({ kind: 'team', ids, what: TEAM.many }),
-          extra: (ids) => transfer.menu({ teams: ids }),
+          extra: (ids) => (
+            <>
+              <Button size="sm" variant="secondary" icon="duplicate" onPress={() => void duplicate(ids)}>
+                {LIST.duplicate}
+              </Button>
+              {transfer.menu({ teams: ids })}
+            </>
+          ),
           isPending: archive.isPending,
         }}
         onRetry={() => void list.refetch()}

@@ -179,7 +179,8 @@ export const VIEWS = {
   lastPlayed: 'Last played',
   folder: 'Folder',
   noFolder: 'No folder',
-  tag: 'Tag',
+  /** A game's tag — not a question's (beta.5). */
+  tag: 'Game tag',
   playingNow: 'Playing now',
   teams: 'Teams',
   questions: 'Questions',
@@ -321,6 +322,28 @@ export const QUESTION = {
 } as const
 
 /** The Game page's pickers (beta.4). */
+/** Words that had lived at their call sites (beta.5). */
+export const SHELL = {
+  teamSaved: 'Team saved',
+  operatorSaved: 'Operator saved',
+  inControl: (game: string) => `${game} is in Control`,
+  inControlHint: 'Stage is open on the primary display.',
+  playsColumns: { play: 'Play', status: 'Status', questions: 'Questions', scores: 'Scores' },
+  archiveScope: 'Archive scope',
+  bulkActions: 'Bulk actions',
+  unsavedChanges: 'Unsaved changes',
+  screens: 'Screens',
+  sections: 'Sections',
+  gameSections: 'Game sections',
+  dismiss: 'Dismiss',
+  canvas: 'Canvas',
+  id: 'Id',
+  repairTitle: (n: string) => `Remove ${n} broken references?`,
+  repairBody: 'Only the references go: a domain member, a roster or board entry, a logo or media link that points at nothing or across workspaces. No team, domain, question or game is deleted.',
+  repaired: (n: number) => (n === 1 ? 'Removed 1 broken reference' : `Removed ${n} broken references`),
+  duplicated: (n: number, one: string, many: string) => (n === 1 ? `Duplicated 1 ${one}` : `Duplicated ${n} ${many}`),
+} as const
+
 export const PICKER = {
   addTeams: 'Add teams…',
   addDomains: 'Add domains…',
@@ -590,6 +613,10 @@ export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Read
   'health.persist_failed': {
     title: 'The last save failed: {message}. The Play continues in memory until a save succeeds.',
     actions: { open_data_folder: 'Open data folder' },
+  },
+  'health.library_refs': {
+    title: '{count} references in the library point at nothing, or at another workspace.',
+    actions: { repair_library: 'Repair…', repair_confirm: 'Remove them' },
   },
   'health.search_degraded': {
     title: 'Search is out of step with the library.',

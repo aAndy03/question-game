@@ -11,7 +11,7 @@ import {
 } from '@questiongame/contract'
 import { Text } from '@/atoms'
 import { NodeHandle } from '@/molecules'
-import { CONTROL } from '@/copy'
+import { CONTROL, SHELL } from '@/copy'
 
 export interface ScreensCanvasProps {
   /** The preview Play to draw (never a `play-state`). */
@@ -99,7 +99,7 @@ export function ScreensCanvas({ preview, selectedId, overriddenIds, handles: wit
     >
       <div className="relative" style={{ width: size.width || undefined, height: size.height || undefined }}>
         {/* `hold`: an overlay on the canvas stands still instead of playing out (P11.16). */}
-        <iframe ref={frame} title="Canvas" src="/stage/?viewer&hold" className="block border-0" style={{ width: size.width, height: size.height, background: 'white' }} tabIndex={-1} aria-hidden />
+        <iframe ref={frame} title={SHELL.canvas} src="/stage/?viewer&hold" className="block border-0" style={{ width: size.width, height: size.height, background: 'white' }} tabIndex={-1} aria-hidden />
         {!ready ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <Text variant="studio-caption" tone="muted">

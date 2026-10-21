@@ -3,7 +3,7 @@ import { Panel, Swatch, Text, TextAreaField, TextField } from '@/atoms'
 import { DirtyGuard, EditorFooter, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
-import { CONFIRM, LIST, TABS, TEAM } from '@/copy'
+import { CONFIRM, LIST, SHELL, TABS, TEAM } from '@/copy'
 import { toast } from '@/chrome/toast'
 import { useCatalogItem, useCatalogList } from '@/host/queries'
 import { isTwin } from '@/host/twins'
@@ -67,7 +67,7 @@ export function TeamEditor({ id }: TeamEditorProps) {
     setSaving(false)
     if (result === null) return false
     draft.adopt(item)
-    toast.success('Team saved')
+    toast.success(SHELL.teamSaved)
     return true
   }
 

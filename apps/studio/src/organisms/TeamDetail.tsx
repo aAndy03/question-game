@@ -1,10 +1,11 @@
 import { Avatar, Button, MeaningChip, Panel, Skeleton, Text } from '@/atoms'
 import { EmptyState, MetaList, NavCrumbs, PageHeader, StatCard } from '@/molecules'
 import { useNavStore } from '@/chrome/nav'
-import { fmt, LIST, TABS, TEAM } from '@/copy'
+import { LIST, SHELL, TABS, TEAM, fmt } from '@/copy'
 import { useCatalogItem } from '@/host/queries'
 import { isArchived } from '@/host/types'
 import { useArchive } from './useArchive'
+import { CopiesBlock } from './CopiesBlock'
 
 export interface TeamDetailProps {
   id: string
@@ -92,10 +93,11 @@ export function TeamDetail({ id, compact }: TeamDetailProps) {
             { label: TEAM.notes, value: t.notes ?? '—' },
             { label: LIST.updated, value: fmt.date(t.updatedAt) },
             { label: LIST.created, value: fmt.date(t.createdAt) },
-            { label: 'id', value: t.id, mono: true },
+            { label: SHELL.id, value: t.id, mono: true },
           ]}
         />
       </Panel>
+      <CopiesBlock kind="team" id={t.id} />
       {compact ? <div className="flex justify-end">{actions}</div> : null}
       {archive.dialog}
     </div>

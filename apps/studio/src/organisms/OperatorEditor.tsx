@@ -3,7 +3,7 @@ import { Panel, Text, TextField } from '@/atoms'
 import { DirtyGuard, EditorFooter, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
-import { LIST, OPERATOR, TABS } from '@/copy'
+import { LIST, OPERATOR, SHELL, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import { useCatalogItem } from '@/host/queries'
@@ -50,7 +50,7 @@ export function OperatorEditor({ id }: OperatorEditorProps) {
     setSaving(false)
     if (result === null) return false
     draft.adopt(item)
-    toast.success('Operator saved')
+    toast.success(SHELL.operatorSaved)
     return true
   }
   const saveAndView = async () => {

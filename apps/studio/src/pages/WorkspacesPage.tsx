@@ -1,9 +1,13 @@
-import { useState } from 'react'
-import { Button, MeaningChip, Panel, SelectField, Text } from '@/atoms'
+import { useMemo, useState } from 'react'
+import { Button, MeaningChip, SelectField, Text } from '@/atoms'
 import { ActionMenu, ConfirmDialog, NameDialog, PageHeader, type ActionItem, type ConfirmFrame } from '@/molecules'
-import { groupedWorkspaces, isGameLoaded, useSwitchWorkspace, workspaceName } from '@/organisms'
+import { LibraryList, ListToolbar, isGameLoaded, useSwitchWorkspace, workspaceName, type RecordView } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
+import { useArchiveScope, useChromeStore } from '@/chrome/chrome'
+import { workspacesSpec } from '@/host/listSpecs'
+import type { ListItem } from '@/host/listView'
+import { useListView } from '@/host/useListView'
 import { toast } from '@/chrome/toast'
 import { SETTINGS } from '@/copy/settings'
 import { WORKSPACE } from '@/copy/workspaces'
@@ -46,14 +50,60 @@ export function WorkspacesPage() {
   const [pending, setPending] = useState(false)
   const data = workspaces.data
   const loaded = isGameLoaded(play)
+  const scope = useArchiveScope('workspaces')
+  const setScope = useChromeStore((s) => s.setArchiveScope)
+  const groups = useMemo(() => [...(data?.groups ?? [])].sort((a, b) => a.sortKey - b.sortKey), [data?.groups])
+  const spec = useMemo(() => workspacesSpec(groups), [groups])
+  // On the list-view model (beta.5): search, sort, grouped by workspace group, Status.
+  const items = useMemo<ListItem<Workspace, RecordView>[] | undefined>(
+    () =>
+      data?.workspaces
+        .filter((w) => (scope === 'all' ? true : scope === 'archived' ? w.archivedAt !== null : w.archivedAt === null))
+        .map((w) => ({
+          id: w.id,
+          data: w,
+          view: {
+            id: w.id,
+            title: workspaceName(w),
+            isArchived: w.archivedAt !== null,
+            chips: (
+              <>
+                {w.id === data.current ? <MeaningChip meaning="active">{WORKSPACE.current}</MeaningChip> : null}
+                {w.archivedAt !== null ? <MeaningChip meaning="archived">{WORKSPACE.archived}</MeaningChip> : null}
+              </>
+            ),
+          },
+        })),
+    [data, scope],
+  )
+  const search = useChromeStore((s) => s.listState.workspaces?.search ?? '')
+  const hits = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    return needle ? new Map((items ?? []).filter((i) => i.view.title.toLowerCase().includes(needle)).map((i) => [i.id, 1])) : null
+  }, [items, search])
+  const lv = useListView(spec, items, hits)
   const pinPath = activeId ? `operator.${activeId}.pin` : ''
   const pinError = pinPath ? (noticesAt(notices, pinPath)[0]?.detail.message ?? null) : null
 
   if (!data) return null
-  const groups = [...data.groups].sort((a, b) => a.sortKey - b.sortKey)
-  const sections = groupedWorkspaces(data.workspaces, data.groups, true)
   // A group with no workspace yet still shows, so it can be filled or deleted.
-  for (const g of groups) if (!sections.some((s) => s.group?.id === g.id)) sections.splice(groups.indexOf(g), 0, { group: g, workspaces: [] })
+  const emptyGroups = groups.filter((g) => !data.workspaces.some((w) => w.groupId === g.id))
+  const groupMenu = (group: WorkspaceGroup) => (
+    <ActionMenu
+      label={`${WORKSPACE.actions}: ${group.name}`}
+      items={[
+        { id: 'rename', label: WORKSPACE.renameGroup },
+        { id: 'up', label: WORKSPACE.moveUp, isDisabled: groups[0]?.id === group.id },
+        { id: 'down', label: WORKSPACE.moveDown, isDisabled: groups[groups.length - 1]?.id === group.id },
+        { id: 'delete', label: WORKSPACE.deleteGroup, isDanger: true },
+      ]}
+      onAction={(id) => {
+        if (id === 'rename') setDialog({ kind: 'renameGroup', group })
+        else if (id === 'delete') setDialog({ kind: 'deleteGroup', group })
+        else reorder(group, id === 'up' ? -1 : 1)
+      }}
+    />
+  )
 
   const close = () => {
     setDialog(null)
@@ -137,42 +187,39 @@ export function WorkspacesPage() {
         />
       }
     >
-      <div className="flex min-h-0 flex-col gap-6 overflow-y-auto" data-workspaces-page>
-        {sections.map((section) => (
-          <section key={section.group?.id ?? 'ungrouped'} className="flex flex-col gap-2" aria-label={section.group?.name ?? WORKSPACE.ungrouped}>
-            <div className="flex items-center gap-2">
-              <Text as="h2" variant="studio-label" tone="muted" className="flex-1">
-                {section.group?.name ?? WORKSPACE.ungrouped}
-              </Text>
-              {section.group ? (
-                <ActionMenu
-                  label={`${WORKSPACE.actions}: ${section.group.name}`}
-                  items={[
-                    { id: 'rename', label: WORKSPACE.renameGroup },
-                    { id: 'up', label: WORKSPACE.moveUp, isDisabled: groups[0]?.id === section.group.id },
-                    { id: 'down', label: WORKSPACE.moveDown, isDisabled: groups[groups.length - 1]?.id === section.group.id },
-                    { id: 'delete', label: WORKSPACE.deleteGroup, isDanger: true },
-                  ]}
-                  onAction={(id) => {
-                    const group = section.group as WorkspaceGroup
-                    if (id === 'rename') setDialog({ kind: 'renameGroup', group })
-                    else if (id === 'delete') setDialog({ kind: 'deleteGroup', group })
-                    else reorder(group, id === 'up' ? -1 : 1)
-                  }}
-                />
-              ) : null}
-            </div>
-            {section.workspaces.map((w) => (
-              <Panel key={w.id} className="flex items-center gap-3" data-workspace-row={w.id}>
-                <Text variant="studio-body" className="flex-1" truncate>
-                  {workspaceName(w)}
-                </Text>
-                {w.id === data.current ? <MeaningChip meaning="active">{WORKSPACE.current}</MeaningChip> : null}
-                {w.archivedAt !== null ? <MeaningChip meaning="archived">{WORKSPACE.archived}</MeaningChip> : null}
-                <ActionMenu label={`${WORKSPACE.actions}: ${workspaceName(w)}`} items={rowActions(w)} onAction={(id) => void onRow(w, id)} />
-              </Panel>
-            ))}
-          </section>
+      <div className="flex min-h-0 flex-col gap-3" data-workspaces-page>
+        <ListToolbar
+          view={lv}
+          what={WORKSPACE.many}
+          status={scope}
+          onStatus={(v) => {
+            setScope('workspaces', v)
+            lv.resetPage()
+          }}
+        />
+        <LibraryList
+          view={lv}
+          total={data.workspaces.length}
+          scope={scope}
+          isLoading={false}
+          layout="table"
+          what={WORKSPACE.many}
+          actions={(row) => {
+            const w = data.workspaces.find((x) => x.id === row.id)
+            return w ? <ActionMenu label={`${WORKSPACE.actions}: ${workspaceName(w)}`} items={rowActions(w)} onAction={(id) => void onRow(w, id)} /> : null
+          }}
+          headerActions={(key) => {
+            const g = key.startsWith('wg:') ? groups.find((x) => `wg:${x.id}` === key) : undefined
+            return g ? groupMenu(g) : null
+          }}
+        />
+        {emptyGroups.map((g) => (
+          <div key={g.id} className="flex items-center gap-2 px-2" data-empty-group={g.id}>
+            <Text variant="studio-caption" tone="muted" className="flex-1">
+              {WORKSPACE.emptyGroup(g.name)}
+            </Text>
+            {groupMenu(g)}
+          </div>
         ))}
       </div>
 

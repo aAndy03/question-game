@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import { Button, Icon, IconButton, MeaningChip, Panel, Skeleton, Text } from '@/atoms'
 import { ActionMenu, ArchiveToggle, DomainForm, EmptyState, suggestDomainCode, type DomainFormValue } from '@/molecules'
-import { CONFIRM, DOMAIN, LIST } from '@/copy'
+import { CONFIRM, DOMAIN, LIST, SHELL } from '@/copy'
 import { activeMemberIds, bodyGaps, questionGaps } from '@/host/question'
 import { useCatalogList } from '@/host/queries'
 import type { ArchiveScope, Domain } from '@/host/types'
 import { useHostCommand } from '@/host/commands'
 import { useArchive } from './useArchive'
+import { CopiesBlock } from './CopiesBlock'
+import { toast } from '@/chrome/toast'
 import { useTransfer } from './useTransfer'
 import { usePropagatingSave } from './usePropagatingSave'
 import { TRANSFER } from '@/copy/workspaces'
@@ -85,6 +87,7 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
   const form = (
     <Panel variant="secondary" className="flex flex-col gap-3">
       <DomainForm value={draft} onChange={setDraft} autoFocus others={(domains.data ?? []).filter((d) => d.id !== editing && d.archivedAt === null)} />
+      {editing && editing !== 'new' ? <CopiesBlock kind="domain" id={editing} /> : null}
       <div className="flex justify-end gap-2">
         <Button size="sm" variant="tertiary" onPress={() => setEditing(null)} isDisabled={saving}>
           {CONFIRM.cancel}
@@ -139,6 +142,7 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
                     <ActionMenu
                       items={[
                         { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: d.archivedAt !== null },
+                        { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
                         { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
                         { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
                         ...(d.familyId != null ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
@@ -148,6 +152,7 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
                       ]}
                       onAction={(a) => {
                         if (a === 'copy' || a === 'move') transfer.open(a, { domains: [d.id] })
+                        if (a === 'duplicate') void run.ok('catalog_duplicate', { kind: 'domain', ids: [d.id] }).then((ok) => ok && toast.success(SHELL.duplicated(1, DOMAIN.one, DOMAIN.many)))
                         if (a === 'unfollow') void run.ok('catalog_unfollow', { kind: 'domain', id: d.id })
                         if (a === 'edit') startEdit(d)
                         if (a === 'archive') archive.archive({ kind: 'domain', ids: [d.id], what: DOMAIN.one })

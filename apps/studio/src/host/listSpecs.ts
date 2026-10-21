@@ -6,8 +6,9 @@
 
 import { QUESTION, VIEWS } from '@/copy'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
+import { WORKSPACE } from '@/copy/workspaces'
 import { compareText, type FilterDef, type ListSpec } from './listView'
-import { answerMode, difficultyBand, isArchived, type Domain, type Operator, type Question, type QuestionGap, type Recipe, type Team } from './types'
+import { answerMode, difficultyBand, isArchived, type Domain, type Operator, type Question, type QuestionGap, type Recipe, type Team, type Workspace, type WorkspaceGroup } from './types'
 
 const byNumber = (a: number, b: number) => a - b
 const choice = (value: unknown): string => (typeof value === 'string' ? value : '')
@@ -353,4 +354,36 @@ export const pickDomainsSpec: ListSpec<Domain> = {
 /** *Choose questions…*: one domain's questions as the Questions tab lists them inside it. */
 export function pickQuestionsSpec(opts: { groups: readonly { id: string; name: string }[]; tags: readonly string[] }): ListSpec<QuestionItem> {
   return { ...questionsSpec({ allQuestions: false, domains: [], groups: opts.groups, tags: opts.tags }), tab: 'pickQuestions' }
+}
+
+// ---- Manage workspaces (beta.5) ----------------------------------------------
+
+/** Workspaces by name or age, grouped by their workspace group (the default). */
+export function workspacesSpec(groups: readonly WorkspaceGroup[]): ListSpec<Workspace> {
+  const name = (w: Workspace) => w.name ?? ''
+  return {
+    tab: 'workspaces',
+    noun: { one: 'workspace', many: 'workspaces' },
+    filters: [],
+    sorts: [
+      { id: 'name', label: VIEWS.name, compare: (a, b) => compareText(name(a), name(b)) },
+      { id: 'created', label: VIEWS.created, compare: (a, b) => a.createdAt - b.createdAt, defaultDesc: true },
+      { id: 'changed', label: VIEWS.changed, compare: (a, b) => a.updatedAt - b.updatedAt, defaultDesc: true },
+    ],
+    groups: [
+      {
+        id: 'group',
+        label: WORKSPACE.groupLabel,
+        groupsOf: (w) => {
+          const at = groups.findIndex((g) => g.id === w.groupId)
+          const g = groups[at]
+          return g ? [{ key: `wg:${g.id}`, label: g.name, order: at }] : [{ key: '~none', label: WORKSPACE.ungrouped, order: 0, last: true }]
+        },
+      },
+    ],
+    defaults: { sort: { id: 'name', desc: false }, group: 'group', pageSize: 100 },
+    tiebreak: name,
+    changedAt: (w) => w.updatedAt,
+    isArchived: (w) => w.archivedAt !== null,
+  }
 }

@@ -3,7 +3,7 @@ import { Chip, IconButton, Separator, Text, type IconName } from '@/atoms'
 import { SidebarItem } from '@/molecules'
 import { useChromeStore, usePrefs, type SidebarMode } from '@/chrome/chrome'
 import { useNavStore, useRoute, type Tab } from '@/chrome/nav'
-import { APP, CHROME, TABS } from '@/copy'
+import { APP, CHROME, SHELL, TABS } from '@/copy'
 import { usePlayState } from '@/host/playState'
 import { useAppInfo } from '@/host/queries'
 import { BETA_CHIP } from '@/copy/beta'
@@ -75,7 +75,7 @@ export function SidebarNav() {
         />
       ) : null}
       <motion.nav
-        aria-label="Sections"
+        aria-label={SHELL.sections}
         initial={false}
         animate={{ width }}
         transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}

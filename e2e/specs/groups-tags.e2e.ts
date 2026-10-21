@@ -62,8 +62,8 @@ describe('groups, tags and bulk edits', () => {
     // A group in Geography, by name.
     await domain('Geography')
     await press('Domain groups…')
-    await press('New group')
-    await (await named('Group name')).setValue('Capitals')
+    await press('New domain group')
+    await (await named('Domain group name')).setValue('Capitals')
     await press('Create')
     await sees('Capitals')
     await press('Close')
@@ -77,7 +77,7 @@ describe('groups, tags and bulk edits', () => {
     await sees('Applies to 2 questions.')
     await press('Apply')
     await sees('Capitals · 2')
-    await sees('No group · 1')
+    await sees('No domain group · 1')
     await press('Clear')
 
     // A tag on questions in two domains, found by search under All questions.

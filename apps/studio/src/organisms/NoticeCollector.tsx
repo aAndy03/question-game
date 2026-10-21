@@ -3,7 +3,8 @@ import { Button, Text } from '@/atoms'
 import { EmptyState, InlineNotice } from '@/molecules'
 import { gameSectionOf, inlineNotices, surfaceOf, useNoticeStore, type OpenNotice } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
-import { CHROME, CONFIRM, GAME, SCREENS_TAB, noticeAction, noticeTitle } from '@/copy'
+import { CHROME, CONFIRM, GAME, SCREENS_TAB, SHELL, noticeAction, noticeTitle } from '@/copy'
+import { toast } from '@/chrome/toast'
 import { useHostCommand } from '@/host/commands'
 
 /**
@@ -81,6 +82,16 @@ export function NoticeCollector() {
       case 'stop_playing':
         pushFrame(notice.id, { title: SCREENS_TAB.stopTitle, body: SCREENS_TAB.stopBody, actions: ['abandon_confirm'] })
         return
+      // beta.5: the library check. Repair asks first, in the same notice.
+      case 'repair_library':
+        pushFrame(notice.id, { title: SHELL.repairTitle(notice.detail.count ?? ''), body: SHELL.repairBody, actions: ['repair_confirm'] })
+        return
+      case 'repair_confirm': {
+        const removed = await run<number>('library_repair')
+        if (removed !== null) toast.success(SHELL.repaired(removed))
+        dismiss(notice.id)
+        return
+      }
       case 'abandon_confirm':
         await run('abandon')
         dismiss(notice.id)

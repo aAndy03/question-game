@@ -5,7 +5,8 @@ import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDe
 import { SplitLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
-import { DOMAIN, fmt, IMPORT, LIST, QUESTION, TABS, VIEWS } from '@/copy'
+import { toast } from '@/chrome/toast'
+import { DOMAIN, IMPORT, LIST, QUESTION, SHELL, TABS, VIEWS, fmt } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { activeMemberIds, questionGaps } from '@/host/question'
@@ -39,6 +40,10 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
   const replace = useNavStore((s) => s.replace)
   const archive = useArchive()
   const transfer = useTransfer()
+  // *Duplicate* here (beta.5): the same text, in the same domains and domain groups.
+  const duplicate = async (ids: readonly string[]) => {
+    if (await run.ok('catalog_duplicate', { kind: 'question', ids })) toast.success(SHELL.duplicated(ids.length, QUESTION.one, QUESTION.many))
+  }
   const bulkEdit = useBulkEdit()
   const [groupsOpen, setGroupsOpen] = useState(false)
   const [tagsOpen, setTagsOpen] = useState(false)
@@ -221,6 +226,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                   items={[
                     { id: 'open', label: LIST.open, icon: 'open' },
                     { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: row.isArchived },
+                    { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
                     { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
                     { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
                     ...(questions.data?.find((q) => q.id === row.id)?.familyId != null ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
@@ -230,6 +236,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                   ]}
                   onAction={(a) => {
                     if (a === 'copy' || a === 'move') transfer.open(a, { questions: [row.id] })
+                    if (a === 'duplicate') void duplicate([row.id])
                     if (a === 'unfollow') void run.ok('catalog_unfollow', { kind: 'question', id: row.id })
                     const at = domainId ? { domainId } : {}
                     if (a === 'open') void go({ tab: 'library', questionId: row.id, mode: 'view', ...at })
@@ -247,6 +254,9 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                   return (
                     <>
                       {archivedView ? null : bulkEdit.menu(ids, { domain: domain && domain.archivedAt === null ? domain : null, questions: picked })}
+                      <Button size="sm" variant="secondary" icon="duplicate" onPress={() => void duplicate(ids)}>
+                        {LIST.duplicate}
+                      </Button>
                       {transfer.menu({ questions: ids })}
                     </>
                   )

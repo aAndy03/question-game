@@ -111,7 +111,7 @@ export function StatsFilterBar({
           value={groupBy}
           onChange={(value) => onGroupBy(value)}
           options={(
-            ['team', 'domain', 'question', 'difficulty', 'operator', 'recipe', 'play', 'day'] as StatsDimension[]
+            [...['team', 'domain', 'question', 'difficulty', 'operator', 'recipe', 'play', 'day'], ...(filter.allWorkspaces ? ['workspace'] : [])] as StatsDimension[]
           ).map((value) => ({ value, label: STATS.dimensions[value] ?? value }))}
         />
       </div>
@@ -146,7 +146,11 @@ export function StatsFilterBar({
         <CheckboxField
           label={STATS.filters.allWorkspaces}
           isSelected={Boolean(filter.allWorkspaces)}
-          onChange={(on) => onFilter({ ...filter, allWorkspaces: on })}
+          onChange={(on) => {
+            onFilter({ ...filter, allWorkspaces: on })
+            // By workspace means nothing inside one: back to teams (beta.5).
+            if (!on && groupBy === 'workspace') onGroupBy('team')
+          }}
         />
         <Text variant="studio-caption" tone="muted">
           {STATS.filters.allWorkspacesHint}

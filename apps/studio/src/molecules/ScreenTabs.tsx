@@ -1,6 +1,6 @@
 import { Tabs } from '@heroui/react'
 import { OVERLAY_KINDS, STAGE_SCREENS, type OverlayKind, type StageScreen } from '@questiongame/contract'
-import { OVERLAYS, SCREENS, SCREENS_TAB } from '@/copy'
+import { OVERLAYS, SCREENS, SCREENS_TAB, SHELL } from '@/copy'
 
 /** What the Screens canvas can show: one of the seven screens, or one overlay standing over the last screen. */
 export type CanvasView = StageScreen | `overlay:${OverlayKind}`
@@ -36,7 +36,7 @@ export function ScreenTabs({ value, onChange, counts }: ScreenTabsProps) {
       }}
     >
       <Tabs.ListContainer>
-        <Tabs.List aria-label="Screens">
+        <Tabs.List aria-label={SHELL.screens}>
           {VIEWS.map((view) => {
             const screen = canvasScreen(view)
             const overlay = canvasOverlay(view)
