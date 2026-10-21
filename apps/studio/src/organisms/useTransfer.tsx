@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { AlertDialog, Dropdown, Label } from '@heroui/react'
+import { AlertDialog, Description, Dropdown, Label } from '@heroui/react'
 import { Button, SelectField, SwitchField, Text } from '@/atoms'
 import { toast } from '@/chrome/toast'
 import { CONFIRM } from '@/copy'
@@ -247,6 +247,7 @@ export function useTransfer(): TransferController {
           </Dropdown.Item>
           <Dropdown.Item id="move" textValue={TRANSFER.moveTo}>
             <Label>{TRANSFER.moveTo}</Label>
+            {move?.leftOut ? <Description>{move.leftOut}</Description> : null}
           </Dropdown.Item>
         </Dropdown.Menu>
       </Dropdown.Popover>

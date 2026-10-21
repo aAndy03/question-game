@@ -152,6 +152,7 @@ export function GamesPage() {
             const keep = ids.filter((id) => id !== playingId)
             return transfer.menu({ recipes: ids }, { selection: { recipes: keep }, leftOut: keep.length < ids.length ? GAME.leftOutPlaying(nameOf(playingId)) : null })
           },
+          keep: playingId ? [playingId] : [],
           isPending: archive.isPending,
         }}
         actions={(row) => (

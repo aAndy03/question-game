@@ -85,7 +85,7 @@ describe('Add teams… (beta.4)', () => {
     await at({ tab: 'games', id: 'recipe-demo', section: 'roster' } as Route)
     expect(await screen.findByText('Delta', {}, { timeout: 5000 })).toBeTruthy()
     expect(screen.getAllByText(LIST.archived).length).toBeGreaterThan(0)
-    expect(PREVIEW.warning({ code: 'archivedOnGame', names: ['team Delta'] })).toContain('team Delta')
+    expect(PREVIEW.warning({ code: 'archivedOnGame', teams: ['Delta'], domains: [], questions: [] })).toContain('the team Delta')
     expect(((await fake.invoke('rules_preview', { recipeId: 'recipe-demo' })) as { warnings: { code: string }[] }).warnings[0]?.code).toBe('archivedOnGame')
     await expect(fake.invoke('play_load', { recipeId: 'recipe-demo', playId: 'p' })).rejects.toBeTruthy()
   })
@@ -199,5 +199,61 @@ describe('Apply to original follows the copies (beta.4)', () => {
     expect(call?.args).toMatchObject({ scope: 'original', alsoCopies: true })
     const copy = fake.library.get('question:q-copy')
     expect(copy?.kind === 'question' ? copy.item.difficulty : null).toBe(30)
+  })
+})
+
+describe('the beta.4 review', () => {
+  it('a roster refusal goes when the archived team comes off the roster', async () => {
+    await at({ tab: 'games', id: 'recipe-demo', section: 'roster' } as Route)
+    act(() => {
+      useNoticeStore.getState().pushError('play_refused', 'recipe.recipe-demo.roster.team.team-delta: the roster has the archived team Delta; restore it or take it off the roster', 'recipe.recipe-demo.roster.team.team-delta')
+    })
+    expect(await screen.findByText(/the roster has the archived team Delta/)).toBeTruthy()
+    // The text is the reason, not the routing path.
+    expect(document.body.textContent).not.toContain('roster.team.team-delta')
+    const removes = await screen.findAllByRole('button', { name: 'Remove from roster' })
+    fireEvent.click(removes[3] as HTMLElement)
+    await waitFor(() => expect(useNoticeStore.getState().notices).toHaveLength(0))
+  })
+
+  it('Apply to original of the value this game asks promotes it', async () => {
+    await at({ tab: 'games', id: 'recipe-demo', section: 'board' } as Route)
+    fireEvent.click(await screen.findByRole('button', { name: /^Difficulty of Which two of these were signatories/ }, { timeout: 5000 }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Apply to original' }))
+    await waitFor(() => expect(fake.calls.some((c) => c.name === 'recipe_set_overlay')).toBe(true))
+    expect(fake.calls.find((c) => c.name === 'recipe_set_overlay')?.args).toMatchObject({ scope: 'original', target: { patch: { difficulty: 70 } } })
+  })
+
+  it('a refused Apply keeps the picker open with its ticks', async () => {
+    fake.seed([team('team-echo', 'Echo')])
+    // The fake as it is, except that it refuses the roster write.
+    const real = fake.invoke.bind(fake)
+    ;(fake as { invoke: unknown }).invoke = (name: string, args?: Record<string, unknown>) =>
+      name === 'recipe_set_membership' ? Promise.reject({ code: 'catalog', message: 'recipe.recipe-demo: refused' }) : real(name as never, args)
+    await at({ tab: 'games', id: 'recipe-demo', section: 'roster' } as Route)
+    fireEvent.click(await enabled(PICKER.addTeams))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(await within(dialog).findByRole('checkbox', { name: 'Echo' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: PICKER.apply }))
+    await waitFor(() => expect(useNoticeStore.getState().notices.length).toBeGreaterThan(0))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect((within(dialog).getByRole('checkbox', { name: 'Echo' }) as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('Move from the Game page is off while the game plays', async () => {
+    await at({ tab: 'games', id: 'recipe-demo' } as Route)
+    act(() =>
+      receivePlayState({
+        ...EMPTY_PLAY_STATE,
+        playId: 'p1',
+        status: 'playing',
+        operator: { recipeId: 'recipe-demo', legalTokenTargets: [], defaultNextTeamId: null, consecutiveCorrect: 0, isRehearsal: false, canUndo: false, canRedo: false, eventCount: 1, showGiveToken: false, overrideAfterLock: 'refuse_until_reveal', disabled: [] },
+      } as never),
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }, { timeout: 5000 }))
+    const move = await screen.findByRole('menuitem', { name: /Move to/ })
+    expect(move.getAttribute('aria-disabled')).toBe('true')
+    expect(screen.getByRole('menuitem', { name: /Copy to/ }).getAttribute('aria-disabled')).not.toBe('true')
   })
 })

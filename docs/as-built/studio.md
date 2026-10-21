@@ -134,12 +134,15 @@ The host half is `host.md` ▸ Copy, import and refusals.
 
 The design is `05_STUDIO_DESIGN.md` §24; the host half is `host.md` ▸ Games parity.
 
+- **`PickerDialog` closes only on success** (`onApply` returns `run.ok`'s verdict) and, once something is ticked, is not dismissable by Esc or a click outside. Its ticks are reset while rendering the opening (state adjusted on the `isOpen` change), not in an effect, so the last opening's ticks never flash.
 - **`PickerDialog` holds its own choice**, not `useListView`'s selection: a library selection clears on any filter (so a bulk action never reaches a hidden row), and a picker must keep a tick the search hid. It resets the picker tab's session view on every opening (`EMPTY_LIST_STATE`); its search is a fold over each row's words, not `catalog_search`. *Select all in a group* walks the group's rows across every page (`listView` with `pageSize: 'all'`) and re-asks `disabledReason` after each tick, so one-per-difficulty holds inside the walk.
 - **Three picker tabs** (`pickTeams`, `pickDomains`, `pickQuestions` in `LibraryTab`): their sort and grouping are remembered per operator like a library tab's; `ListToolbar`'s View and Status are optional and a picker has neither.
 - **A question in the picker is its effective body** (overlay applied): its difficulty filter, band and completeness are what this game would ask.
 - **`DifficultyDialog` judges on press** (found on the real app: HeroUI's `NumberField` commits on blur, and a button disabled until the value changed ate the press that caused the blur). `ScopeConfirm` is gone; *Apply to original* asks `usePropagatingSave.decide` and sends `alsoCopies`.
 - **`RunOptions.code`** renames a refusal's notice code (a refused Load is `play_refused`, *This game cannot start yet.*). `useHostCommand` opens the collector on a refusal only when its Game section is not the one in view (`gameSectionOf` against the route). `InlineNotice` drops the `path: ` the host's message starts with.
 - **`useTransfer.menu(selection, move?)`**: Move can take less than Copy — the Games bulk bar leaves the playing game out of Move and Archive and says so.
+- **A roster refusal is answered** when the team leaves the roster (`recipe_set_membership` without it) or is restored (`catalog_restore`, `kind: 'team'`): `answerFromLibrary` drops `recipe.{id}.roster.team.{team}`.
+- **`LibraryList`'s `bulk.keep`**: rows Archive leaves alone, so its count is what it takes.
 - **`playNumbers`** (`PlaysSection`): ordinal by `startedAtMs`, then id; a wiped Play's number goes with it.
 
 ## Library views as built (stable 1.1, P13.2–P13.4)

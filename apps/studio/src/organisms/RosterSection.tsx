@@ -42,10 +42,11 @@ export function RosterSection({ recipe, frozenReason }: RosterSectionProps) {
     [teams.data],
   )
 
-  const write = async (next: readonly string[]) => {
+  const write = async (next: readonly string[]): Promise<boolean> => {
     setPending(true)
-    await run('recipe_set_membership', { id: recipe.id, teams: next, board: recipe.board })
+    const ok = await run.ok('recipe_set_membership', { id: recipe.id, teams: next, board: recipe.board })
     setPending(false)
+    return ok
   }
   const move = (i: number, dir: -1 | 1) => {
     const next = [...recipe.teams]

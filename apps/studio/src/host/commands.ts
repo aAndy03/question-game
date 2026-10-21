@@ -161,6 +161,8 @@ export function answeredBy(name: Command, args?: Record<string, unknown>): strin
 const BOARD_RULE = /^recipe\.([^.]+)\.board\.[^.]+\.(?:difficulty|question)\./
 /** A Board refusal for a row the board names that is archived or gone. */
 const BOARD_ROW = /^recipe\.[^.]+\.board\.(domain|question)\.([^.]+)$/
+/** A Load refusal for a team the roster names that is archived (beta.4). */
+const ROSTER_TEAM = /^recipe\.([^.]+)\.roster\.team\.([^.]+)$/
 
 const isBoardRuleFor = (recipeId: string) => (n: OpenNotice) => BOARD_RULE.exec(n.targetPath ?? '')?.[1] === recipeId
 
@@ -176,6 +178,18 @@ const isBoardRuleFor = (recipeId: string) => (n: OpenNotice) => BOARD_RULE.exec(
  */
 function answerFromLibrary(name: Command, args?: Record<string, unknown>): void {
   const kind = args?.kind
+  // The archived team off the roster, or restored: its Load refusal no longer stands (beta.4 review).
+  if (name === 'recipe_set_membership') {
+    const teams = new Set((args?.teams as unknown[] | undefined) ?? [])
+    useNoticeStore.getState().dismissWhere((n) => {
+      const row = ROSTER_TEAM.exec(n.targetPath ?? '')
+      return row !== null && row[1] === args?.id && !teams.has(row[2])
+    })
+  }
+  if ((name === 'catalog_restore' || name === 'catalog_restore_many') && kind === 'team') {
+    const ids = new Set<unknown>(name === 'catalog_restore' ? [args?.id] : ((args?.ids as unknown[] | undefined) ?? []))
+    useNoticeStore.getState().dismissWhere((n) => ids.has(ROSTER_TEAM.exec(n.targetPath ?? '')?.[2]))
+  }
   if ((name === 'catalog_restore' || name === 'catalog_restore_many') && (kind === 'question' || kind === 'domain')) {
     const ids = new Set<unknown>(name === 'catalog_restore' ? [args?.id] : ((args?.ids as unknown[] | undefined) ?? []))
     useNoticeStore.getState().dismissWhere((n) => {

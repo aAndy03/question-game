@@ -202,8 +202,14 @@ export const PREVIEW = {
         return `Every question on this board is difficulty ${warning.difficulty}, so awarding by difficulty pays the same as a flat award.`
       case 'duplicateDifficulty':
         return `${warning.questions} questions in one domain are difficulty ${warning.difficulty}. A domain plays one question per difficulty, so this game will not start until one of them comes off the board.`
-      case 'archivedOnGame':
-        return `This game still uses ${warning.names.length === 1 ? 'an archived row' : 'archived rows'}: ${warning.names.join(', ')}. It will not start until each is restored or taken off the game.`
+      case 'archivedOnGame': {
+        const named = [
+          ...warning.teams.map((n) => `the team ${n}`),
+          ...warning.domains.map((n) => `the domain ${n}`),
+          ...warning.questions.map((n) => `the question “${n}”`),
+        ]
+        return `This game still uses what is archived: ${named.join(', ')}. It will not start until each is restored or taken off the game.`
+      }
       case 'incompleteQuestions':
         return `${warning.questions === 1 ? 'One question on this board is' : `${warning.questions} questions on this board are`} incomplete — no difficulty, no correct answer or too few options. This game will not start until each is finished in the library or taken off the board.`
     }

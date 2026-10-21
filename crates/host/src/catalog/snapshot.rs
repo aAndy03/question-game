@@ -79,7 +79,10 @@ pub(super) fn build(
             if team.stamps.is_archived() {
                 return Err(CatalogError::Refused {
                     target_path: format!("recipe.{}.roster.team.{id}", recipe.id),
-                    reason: format!("the roster has the archived team {}; restore it or take it off the roster", team.name),
+                    reason: format!(
+                        "the roster has the archived team {}; restore it or take it off the roster",
+                        team.name
+                    ),
                 });
             }
             let overlay = recipe.overlays.teams.get(id);

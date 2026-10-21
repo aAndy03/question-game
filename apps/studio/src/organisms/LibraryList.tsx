@@ -55,6 +55,8 @@ export interface LibraryListProps {
     | {
         onArchive?: ((ids: readonly string[]) => void) | undefined
         onRestore?: ((ids: readonly string[]) => void) | undefined
+        /** Rows Archive leaves alone, so its count is what it takes (beta.4: the playing game). */
+        keep?: readonly string[] | undefined
         /** More actions on the whole selection (Beta 2.0: copy, move, share). */
         extra?: ((ids: readonly string[]) => ReactNode) | undefined
         isPending?: boolean | undefined
@@ -263,7 +265,14 @@ export function LibraryList({
         <BulkBar
           count={selection.ids.size}
           onPage={selection.onPage}
-          archive={bulk.onArchive ? { count: view.bulk.archive.length, run: () => bulk.onArchive?.(view.bulk.archive) } : undefined}
+          archive={
+            bulk.onArchive
+              ? (() => {
+                  const ids = view.bulk.archive.filter((id) => !(bulk.keep ?? []).includes(id))
+                  return { count: ids.length, run: () => bulk.onArchive?.(view.bulk.archive) }
+                })()
+              : undefined
+          }
           restore={bulk.onRestore ? { count: view.bulk.restore.length, run: () => bulk.onRestore?.(view.bulk.restore) } : undefined}
           selectAll={{ count: page.selectableIds.length, run: selection.selectAll }}
           extra={bulk.extra ? bulk.extra([...selection.ids]) : undefined}

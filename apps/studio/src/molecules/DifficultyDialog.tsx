@@ -30,6 +30,8 @@ export function DifficultyDialog({ isOpen, onOpenChange, current, isPending, onC
     if (isOpen) setValue(current)
   }, [isOpen, current])
   const [tried, setTried] = useState(false)
+  // One press at a time: a second *This game only* would write twice.
+  const [pending, setPending] = useState(false)
   useEffect(() => {
     if (isOpen) setTried(false)
   }, [isOpen])
@@ -40,9 +42,14 @@ export function DifficultyDialog({ isOpen, onOpenChange, current, isPending, onC
   // (found on the real app). The value is judged when pressed.
   const choose = async (scope: EditScope) => {
     setTried(true)
-    if (!valid) return
-    if (!acceptsDifficulty(value, current)) return onOpenChange(false)
-    if ((await onChoose(scope, value)) !== false) onOpenChange(false)
+    if (!valid || pending) return
+    // The value this game already asks is no edit here — but *Apply to
+    // original* of it promotes this game's difficulty to the library (review).
+    if (scope === 'this_game' && !acceptsDifficulty(value, current)) return onOpenChange(false)
+    setPending(true)
+    const done = await onChoose(scope, value)
+    setPending(false)
+    if (done !== false) onOpenChange(false)
   }
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
@@ -55,17 +62,17 @@ export function DifficultyDialog({ isOpen, onOpenChange, current, isPending, onC
           <Modal.Body className="flex flex-col gap-3">
             <NumberField label={QUESTION.difficulty} value={value} onChange={setValue} minValue={1} maxValue={100} step={1} error={error} autoFocus />
             <Text variant="studio-caption" tone="muted">
-              {`${CONFIRM.scopeBody} (${QUESTION.difficulty})`}
+              {CONFIRM.scopeDifficulty}
             </Text>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="tertiary" onPress={() => onOpenChange(false)} isDisabled={isPending}>
+            <Button variant="tertiary" onPress={() => onOpenChange(false)} isDisabled={isPending || pending}>
               {CONFIRM.cancel}
             </Button>
-            <Button variant="secondary" onPress={() => void choose('original')} isPending={isPending}>
+            <Button variant="secondary" onPress={() => void choose('original')} isPending={isPending || pending}>
               {CONFIRM.original}
             </Button>
-            <Button variant="primary" onPress={() => void choose('this_game')} isPending={isPending}>
+            <Button variant="primary" onPress={() => void choose('this_game')} isPending={isPending || pending}>
               {CONFIRM.thisGame}
             </Button>
           </Modal.Footer>

@@ -705,6 +705,7 @@ impl CatalogService {
 
             (EditScope::Original, OverlayTarget::Team(team_id, patch)) => {
                 let patch = patch.ok_or_else(reset_has_no_original)?;
+                let applied = patch.clone();
                 let mut team = store::team_get(&self.conn(), &team_id)?;
                 if let Some(name) = patch.name {
                     team.name = name;
@@ -719,11 +720,22 @@ impl CatalogService {
                     team.logo_asset_id = patch.logo_asset_id;
                 }
                 original(team.into())?;
-                recipe.overlays.teams.remove(&team_id);
-                self.write_overlay(id, |tx| store::overlay_set_team(tx, id, &team_id, None))?;
+                // Only what was applied leaves the overlay; the rest of this
+                // game's own edits stand (beta.4 review).
+                let rest = recipe.overlays.teams.remove(&team_id).map(|o| TeamOverlay {
+                    name: o.name.filter(|_| applied.name.is_none()),
+                    short_code: o.short_code.filter(|_| applied.short_code.is_none()),
+                    color: o.color.filter(|_| applied.color.is_none()),
+                    logo_asset_id: o.logo_asset_id.filter(|_| applied.logo_asset_id.is_none()),
+                });
+                let rest = rest.filter(|o| *o != TeamOverlay::default());
+                self.write_overlay(id, |tx| {
+                    store::overlay_set_team(tx, id, &team_id, rest.as_ref())
+                })?;
             }
             (EditScope::Original, OverlayTarget::Domain(domain_id, patch)) => {
                 let patch = patch.ok_or_else(reset_has_no_original)?;
+                let applied = patch.clone();
                 let mut domain = store::domain_get(&self.conn(), &domain_id)?;
                 if let Some(name) = patch.name {
                     domain.name = name;
@@ -732,7 +744,20 @@ impl CatalogService {
                     domain.code = code;
                 }
                 original(domain.into())?;
-                self.write_overlay(id, |tx| store::overlay_set_domain(tx, id, &domain_id, None))?;
+                let rest =
+                    recipe
+                        .overlays
+                        .domains
+                        .get(&domain_id)
+                        .cloned()
+                        .map(|o| DomainOverlay {
+                            name: o.name.filter(|_| applied.name.is_none()),
+                            code: o.code.filter(|_| applied.code.is_none()),
+                        });
+                let rest = rest.filter(|o| *o != DomainOverlay::default());
+                self.write_overlay(id, |tx| {
+                    store::overlay_set_domain(tx, id, &domain_id, rest.as_ref())
+                })?;
             }
             (EditScope::Original, OverlayTarget::Question(question_id, patch)) => {
                 let patch = patch.ok_or_else(reset_has_no_original)?;
@@ -745,6 +770,7 @@ impl CatalogService {
                         "a per-question duration is a game overlay; it has no original",
                     ));
                 }
+                let applied = patch.clone();
                 let mut question = store::question_get(&self.conn(), &question_id)?;
                 if let Some(stem) = patch.stem {
                     question.stem = stem;
@@ -758,12 +784,32 @@ impl CatalogService {
                 // P11.13, §2.32. Applying to the original changes the catalog
                 // row *and* drops this recipe's patch, so both halves are in the
                 // recipe this write would produce — checked before either lands.
+                // Only what was applied leaves the overlay: a this-game stem
+                // stays when the difficulty goes to the original (beta.4 review).
+                let rest = recipe
+                    .overlays
+                    .questions
+                    .get(&question_id)
+                    .cloned()
+                    .map(|o| QuestionOverlay {
+                        stem: o.stem.filter(|_| applied.stem.is_none()),
+                        options: o.options.filter(|_| applied.options.is_none()),
+                        difficulty: o.difficulty.filter(|_| applied.difficulty.is_none()),
+                        duration_ms: o.duration_ms,
+                    });
+                let rest = rest.filter(|o| !o.is_empty());
                 let mut prospective = recipe.clone();
-                prospective.overlays.questions.remove(&question_id);
+                match &rest {
+                    Some(rest) => prospective
+                        .overlays
+                        .questions
+                        .insert(question_id.clone(), rest.clone()),
+                    None => prospective.overlays.questions.remove(&question_id),
+                };
                 self.check_board(&prospective, Some(&question))?;
                 original(question.into())?;
                 self.write_overlay(id, |tx| {
-                    store::overlay_set_question(tx, id, &question_id, None)
+                    store::overlay_set_question(tx, id, &question_id, rest.as_ref())
                 })?;
             }
         }
@@ -936,6 +982,47 @@ impl CatalogService {
         snapshot::build(&recipe, &bodies, play_id, settings)
     }
 
+    /// The archived rows a game still names (beta.4), by name, each once —
+    /// values for Studio to say, as every preview code is. A row it cannot
+    /// read is left out: the preview describes, Load refuses.
+    pub fn archived_on_game(
+        &self,
+        recipe_id: &RecipeId,
+    ) -> CatalogResult<crate::preview::ArchivedNames> {
+        let recipe = self.recipe_get(recipe_id)?;
+        let conn = self.conn();
+        let mut out = crate::preview::ArchivedNames::default();
+        let mut seen = std::collections::BTreeSet::new();
+        for id in &recipe.teams {
+            if seen.insert(id.to_string())
+                && let Ok(team) = store::team_get(&conn, id)
+                && team.stamps.is_archived()
+            {
+                out.teams.push(team.name);
+            }
+        }
+        for board in &recipe.board {
+            if seen.insert(board.domain_id.to_string())
+                && let Ok(domain) = store::domain_get(&conn, &board.domain_id)
+                && domain.stamps.is_archived()
+            {
+                out.domains.push(domain.name);
+            }
+            for id in &board.question_ids {
+                if seen.insert(id.to_string())
+                    && let Ok(question) = store::question_get(&conn, id)
+                    && question.stamps.is_archived()
+                {
+                    out.questions.push(
+                        store::row_name(&conn, CatalogKind::Question, id.as_str())
+                            .unwrap_or_else(|_| question.stem.clone()),
+                    );
+                }
+            }
+        }
+        Ok(out)
+    }
+
     /// The board flattened for the Rules preview (P11.12).
     ///
     /// `build_snapshot`'s lenient cousin. It applies the same recipe overlays,
@@ -945,39 +1032,6 @@ impl CatalogService {
     /// of refusing the whole board: a Play must not start on a board with a
     /// hole in it, while a preview of an unfinished board is the normal case
     /// and returning nothing would be the unhelpful answer.
-    /// The archived rows a game still names, as the Rules preview says them
-    /// (beta.4): "team Red", "domain History", "question Who built…".
-    pub fn archived_on_game(&self, recipe_id: &RecipeId) -> CatalogResult<Vec<String>> {
-        let recipe = self.recipe_get(recipe_id)?;
-        let conn = self.conn();
-        let mut out = Vec::new();
-        for id in &recipe.teams {
-            if let Ok(team) = store::team_get(&conn, id)
-                && team.stamps.is_archived()
-            {
-                out.push(format!("team {}", team.name));
-            }
-        }
-        for board in &recipe.board {
-            if let Ok(domain) = store::domain_get(&conn, &board.domain_id)
-                && domain.stamps.is_archived()
-            {
-                out.push(format!("domain {}", domain.name));
-            }
-            for id in &board.question_ids {
-                if let Ok(question) = store::question_get(&conn, id)
-                    && question.stamps.is_archived()
-                {
-                    out.push(format!(
-                        "question {}",
-                        store::row_name(&conn, CatalogKind::Question, id.as_str())?
-                    ));
-                }
-            }
-        }
-        Ok(out)
-    }
-
     pub fn preview_board(&self, recipe_id: &RecipeId) -> CatalogResult<PreviewBoard> {
         let recipe = self.recipe_get(recipe_id)?;
         let conn = self.conn();

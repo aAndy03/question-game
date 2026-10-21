@@ -132,8 +132,8 @@ _Avoid_: frozen setting (state, not kind)
 No countdown; the operator advances.
 _Avoid_: untimed, manual timer
 
-**ScopeConfirm**:
-Cancel, this recipe only, or apply to the catalog original.
+**Scope choice**:
+Cancel, *This game only*, or *Apply to original* (the library row) — asked by `DifficultyDialog` (beta.4; once `ScopeConfirm`).
 _Avoid_: save dialog
 
 **Notice**:

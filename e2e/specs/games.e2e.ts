@@ -92,7 +92,7 @@ describe('games parity', () => {
     await sees('2 of 3 questions')
 
     // The difficulty is a dialog, not a prompt.
-    await press('Difficulty of What is the capital of Australia?')
+    await press('Difficulty of What is the capital of Australia?: Easy · 20')
     const field = await $('[role="dialog"] input')
     await field.waitForExist()
     await field.click()

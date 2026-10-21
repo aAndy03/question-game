@@ -924,7 +924,7 @@ export type PreviewWarning =
   | { readonly code: 'duplicateDifficulty'; readonly difficulty: number; readonly questions: number }
   | { readonly code: 'incompleteQuestions'; readonly questions: number }
   /** beta.4: archived rows the game still names — "team Red" — which Load refuses. */
-  | { readonly code: 'archivedOnGame'; readonly names: readonly string[] }
+  | { readonly code: 'archivedOnGame'; readonly teams: readonly string[]; readonly domains: readonly string[]; readonly questions: readonly string[] }
 
 /**
  * What a setting is set to, structured. The host sends codes and numbers; the

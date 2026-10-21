@@ -861,16 +861,19 @@ export function createFakeHost(): FakeHost {
       const archivedName = (kind: 'team' | 'domain' | 'question', id: string): string[] => {
         const row = library.get(key(kind, id))
         if (!row || row.item.archivedAt == null) return []
-        return [`${kind} ${row.kind === 'question' ? row.item.stem : (row.item as { name: string }).name}`]
+        return [row.kind === 'question' ? row.item.stem : (row.item as { name: string }).name]
       }
-      const archived = [
-        ...recipe.teams.flatMap((id) => archivedName('team', id)),
-        ...recipe.board.flatMap((b) => [...archivedName('domain', b.domainId), ...b.questionIds.flatMap((q) => archivedName('question', q))]),
-      ]
+      const once = (names: string[]) => [...new Set(names)]
+      const archived = {
+        teams: once(recipe.teams.flatMap((id) => archivedName('team', id))),
+        domains: once(recipe.board.flatMap((b) => archivedName('domain', b.domainId))),
+        questions: once(recipe.board.flatMap((b) => b.questionIds.flatMap((q) => archivedName('question', q)))),
+      }
+      const anyArchived = archived.teams.length + archived.domains.length + archived.questions.length > 0
       return {
         ...FAKE_PREVIEW,
         warnings: [
-          ...(archived.length > 0 ? [{ code: 'archivedOnGame' as const, names: archived }] : []),
+          ...(anyArchived ? [{ code: 'archivedOnGame' as const, ...archived }] : []),
           ...FAKE_PREVIEW.warnings,
           ...(duplicate?.kind === 'duplicate' ? [{ code: 'duplicateDifficulty' as const, difficulty: duplicate.difficulty, questions: 2 }] : []),
           ...(incomplete > 0 ? [{ code: 'incompleteQuestions' as const, questions: incomplete }] : []),

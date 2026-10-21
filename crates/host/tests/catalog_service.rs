@@ -2020,8 +2020,8 @@ fn an_archived_team_on_the_roster_is_refused_at_load_and_said_in_the_preview() {
     assert!(err.contains("recipe.recipe-1.roster.team.team-b"), "{err}");
     assert!(err.contains("archived team"), "{err}");
     assert_eq!(
-        service.archived_on_game(&recipe.id).unwrap(),
-        ["team TEAM team-b"]
+        service.archived_on_game(&recipe.id).unwrap().teams,
+        ["TEAM team-b"]
     );
     service
         .catalog_restore(CatalogKind::Team, "team-b")
@@ -2043,9 +2043,9 @@ fn the_preview_names_an_archived_domain_and_question_on_the_board() {
         .catalog_archive(CatalogKind::Domain, "dom-1", 2_000)
         .unwrap();
     let names = service.archived_on_game(&recipe.id).unwrap();
-    assert_eq!(names.len(), 2, "{names:?}");
-    assert_eq!(names[0], "domain Science");
-    assert!(names[1].starts_with("question "), "{names:?}");
+    assert_eq!(names.domains, ["Science"]);
+    assert_eq!(names.questions, ["Stem of q-2?"]);
+    assert!(names.teams.is_empty());
 }
 
 #[test]
@@ -2113,4 +2113,93 @@ fn apply_to_original_also_updates_the_copies_when_asked() {
             .questions
             .is_empty()
     );
+}
+
+#[test]
+fn apply_to_original_keeps_the_rest_of_this_games_overlay() {
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed(&service);
+    let both = QuestionOverlay {
+        stem: Some("This show's words?".into()),
+        difficulty: Some(15),
+        ..QuestionOverlay::default()
+    };
+    service
+        .recipe_set_overlay(
+            &recipe.id,
+            OverlayTarget::Question(QuestionId::from("q-1"), Some(both)),
+            EditScope::ThisGame,
+            2_000,
+        )
+        .unwrap();
+    let difficulty = QuestionOverlay {
+        difficulty: Some(15),
+        ..QuestionOverlay::default()
+    };
+    service
+        .recipe_set_overlay(
+            &recipe.id,
+            OverlayTarget::Question(QuestionId::from("q-1"), Some(difficulty)),
+            EditScope::Original,
+            3_000,
+        )
+        .unwrap();
+    let left = service
+        .recipe_get(&recipe.id)
+        .unwrap()
+        .overlays
+        .questions
+        .get(&QuestionId::from("q-1"))
+        .cloned();
+    assert_eq!(
+        left,
+        Some(QuestionOverlay {
+            stem: Some("This show's words?".into()),
+            ..QuestionOverlay::default()
+        })
+    );
+}
+
+#[test]
+fn apply_to_original_refused_by_the_board_writes_no_copy() {
+    use questiongame_host::catalog::{CopyOptions, Selection};
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed(&service);
+    let b = service.workspace_create("B", None, 1_000).unwrap().id;
+    let copied = service
+        .catalog_copy_to(
+            &Selection {
+                questions: vec![QuestionId::from("q-1")],
+                ..Selection::default()
+            },
+            &b,
+            CopyOptions::default(),
+            1_000,
+        )
+        .unwrap();
+    let there = copied
+        .created
+        .iter()
+        .find(|t| t.from == "q-1")
+        .unwrap()
+        .id
+        .clone();
+    // q-2 is 20: q-1 at 20 as well puts two at one difficulty on the board.
+    let clash = OverlayTarget::Question(
+        QuestionId::from("q-1"),
+        Some(QuestionOverlay {
+            difficulty: Some(20),
+            ..QuestionOverlay::default()
+        }),
+    );
+    assert!(
+        service
+            .recipe_set_overlay_with(&recipe.id, clash, EditScope::Original, true, 2_000)
+            .is_err()
+    );
+    service.workspace_switch(&b).unwrap();
+    match service.catalog_get(CatalogKind::Question, &there).unwrap() {
+        questiongame_host::catalog::CatalogItem::Question(q) => assert_eq!(q.difficulty, Some(10)),
+        other => panic!("{other:?}"),
+    }
 }

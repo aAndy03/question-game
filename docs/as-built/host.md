@@ -132,7 +132,9 @@ Design: `docs/superpowers/specs/2026-10-21-beta4-games-parity-design.md`.
 
 - **An archived team on the roster is refused at Load** (`snapshot::build`), as an archived domain or question already was, at `recipe.{id}.roster.team.{team}` and by name — `CatalogError::Refused`, an `Invalid` whose reason is a `String` because it names the row.
 - **`archived_on_game`** lists the archived teams, domains and questions a game names ("team Green"); `rules_preview` puts them first as `PreviewWarning::ArchivedOnGame { names }` (the enum is no longer `Copy`).
-- **`recipe_set_overlay_with(…, also_copies)`**: *Apply to original* writes the library row through `catalog_upsert_propagating` when asked, and returns the copies it changed; the command takes `alsoCopies` and announces each. `recipe_set_overlay` is the same with `false`.
+- **`recipe_set_overlay_with(…, also_copies)`**: *Apply to original* writes the library row through `catalog_upsert_propagating` when asked, and returns the copies it changed; the command takes `alsoCopies` and announces each. `recipe_set_overlay` is the same with `false`. `check_board` runs first, on this game, so a refusal writes neither the row nor a copy; a copy's own games elsewhere are judged as the editors' propagation judges them (skipped when it would break a board). The library write and the overlay drop are two transactions, as they were before beta.4.
+- ***Apply to original* drops only what it applied** from this game's overlay — a difficulty taken to the library leaves this game's own text, options and duration standing (all three kinds, review).
+- **`ArchivedOnGame` carries names by kind** (`ArchivedNames { teams, domains, questions }`), each once, and a name it cannot read falls back to the stem: Studio writes the sentence.
 
 ## Domain groups, tags, bulk edits (P15)
 

@@ -5,7 +5,7 @@ import { EmptyState, GroupHeader, PageFooter } from '@/molecules'
 import { LIST, PICKER } from '@/copy'
 import { useChromeStore, EMPTY_LIST_STATE, useListState } from '@/chrome/chrome'
 import { footerText, listView, type ListItem, type ListSpec } from '@/host/listView'
-import { useListView } from '@/host/useListView'
+import { useListView, type ListViewApi } from '@/host/useListView'
 import { ListToolbar } from './ListToolbar'
 
 /** What a picker row shows. */
@@ -29,7 +29,8 @@ export interface PickerDialogProps<T> {
    * can. A chosen row is never disabled, so it can always come off.
    */
   disabledReason?: ((id: string, chosen: ReadonlySet<string>) => string | null) | undefined
-  onApply(chosen: readonly string[]): Promise<void>
+  /** `false`: the host refused; the dialog stays open with the ticks. */
+  onApply(chosen: readonly string[]): Promise<boolean>
   isPending?: boolean | undefined
 }
 
@@ -48,16 +49,20 @@ const fold = (s: string) => s.trim().toLowerCase()
  */
 export function PickerDialog<T>({ isOpen, onClose, title, spec, items, initial, disabledReason, onApply, isPending }: PickerDialogProps<T>) {
   const [chosen, setChosen] = useState<readonly string[]>(initial)
+  const [wasOpen, setWasOpen] = useState(isOpen)
   const setListState = useChromeStore((s) => s.setListState)
   const session = useListState(spec.tab)
 
-  // Each opening starts from the game and from a clean view: a search left
-  // from the last time would hide rows the operator expects to see.
+  // Each opening starts from the game, set while rendering the opening so
+  // the last opening's ticks never show for a frame (review). `initial` is
+  // read at opening only: a write while open must not reset the ticks.
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen)
+    if (isOpen) setChosen(initial)
+  }
+  // And from a clean view: a search left from the last time would hide rows.
   useEffect(() => {
-    if (!isOpen) return
-    setChosen(initial)
-    setListState(spec.tab, EMPTY_LIST_STATE)
-    // `initial` is read at opening only: a write while open must not reset the ticks.
+    if (isOpen) setListState(spec.tab, EMPTY_LIST_STATE)
   }, [isOpen, spec.tab, setListState])
 
   // Search here is the row's own words, folded — the catalog's index is not
@@ -94,7 +99,12 @@ export function PickerDialog<T>({ isOpen, onClose, title, spec, items, initial, 
       }
       return next
     })
-  const untickAll = (ids: readonly string[]) => setChosen((now) => now.filter((x) => !ids.includes(x)))
+  /** Off, except what could not be ticked again — a chosen incomplete question stays (review). */
+  const untickAll = (ids: readonly string[]) =>
+    setChosen((now) => {
+      const without = new Set(now.filter((x) => !ids.includes(x)))
+      return now.filter((x) => !ids.includes(x) || disabledReason?.(x, without) != null)
+    })
   /** Checked when nothing more in it can be ticked; mixed when some is. */
   const stateOf = (ids: readonly string[]) => {
     const some = ids.some((id) => set.has(id))
@@ -103,6 +113,7 @@ export function PickerDialog<T>({ isOpen, onClose, title, spec, items, initial, 
   }
   const groupCheckbox = (ids: readonly string[], label: string) => {
     const { some, full } = stateOf(ids)
+    const nothing = !some && ids.every((id) => reason(id) !== null)
     return (
       <CheckboxField
         label={label}
@@ -110,19 +121,19 @@ export function PickerDialog<T>({ isOpen, onClose, title, spec, items, initial, 
         isSelected={full}
         isIndeterminate={some && !full}
         onChange={(on) => (on ? tickAll(ids) : untickAll(ids))}
-        isDisabled={ids.length === 0}
+        isDisabled={ids.length === 0 || nothing}
       />
     )
   }
 
   const changed = chosen.length !== initial.length || chosen.some((id, i) => initial[i] !== id)
   const apply = async () => {
-    await onApply(chosen)
-    onClose()
+    if (await onApply(chosen)) onClose()
   }
 
   return (
-    <Modal.Backdrop isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
+    // Ticks are not lost to a stray click outside or Esc: only Cancel drops them (review).
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={(open) => !open && onClose()} isDismissable={!changed} isKeyboardDismissDisabled={changed}>
       <Modal.Container size="lg">
         <Modal.Dialog>
           <Modal.CloseTrigger />
@@ -130,7 +141,7 @@ export function PickerDialog<T>({ isOpen, onClose, title, spec, items, initial, 
             <Modal.Heading>{title}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="flex flex-col gap-3">
-            <ListToolbar view={view as never} what={spec.noun.many} />
+            <ListToolbar view={view as ListViewApi<unknown, unknown>} what={spec.noun.many} />
             <div className="flex items-center gap-2 px-2">
               {groupCheckbox(page.pageIds, LIST.selectAll)}
               <Text variant="studio-caption" tone="muted">
@@ -171,6 +182,11 @@ export function PickerDialog<T>({ isOpen, onClose, title, spec, items, initial, 
                         {e.row.item.view.subtitle ? (
                           <Text variant="studio-caption" tone="muted" truncate>
                             {e.row.item.view.subtitle}
+                          </Text>
+                        ) : null}
+                        {reason(e.row.item.id) ? (
+                          <Text variant="studio-caption" tone="muted">
+                            {reason(e.row.item.id)}
                           </Text>
                         ) : null}
                       </div>

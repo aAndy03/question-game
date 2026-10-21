@@ -52,12 +52,12 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
       ],
       ro: [
         {
-          title: 'Un tablou construit în câteva minute',
+          title: 'Un Board construit în câteva minute',
           body: 'Add teams…, Add domains… și Choose questions… deschid o listă în care poți căuta, filtra după dificultate sau etichetă, grupa după grupurile domeniului și răsfoi pe pagini. Bifează antetul unui grup ca să-l iei întreg: o întrebare pe dificultate, dacă jocul nu permite repetări.',
         },
         {
           title: 'Dificultatea într-o fereastră',
-          body: 'Schimbarea dificultății unei întrebări pe tablou deschide o fereastră mică. Apply to original se oferă acum să actualizeze și copiile întrebării.',
+          body: 'Schimbarea dificultății unei întrebări din Board deschide o fereastră mică. Apply to original se oferă acum să actualizeze și copiile întrebării.',
         },
         {
           title: 'Mai mult din pagina jocului și din lista de jocuri',

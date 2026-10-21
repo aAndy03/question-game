@@ -222,6 +222,21 @@ pub enum BoardShape {
     },
 }
 
+/// The archived rows a game still names, by kind (beta.4).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchivedNames {
+    pub teams: Vec<String>,
+    pub domains: Vec<String>,
+    pub questions: Vec<String>,
+}
+
+impl ArchivedNames {
+    pub fn is_empty(&self) -> bool {
+        self.teams.is_empty() && self.domains.is_empty() && self.questions.is_empty()
+    }
+}
+
 /// Something about this combination that will surprise the operator during a
 /// show. Codes, not sentences: Studio renders the copy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -229,7 +244,7 @@ pub enum BoardShape {
 pub enum PreviewWarning {
     /// Rows the game names that are archived (beta.4): Load refuses them, so
     /// the operator hears it here first, by name — "team Red".
-    ArchivedOnGame { names: Vec<String> },
+    ArchivedOnGame(ArchivedNames),
     /// Questions carry their own durations, so the same answer *time* is not
     /// worth the same across the board — unless the window is absolute.
     MixedDurations { questions: u32 },

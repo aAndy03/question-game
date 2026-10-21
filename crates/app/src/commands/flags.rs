@@ -549,7 +549,7 @@ pub fn rules_preview(
     if let Some(id) = recipe_id.as_deref() {
         let names = host.catalog.archived_on_game(&questiongame_host::RecipeId::from(id))?;
         if !names.is_empty() {
-            preview.warnings.insert(0, questiongame_host::preview::PreviewWarning::ArchivedOnGame { names });
+            preview.warnings.insert(0, questiongame_host::preview::PreviewWarning::ArchivedOnGame(names));
         }
     }
     Ok(preview)

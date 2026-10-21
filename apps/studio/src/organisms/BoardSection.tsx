@@ -69,10 +69,11 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
   // A recipe row written before P12.7 has no `board`; the host reads that as off.
   const allowRepeats = (recipe.settings.board as BoardSettings | undefined)?.allow_repeated_difficulty === true
 
-  const write = async (board: readonly BoardDomain[]) => {
+  const write = async (board: readonly BoardDomain[]): Promise<boolean> => {
     setPending(true)
-    await run('recipe_set_membership', { id: recipe.id, teams: recipe.teams, board })
+    const ok = await run.ok('recipe_set_membership', { id: recipe.id, teams: recipe.teams, board })
     setPending(false)
+    return ok
   }
   /**
    * A domain new to the board: one complete question per difficulty,
@@ -267,7 +268,7 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
                       <button
                         type="button"
                         className="rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
-                        aria-label={GAME.editDifficulty(stem || QUESTION.noStem)}
+                        aria-label={GAME.editDifficulty(stem || QUESTION.noStem, band ? `${QUESTION.band[band]} · ${difficulty}` : QUESTION.difficultyUnset)}
                         title={QUESTION.difficulty}
                         disabled={frozenReason !== null || !q}
                         onClick={() => setDifficultyFor({ questionId: qid, current: difficulty })}
