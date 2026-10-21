@@ -2413,7 +2413,7 @@ config:
       bundle.windows.nsis.installMode: currentUser
       identifier: org.questiongame.desktop
       productName: questiongame
-      version: "1.1.0"
+      version: "1.1.1"
     crates/app/tauri.dev.conf.json:
       identifier: org.questiongame.app
     crates/app/tauri.e2e.conf.json:
