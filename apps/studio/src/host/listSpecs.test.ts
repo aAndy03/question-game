@@ -35,10 +35,10 @@ describe('the Questions tab (T-01–T-09, T-19)', () => {
   const one = questionsSpec({ allQuestions: false, domains: [{ id: 'hist', name: 'History' }] })
 
   it('offers exactly its filters, sorts and groups, the Domain filter only under All questions', () => {
-    expect(all.filters.map((f) => f.id)).toEqual(['band', 'difficulty', 'answer', 'completeness', 'domain', 'origin', 'where'])
-    expect(one.filters.map((f) => f.id)).toEqual(['band', 'difficulty', 'answer', 'completeness', 'origin', 'where'])
+    expect(all.filters.map((f) => f.id)).toEqual(['band', 'difficulty', 'answer', 'completeness', 'domain', 'origin'])
+    expect(one.filters.map((f) => f.id)).toEqual(['band', 'difficulty', 'answer', 'completeness', 'origin'])
     expect(all.sorts.map((s) => s.id)).toEqual(['difficulty', 'text', 'domains', 'changed', 'created'])
-    expect(all.groups.map((g) => g.id)).toEqual(['domain', 'band', 'answer', 'completeness', 'where', 'tag'])
+    expect(all.groups.map((g) => g.id)).toEqual(['domain', 'band', 'answer', 'completeness', 'tag'])
     expect(all.defaults).toEqual({ sort: { id: 'difficulty', desc: false }, group: null, pageSize: 100 })
   })
 
@@ -56,7 +56,6 @@ describe('the Questions tab (T-01–T-09, T-19)', () => {
     expect(ids(items, all, { filters: { completeness: 'complete' } })).toEqual(['easy', 'hard'])
     expect(ids(items, all, { filters: { domain: ['sci'] } })).toEqual(['hard'])
     expect(ids(items, all, { filters: { origin: 'seed' } })).toEqual(['unset'])
-    expect(ids(items, all, { filters: { where: 'local' } })).toEqual(['easy', 'hard', 'unset'])
   })
 
   it('sorts difficulty with the unset last, and by domain count', () => {
@@ -74,14 +73,15 @@ describe('the Questions tab (T-01–T-09, T-19)', () => {
 const team = (id: string, over: Partial<Team> = {}): Team => ({ id, origin: 'operator', name: id, shortCode: id, color: '', logoAssetId: null, notes: null, playCount: 0, lastPlayAt: null, createdAt: 0, updatedAt: 0, archivedAt: null, ...over })
 
 describe('the Teams tab (T-10)', () => {
-  const teams = [team('Alpha', { playCount: 3, lastPlayAt: 5 }), team('Beta'), team('Gamma', { playCount: 1, lastPlayAt: 9, shared: true })]
+  const teams = [team('Alpha', { playCount: 3, lastPlayAt: 5 }), team('Beta'), team('Gamma', { playCount: 1, lastPlayAt: 9 })]
   const t = (over: Partial<ListViewState>) => run(teamsSpec, teams, over, (x) => x.id)
 
   it('filters and groups on whether a team has played, and sorts by plays and last played', () => {
     expect(teamsSpec.sorts.map((s) => s.id)).toEqual(['name', 'plays', 'lastPlayed', 'changed', 'created'])
     expect(t({ filters: { played: 'never' } })).toEqual(['Beta'])
-    expect(t({ filters: { where: 'shared' } })).toEqual(['Gamma'])
-    expect(t({ group: 'where' })).toEqual(['#This workspace', 'local:Alpha', 'local:Beta', '#Shared', 'shared:Gamma'])
+    // No shared library since beta.2: no Where filter or grouping.
+    expect(teamsSpec.filters.some((f) => f.id === 'where')).toBe(false)
+    expect(teamsSpec.groups.some((g) => g.id === 'where')).toBe(false)
     expect(t({ filters: { played: 'once' } })).toEqual(['Alpha', 'Gamma'])
     expect(t({ sort: { id: 'lastPlayed', desc: true } })).toEqual(['Gamma', 'Alpha', 'Beta'])
     expect(t({ group: 'played' })).toEqual(['#Played at least once', 'once:Alpha', 'once:Gamma', '#Never played', 'never:Beta'])
@@ -129,7 +129,7 @@ describe('the Operators tab (T-17, T-18)', () => {
 
 describe('deferred fixes', () => {
   it('does not offer domain grouping inside one domain', () => {
-    expect(questionsSpec({ allQuestions: false, domains: [] }).groups.map((g) => g.id)).toEqual(['band', 'answer', 'completeness', 'where', 'tag'])
+    expect(questionsSpec({ allQuestions: false, domains: [] }).groups.map((g) => g.id)).toEqual(['band', 'answer', 'completeness', 'tag'])
   })
 })
 

@@ -44,7 +44,6 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
           leading: <Avatar mark={{ color: t.color, shortCode: t.shortCode, name: t.name }} size="sm" />,
           chips: (
             <>
-              {t.shared ? <MeaningChip meaning="shared">{TRANSFER.whereShared}</MeaningChip> : null}
               {isArchived(t) ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null}
             </>
           ),
@@ -55,13 +54,7 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
     [list.data],
   )
   const lv = useListView(teamsSpec, items, hits)
-  const shared = (id: string) => list.data?.find((t) => t.id === id)?.shared === true
   const family = (id: string) => list.data?.find((t) => t.id === id)?.familyId != null
-  /** `true` all shared, `false` none, `undefined` a mix. */
-  const sharedness = (ids: readonly string[]) => {
-    const flags = new Set(ids.map(shared))
-    return flags.size === 1 ? [...flags][0] : undefined
-  }
 
   const archivedView = scope === 'archived'
   return (
@@ -107,15 +100,14 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
               { id: 'open', label: LIST.open, icon: 'open' },
               { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: row.isArchived },
               { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
-              { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', isDisabled: shared(row.id) },
-              shared(row.id) ? { id: 'make_local', label: TRANSFER.makeLocal, icon: 'shared' } : { id: 'make_shared', label: TRANSFER.makeShared, icon: 'shared' },
+              { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
               ...(family(row.id) ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
               row.isArchived
                 ? { id: 'restore', label: LIST.restore, icon: 'restore' }
                 : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true },
             ]}
             onAction={(a) => {
-              if (a === 'copy' || a === 'move' || a === 'make_shared' || a === 'make_local') transfer.open(a, { teams: [row.id] })
+              if (a === 'copy' || a === 'move') transfer.open(a, { teams: [row.id] })
               if (a === 'unfollow') void run.ok('catalog_unfollow', { kind: 'team', id: row.id })
               if (a === 'open') void go({ tab: 'teams', id: row.id, mode: 'view' })
               if (a === 'edit') void go({ tab: 'teams', id: row.id, mode: 'edit' })
@@ -127,7 +119,7 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
         bulk={{
           onArchive: (ids) => archive.archive({ kind: 'team', ids, what: TEAM.many }),
           onRestore: (ids) => void archive.restore({ kind: 'team', ids, what: TEAM.many }),
-          extra: (ids) => transfer.menu({ teams: ids }, { shared: sharedness(ids) }),
+          extra: (ids) => transfer.menu({ teams: ids }),
           isPending: archive.isPending,
         }}
         onRetry={() => void list.refetch()}

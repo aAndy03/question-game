@@ -5,7 +5,6 @@
  */
 
 import { QUESTION, VIEWS } from '@/copy'
-import { TRANSFER } from '@/copy/workspaces'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { compareText, type FilterDef, type ListSpec } from './listView'
 import { answerMode, difficultyBand, isArchived, type Operator, type Question, type QuestionGap, type Recipe, type Team } from './types'
@@ -15,33 +14,6 @@ const choice = (value: unknown): string => (typeof value === 'string' ? value : 
 const multi = (value: unknown): readonly string[] => (Array.isArray(value) ? (value as readonly string[]) : [])
 
 // ---- Where (Beta 2.0) --------------------------------------------------------
-
-/**
- * This workspace's rows or the shared library's. The host already scopes the
- * list to *this workspace ∪ shared* — no other workspace's row is ever here —
- * so this only splits what is shown.
- */
-function whereFilter<T>(shared: (item: T) => boolean): FilterDef<T> {
-  return {
-    id: 'where',
-    label: TRANSFER.where,
-    kind: 'choice',
-    options: [
-      { value: 'local', label: TRANSFER.whereLocal },
-      { value: 'shared', label: TRANSFER.whereShared },
-    ],
-    test: (item, v) => (choice(v) === 'shared') === shared(item),
-  }
-}
-
-function whereGroup<T>(shared: (item: T) => boolean) {
-  return {
-    id: 'where',
-    label: TRANSFER.where,
-    groupsOf: (item: T) =>
-      shared(item) ? [{ key: 'shared', label: TRANSFER.whereShared, order: 1 }] : [{ key: 'local', label: TRANSFER.whereLocal, order: 0 }],
-  }
-}
 
 // ---- Questions -------------------------------------------------------------
 
@@ -129,7 +101,6 @@ export function questionsSpec(opts: {
       ],
       test: (q, v) => q.question.origin === choice(v),
     },
-    whereFilter<QuestionItem>((q) => q.question.shared === true),
     ...(groups.length > 0
       ? [
           {
@@ -199,7 +170,6 @@ export function questionsSpec(opts: {
         label: VIEWS.completeness,
         groupsOf: (q) => (q.gaps.length > 0 ? [{ key: 'incomplete', label: VIEWS.incomplete, order: 0 }] : [{ key: 'complete', label: VIEWS.complete, order: 1 }]),
       },
-      whereGroup<QuestionItem>((q) => q.question.shared === true),
       ...(groups.length > 0
         ? [
             {
@@ -249,7 +219,6 @@ export const teamsSpec: ListSpec<Team> = {
       ],
       test: (t, v) => (choice(v) === 'never' ? t.playCount === 0 : t.playCount > 0),
     },
-    whereFilter<Team>((t) => t.shared === true),
   ],
   sorts: [
     { id: 'name', label: VIEWS.name, compare: (a, b) => compareText(a.name, b.name) },
@@ -264,7 +233,6 @@ export const teamsSpec: ListSpec<Team> = {
       label: VIEWS.played,
       groupsOf: (t) => (t.playCount > 0 ? [{ key: 'once', label: VIEWS.atLeastOnce, order: 0 }] : [{ key: 'never', label: VIEWS.never, order: 1 }]),
     },
-    whereGroup<Team>((t) => t.shared === true),
   ],
   defaults: { sort: { id: 'name', desc: false }, group: null, pageSize: 100 },
   tiebreak: (t) => t.name,

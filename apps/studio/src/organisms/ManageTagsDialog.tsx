@@ -16,9 +16,8 @@ export interface ManageTagsDialogProps {
 
 /**
  * *Manage tags* (P15): every tag on the questions in view, with how many
- * carry it and how many of those are shared. Rename (to an existing tag
- * merges them) and Delete each confirm with the count — and with the shared
- * count, because a shared question changes for every workspace.
+ * carry it. Rename (to an existing tag merges them) and Delete each confirm
+ * with the count. Only this workspace's questions change.
  */
 export function ManageTagsDialog({ isOpen, onClose }: ManageTagsDialogProps) {
   const tags = useTags()
@@ -47,7 +46,7 @@ export function ManageTagsDialog({ isOpen, onClose }: ManageTagsDialogProps) {
                         {t.tag}
                       </Text>
                       <Text variant="studio-caption" tone="muted">
-                        {GROUPS_TAGS.carried(t.questions, t.shared)}
+                        {GROUPS_TAGS.carried(t.questions)}
                       </Text>
                       <ActionMenu
                         label={`${GROUPS_TAGS.tag}: ${t.tag}`}
@@ -74,7 +73,6 @@ export function ManageTagsDialog({ isOpen, onClose }: ManageTagsDialogProps) {
         isOpen={renaming !== null}
         onOpenChange={(o) => (o ? undefined : setRenaming(null))}
         title={renaming ? GROUPS_TAGS.renameTitle(renaming.tag) : ''}
-        body={renaming && renaming.shared > 0 ? `${GROUPS_TAGS.sharedReach(renaming.shared)} ${GROUPS_TAGS.renameElsewhere}` : undefined}
         label={GROUPS_TAGS.renameTo}
         initial={renaming?.tag ?? ''}
         confirmLabel={GROUPS_TAGS.save}
@@ -91,7 +89,7 @@ export function ManageTagsDialog({ isOpen, onClose }: ManageTagsDialogProps) {
         title={deleting ? GROUPS_TAGS.deleteTagTitle(deleting.tag) : ''}
         body={
           deleting
-            ? [GROUPS_TAGS.deleteTagBody(deleting.questions), deleting.shared > 0 ? GROUPS_TAGS.sharedReach(deleting.shared) : ''].filter(Boolean).join(' ')
+            ? GROUPS_TAGS.deleteTagBody(deleting.questions)
             : undefined
         }
         confirmLabel={GROUPS_TAGS.deleteTag}

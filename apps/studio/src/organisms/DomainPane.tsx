@@ -134,24 +134,20 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
                   incomplete={scope === 'active' ? incomplete.of(d) : undefined}
                   isSelected={selectedId === d.id}
                   isArchived={d.archivedAt !== null}
-                  isShared={d.shared === true}
                   onSelect={() => onSelect(d.id)}
                   actions={
                     <ActionMenu
                       items={[
                         { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: d.archivedAt !== null },
                         { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
-                        { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', isDisabled: d.shared === true },
-                        d.shared === true
-                          ? { id: 'make_local', label: TRANSFER.makeLocal, icon: 'shared' }
-                          : { id: 'make_shared', label: TRANSFER.makeShared, icon: 'shared' },
+                        { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
                         ...(d.familyId != null ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
                         d.archivedAt !== null
                           ? { id: 'restore', label: LIST.restore, icon: 'restore' }
                           : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true },
                       ]}
                       onAction={(a) => {
-                        if (a === 'copy' || a === 'move' || a === 'make_shared' || a === 'make_local') transfer.open(a, { domains: [d.id] })
+                        if (a === 'copy' || a === 'move') transfer.open(a, { domains: [d.id] })
                         if (a === 'unfollow') void run.ok('catalog_unfollow', { kind: 'domain', id: d.id })
                         if (a === 'edit') startEdit(d)
                         if (a === 'archive') archive.archive({ kind: 'domain', ids: [d.id], what: DOMAIN.one })
@@ -179,7 +175,6 @@ function DomainRow({
   incomplete,
   isSelected,
   isArchived,
-  isShared,
   onSelect,
   actions,
 }: {
@@ -190,8 +185,6 @@ function DomainRow({
   incomplete?: number | undefined
   isSelected: boolean
   isArchived?: boolean | undefined
-  /** In the shared library (Beta 2.0). */
-  isShared?: boolean | undefined
   onSelect: () => void
   actions?: React.ReactNode
 }) {
@@ -231,7 +224,6 @@ function DomainRow({
           </Text>
         </span>
       ) : null}
-      {isShared ? <Icon name="shared" size="sm" label={TRANSFER.whereShared} /> : null}
       {count !== null ? <MeaningChip meaning="seed">{count}</MeaningChip> : null}
       {actions ? (
         <div className="opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>

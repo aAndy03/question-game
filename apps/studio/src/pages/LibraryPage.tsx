@@ -92,7 +92,6 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
               <>
                 {band ? <MeaningChip meaning={band}>{QUESTION.band[band]}</MeaningChip> : null}
                 {mode === 'multiple' ? <MeaningChip meaning="multiple">{QUESTION.multiple}</MeaningChip> : null}
-                {q.shared ? <MeaningChip meaning="shared">{TRANSFER.whereShared}</MeaningChip> : null}
                 {(q.tags ?? []).slice(0, 3).map((t) => (
                   <MeaningChip key={t} meaning="tag">{t}</MeaningChip>
                 ))}
@@ -120,7 +119,6 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
     [domainId, activeDomains, domain?.groups, tagList.data],
   )
   const lv = useListView(spec, items, hits)
-  const sharedQ = (id: string) => questions.data?.find((q) => q.id === id)?.shared === true
   const incompleteCount = useMemo(() => (items ?? []).filter((i) => i.data.gaps.length > 0).length, [items])
   // Picking a domain in the pane is the domain scope: the Domain filter is not
   // offered there, so its values go rather than linger as a hidden chip.
@@ -224,15 +222,14 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                     { id: 'open', label: LIST.open, icon: 'open' },
                     { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: row.isArchived },
                     { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
-                    { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', isDisabled: sharedQ(row.id) },
-                    sharedQ(row.id) ? { id: 'make_local', label: TRANSFER.makeLocal, icon: 'shared' } : { id: 'make_shared', label: TRANSFER.makeShared, icon: 'shared' },
+                    { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
                     ...(questions.data?.find((q) => q.id === row.id)?.familyId != null ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
                     row.isArchived
                       ? { id: 'restore', label: LIST.restore, icon: 'restore' }
                       : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true },
                   ]}
                   onAction={(a) => {
-                    if (a === 'copy' || a === 'move' || a === 'make_shared' || a === 'make_local') transfer.open(a, { questions: [row.id] })
+                    if (a === 'copy' || a === 'move') transfer.open(a, { questions: [row.id] })
                     if (a === 'unfollow') void run.ok('catalog_unfollow', { kind: 'question', id: row.id })
                     const at = domainId ? { domainId } : {}
                     if (a === 'open') void go({ tab: 'library', questionId: row.id, mode: 'view', ...at })
@@ -246,12 +243,11 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                 onArchive: (ids) => archive.archive({ kind: 'question', ids, what: QUESTION.many }),
                 onRestore: (ids) => void archive.restore({ kind: 'question', ids, what: QUESTION.many }),
                 extra: (ids) => {
-                  const flags = new Set(ids.map(sharedQ))
                   const picked = (questions.data ?? []).filter((q) => ids.includes(q.id))
                   return (
                     <>
                       {archivedView ? null : bulkEdit.menu(ids, { domain: domain && domain.archivedAt === null ? domain : null, questions: picked })}
-                      {transfer.menu({ questions: ids }, { shared: flags.size === 1 ? [...flags][0] : undefined })}
+                      {transfer.menu({ questions: ids })}
                     </>
                   )
                 },

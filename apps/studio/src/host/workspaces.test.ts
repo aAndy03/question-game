@@ -56,20 +56,19 @@ describe('list views per workspace', () => {
 })
 
 describe('the fake host scopes like the host', () => {
-  const team = (id: string, shared = false): CatalogItem => ({
+  const team = (id: string): CatalogItem => ({
     kind: 'team',
-    item: { id, origin: 'operator', name: id, shortCode: 'TM', color: 'var(--ink)', logoAssetId: null, notes: null, playCount: 0, lastPlayAt: null, createdAt: 0, updatedAt: 0, archivedAt: null, shared },
+    item: { id, origin: 'operator', name: id, shortCode: 'TM', color: 'var(--ink)', logoAssetId: null, notes: null, playCount: 0, lastPlayAt: null, createdAt: 0, updatedAt: 0, archivedAt: null },
   })
 
-  it('shows a workspace its own rows and the shared ones', async () => {
+  it('shows a workspace its own rows only', async () => {
     const fake = createFakeHost()
     await fake.invoke('catalog_upsert', { item: team('mine') })
-    await fake.invoke('catalog_upsert', { item: team('everyone', true) })
     const other = await fake.invoke<Workspace>('workspace_create', { name: 'Club' })
     await fake.invoke('workspace_switch', { id: other.id })
+    await fake.invoke('catalog_upsert', { item: team('theirs') })
     const rows = await fake.invoke<CatalogItem[]>('catalog_list', { kind: 'team', scope: 'all' })
-    expect(rows.map((r) => r.item.id)).toEqual(['everyone'])
-    expect(rows[0]?.item.shared).toBe(true)
+    expect(rows.map((r) => r.item.id)).toEqual(['theirs'])
     await expect(fake.invoke('catalog_get', { kind: 'team', id: 'mine' })).rejects.toMatchObject({ code: 'catalog' })
   })
 

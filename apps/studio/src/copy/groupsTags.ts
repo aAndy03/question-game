@@ -45,17 +45,15 @@ export const GROUPS_TAGS = {
   // Manage tags
   manageButton: 'Manage tags…',
   manageTitle: 'Manage tags',
-  manageBody: 'Every tag on the questions you can see, here and in the shared library.',
+  manageBody: 'Every tag on this workspace’s questions.',
   noTagsYet: 'No tags yet. Add them on a question, or to many at once from the selection’s Edit menu.',
-  carried: (n: number, shared: number) => `${n} ${n === 1 ? 'question' : 'questions'}${shared > 0 ? `, ${shared} shared` : ''}`,
+  carried: (n: number) => `${n} ${n === 1 ? 'question' : 'questions'}`,
   renameTitle: (tag: string) => `Rename ${tag}`,
   renameTo: 'New name',
-  renameElsewhere: 'Questions only in other workspaces keep the tag as it is.',
   mergeNote: (into: string, n: number) => `Merged into ${into}. ${n} ${n === 1 ? 'question' : 'questions'} changed.`,
   deleteTagTitle: (tag: string) => `Delete the tag ${tag}?`,
   deleteTagBody: (n: number) => `It comes off ${n} ${n === 1 ? 'question' : 'questions'}.`,
   deleteTag: 'Delete tag',
-  sharedReach: (n: number) => `${n} of them ${n === 1 ? 'is' : 'are'} shared: the change reaches every workspace.`,
 
   // bulk Edit…
   edit: 'Edit…',
@@ -81,7 +79,6 @@ export const GROUPS_TAGS = {
   alreadyOut: 'not in this domain',
   alreadyDifficulty: 'at that difficulty',
   removeBody: 'They stay in the library and in their other domains.',
-  sharedDomainReach: 'This domain is shared: the change reaches every workspace.',
   difficultyNote: 'A board holding two at one difficulty says so when the game loads.',
   apply: 'Apply',
   done: (n: number) => `${n} ${n === 1 ? 'question' : 'questions'} changed`,

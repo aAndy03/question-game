@@ -283,8 +283,8 @@ export function createFakeHost(): FakeHost {
   const library = new Map<string, CatalogItem>()
   const recipes = new Map<string, Recipe>()
   const calls: FakeHost['calls'] = []
-  /** `kind:id` → the workspace a library row lives in, `null` for shared. */
-  const homes = new Map<string, string | null>()
+  /** `kind:id` → the workspace a library row lives in. */
+  const homes = new Map<string, string>()
   const recipeHomes = new Map<string, string>()
   const families = new Map<string, number>()
   const domainGroups = new Map<string, DomainGroup[]>()
@@ -363,8 +363,8 @@ export function createFakeHost(): FakeHost {
     }
     const k = key(item.kind, item.item.id)
     const existing = library.get(k)
-    // A new row lands in this workspace, or shared; an existing one stays put.
-    if (!existing && item.kind !== 'operator') homes.set(k, item.item.shared === true ? null : fake.currentWorkspace)
+    // A new row lands in this workspace; an existing one stays put.
+    if (!existing && item.kind !== 'operator') homes.set(k, fake.currentWorkspace)
     if (existing && item.kind !== 'operator' && !inView(k)) refuse('catalog', `${item.kind} ${item.item.id} belongs to another workspace`)
     const stamped = {
       kind: item.kind,
@@ -1034,20 +1034,19 @@ export function createFakeHost(): FakeHost {
 
   // ---------------------------------------------------------------- workspaces
   //
-  // Beta 2.0, kept honest enough for shell work: every row has a home (a
-  // workspace, or `null` for the shared library — a row seeded without one
-  // lives in the first workspace), and every read is *current ∪ shared*. The
-  // closure, reuse and family rules are the host's and are tested there; the
-  // fake copies, moves and shares what was picked and what a domain or a game
-  // obviously needs, and refuses the way the host refuses.
+  // Beta 2.0, kept honest enough for shell work: every row has a home (a row
+  // seeded without one lives in the first workspace), and every read is this
+  // workspace's (no shared library since beta.2). The closure, reuse and
+  // family rules are the host's and are tested there; the fake copies and
+  // moves what was picked and what a domain or a game obviously needs —
+  // a picked question with its domains — and refuses the way the host does.
 
-  const homeOf = (k: string): string | null => (homes.has(k) ? (homes.get(k) ?? null) : FIRST_WORKSPACE)
+  const homeOf = (k: string): string => homes.get(k) ?? FIRST_WORKSPACE
   const recipeHomeOf = (id: string): string => recipeHomes.get(id) ?? FIRST_WORKSPACE
   const inView = (k: string) => {
     // Operators are the app's, not a workspace's.
     if (k.startsWith('operator:')) return true
-    const home = homeOf(k)
-    return home === null || home === fake.currentWorkspace
+    return homeOf(k) === fake.currentWorkspace
   }
   const visibleRecipe = (id: string) => recipeHomeOf(id) === fake.currentWorkspace
   const asRead = (row: CatalogItem): CatalogItem =>
@@ -1055,7 +1054,6 @@ export function createFakeHost(): FakeHost {
       kind: row.kind,
       item: {
         ...row.item,
-        shared: homeOf(key(row.kind, row.item.id)) === null,
         ...(row.kind === 'domain' ? { groups: domainGroups.get(row.item.id) ?? [] } : {}),
       },
     }) as CatalogItem
@@ -1091,13 +1089,12 @@ export function createFakeHost(): FakeHost {
   }
   const freshId = (prefix: string) => `${prefix}-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`
 
-  /** The rows a selection carries: what was picked, a domain's local questions, a game's roster and board. */
-  const closureOf = (sel: Selection, includeShared: boolean) => {
+  /** The rows a selection carries: what was picked, a domain's questions, a game's roster and board. */
+  const closureOf = (sel: Selection) => {
     const out = new Map<string, { kind: LibraryKind; id: string; picked: boolean }>()
     const add = (kind: LibraryKind, id: string, picked: boolean) => {
       const k = key(kind, id)
       if (!library.has(k) || out.has(k)) return
-      if (homeOf(k) === null && !(includeShared && picked)) return
       out.set(k, { kind, id, picked })
       const row = library.get(k)
       if (row?.kind === 'domain') row.item.questions.forEach((m) => add('question', m.questionId, false))
@@ -1134,39 +1131,21 @@ export function createFakeHost(): FakeHost {
     return users
   }
 
-  const emptyReport = (): TransferReport => ({ created: [], reused: [], moved: [], refused: [] })
+  const emptyReport = (): TransferReport => ({ created: [], reused: [], moved: [], joined: [], refused: [] })
+  const familyOf = (k: string): number => {
+    const known = families.get(k)
+    if (known !== undefined) return known
+    const fresh = Math.max(0, ...families.values()) + 1
+    families.set(k, fresh)
+    return fresh
+  }
 
-  const transfer = (op: TransferOp, sel: Selection, target: string | null, write: boolean): TransferReport => {
-    const report = emptyReport() as { created: Touched[]; reused: Touched[]; moved: Touched[]; refused: Refusal[] }
-    if (op === 'copy' || op === 'move') {
-      if (target === null) refuse('catalog', 'transfer.target: copy and move need a workspace to go to')
-      if (target === fake.currentWorkspace) refuse('catalog', `workspace/${target}: that is this workspace; use Duplicate for a second copy here`)
-      if (workspaceRow(target).archivedAt !== null) refuse('catalog', `workspace/${target}: an archived workspace takes nothing`)
-    }
-    if ((op === 'make_shared' || op === 'make_local') && (sel.recipes?.length ?? 0) > 0) {
-      refuse('catalog', op === 'make_shared' ? 'a game always lives in one workspace' : 'a game is already local')
-    }
-    if (op === 'make_local') {
-      const picked: { kind: LibraryKind; id: string }[] = [
-        ...(sel.teams ?? []).map((id) => ({ kind: 'team' as const, id })),
-        ...(sel.domains ?? []).map((id) => ({ kind: 'domain' as const, id })),
-        ...(sel.questions ?? []).map((id) => ({ kind: 'question' as const, id })),
-      ].filter((p) => homeOf(key(p.kind, p.id)) === null)
-      for (const p of picked) {
-        for (const [k, row] of library) {
-          const home = homeOf(k)
-          if (home === fake.currentWorkspace) continue
-          if (p.kind === 'question' && row.kind === 'domain' && row.item.questions.some((m) => m.questionId === p.id)) {
-            const where = home === null ? ' (shared)' : ` in workspace ${workspaceRow(home).name ?? home}`
-            report.refused.push({ kind: p.kind, id: p.id, usedBy: `domain ${row.item.name}${where}` })
-          }
-        }
-      }
-      if (report.refused.length === 0 && write) picked.forEach((p) => homes.set(key(p.kind, p.id), fake.currentWorkspace))
-      report.moved.push(...picked.map((p) => ({ kind: p.kind, id: p.id, from: p.id, picked: true })))
-      return finish(report, write)
-    }
-    const { rows, games } = closureOf(sel, op === 'copy')
+  const transfer = (op: TransferOp, sel: Selection, target: string | null, write: boolean, withDomains = true): TransferReport => {
+    const report = emptyReport() as { created: Touched[]; reused: Touched[]; moved: Touched[]; joined: Touched[]; refused: Refusal[] }
+    if (target === null) refuse('catalog', 'transfer.target: copy and move need a workspace to go to')
+    if (target === fake.currentWorkspace) refuse('catalog', `workspace/${target}: that is this workspace; use Duplicate for a second copy here`)
+    if (workspaceRow(target).archivedAt !== null) refuse('catalog', `workspace/${target}: an archived workspace takes nothing`)
+    const { rows, games } = closureOf(sel)
     if (op === 'copy') {
       const ids = new Map(rows.map((r) => [key(r.kind, r.id), freshId(r.kind === 'question' ? 'q' : r.kind === 'domain' ? 'dom' : r.kind)]))
       const map = (kind: LibraryKind, id: string) => ids.get(key(kind, id)) ?? id
@@ -1174,10 +1153,46 @@ export function createFakeHost(): FakeHost {
         report.created.push({ kind: r.kind, id: map(r.kind, r.id), from: r.id, picked: r.picked })
         if (!write) continue
         const row = library.get(key(r.kind, r.id)) as CatalogItem
-        const item = { ...row.item, id: map(r.kind, r.id), shared: false } as CatalogItem['item']
+        const item = { ...row.item, id: map(r.kind, r.id) } as CatalogItem['item']
         if (row.kind === 'domain') (item as { questions: unknown }).questions = row.item.questions.map((m) => ({ ...m, questionId: map('question', m.questionId) }))
         library.set(key(r.kind, map(r.kind, r.id)), { kind: row.kind, item } as CatalogItem)
         homes.set(key(r.kind, map(r.kind, r.id)), target)
+        families.set(key(r.kind, map(r.kind, r.id)), familyOf(key(r.kind, r.id)))
+      }
+      // A picked question arrives in its domains: the target's copy (same
+      // family), joined at the end in no group; else a copy holding only the
+      // picked questions (beta.2).
+      if (withDomains) {
+        const homesOf = new Map<string, string[]>()
+        for (const q of sel.questions ?? []) {
+          for (const [k, row] of library) {
+            if (row.kind !== 'domain' || homeOf(k) !== fake.currentWorkspace || row.item.archivedAt !== null) continue
+            if (rows.some((r) => r.kind === 'domain' && r.id === row.item.id)) continue
+            if (row.item.questions.some((m) => m.questionId === q)) homesOf.set(row.item.id, [...(homesOf.get(row.item.id) ?? []), q])
+          }
+        }
+        for (const [domainId, picked] of homesOf) {
+          const source = library.get(key('domain', domainId))
+          if (source?.kind !== 'domain') continue
+          const family = families.get(key('domain', domainId))
+          const there = family === undefined ? undefined : [...families.entries()].find(([k, f]) => f === family && k.startsWith('domain:') && homeOf(k) === target && library.get(k)?.item.archivedAt === null)
+          if (there) {
+            const existing = library.get(there[0]) as CatalogItem & { kind: 'domain' }
+            report.joined.push({ kind: 'domain', id: existing.item.id, from: domainId, picked: false })
+            if (!write) continue
+            let next = Math.max(-1, ...existing.item.questions.map((m) => m.sortKey)) + 1
+            const questions = [...existing.item.questions, ...picked.map((q) => ({ questionId: map('question', q), sortKey: next++, groupId: null }))]
+            library.set(there[0], { kind: 'domain', item: { ...existing.item, questions } })
+          } else {
+            const id = freshId('dom')
+            report.created.push({ kind: 'domain', id, from: domainId, picked: false })
+            if (!write) continue
+            const questions = source.item.questions.filter((m) => picked.includes(m.questionId)).map((m) => ({ ...m, questionId: map('question', m.questionId), groupId: null }))
+            library.set(key('domain', id), { kind: 'domain', item: { ...source.item, id, questions } })
+            homes.set(key('domain', id), target)
+            families.set(key('domain', id), familyOf(key('domain', domainId)))
+          }
+        }
       }
       for (const game of games) {
         const id = freshId('game')
@@ -1190,23 +1205,21 @@ export function createFakeHost(): FakeHost {
           teams: game.teams.map((t) => map('team', t)),
           board: game.board.map((b) => ({ domainId: map('domain', b.domainId), questionIds: b.questionIds.map((q) => map('question', q)) })),
         })
-        recipeHomes.set(id, target as string)
+        recipeHomes.set(id, target)
       }
       return finish(report, write)
     }
-    // move, make_shared
+    // move
     const going = new Set(rows.map((r) => key(r.kind, r.id)))
     const goingGames = new Set(games.map((g) => g.id))
-    if (op === 'move') {
-      for (const r of rows) {
-        for (const usedBy of stayingUsers(r.kind, r.id, going, goingGames)) report.refused.push({ kind: r.kind, id: r.id, usedBy })
-      }
+    for (const r of rows) {
+      for (const usedBy of stayingUsers(r.kind, r.id, going, goingGames)) report.refused.push({ kind: r.kind, id: r.id, usedBy })
     }
     report.moved.push(...rows.map((r) => ({ kind: r.kind, id: r.id, from: r.id, picked: r.picked })))
     report.moved.push(...games.map((g) => ({ kind: 'recipe' as const, id: g.id, from: g.id, picked: true })))
     if (report.refused.length === 0 && write) {
-      rows.forEach((r) => homes.set(key(r.kind, r.id), op === 'move' ? target : null))
-      games.forEach((g) => recipeHomes.set(g.id, target as string))
+      rows.forEach((r) => homes.set(key(r.kind, r.id), target))
+      games.forEach((g) => recipeHomes.set(g.id, target))
     }
     return finish(report, write)
   }
@@ -1215,7 +1228,7 @@ export function createFakeHost(): FakeHost {
     if (!write) return report
     const first = report.refused[0]
     if (first) refuse('catalog', `${first.kind} ${first.id} is still used by ${[...new Set(report.refused.map((r) => r.usedBy))].join(', ')}`)
-    for (const t of [...report.created, ...report.moved]) emit('catalog-changed', { kind: t.kind, id: t.id, op: 'upserted' })
+    for (const t of [...report.created, ...report.moved, ...(report.joined ?? [])]) emit('catalog-changed', { kind: t.kind, id: t.id, op: 'upserted' })
     return report
   }
 
@@ -1228,7 +1241,7 @@ export function createFakeHost(): FakeHost {
       .map(([k]) => {
         const home = homeOf(k)
         const row = library.get(k) as CatalogItem
-        return { id: row.item.id, workspace: home, workspaceName: home ? (workspaceRow(home).name ?? null) : null, archived: row.item.archivedAt !== null }
+        return { id: row.item.id, workspace: home, workspaceName: workspaceRow(home).name ?? null, archived: row.item.archivedAt !== null }
       })
   }
 
@@ -1265,8 +1278,7 @@ export function createFakeHost(): FakeHost {
       for (const t of row.item.tags ?? []) {
         const fold = t.toLowerCase()
         const was = by.get(fold)
-        const shared = homeOf(k) === null ? 1 : 0
-        by.set(fold, was ? { ...was, questions: was.questions + 1, shared: was.shared + shared } : { tag: t, questions: 1, shared })
+        by.set(fold, was ? { ...was, questions: was.questions + 1 } : { tag: t, questions: 1 })
       }
     }
     return [...by.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([, v]) => v)
@@ -1280,7 +1292,6 @@ export function createFakeHost(): FakeHost {
     const unique = [...new Set(ids)]
     if (unique.length === 0) refuse('catalog', 'bulk: nothing is selected')
     const questions = unique.map(questionInView)
-    let shared = unique.filter((id) => homeOf(key('question', id)) === null).length
     const changed: string[] = []
     const unchanged: string[] = []
     const writes: Array<() => void> = []
@@ -1334,9 +1345,6 @@ export function createFakeHost(): FakeHost {
           })
           unchanged.push(...unique.filter((id) => !changed.includes(id)))
         } else if (edit.op === 'add_to_domain') {
-          if (homeOf(key('domain', d.id)) === null && unique.some((id) => homeOf(key('question', id)) !== null)) {
-            refuse('catalog', `a shared domain holds only shared questions: domain ${d.name}`)
-          }
           let next = Math.max(-1, ...members.map((m) => m.sortKey)) + 1
           for (const id of unique) {
             if (members.some((m) => m.questionId === id)) unchanged.push(id)
@@ -1349,8 +1357,6 @@ export function createFakeHost(): FakeHost {
           for (const id of unique) (members.some((m) => m.questionId === id) ? changed : unchanged).push(id)
           members = members.filter((m) => !changed.includes(m.questionId))
         }
-        // A membership edit changes the domain: it reaches every workspace only when the domain is shared.
-        shared = homeOf(key('domain', d.id)) === null ? changed.length : 0
         if (changed.length > 0) writes.push(() => void upsert({ kind: 'domain', item: { ...d, questions: members } }))
         break
       }
@@ -1360,18 +1366,16 @@ export function createFakeHost(): FakeHost {
       changed.forEach((id) => emit('catalog-changed', { kind: 'question', id, op: 'upserted' }))
       if ('domainId' in edit && changed.length > 0) emit('catalog-changed', { kind: 'domain', id: edit.domainId, op: 'upserted' })
     }
-    return { changed, unchanged, shared }
+    return { changed, unchanged }
   }
   const retag = (from: string, to: string | null, write: boolean): BulkReport => {
     const fold = (t: string) => t.trim().toLowerCase()
     if (to !== null && !to.trim()) refuse('catalog', 'tag.name: a tag needs a name')
     const target = to === null ? null : (fold(to) === fold(from) ? to.trim() : (tagsInView().find((t) => fold(t.tag) === fold(to))?.tag ?? to.trim()))
     const changed: string[] = []
-    let shared = 0
     for (const [k, row] of [...library]) {
       if (row.kind !== 'question' || !inView(k) || !(row.item.tags ?? []).some((t) => fold(t) === fold(from))) continue
       changed.push(row.item.id)
-      if (homeOf(k) === null) shared += 1
       if (!write) continue
       const next: string[] = []
       for (const t of row.item.tags ?? []) {
@@ -1381,7 +1385,7 @@ export function createFakeHost(): FakeHost {
       library.set(k, { kind: 'question', item: { ...row.item, tags: next, updatedAt: now() } })
       emit('catalog-changed', { kind: 'question', id: row.item.id, op: 'upserted' })
     }
-    return { changed, unchanged: [], shared }
+    return { changed, unchanged: [] }
   }
 
   Object.assign(commands, {
@@ -1561,15 +1565,14 @@ export function createFakeHost(): FakeHost {
       workspacesChanged()
       return null
     },
-    transfer_preview: (a: Record<string, unknown>) => transfer(a.op as TransferOp, a.selection as Selection, (a.target as string | null | undefined) ?? null, false),
-    catalog_copy_to: (a: Record<string, unknown>) => transfer('copy', a.selection as Selection, a.target as string, true),
+    transfer_preview: (a: Record<string, unknown>) =>
+      transfer(a.op as TransferOp, a.selection as Selection, (a.target as string | null | undefined) ?? null, false, a.withDomains !== false),
+    catalog_copy_to: (a: Record<string, unknown>) => transfer('copy', a.selection as Selection, a.target as string, true, a.withDomains !== false),
     catalog_move_to: (a: Record<string, unknown>) => {
       const sel = a.selection as Selection
       if (fake.playState && sel.recipes?.includes(fake.playState.operator.recipeId)) refuse('match', 'a Play is open')
       return transfer('move', sel, a.target as string, true)
     },
-    catalog_make_shared: (a: Record<string, unknown>) => transfer('make_shared', a.selection as Selection, null, true),
-    catalog_make_local: (a: Record<string, unknown>) => transfer('make_local', a.selection as Selection, null, true),
     catalog_propagation_preview: (a: Record<string, unknown>) =>
       ({ update: familyCopies(a.item as CatalogItem), skipped: [] }) satisfies PropagationPreview,
     catalog_upsert_propagating: (a: Record<string, unknown>) => {
@@ -1583,7 +1586,7 @@ export function createFakeHost(): FakeHost {
         const stored = library.get(k) as CatalogItem
         // The body only: never the id, the stamps or where the row lives.
         const body: Record<string, unknown> = { ...(item.item as unknown as Record<string, unknown>) }
-        for (const own of ['id', 'createdAt', 'updatedAt', 'archivedAt', 'shared', 'familyId']) delete body[own]
+        for (const own of ['id', 'createdAt', 'updatedAt', 'archivedAt', 'familyId']) delete body[own]
         if (stored.kind === 'domain') delete body.questions
         library.set(k, { kind: stored.kind, item: { ...stored.item, ...body, updatedAt: now() } } as CatalogItem)
         emit('catalog-changed', { kind: item.kind, id: copy.id, op: 'upserted' })
@@ -1641,11 +1644,7 @@ export function createFakeHost(): FakeHost {
       return total
     },
     seed(items, seededRecipes = []) {
-      items.forEach((i) => {
-        library.set(key(i.kind, i.item.id), i)
-        // A seeded shared row lives in the shared library (P15 tests seed them).
-        if (i.kind !== 'operator' && (i.item as { shared?: boolean }).shared === true) homes.set(key(i.kind, i.item.id), null)
-      })
+      items.forEach((i) => library.set(key(i.kind, i.item.id), i))
       seededRecipes.forEach((r) => recipes.set(r.id, r))
     },
     async invoke<T>(name: Command, args?: Record<string, unknown>): Promise<T> {

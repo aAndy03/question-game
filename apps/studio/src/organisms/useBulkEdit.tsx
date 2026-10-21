@@ -41,7 +41,7 @@ const TITLE: Record<Op, string> = {
 /**
  * The bulk bar's *Edit…* (P15): Tag… · Untag… · Group… · Add to domain… ·
  * Remove from domain · Set difficulty…. Each is previewed by the host — how
- * many it changes, how many are already so, how many are shared — before the
+ * many it changes and how many are already so — before the
  * one-transaction write. Copies in other workspaces are not touched.
  */
 export function useBulkEdit(): BulkEditController {
@@ -134,7 +134,6 @@ export function useBulkEdit(): BulkEditController {
   const report = preview?.report ?? null
   const current = preview !== null && preview.key === key
   const carried = [...new Set(ctx.questions.flatMap((q) => q.tags ?? []))].sort()
-  const membership = open?.op === 'group' || open?.op === 'add_to_domain' || open?.op === 'remove_from_domain'
   // Group…: an unchanged question is either in that group already or not in this domain at all.
   const outside = open?.op === 'group' && report ? report.unchanged.filter((id) => !ctx.domain?.questions.some((m) => m.questionId === id)).length : 0
   const already = (n: number) => {
@@ -226,12 +225,6 @@ export function useBulkEdit(): BulkEditController {
                     {outside > 0 ? (
                       <Text as="p" variant="studio-body" tone="muted">
                         {GROUPS_TAGS.notInDomain(outside)}
-                      </Text>
-                    ) : null}
-                    {report.shared > 0 ? (
-                      <Text as="p" variant="studio-body" tone="warning">
-                        {/* A membership edit changes a domain: the host counts it shared only when the domain is. */}
-                        {membership ? GROUPS_TAGS.sharedDomainReach : GROUPS_TAGS.sharedReach(report.shared)}
                       </Text>
                     ) : null}
                   </>

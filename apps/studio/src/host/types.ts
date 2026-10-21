@@ -45,13 +45,6 @@ export interface Stamps {
   readonly updatedAt: number
   /** Set means archived — soft, restorable, never a delete (§4.1). */
   readonly archivedAt: number | null
-  /**
-   * In the shared library rather than this workspace (Beta 2.0). Read from
-   * the row; on a save it only decides where a **new** row lands — an
-   * existing row moves through copy, move or share. Always false for
-   * operators and games.
-   */
-  readonly shared?: boolean
   /** The family of copies this row belongs to; host-owned, never sent back changed. */
   readonly familyId?: number | null
 }
@@ -115,11 +108,10 @@ export interface Question extends Stamps {
   readonly tags?: readonly string[]
 }
 
-/** One tag in view (P15): how many questions carry it, how many of them are shared. */
+/** One tag in this workspace (P15), with how many questions carry it. */
 export interface TagCount {
   readonly tag: string
   readonly questions: number
-  readonly shared: number
 }
 
 export type BulkEdit =
@@ -134,7 +126,6 @@ export type BulkEdit =
 export interface BulkReport {
   readonly changed: readonly string[]
   readonly unchanged: readonly string[]
-  readonly shared: number
 }
 
 export interface Operator extends Stamps {
@@ -570,7 +561,8 @@ export interface Selection {
   readonly recipes?: readonly string[]
 }
 
-export type TransferOp = 'copy' | 'move' | 'make_shared' | 'make_local'
+/** Copy and move (Beta 2.0); there is no shared library since beta.2. */
+export type TransferOp = 'copy' | 'move'
 
 /** One row a transfer touched: where it ends up, where it came from, whether it was picked. */
 export interface Touched {
@@ -591,15 +583,14 @@ export interface TransferReport {
   readonly created: readonly Touched[]
   readonly reused: readonly Touched[]
   readonly moved: readonly Touched[]
-  /** Picked rows left as they are: shared, so a move cannot take them, or already shared. */
-  readonly unchanged?: readonly Touched[]
+  /** Domains in the target a copied question joined (the target's copy of its domain). */
+  readonly joined?: readonly Touched[]
   readonly refused: readonly Refusal[]
 }
 
 export interface FamilyCopy {
   readonly id: string
-  /** null — the shared library. */
-  readonly workspace: string | null
+  readonly workspace: string
   readonly workspaceName: string | null
   readonly archived: boolean
 }

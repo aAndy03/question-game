@@ -22,7 +22,6 @@ export const ICONS = {
   workspaces: 'briefcase',
 
   // workspaces (Beta 2.0)
-  shared: 'globe',
   transfer: 'arrow-right-arrow-left',
   unlink: 'link-slash',
 

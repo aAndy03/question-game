@@ -13,11 +13,11 @@ import { STATS } from '@/copy/stats'
 import { PROPAGATE, TRANSFER } from '@/copy/workspaces'
 import type { CatalogItem, Recipe, StatsQuery, Workspace } from '@/host/types'
 
-/** Beta 2.0 in the library tabs: copy, move, share, and edits that follow their copies. */
+/** Beta 2.0 in the library tabs: copy, move, and edits that follow their copies (no shared library since beta.2). */
 let fake: FakeHost
 const calls = (name: string) => fake.calls.filter((c) => c.name === name)
 
-const team = (id: string, name: string, extra: Partial<{ shared: boolean; familyId: number }> = {}): CatalogItem => ({
+const team = (id: string, name: string, extra: Partial<{ familyId: number }> = {}): CatalogItem => ({
   kind: 'team',
   item: { id, origin: 'operator', name, shortCode: 'TM', color: 'var(--ink)', logoAssetId: null, notes: null, playCount: 0, lastPlayAt: null, createdAt: 0, updatedAt: 0, archivedAt: null, ...extra },
 })
@@ -53,7 +53,7 @@ beforeEach(() => {
 })
 afterEach(() => setHostTransport(null))
 
-describe('copy, move, share', () => {
+describe('copy and move', () => {
   it('previews a copy before writing it, then copies into the workspace picked', async () => {
     const club = await library({ tab: 'teams' })
     await rowAction('Alpha', TRANSFER.copyTo)
@@ -84,14 +84,41 @@ describe('copy, move, share', () => {
     expect(await within(dialog).findByRole('button', { name: TRANSFER.confirmCopy })).toBeTruthy()
   })
 
-  it('makes a team shared, and a shared row says so', async () => {
+  it('offers Copy and Move only: nothing is shared any more', async () => {
     await library({ tab: 'teams' })
-    await rowAction('Alpha', TRANSFER.makeShared)
+    const row = (await screen.findByText('Alpha')).closest('[data-record-row]') ?? (await screen.findByText('Alpha')).closest('div')
+    const menus = within(row?.parentElement as HTMLElement).getAllByRole('button', { name: LIST.open })
+    fireEvent.click(menus[menus.length - 1] as HTMLElement)
+    expect(await screen.findByText(TRANSFER.copyTo)).toBeTruthy()
+    expect(screen.queryByText(/Make shared|Make local/)).toBeNull()
+    expect(screen.queryByText('Shared')).toBeNull()
+  })
+
+  it('copies a question with its domain by default, and names the domain it brings', async () => {
+    const q: CatalogItem = {
+      kind: 'question',
+      item: { id: 'q1', origin: 'operator', stem: 'Who was the first king?', mediaAssetId: null, difficulty: 10, explanation: null, tags: [],
+        options: [{ id: 'a', text: 'Saul', correct: true }, { id: 'b', text: 'David', correct: false }], createdAt: 0, updatedAt: 0, archivedAt: null } as never,
+    }
+    const d: CatalogItem = {
+      kind: 'domain',
+      item: { id: 'd1', origin: 'operator', name: 'Biblie', code: 'BIB', description: null, questions: [{ questionId: 'q1', sortKey: 0, groupId: null }], createdAt: 0, updatedAt: 0, archivedAt: null } as never,
+    }
+    fake.seed([q, d])
+    await library({ tab: 'library' })
+    await rowAction('Who was the first king?', TRANSFER.copyTo)
     const dialog = await screen.findByRole('alertdialog')
-    await waitFor(() => expect(calls('transfer_preview')).toHaveLength(1))
-    fireEvent.click(within(dialog).getByRole('button', { name: TRANSFER.confirmShared }))
-    await waitFor(() => expect(calls('catalog_make_shared')).toHaveLength(1))
-    expect(await screen.findByText(TRANSFER.whereShared)).toBeTruthy()
+    expect(await within(dialog).findByRole('switch', { name: TRANSFER.withDomains })).toBeTruthy()
+    expect(await within(dialog).findByText(TRANSFER.creates('Biblie'))).toBeTruthy()
+    expect(calls('transfer_preview').at(-1)?.args).toMatchObject({ withDomains: true })
+    fireEvent.click(within(dialog).getByRole('switch', { name: TRANSFER.withDomains }))
+    expect(await within(dialog).findByText(TRANSFER.noDomain)).toBeTruthy()
+    await waitFor(() => expect(calls('transfer_preview').at(-1)?.args).toMatchObject({ withDomains: false }))
+    fireEvent.click(within(dialog).getByRole('switch', { name: TRANSFER.withDomains }))
+    await within(dialog).findByText(TRANSFER.creates('Biblie'))
+    fireEvent.click(within(dialog).getByRole('button', { name: TRANSFER.confirmCopy }))
+    await waitFor(() => expect(calls('catalog_copy_to')).toHaveLength(1))
+    expect(calls('catalog_copy_to')[0]?.args).toMatchObject({ withDomains: true })
   })
 })
 

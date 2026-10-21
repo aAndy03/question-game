@@ -1,12 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { AlertDialog, Dropdown, Label } from '@heroui/react'
-import { Button, SelectField, Text } from '@/atoms'
+import { Button, SelectField, SwitchField, Text } from '@/atoms'
 import { toast } from '@/chrome/toast'
 import { CONFIRM } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
 import { useHostCommand } from '@/host/commands'
 import { command, type HostError } from '@/host/host'
-import { useWorkspaces } from '@/host/queries'
+import { useCatalogList, useWorkspaces } from '@/host/queries'
 import type { Selection, TransferOp, TransferReport } from '@/host/types'
 import { workspaceName } from './WorkspaceSwitcher'
 
@@ -16,71 +16,71 @@ interface Open {
 }
 
 export interface TransferController {
-  /** Ask about a copy, a move or a share; the dialog previews before it writes. */
+  /** Ask about a copy or a move; the dialog previews before it writes. */
   open(op: TransferOp, selection: Selection): void
-  /** The four verbs as one menu button, for a bulk bar. */
-  menu(selection: Selection, opts?: { shared?: boolean | undefined; games?: boolean | undefined }): ReactNode
+  /** The two verbs as one menu button, for a bulk bar. */
+  menu(selection: Selection): ReactNode
   dialog: ReactNode
 }
 
-const COMMAND: Record<TransferOp, 'catalog_copy_to' | 'catalog_move_to' | 'catalog_make_shared' | 'catalog_make_local'> = {
+const COMMAND: Record<TransferOp, 'catalog_copy_to' | 'catalog_move_to'> = {
   copy: 'catalog_copy_to',
   move: 'catalog_move_to',
-  make_shared: 'catalog_make_shared',
-  make_local: 'catalog_make_local',
 }
 const TITLE: Record<TransferOp, string> = {
   copy: TRANSFER.copyTitle,
   move: TRANSFER.moveTitle,
-  make_shared: TRANSFER.sharedTitle,
-  make_local: TRANSFER.localTitle,
 }
 const CONFIRM_LABEL: Record<TransferOp, string> = {
   copy: TRANSFER.confirmCopy,
   move: TRANSFER.confirmMove,
-  make_shared: TRANSFER.confirmShared,
-  make_local: TRANSFER.confirmLocal,
 }
 
 const picked = (s: Selection) => (s.teams?.length ?? 0) + (s.domains?.length ?? 0) + (s.questions?.length ?? 0) + (s.recipes?.length ?? 0)
 
 /**
- * Copy to… · Move to… · Make shared · Make local (Beta 2.0,
- * 05_STUDIO_DESIGN.md §21). Every one previews first — what comes along, what
- * is reused, what refuses and who still uses it — through \`transfer_preview\`,
- * which is the host's own write rolled back, so the confirm cannot promise
- * what the write will not do. A refused move offers *Copy instead*.
+ * Copy to… · Move to… (Beta 2.0, 05_STUDIO_DESIGN.md §21; the shared library
+ * went in beta.2). Both preview first — what comes along, what is reused,
+ * which domains a copied question joins or arrives in, what refuses and who
+ * still uses it — through `transfer_preview`, which is the host's own write
+ * rolled back, so the confirm cannot promise what the write will not do. A
+ * refused move offers *Copy instead*. Copying questions offers *Bring their
+ * domains*, on by default, so a question does not arrive in no domain.
  */
 export function useTransfer(): TransferController {
   const run = useHostCommand()
   const workspaces = useWorkspaces()
+  const domains = useCatalogList('domain', 'all')
   const [state, setState] = useState<Open | null>(null)
   const [target, setTarget] = useState<string | null>(null)
+  const [withDomains, setWithDomains] = useState(true)
   const [preview, setPreview] = useState<TransferReport | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
   const others = (workspaces.data?.workspaces ?? []).filter((w) => w.archivedAt === null && w.id !== workspaces.data?.current)
-  const needsTarget = state?.op === 'copy' || state?.op === 'move'
   // The list may arrive after the dialog opened: fall back to the first other workspace.
   const chosen = target ?? others[0]?.id ?? null
+  const hasQuestions = (state?.selection.questions?.length ?? 0) > 0
+  const askDomains = state?.op === 'copy' && hasQuestions
 
   useEffect(() => {
     setPreview(null)
     setPreviewError(null)
-    if (!state || (needsTarget && !chosen)) return
+    if (!state || !chosen) return
     let live = true
-    command<TransferReport>('transfer_preview', { op: state.op, selection: state.selection, target: needsTarget ? chosen : null })
+    command<TransferReport>('transfer_preview', { op: state.op, selection: state.selection, target: chosen, withDomains })
       .then((r) => live && setPreview(r))
       .catch((e: HostError) => live && setPreviewError(e.message))
     return () => {
       live = false
     }
-  }, [state, chosen, needsTarget])
+  }, [state, chosen, withDomains])
 
   const open = (op: TransferOp, selection: Selection) => {
     setState({ op, selection })
-    setTarget(op === 'copy' || op === 'move' ? (others[0]?.id ?? null) : null)
+    setTarget(others[0]?.id ?? null)
+    setWithDomains(true)
   }
   const close = () => {
     setState(null)
@@ -90,7 +90,7 @@ export function useTransfer(): TransferController {
   const confirm = async () => {
     if (!state) return
     setPending(true)
-    const args = needsTarget ? { selection: state.selection, target: chosen } : { selection: state.selection }
+    const args = state.op === 'copy' ? { selection: state.selection, target: chosen, withDomains } : { selection: state.selection, target: chosen }
     const done = await run<TransferReport>(COMMAND[state.op], args)
     setPending(false)
     if (done === null) return
@@ -99,7 +99,13 @@ export function useTransfer(): TransferController {
   }
 
   const total = state ? picked(state.selection) : 0
-  const came = preview ? [...preview.created, ...preview.moved].filter((t) => !t.picked).length : 0
+  const pickedDomains = new Set(state?.selection.domains ?? [])
+  // A domain a copied question brought is listed by name, not counted as "came along".
+  const homes = preview && askDomains ? preview.created.filter((t) => t.kind === 'domain' && !t.picked && !pickedDomains.has(t.from)) : []
+  const came = preview ? [...preview.created, ...preview.moved].filter((t) => !t.picked && !homes.includes(t)).length : 0
+  const nameOf = (id: string) => domains.data?.find((d) => d.id === id)?.name ?? id
+  const joined = (preview?.joined ?? []).map((t) => nameOf(t.from))
+  const created = homes.map((t) => nameOf(t.from))
   const refused = preview?.refused ?? []
   const refusedLines = [...new Set(refused.map((r) => r.usedBy))]
 
@@ -112,24 +118,21 @@ export function useTransfer(): TransferController {
           </AlertDialog.Header>
           <AlertDialog.Body>
             <div className="flex flex-col gap-3" data-transfer-dialog={state?.op}>
-              {needsTarget ? (
-                others.length === 0 ? (
-                  <Text as="p" variant="studio-body" tone="muted">
-                    {TRANSFER.noOther}
-                  </Text>
-                ) : (
-                  <SelectField
-                    label={TRANSFER.target}
-                    value={chosen}
-                    onChange={(v) => setTarget(v)}
-                    options={others.map((w) => ({ value: w.id, label: workspaceName(w) }))}
-                  />
-                )
-              ) : (
+              {others.length === 0 ? (
                 <Text as="p" variant="studio-body" tone="muted">
-                  {state?.op === 'make_shared' ? TRANSFER.sharedBody : TRANSFER.localBody}
+                  {TRANSFER.noOther}
                 </Text>
+              ) : (
+                <SelectField
+                  label={TRANSFER.target}
+                  value={chosen}
+                  onChange={(v) => setTarget(v)}
+                  options={others.map((w) => ({ value: w.id, label: workspaceName(w) }))}
+                />
               )}
+              {askDomains ? (
+                <SwitchField label={TRANSFER.withDomains} description={TRANSFER.withDomainsHint} isSelected={withDomains} onChange={setWithDomains} />
+              ) : null}
               <Text as="p" variant="studio-body">
                 {TRANSFER.picked(total)}
               </Text>
@@ -143,10 +146,24 @@ export function useTransfer(): TransferController {
                   {TRANSFER.reused(preview.reused.length)}
                 </Text>
               ) : null}
-              {preview && (preview.unchanged?.length ?? 0) > 0 ? (
-                <Text as="p" variant="studio-body" tone="muted">
-                  {TRANSFER.unchanged(preview.unchanged?.length ?? 0)}
-                </Text>
+              {preview && askDomains ? (
+                <>
+                  {joined.length > 0 ? (
+                    <Text as="p" variant="studio-body" tone="muted">
+                      {TRANSFER.joins(joined.join(', '))}
+                    </Text>
+                  ) : null}
+                  {created.length > 0 ? (
+                    <Text as="p" variant="studio-body" tone="muted">
+                      {TRANSFER.creates(created.join(', '))}
+                    </Text>
+                  ) : null}
+                  {!withDomains ? (
+                    <Text as="p" variant="studio-body" tone="muted">
+                      {TRANSFER.noDomain}
+                    </Text>
+                  ) : null}
+                </>
               ) : null}
               <div role="status" aria-live="polite">
                 {refusedLines.length > 0 ? (
@@ -184,7 +201,7 @@ export function useTransfer(): TransferController {
               variant="primary"
               onPress={() => void confirm()}
               isPending={pending}
-              isDisabled={!preview || refused.length > 0 || previewError !== null || (needsTarget && !chosen)}
+              isDisabled={!preview || refused.length > 0 || previewError !== null || !chosen}
             >
               {state ? CONFIRM_LABEL[state.op] : ''}
             </Button>
@@ -194,7 +211,7 @@ export function useTransfer(): TransferController {
     </AlertDialog.Backdrop>
   )
 
-  const menu: TransferController['menu'] = (selection, opts = {}) => (
+  const menu: TransferController['menu'] = (selection) => (
     <Dropdown>
       <Button size="sm" variant="secondary" icon="transfer">
         {TRANSFER.menu}
@@ -207,17 +224,6 @@ export function useTransfer(): TransferController {
           <Dropdown.Item id="move" textValue={TRANSFER.moveTo}>
             <Label>{TRANSFER.moveTo}</Label>
           </Dropdown.Item>
-          {/* A game is never shared; a mixed selection is offered both ways, and the host leaves alone what is already there. */}
-          {opts.games || opts.shared === true ? null : (
-            <Dropdown.Item id="make_shared" textValue={TRANSFER.makeShared}>
-              <Label>{TRANSFER.makeShared}</Label>
-            </Dropdown.Item>
-          )}
-          {opts.games || opts.shared === false ? null : (
-            <Dropdown.Item id="make_local" textValue={TRANSFER.makeLocal}>
-              <Label>{TRANSFER.makeLocal}</Label>
-            </Dropdown.Item>
-          )}
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>

@@ -19,7 +19,7 @@ export interface PropagatingSave {
   dialog: ReactNode
 }
 
-const where = (c: FamilyCopy) => c.workspaceName ?? (c.workspace === null ? PROPAGATE.sharedName : c.workspace)
+const where = (c: FamilyCopy) => c.workspaceName ?? c.workspace
 
 /**
  * The editors' save when a row is in a family (Beta 2.0): the confirm sits in

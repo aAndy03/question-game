@@ -17,10 +17,10 @@ import type { BulkEdit, CatalogItem, Domain, Question } from '@/host/types'
 let fake: FakeHost
 const calls = (name: string) => fake.calls.filter((c) => c.name === name)
 
-const question = (id: string, tags: string[] = [], shared = false): CatalogItem => ({
+const question = (id: string, tags: string[] = []): CatalogItem => ({
   kind: 'question',
   item: {
-    id, origin: 'operator', stem: `Question ${id}`, mediaAssetId: null, difficulty: 10, explanation: null, tags, shared,
+    id, origin: 'operator', stem: `Question ${id}`, mediaAssetId: null, difficulty: 10, explanation: null, tags,
     options: [{ id: `${id}-a`, text: 'Yes', correct: true }, { id: `${id}-b`, text: 'No', correct: false }],
     createdAt: 0, updatedAt: 0, archivedAt: null,
   } as Question,
@@ -76,17 +76,16 @@ describe('the bulk Edit menu', () => {
     expect(within(menu).getByText(GROUPS_TAGS.bulkTag)).toBeTruthy()
   })
 
-  it('E18 E19 Tag… previews the counts and the shared ones before it writes', async () => {
-    fake.seed([question('qs', [], true)])
+  it('E18 E19 Tag… previews the counts before it writes', async () => {
     await open({ tab: 'library' })
     await select('Question q1')
     await select('Question q2')
-    await select('Question qs')
+    await select('Question q3')
     const dialog = await editMenu(GROUPS_TAGS.bulkTag)
     fireEvent.change(within(dialog).getByRole('textbox', { name: new RegExp(GROUPS_TAGS.pickTag) }), { target: { value: 'christmas' } })
     expect(await within(dialog).findByText(GROUPS_TAGS.applyTo(2))).toBeTruthy()
-    expect(within(dialog).getByText(GROUPS_TAGS.already(1, GROUPS_TAGS.alreadyTagged('christmas')))).toBeTruthy()
-    expect(within(dialog).getByText(GROUPS_TAGS.sharedReach(1))).toBeTruthy()
+    // q1 already carries it; nothing says "shared" any more.
+    expect(within(dialog).queryByText(/shared/i)).toBeNull()
     expect(calls('catalog_bulk_edit').every((c) => c.args?.['preview'] === true)).toBe(true)
     fireEvent.click(within(dialog).getByRole('button', { name: GROUPS_TAGS.apply }))
     await waitFor(() => expect(calls('catalog_bulk_edit').some((c) => c.args?.['preview'] === false)).toBe(true))
@@ -119,11 +118,11 @@ describe('Groups and Manage tags', () => {
   })
 
   it('E33 Manage tags lists counts and renames through the host', async () => {
-    fake.seed([question('qs', ['Christmas'], true)])
+    fake.seed([question('qs', ['Christmas'])])
     await open({ tab: 'library' })
     fireEvent.click(await screen.findByRole('button', { name: GROUPS_TAGS.manageButton }))
     const dialog = await screen.findByRole('alertdialog')
-    expect(await within(dialog).findByText(GROUPS_TAGS.carried(2, 1))).toBeTruthy()
+    expect(await within(dialog).findByText(GROUPS_TAGS.carried(2))).toBeTruthy()
     fireEvent.click(within(dialog).getByRole('button', { name: `${GROUPS_TAGS.tag}: Christmas` }))
     fireEvent.click(await screen.findByText(GROUPS_TAGS.rename))
     const field = await screen.findByRole('textbox', { name: new RegExp(GROUPS_TAGS.renameTo) })

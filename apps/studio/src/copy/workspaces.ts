@@ -11,7 +11,6 @@ export const WORKSPACE = {
   ungrouped: 'Ungrouped',
   current: 'Current',
   archived: 'Archived',
-  shared: 'Shared',
   newWorkspace: 'New workspace…',
   manage: 'Manage workspaces…',
   /** Why the switcher is disabled. */
@@ -26,10 +25,10 @@ export const WORKSPACE = {
   // The first screen of a library without a named workspace.
   nameTitle: 'Name your workspace',
   nameBody:
-    'This library now lives in a workspace. A workspace is one library of teams, domains, questions and games; you can make more later, and share rows between them. Give this one a name.',
+    'This library now lives in a workspace. A workspace is one library of teams, domains, questions and games; you can make more later, and copy or move rows between them. Give this one a name.',
   createTitle: 'Create your first workspace',
   createBody:
-    'A workspace is one library of teams, domains, questions and games. You can make more later, and share rows between them. Give the first one a name.',
+    'A workspace is one library of teams, domains, questions and games. You can make more later, and copy or move rows between them. Give the first one a name.',
   continue: 'Continue',
 
   // Manage workspaces
@@ -50,7 +49,7 @@ export const WORKSPACE = {
   groupLabel: 'Group',
   noGroup: 'No group',
   duplicateTitle: 'Duplicate workspace',
-  duplicateBody: 'Copies every row and game of this workspace into a new one. Plays are not copied; shared rows stay shared.',
+  duplicateBody: 'Copies every row and game of this workspace into a new one. Plays are not copied.',
   newTitle: 'New workspace',
   renameTitle: 'Rename workspace',
   newGroupTitle: 'New group',
@@ -60,7 +59,7 @@ export const WORKSPACE = {
   deleteGroupBody: 'Its workspaces stay, ungrouped.',
   deleteTitle: 'Delete this workspace permanently?',
   deleteBody: (name: string, rows: number, games: number, plays: number) =>
-    `${name}: ${rows} ${rows === 1 ? 'row' : 'rows'}, ${games} ${games === 1 ? 'game' : 'games'} and ${plays} ${plays === 1 ? 'Play' : 'Plays'} go for good. Shared rows stay. The library is backed up first.`,
+    `${name}: ${rows} ${rows === 1 ? 'row' : 'rows'}, ${games} ${games === 1 ? 'game' : 'games'} and ${plays} ${plays === 1 ? 'Play' : 'Plays'} go for good. The library is backed up first.`,
   deleteConfirm: 'Delete permanently',
   deleteArmed: 'Press again to delete',
   onlyArchived: 'Archive it first',
@@ -69,37 +68,29 @@ export const WORKSPACE = {
   createdNotOpened: (name: string) => `${name} created. Open it once the game in Control is unloaded.`,
 } as const
 
-/** Copy, move and share (Beta 2.0, 05_STUDIO_DESIGN.md §21). */
+/** Copy and move (Beta 2.0, 05_STUDIO_DESIGN.md §21; no shared library since beta.2). */
 export const TRANSFER = {
-  /** The bulk bar's menu of the four. */
-  menu: 'Copy, move or share…',
+  /** The bulk bar's menu of the two. */
+  menu: 'Copy or move…',
   copyTo: 'Copy to…',
   moveTo: 'Move to…',
-  makeShared: 'Make shared',
-  makeLocal: 'Make local',
   copyTitle: 'Copy to another workspace',
   moveTitle: 'Move to another workspace',
-  sharedTitle: 'Make shared',
-  localTitle: 'Make local',
   target: 'Workspace',
   noOther: 'There is no other workspace yet. Create one from the switcher.',
   picked: (n: number) => `${n} picked`,
   comesAlong: (n: number) => `${n} more ${n === 1 ? 'row comes' : 'rows come'} along, so nothing points at a row the workspace cannot see`,
   reused: (n: number) => `${n} already ${n === 1 ? 'has a copy' : 'have copies'} there and ${n === 1 ? 'is' : 'are'} reused`,
-  unchanged: (n: number) => `${n} already shared, left as ${n === 1 ? 'it is' : 'they are'}`,
   refused: 'Cannot go — still used by:',
   copyInstead: 'Copy instead',
-  sharedBody: 'Every workspace will see these rows. A domain brings its questions; a team or question brings its asset.',
-  localBody: 'Only this workspace will see these rows.',
+  withDomains: 'Bring their domains',
+  withDomainsHint: 'Each question arrives in its domain there: the copy that is already there, or a new one holding only these questions.',
+  joins: (names: string) => `Added to ${names} there`,
+  creates: (names: string) => `New there: ${names}, with only these questions`,
+  noDomain: 'They arrive in no domain.',
   confirmCopy: 'Copy',
   confirmMove: 'Move',
-  confirmShared: 'Make shared',
-  confirmLocal: 'Make local',
   done: (n: number) => `Done: ${n} picked, with what ${n === 1 ? 'it needs' : 'they need'}`,
-  where: 'Where',
-  whereAll: 'This workspace and shared',
-  whereLocal: 'This workspace',
-  whereShared: 'Shared',
   unfollow: 'Stop following its copies',
 } as const
 
@@ -111,5 +102,4 @@ export const PROPAGATE = {
   alsoCopies: (n: number, skipped: number) =>
     skipped > 0 ? `Also update ${n} ${n === 1 ? 'copy' : 'copies'} (${skipped} skipped)` : `Also update ${n} ${n === 1 ? 'copy' : 'copies'}`,
   skipped: (where: string, why: string) => `Skipped in ${where}: ${why}`,
-  sharedName: 'the shared library',
 } as const
