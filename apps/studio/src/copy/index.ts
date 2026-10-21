@@ -286,6 +286,7 @@ const QUESTION_GAP = {
 
 export const QUESTION = {
   saved: 'Question saved',
+  difficultyRange: 'A whole number from 1 to 100',
   one: 'question',
   many: 'questions',
   stem: 'Question',
@@ -316,6 +317,20 @@ export const QUESTION = {
   difficultyUnset: 'Not set',
   /** Stands in for the title of a question that has options but no text yet. */
   noStem: '(no question text)',
+} as const
+
+/** The Game page's pickers (beta.4). */
+export const PICKER = {
+  addTeams: 'Add teams…',
+  addDomains: 'Add domains…',
+  chooseQuestions: 'Choose questions…',
+  teamsTitle: 'Teams on this game',
+  domainsTitle: 'Domains on this board',
+  questionsTitle: (domain: string) => `Questions from ${domain}`,
+  chosen: (n: number) => (n === 1 ? '1 chosen' : `${n} chosen`),
+  selectGroup: (group: string) => `Select all in ${group}`,
+  apply: 'Apply',
+  cancel: 'Cancel',
 } as const
 
 export const IMPORT = {
@@ -404,6 +419,15 @@ export const GAME = {
   rosterHint: 'Play order is the opening ring. Every active team gets one token per round.',
   rosterEmpty: 'No teams on this game yet.',
   addTeam: 'Add team',
+  moreActions: 'More actions',
+  copyName: (name: string) => `${name} (copy)`,
+  leftOutPlaying: (name: string) => `${name || 'The game in Control'} is playing, so it stays as it is.`,
+  play: (n: number) => `Play ${n}`,
+  missingTeam: 'A team no longer in the library',
+  missingDomain: 'A domain no longer in the library',
+  missingQuestion: 'A question no longer in the library',
+  removeQuestion: 'Take off the board',
+  editDifficulty: (stem: string) => `Difficulty of ${stem}`,
   removeTeam: 'Remove from roster',
   moveUp: 'Move up',
   moveDown: 'Move down',

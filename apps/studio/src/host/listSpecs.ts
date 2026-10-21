@@ -7,7 +7,7 @@
 import { QUESTION, VIEWS } from '@/copy'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { compareText, type FilterDef, type ListSpec } from './listView'
-import { answerMode, difficultyBand, isArchived, type Operator, type Question, type QuestionGap, type Recipe, type Team } from './types'
+import { answerMode, difficultyBand, isArchived, type Domain, type Operator, type Question, type QuestionGap, type Recipe, type Team } from './types'
 
 const byNumber = (a: number, b: number) => a - b
 const choice = (value: unknown): string => (typeof value === 'string' ? value : '')
@@ -328,4 +328,29 @@ export const operatorsSpec: ListSpec<OperatorItem> = {
   tiebreak: (o) => o.operator.displayName,
   changedAt: (o) => o.operator.updatedAt,
   isArchived: (o) => isArchived(o.operator),
+}
+
+// ---- The Game page's pickers (beta.4) -----------------------------------------
+
+/** *Add teams…*: the Teams tab's filters and sorts, a view of its own. */
+export const pickTeamsSpec: ListSpec<Team> = { ...teamsSpec, tab: 'pickTeams' }
+
+/** *Add domains…*: by name or by size. */
+export const pickDomainsSpec: ListSpec<Domain> = {
+  tab: 'pickDomains',
+  noun: { one: 'domain', many: 'domains' },
+  filters: [],
+  sorts: [
+    { id: 'name', label: VIEWS.name, compare: (a, b) => compareText(a.name, b.name) },
+    { id: 'questions', label: VIEWS.questions, compare: (a, b) => a.questions.length - b.questions.length, defaultDesc: true },
+  ],
+  groups: [],
+  defaults: { sort: { id: 'name', desc: false }, group: null, pageSize: 100 },
+  tiebreak: (d) => d.name,
+  changedAt: (d) => d.updatedAt,
+}
+
+/** *Choose questions…*: one domain's questions as the Questions tab lists them inside it. */
+export function pickQuestionsSpec(opts: { groups: readonly { id: string; name: string }[]; tags: readonly string[] }): ListSpec<QuestionItem> {
+  return { ...questionsSpec({ allQuestions: false, domains: [], groups: opts.groups, tags: opts.tags }), tab: 'pickQuestions' }
 }

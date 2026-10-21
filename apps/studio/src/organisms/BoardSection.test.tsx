@@ -12,10 +12,9 @@ import type { CatalogItem, Recipe } from '@/host/types'
  * author wrote; a board selects one of them. The host refuses the illegal
  * board — this is the half that stops the operator reaching it.
  *
- * What Add domain *ticks* is `oneQuestionPerDifficulty`, tested in
- * `host/board.test.ts`: React Aria's listbox cannot be opened under jsdom (its
- * selection utils throw from a mount effect), so the picker is not drivable
- * from here and asserting on the rule where it lives is the honest cover.
+ * What a new domain *ticks* is `oneQuestionPerDifficulty`, tested in
+ * `host/board.test.ts`; the ticks themselves live in *Choose questions…*
+ * (beta.4), which every test here opens.
  */
 const stamps = { createdAt: 1_000, updatedAt: 1_000, archivedAt: null }
 
@@ -59,6 +58,14 @@ const library = (): CatalogItem[] => [
   question('q-hard', 'Hard one?', 60),
 ]
 
+/** Open *Choose questions…* on the one domain (beta.4: the checkboxes live in the picker). */
+const choose = async () => {
+  // Enabled once the domain has loaded.
+  const button = await screen.findByRole('button', { name: 'Choose questions…' })
+  await waitFor(() => expect((button as HTMLButtonElement).disabled || button.getAttribute('aria-disabled') === 'true').toBe(false))
+  fireEvent.click(button)
+}
+
 const recipeWith = (questionIds: string[]): Recipe => ({
   ...demoRecipe(),
   id: 'recipe-1',
@@ -93,6 +100,7 @@ describe('Game ▸ Board, one question per difficulty', () => {
 
   it('dims the twin of a selected question and leaves the other difficulty alone', async () => {
     draw(recipeWith(['q-easy-a']))
+    await choose()
     await waitFor(() => expect(box('Easy A?')).toBeTruthy())
 
     expect(isDisabled(box('Easy A?'))).toBe(false)
@@ -102,6 +110,7 @@ describe('Game ▸ Board, one question per difficulty', () => {
 
   it('frees the twin as soon as the holder is unticked', async () => {
     draw(recipeWith([]))
+    await choose()
     await waitFor(() => expect(box('Easy A?')).toBeTruthy())
 
     expect(isDisabled(box('Easy A?'))).toBe(false)
@@ -112,6 +121,7 @@ describe('Game ▸ Board, one question per difficulty', () => {
     // A board written by an older build can hold both. Disabling them would
     // take away the checkbox the operator needs to fix it.
     draw(recipeWith(['q-easy-a', 'q-easy-b']))
+    await choose()
     await waitFor(() => expect(box('Easy A?')).toBeTruthy())
 
     expect(isDisabled(box('Easy A?'))).toBe(false)
@@ -120,9 +130,11 @@ describe('Game ▸ Board, one question per difficulty', () => {
 
   it('writes the board when a question that is free is ticked', async () => {
     draw(recipeWith(['q-easy-a']))
+    await choose()
     await waitFor(() => expect(box('Hard one?')).toBeTruthy())
 
     fireEvent.click(box('Hard one?'))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
     await waitFor(() => {
       const call = fake.calls.findLast((c) => c.name === 'recipe_set_membership')
@@ -171,6 +183,7 @@ describe('Game ▸ Board, incomplete questions (§2.32)', () => {
 
   it('dims an incomplete member and names what it lacks', async () => {
     draw(recipeWith([]))
+    await choose()
     await waitFor(() => expect(box('Open one?')).toBeTruthy())
     expect(isDisabled(box('Open one?'))).toBe(true)
     expect(screen.getByRole('img', { name: 'Incomplete — No difficulty' })).toBeTruthy()
@@ -180,12 +193,14 @@ describe('Game ▸ Board, incomplete questions (§2.32)', () => {
   it('keeps the checkbox of an incomplete member that is already on the board', async () => {
     // Load would refuse this board; taking the question off is how to fix it.
     draw(recipeWith(['q-open']))
+    await choose()
     await waitFor(() => expect(box('Open one?')).toBeTruthy())
     expect(isDisabled(box('Open one?'))).toBe(false)
   })
 
   it('lets a this-game difficulty make it selectable', async () => {
     draw({ ...recipeWith([]), overlays: { teams: {}, domains: {}, questions: { 'q-open': { difficulty: 70 } } } })
+    await choose()
     await waitFor(() => expect(box('Open one?')).toBeTruthy())
     expect(isDisabled(box('Open one?'))).toBe(false)
     expect(screen.queryByRole('img', { name: /^Incomplete — / })).toBeNull()
@@ -235,6 +250,7 @@ describe('Game ▸ Board, repeated difficulties (P12.7)', () => {
 
   it('frees the twin when the game allows repeats', async () => {
     draw(allowing(['q-easy-a'], true))
+    await choose()
     await waitFor(() => expect(box('Easy B?')).toBeTruthy())
     expect(isDisabled(box('Easy B?'))).toBe(false)
   })

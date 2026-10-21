@@ -18,8 +18,11 @@ interface Open {
 export interface TransferController {
   /** Ask about a copy or a move; the dialog previews before it writes. */
   open(op: TransferOp, selection: Selection): void
-  /** The two verbs as one menu button, for a bulk bar. */
-  menu(selection: Selection): ReactNode
+  /**
+   * The two verbs as one menu button, for a bulk bar. `move` narrows what Move
+   * takes (beta.4: a playing game stays) and `leftOut` says so when it does.
+   */
+  menu(selection: Selection, move?: { readonly selection: Selection; readonly leftOut: string | null }): ReactNode
   dialog: ReactNode
 }
 
@@ -220,13 +223,25 @@ export function useTransfer(): TransferController {
     </AlertDialog.Backdrop>
   )
 
-  const menu: TransferController['menu'] = (selection) => (
+  const menu: TransferController['menu'] = (selection, move) => {
+    const moving = move?.selection ?? selection
+    const nothingToMove = Object.values(moving).every((ids) => (ids as readonly string[] | undefined)?.length === 0 || ids === undefined)
+    return (
     <Dropdown>
       <Button size="sm" variant="secondary" icon="transfer">
         {TRANSFER.menu}
       </Button>
       <Dropdown.Popover placement="bottom start">
-        <Dropdown.Menu aria-label={TRANSFER.menu} onAction={(key) => open(String(key) as TransferOp, selection)}>
+        <Dropdown.Menu
+          aria-label={TRANSFER.menu}
+          disabledKeys={nothingToMove ? ['move'] : []}
+          onAction={(key) => {
+            if (key === 'move') {
+              if (move?.leftOut) toast.info(move.leftOut)
+              open('move', moving)
+            } else open(String(key) as TransferOp, selection)
+          }}
+        >
           <Dropdown.Item id="copy" textValue={TRANSFER.copyTo}>
             <Label>{TRANSFER.copyTo}</Label>
           </Dropdown.Item>
@@ -236,7 +251,8 @@ export function useTransfer(): TransferController {
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>
-  )
+    )
+  }
 
   return { open, menu, dialog }
 }

@@ -14,7 +14,7 @@ export { ConfirmDialog, CONFIRM_MAX_DEPTH, type ConfirmDialogProps, type Confirm
 export { NameDialog, type NameDialogProps } from './NameDialog'
 export { TagField, type TagFieldProps } from './TagField'
 export { DirtyGuard, type DirtyGuardProps } from './DirtyGuard'
-export { ScopeConfirm, type ScopeConfirmProps } from './ScopeConfirm'
+export { DifficultyDialog, acceptsDifficulty, type DifficultyDialogProps } from './DifficultyDialog'
 export { SidebarItem, type SidebarItemProps } from './SidebarItem'
 export { NavCrumbs, type NavCrumbsProps, type Crumb } from './NavCrumbs'
 export { MetaList, type MetaListProps, type MetaItem } from './MetaList'

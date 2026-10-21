@@ -193,7 +193,7 @@ export interface RecipeOverlays {
   readonly questions: Readonly<Record<string, QuestionOverlay>>
 }
 
-/** Which side of ScopeConfirm an inline edit landed on (§2.17). */
+/** Which side of the scope choice an inline edit landed on (§2.17): `DifficultyDialog`. */
 export type EditScope = 'this_game' | 'original'
 
 /** `recipe_set_overlay`'s target. `patch: null` is Reset. */
@@ -923,6 +923,8 @@ export type PreviewWarning =
   | { readonly code: 'flatBoard'; readonly difficulty: number }
   | { readonly code: 'duplicateDifficulty'; readonly difficulty: number; readonly questions: number }
   | { readonly code: 'incompleteQuestions'; readonly questions: number }
+  /** beta.4: archived rows the game still names — "team Red" — which Load refuses. */
+  | { readonly code: 'archivedOnGame'; readonly names: readonly string[] }
 
 /**
  * What a setting is set to, structured. The host sends codes and numbers; the

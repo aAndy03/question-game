@@ -9,6 +9,7 @@ import { CHROME, fmt, GAME, LIST, TABS, VIEWS } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
 import type { SeedResult } from '@/host/types'
 import { useHostCommand } from '@/host/commands'
+import { toast } from '@/chrome/toast'
 import { usePlayState } from '@/host/playState'
 import { gamesSpec, type GameItem } from '@/host/listSpecs'
 import type { ListItem } from '@/host/listView'
@@ -58,6 +59,7 @@ export function GamesPage() {
     [list.data, playingId],
   )
   const spec = useMemo(() => gamesSpec(list.data ?? []), [list.data])
+  const nameOf = (id: string | null) => list.data?.find((r) => r.id === id)?.name ?? ''
   const lv = useListView(spec, items, hits)
 
   const create = async () => {
@@ -138,6 +140,20 @@ export function GamesPage() {
           ) : null
         }
         onOpen={(id) => void go({ tab: 'games', id })}
+        bulk={{
+          // A playing game stays where it is and as it is (beta.4); the bar says so.
+          onArchive: (ids) => {
+            const keep = ids.filter((id) => id !== playingId)
+            if (keep.length < ids.length) toast.info(GAME.leftOutPlaying(nameOf(playingId)))
+            if (keep.length > 0) archive.archive({ kind: 'recipe', ids: keep, what: keep.length === 1 ? GAME.one : GAME.many })
+          },
+          onRestore: (ids) => void archive.restore({ kind: 'recipe', ids, what: ids.length === 1 ? GAME.one : GAME.many }),
+          extra: (ids) => {
+            const keep = ids.filter((id) => id !== playingId)
+            return transfer.menu({ recipes: ids }, { selection: { recipes: keep }, leftOut: keep.length < ids.length ? GAME.leftOutPlaying(nameOf(playingId)) : null })
+          },
+          isPending: archive.isPending,
+        }}
         actions={(row) => (
           <ActionMenu
             items={[

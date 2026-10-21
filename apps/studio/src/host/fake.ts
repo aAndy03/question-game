@@ -704,8 +704,11 @@ export function createFakeHost(): FakeHost {
           const patched = Object.fromEntries(
             Object.entries(target.patch as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined),
           )
-          upsert({ kind: row.kind, item: { ...row.item, ...patched } } as CatalogItem)
+          const item = { kind: row.kind, item: { ...row.item, ...patched } } as CatalogItem
+          upsert(item)
           emit('catalog-changed', { kind: row.kind, id: row.item.id, op: 'upserted' })
+          // `alsoCopies` (beta.4): the editors' *Also update copies*, from the Game page.
+          if (a.alsoCopies === true) followCopies(item)
         }
       } else if (target.patch === null) {
         delete map[target.id]
@@ -855,9 +858,19 @@ export function createFakeHost(): FakeHost {
       const problems = boardProblems(recipe)
       const incomplete = problems.filter((p) => p.kind === 'incomplete').length
       const duplicate = problems.find((p) => p.kind === 'duplicate')
+      const archivedName = (kind: 'team' | 'domain' | 'question', id: string): string[] => {
+        const row = library.get(key(kind, id))
+        if (!row || row.item.archivedAt == null) return []
+        return [`${kind} ${row.kind === 'question' ? row.item.stem : (row.item as { name: string }).name}`]
+      }
+      const archived = [
+        ...recipe.teams.flatMap((id) => archivedName('team', id)),
+        ...recipe.board.flatMap((b) => [...archivedName('domain', b.domainId), ...b.questionIds.flatMap((q) => archivedName('question', q))]),
+      ]
       return {
         ...FAKE_PREVIEW,
         warnings: [
+          ...(archived.length > 0 ? [{ code: 'archivedOnGame' as const, names: archived }] : []),
           ...FAKE_PREVIEW.warnings,
           ...(duplicate?.kind === 'duplicate' ? [{ code: 'duplicateDifficulty' as const, difficulty: duplicate.difficulty, questions: 2 }] : []),
           ...(incomplete > 0 ? [{ code: 'incompleteQuestions' as const, questions: incomplete }] : []),
@@ -1041,6 +1054,11 @@ export function createFakeHost(): FakeHost {
     play_load: (a) => {
       const r = recipes.get(a.recipeId as string)
       if (!r) refuse('catalog', `recipe ${a.recipeId} not found`)
+      for (const id of r.teams) {
+        if (library.get(key('team', id))?.item.archivedAt != null) {
+          refuse('catalog', `recipe.${r.id}.roster.team.${id}: the roster has an archived team; restore it or take it off the roster`)
+        }
+      }
       checkBoard(r)
       return null
     },
@@ -1308,6 +1326,20 @@ export function createFakeHost(): FakeHost {
     }
     for (const t of [...report.created, ...report.moved, ...(report.joined ?? [])]) emit('catalog-changed', { kind: t.kind, id: t.id, op: 'upserted' })
     return report
+  }
+
+  /** `item`'s body onto every copy of it (*Also update copies*). */
+  const followCopies = (item: CatalogItem): void => {
+    for (const copy of familyCopies(item)) {
+      const k = key(item.kind, copy.id)
+      const stored = library.get(k) as CatalogItem
+      // The body only: never the id, the stamps or where the row lives.
+      const body: Record<string, unknown> = { ...(item.item as unknown as Record<string, unknown>) }
+      for (const own of ['id', 'createdAt', 'updatedAt', 'archivedAt', 'familyId']) delete body[own]
+      if (stored.kind === 'domain') delete body.questions
+      library.set(k, { kind: stored.kind, item: { ...stored.item, ...body, updatedAt: now() } } as CatalogItem)
+      emit('catalog-changed', { kind: item.kind, id: copy.id, op: 'upserted' })
+    }
   }
 
   /** The other members of a row's family, as the host names them. */
@@ -1672,16 +1704,7 @@ export function createFakeHost(): FakeHost {
       }
       emit('catalog-changed', { kind: item.kind, id: item.item.id, op: 'upserted' })
       for (const row of alongside) emit('catalog-changed', { kind: row.kind, id: row.item.id, op: 'upserted' })
-      for (const copy of copies) {
-        const k = key(item.kind, copy.id)
-        const stored = library.get(k) as CatalogItem
-        // The body only: never the id, the stamps or where the row lives.
-        const body: Record<string, unknown> = { ...(item.item as unknown as Record<string, unknown>) }
-        for (const own of ['id', 'createdAt', 'updatedAt', 'archivedAt', 'familyId']) delete body[own]
-        if (stored.kind === 'domain') delete body.questions
-        library.set(k, { kind: stored.kind, item: { ...stored.item, ...body, updatedAt: now() } } as CatalogItem)
-        emit('catalog-changed', { kind: item.kind, id: copy.id, op: 'upserted' })
-      }
+      followCopies(item)
       return { update: copies, skipped: [] } satisfies PropagationPreview
     },
     catalog_unfollow: (a: Record<string, unknown>) => {

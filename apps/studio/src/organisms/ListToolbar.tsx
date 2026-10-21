@@ -6,10 +6,11 @@ export interface ListToolbarProps {
   view: ListViewApi<unknown, unknown>
   /** Plural noun for the search placeholder. */
   what: string
-  layout: ViewMode
-  onLayout(layout: ViewMode): void
-  status: ArchiveView
-  onStatus(status: ArchiveView): void
+  /** View and Status: a library tab's; a picker (beta.4) has neither. */
+  layout?: ViewMode | undefined
+  onLayout?: ((layout: ViewMode) => void) | undefined
+  status?: ArchiveView | undefined
+  onStatus?: ((status: ArchiveView) => void) | undefined
   /** A line in the Filters popover — the Questions tab's incomplete count. */
   filterHint?: string | undefined
   /** Before Search: the Questions tab's domain name. */
@@ -47,8 +48,8 @@ export function ListToolbar({ view, what, layout, onLayout, status, onStatus, fi
         />
         <GroupMenu groups={spec.groups} value={state.group} onChange={view.setGroup} />
         <div className="flex-1" />
-        <ViewSwitch value={layout} onChange={onLayout} />
-        <ArchiveToggle value={status} onChange={onStatus} withAll />
+        {layout && onLayout ? <ViewSwitch value={layout} onChange={onLayout} /> : null}
+        {status && onStatus ? <ArchiveToggle value={status} onChange={onStatus} withAll /> : null}
       </div>
       <ActiveFilters items={view.activeFilters} onRemove={(id) => (id === 'changed' ? view.setChanged('any') : view.setFilter(id, null))} onClearAll={view.clearFilters} />
     </div>

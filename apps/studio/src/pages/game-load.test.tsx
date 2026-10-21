@@ -117,7 +117,10 @@ describe('a refused Load, from the Roster (P12.8)', () => {
     await act(async () => {
       await useNavStore.getState().go({ tab: 'games', id: 'recipe-1', section: 'board' })
     })
+    // beta.4: the ticks live in *Choose questions…*.
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose questions…' }, { timeout: 5000 }))
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Second ten?' }, { timeout: 5000 }))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
     await waitFor(() => expect(useNoticeStore.getState().notices).toHaveLength(0))
   }, 20_000)
 })

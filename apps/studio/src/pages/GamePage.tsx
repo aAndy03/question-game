@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Button, MeaningChip, Panel, Skeleton, StatusDot, Text, TextField } from '@/atoms'
-import { EmptyState, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
-import { BoardSection, PlaysSection, RosterSection, RulesPreviewPanel, RulesSection, useArchive } from '@/organisms'
+import { ActionMenu, EmptyState, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
+import { BoardSection, PlaysSection, RosterSection, RulesPreviewPanel, RulesSection, useArchive, useTransfer } from '@/organisms'
+import { TRANSFER } from '@/copy/workspaces'
+import type { Recipe } from '@/host/types'
 import { RecordPageLayout } from '@/templates'
 import { useNavStore, type GameSection } from '@/chrome/nav'
 import { gameSectionOf, useNoticeStore } from '@/chrome/notices'
@@ -32,6 +34,7 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
   const replace = useNavStore((s) => s.replace)
   const run = useHostCommand()
   const archive = useArchive()
+  const transfer = useTransfer()
   const [name, setName] = useState<string | null>(null)
   const games = useRecipeList('active')
   const [loading, setLoading] = useState(false)
@@ -72,6 +75,11 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
     }
     await run('recipe_upsert', { recipe: { ...r, name: name.trim() } })
     setName(null)
+  }
+  // The Games list's row actions, here too (beta.4).
+  const duplicate = async () => {
+    const copy = await run<Recipe>('recipe_duplicate', { id: r.id, newId: `recipe-${crypto.randomUUID().slice(0, 8)}`, newName: GAME.copyName(r.name) })
+    if (copy) void go({ tab: 'games', id: copy.id })
   }
   const load = async () => {
     setLoading(true)
@@ -142,15 +150,30 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
           )
         }
         secondaryActions={
-          archived ? (
-            <Button variant="secondary" icon="restore" onPress={() => void archive.restore({ kind: 'recipe', ids: [r.id], what: GAME.one })}>
-              {LIST.restore}
-            </Button>
-          ) : (
-            <Button variant="ghost" icon="archive" onPress={() => archive.archive({ kind: 'recipe', ids: [r.id], what: GAME.one })} isDisabled={frozen} disabledReason={frozenReason}>
-              {LIST.archive}
-            </Button>
-          )
+          <span className="flex items-center gap-1">
+            {archived ? (
+              <Button variant="secondary" icon="restore" onPress={() => void archive.restore({ kind: 'recipe', ids: [r.id], what: GAME.one })}>
+                {LIST.restore}
+              </Button>
+            ) : (
+              <Button variant="ghost" icon="archive" onPress={() => archive.archive({ kind: 'recipe', ids: [r.id], what: GAME.one })} isDisabled={frozen} disabledReason={frozenReason}>
+                {LIST.archive}
+              </Button>
+            )}
+            <ActionMenu
+              label={GAME.moreActions}
+              size="md"
+              items={[
+                { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
+                { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
+                { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', isDisabled: frozen },
+              ]}
+              onAction={(a) => {
+                if (a === 'duplicate') void duplicate()
+                if (a === 'copy' || a === 'move') transfer.open(a, { recipes: [r.id] })
+              }}
+            />
+          </span>
         }
       />
       {frozen ? (
@@ -188,6 +211,7 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
       ) : null}
       {section === 'plays' ? <PlaysSection recipe={r} /> : null}
       {archive.dialog}
+      {transfer.dialog}
     </RecordPageLayout>
   )
 }
