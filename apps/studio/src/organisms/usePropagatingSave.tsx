@@ -16,6 +16,11 @@ export interface PropagatingSave {
    * refused or the operator cancelled — the row was not saved either way.
    */
   upsert(item: CatalogItem, options?: RunOptions): Promise<unknown>
+  /**
+   * Only the question, without the write (beta.3, the question editor): `none`
+   * when the row has no copies to ask about, else what the operator chose.
+   */
+  decide(item: CatalogItem): Promise<'none' | Choice>
   dialog: ReactNode
 }
 
@@ -38,6 +43,22 @@ export function usePropagatingSave(): PropagatingSave {
     answer.current?.(choice)
     answer.current = null
     setPreview(null)
+  }
+
+  const decide: PropagatingSave['decide'] = async (item) => {
+    if (answer.current) return 'cancel'
+    if (item.item.familyId == null) return 'none'
+    let plan: PropagationPreview
+    try {
+      plan = await command<PropagationPreview>('catalog_propagation_preview', { item })
+    } catch {
+      return 'none'
+    }
+    if (plan.update.length === 0 && plan.skipped.length === 0) return 'none'
+    return new Promise<Choice>((resolve) => {
+      answer.current = resolve
+      setPreview(plan)
+    })
   }
 
   const upsert: PropagatingSave['upsert'] = async (item, options) => {
@@ -96,5 +117,5 @@ export function usePropagatingSave(): PropagatingSave {
     </AlertDialog.Backdrop>
   )
 
-  return { upsert, dialog }
+  return { upsert, decide, dialog }
 }

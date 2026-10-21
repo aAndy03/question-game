@@ -69,3 +69,39 @@ describe('the archive confirm names what uses the rows (beta.3)', () => {
     expect(dialog.textContent).not.toMatch(/\ba a\b/)
   })
 })
+
+describe('the question editor writes once (beta.3)', () => {
+  it('a refused membership leaves the question unsaved, and says nothing is saved', async () => {
+    const { toast } = await import('@/chrome/toast')
+    const { vi } = await import('vitest')
+    const spy = vi.spyOn(toast, 'success')
+    const d = fake.library.get('domain:dom-tech')
+    if (d?.kind === 'domain') fake.library.set('domain:dom-tech', { kind: 'domain', item: { ...d.item, questions: d.item.questions.map((m) => ({ ...m, groupId: 'grp-elsewhere' })) } })
+    await at({ tab: 'library', questionId: 'q-h1', mode: 'edit', domainId: 'dom-history' } as Route)
+    const stem = await screen.findByDisplayValue('Which empire built the road network that reached Britain?')
+    fireEvent.change(stem, { target: { value: 'Which empire built the roads?' } })
+    // Also into Technology, which the host refuses (a member in another domain's group):
+    // the whole save is refused, the question with it.
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Technology/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Save/ }))
+    await waitFor(() => expect(fake.calls.some((c) => c.name === 'catalog_upsert_many')).toBe(true))
+    const q = fake.library.get('question:q-h1')
+    expect(q?.kind === 'question' ? q.item.stem : '').toBe('Which empire built the road network that reached Britain?')
+    expect(spy).not.toHaveBeenCalledWith('Question saved')
+    spy.mockRestore()
+  })
+
+  it('a change of domain alone does not ask about the copies', async () => {
+    fake.families.set('question:q-h1', 9)
+    fake.families.set('question:q-copy', 9)
+    const h1 = fake.library.get('question:q-h1')
+    if (h1?.kind === 'question') fake.library.set('question:q-h1', { kind: 'question', item: { ...h1.item, familyId: 9 } })
+    await at({ tab: 'library', questionId: 'q-h1', mode: 'edit', domainId: 'dom-history' } as Route)
+    await screen.findByDisplayValue('Which empire built the road network that reached Britain?')
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Technology/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Save/ }))
+    await waitFor(() => expect(fake.calls.some((c) => c.name === 'catalog_upsert_many')).toBe(true))
+    expect(fake.calls.some((c) => c.name === 'catalog_propagation_preview')).toBe(false)
+    expect(screen.queryByText('This row has copies')).toBeNull()
+  })
+})

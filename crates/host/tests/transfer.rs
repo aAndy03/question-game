@@ -380,8 +380,6 @@ fn a_game_copy_copies_fresh_a_reused_question_that_drifted_so_the_game_loads() {
     let CatalogItem::Question(mut drifted) = get(&catalog, CatalogKind::Question, &q2_there) else { panic!() };
     drifted.difficulty = Some(10);
     catalog.catalog_upsert(&CatalogItem::Question(drifted), NOW).unwrap();
-    let a = first.created.iter().next().map(|_| ()).unwrap();
-    let _ = a;
     catalog.workspace_switch(&WorkspaceId::from("ws-1")).unwrap();
 
     let report = catalog.catalog_copy_to(&Selection { recipes: vec![RecipeId::from("g1")], ..Selection::default() }, &b, CopyOptions::default(), NOW).unwrap();

@@ -74,6 +74,13 @@ function emptyQuestion(): Question {
  * who has the answer but not the difficulty must not lose the answer. A board
  * will not take it until the list is empty.
  */
+/** The body a copy follows (stem, options, difficulty, explanation, media, tags) — not memberships. */
+function sameBody(a: Question, b: Question): boolean {
+  const body = (q: Question) =>
+    JSON.stringify({ stem: q.stem, options: q.options, difficulty: q.difficulty, explanation: q.explanation ?? null, media: q.mediaAssetId ?? null, tags: q.tags ?? [] })
+  return body(a) === body(b)
+}
+
 export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
   const source = useCatalogItem('question', id)
   const domains = useCatalogList('domain', 'active')
@@ -131,11 +138,6 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
       explanation: q.explanation?.trim() ? q.explanation : null,
       options: filled.map((o) => ({ ...o, text: o.text.trim() })),
     }
-    const result = await propagating.upsert({ kind: 'question', item }, { targetPath: path })
-    if (result === null) {
-      setSaving(false)
-      return false
-    }
     // Membership: add to chosen domains, drop from the rest (§4.1: sort_key
     // belongs to the membership; appending keeps the authored order).
     const before = new Set((domains.data ?? []).filter((d) => d.questions.some((m) => m.questionId === item.id)).map((d) => d.id))
@@ -153,12 +155,26 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
         changed.push({ ...d, questions: d.questions.filter((m) => m.questionId !== item.id) })
       }
     }
-    if (changed.length > 0) {
-      await run('catalog_upsert_many', { items: changed.map((d) => ({ kind: 'domain', item: d })) })
+    // One write (beta.3): the question and the memberships it changes, so a
+    // refused membership never leaves a saved question behind it. The copies
+    // are asked about only when the body changed — a domain or a group is
+    // not theirs to follow — and their save goes first, the memberships after.
+    const bodyChanged = !source.data || !sameBody(source.data, item)
+    const domainItems = changed.map((d) => ({ kind: 'domain', item: d }))
+    const choice = bodyChanged ? await propagating.decide({ kind: 'question', item }) : 'none'
+    let ok: unknown
+    if (choice === 'cancel') ok = null
+    else if (choice === 'also') {
+      ok = await run('catalog_upsert_propagating', { item: { kind: 'question', item } }, { targetPath: path })
+      if (ok !== null && domainItems.length > 0) ok = await run('catalog_upsert_many', { items: domainItems }, { targetPath: path })
+    } else {
+      const items = [...(bodyChanged ? [{ kind: 'question', item }] : []), ...domainItems]
+      ok = items.length === 0 ? true : await run('catalog_upsert_many', { items }, { targetPath: path })
     }
     setSaving(false)
+    if (ok === null) return false
     draft.adopt({ question: item, domainIds: draft.value.domainIds, groupIds: draft.value.groupIds })
-    toast.success('Question saved')
+    toast.success(QUESTION.saved)
     return true
   }
 

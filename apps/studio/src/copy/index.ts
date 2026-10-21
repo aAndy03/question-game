@@ -282,6 +282,7 @@ const QUESTION_GAP = {
 } as const satisfies Record<QuestionGap, string>
 
 export const QUESTION = {
+  saved: 'Question saved',
   one: 'question',
   many: 'questions',
   stem: 'Question',

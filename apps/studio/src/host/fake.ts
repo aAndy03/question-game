@@ -512,10 +512,22 @@ export function createFakeHost(): FakeHost {
     catalog_upsert_many: (a) => {
       const items = a.items as CatalogItem[]
       items.forEach(validate)
-      const changes = items.map((i) => {
-        const stored = upsert(i)
-        return { kind: stored.kind, id: stored.item.id, op: 'upserted' as const }
-      })
+      // One transaction, as the host's: a refused item leaves nothing written.
+      const savedLibrary = new Map(library)
+      const savedHomes = new Map(homes)
+      let changes: { kind: CatalogItem['kind']; id: string; op: 'upserted' }[]
+      try {
+        changes = items.map((i) => {
+          const stored = upsert(i)
+          return { kind: stored.kind, id: stored.item.id, op: 'upserted' as const }
+        })
+      } catch (error) {
+        library.clear()
+        savedLibrary.forEach((v, k) => library.set(k, v))
+        homes.clear()
+        savedHomes.forEach((v, k) => homes.set(k, v))
+        throw error
+      }
       changes.forEach((c) => emit('catalog-changed', c))
       return changes
     },
