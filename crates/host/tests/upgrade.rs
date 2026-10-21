@@ -514,14 +514,14 @@ fn a_library_from_a_newer_build_is_still_refused() {
         let service = CatalogService::open(CatalogLocation::file(dir.library())).unwrap();
         drop(service);
         let conn = rusqlite::Connection::open(dir.library()).unwrap();
-        conn.execute_batch("PRAGMA user_version = 6").unwrap();
+        conn.execute_batch("PRAGMA user_version = 7").unwrap();
     }
     assert!(matches!(
         CatalogService::open_file(
             &dir.library(),
             &options(&dir, "2.0.0-beta.1", "20261021-120000")
         ),
-        Err(CatalogError::SchemaTooNew { found: 6, known: 5 })
+        Err(CatalogError::SchemaTooNew { found: 7, known: 6 })
     ));
 }
 
@@ -568,5 +568,5 @@ fn m2_m3_migration_5_keeps_every_membership_adds_nothing_and_backs_up_first() {
     assert_eq!(count(&conn, "SELECT count(*) FROM domain_groups"), 0);
     assert_eq!(count(&conn, "SELECT count(*) FROM question_tags"), 0);
     let head: u32 = conn.pragma_query_value(None, "user_version", |r| r.get(0)).unwrap();
-    assert_eq!(head, 5);
+    assert_eq!(head, 6, "through 5, then 6");
 }

@@ -36,6 +36,7 @@ pub mod service;
 mod snapshot;
 mod store;
 pub mod transfer;
+mod unshare;
 pub mod workspace;
 
 pub use crate::flags::GameSettings;

@@ -304,7 +304,29 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     );
     CREATE INDEX question_tags_by_key ON question_tags(tag_key);
     "#,
+    // 6 — beta.2: the shared library goes. The step's work is code
+    // (`unshare::run`, run before this SQL by [`apply_step`]): every shared
+    // row becomes the oldest workspace's, and a linked copy in every other.
+    // What is left for SQL is the rule from here on: a row lives in a
+    // workspace.
+    r#"
+    -- the triggers: see unshare::TRIGGERS, applied by apply_step
+    "#,
 ];
+
+/// The step that removed the shared library (beta.2), 1-based. Its work is
+/// code, run inside the same transaction as every other step.
+pub(crate) const UNSHARE_STEP: u32 = 6;
+
+/// Apply step `n` (1-based): its code, if it has any, then its SQL.
+pub(crate) fn apply_step(conn: &Connection, n: u32) -> CatalogResult<()> {
+    if n == UNSHARE_STEP {
+        super::unshare::run(conn)?;
+        conn.execute_batch(super::unshare::TRIGGERS)?;
+    }
+    conn.execute_batch(MIGRATIONS[(n - 1) as usize])?;
+    Ok(())
+}
 
 /// The step that introduced workspaces, 1-based like `user_version`. A file
 /// that has not seen it gets the pinned backup ([`backup::PRE_WORKSPACES_LABEL`]).
@@ -319,8 +341,8 @@ pub fn write_older_schema(from: &Path, to: &Path, steps: u32) -> CatalogResult<(
     let conn = Connection::open(to)?;
     // Tables are copied in name order, not in reference order.
     conn.pragma_update(None, "foreign_keys", "OFF")?;
-    for step in &MIGRATIONS[..steps as usize] {
-        conn.execute_batch(step)?;
+    for n in 1..=steps {
+        apply_step(&conn, n)?;
     }
     conn.execute_batch(&format!("PRAGMA user_version = {steps}"))?;
     conn.execute(
@@ -351,6 +373,24 @@ pub fn write_older_schema(from: &Path, to: &Path, steps: u32) -> CatalogResult<(
         conn.execute("DELETE FROM main.globals WHERE key = ?1", [META_CURRENT_WORKSPACE])?;
     }
     conn.execute_batch("DETACH DATABASE newer")?;
+    Ok(())
+}
+
+/// Test support: in a file written by [`write_older_schema`] at step 5 or
+/// before, put a row in the shared library (`workspace_id` NULL) or in a named
+/// workspace — how the beta.2 tests build a beta.1 library without beta.1.
+#[doc(hidden)]
+pub fn place_for_test(path: &Path, table: &str, id: &str, workspace: Option<&str>) -> CatalogResult<()> {
+    assert!(
+        ["teams", "domains", "questions", "assets", "recipes"].contains(&table),
+        "a library table"
+    );
+    let conn = Connection::open(path)?;
+    let changed = conn.execute(
+        &format!("UPDATE {table} SET workspace_id = ?1 WHERE id = ?2"),
+        rusqlite::params![workspace, id],
+    )?;
+    assert_eq!(changed, 1, "{table} {id} exists");
     Ok(())
 }
 
@@ -519,8 +559,8 @@ fn migrate(conn: &Connection) -> CatalogResult<()> {
     tracing::info!(from = applied, to = known, "migrating the library");
     conn.execute_batch("BEGIN")?;
     let result = (|| -> CatalogResult<()> {
-        for step in &MIGRATIONS[applied as usize..] {
-            conn.execute_batch(step)?;
+        for n in applied + 1..=known {
+            apply_step(conn, n)?;
         }
         // `pragma_update` cannot be parameterized, and `user_version` is not a
         // table, so this is the one place a literal is formatted into SQL. The
@@ -609,8 +649,8 @@ mod tests {
             // A library one step behind, stamped by this very build, so the
             // pending migration is the only reason to copy it.
             let conn = Connection::open(&path).unwrap();
-            for step in &MIGRATIONS[..behind as usize] {
-                conn.execute_batch(step).unwrap();
+            for n in 1..=behind {
+                apply_step(&conn, n).unwrap();
             }
             conn.execute_batch(&format!("PRAGMA user_version = {behind}")).unwrap();
             super::super::store::global_set(&conn, META_LAST_OPENED, "\"1.0.2\"").unwrap();
