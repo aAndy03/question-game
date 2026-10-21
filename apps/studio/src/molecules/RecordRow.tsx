@@ -96,8 +96,9 @@ export function RecordRow({
         <div className="flex items-start gap-3">
           {checkbox}
           {leading ? <div className="shrink-0">{leading}</div> : null}
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <Text variant="studio-label" tone={tone} truncate>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            {/* The title leads the card: up to three lines, not one cut short (1.1.1, the maintainer). */}
+            <Text variant="studio-body" tone={tone} className="line-clamp-3 break-words font-medium">
               {title}
             </Text>
             {subtitle ? (
