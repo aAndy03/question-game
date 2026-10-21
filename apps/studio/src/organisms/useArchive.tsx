@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/molecules'
 import { CONFIRM } from '@/copy'
 import { command } from '@/host/host'
@@ -31,17 +31,24 @@ export function useArchive(): ArchiveController {
   const run = useHostCommand()
   const [pending, setPending] = useState(false)
   const [request, setRequest] = useState<ArchiveRequest | null>(null)
-  const [referenced, setReferenced] = useState<readonly string[]>([])
+  // What uses the rows, as the host says it in one sentence; `undefined`
+  // while it is asked, and the confirm stays armed until it knows.
+  const [referenced, setReferenced] = useState<string | null | undefined>(null)
+  const asked = useRef<ArchiveRequest | null>(null)
 
-  // What uses the rows, by name — for one row or many (beta.3: a bulk archive
-  // said nothing about the games it would leave holding an archived row).
+  // What uses the rows, by name — for one row or all of a selection (beta.3:
+  // a bulk archive said nothing about the games it would leave holding an
+  // archived row). Only the newest request's answer is kept.
   const archive = (req: ArchiveRequest) => {
-    setReferenced([])
+    asked.current = req
     setRequest(req)
-    if (req.kind === 'recipe') return
-    void Promise.all(req.ids.slice(0, 50).map((id) => command<string | null>('referenced_by', { kind: req.kind, id }).catch(() => null))).then((all) =>
-      setReferenced([...new Set(all.filter((by): by is string => typeof by === 'string'))]),
-    )
+    if (req.kind === 'recipe') return setReferenced(null)
+    setReferenced(undefined)
+    void command<string | null>('referenced_by', { kind: req.kind, ids: req.ids })
+      .catch(() => null)
+      .then((by) => {
+        if (asked.current === req) setReferenced(by)
+      })
   }
 
   const confirm = async () => {
@@ -79,13 +86,13 @@ export function useArchive(): ArchiveController {
       onOpenChange={(open) => !open && setRequest(null)}
       title={n === 1 ? CONFIRM.archiveOne(request.what) : CONFIRM.archiveMany(n, request.what)}
       body={
-        referenced.length === 0
-          ? CONFIRM.archiveBody
-          : `${n === 1 ? CONFIRM.referencedBy(referenced[0] as string) : CONFIRM.referencedByMany(referenced)} ${CONFIRM.archiveBody}`
+        referenced
+          ? `${n === 1 ? CONFIRM.referencedBy(referenced) : CONFIRM.referencedByMany(referenced)} ${CONFIRM.archiveBody}`
+          : CONFIRM.archiveBody
       }
       severity="danger"
       confirmLabel={CONFIRM.arm}
-      arm={referenced.length > 0}
+      arm={referenced !== null}
       armedLabel={CONFIRM.armed}
       isPending={pending}
       onConfirm={confirm}

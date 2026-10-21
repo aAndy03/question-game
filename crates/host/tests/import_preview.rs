@@ -47,7 +47,8 @@ fn the_preview_says_where_a_row_lands_its_tags_and_what_a_duplicate_repeats() {
     assert_eq!(rows[1].status, RowStatus::Duplicate);
     assert_eq!(rows[1].duplicate_of.as_deref(), Some("Who built Rome?"));
     assert_eq!(rows[2].landing, ["Geography (new)"]);
-    assert_eq!(rows[3].duplicate_of.as_deref(), Some("row 1"));
+    assert_eq!(rows[3].duplicate_of, None);
+    assert_eq!(rows[3].duplicate_row, Some(1));
 }
 
 #[test]

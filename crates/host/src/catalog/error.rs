@@ -46,6 +46,14 @@ impl CatalogKind {
         }
     }
 
+    /// What the operator calls it (beta.3): a recipe is a game in Studio.
+    pub fn noun(self) -> &'static str {
+        match self {
+            CatalogKind::Recipe => "game",
+            other => other.as_str(),
+        }
+    }
+
     pub(crate) fn table(self) -> &'static str {
         match self {
             CatalogKind::Team => "teams",
@@ -68,15 +76,6 @@ impl std::fmt::Display for CatalogKind {
 pub enum CatalogError {
     #[error("no {kind} with id {id}")]
     NotFound { kind: CatalogKind, id: String },
-
-    /// A row a recipe or an open Play still points at. Hard delete is not v1
-    /// (§4.1); this is the guard on the paths that *would* remove data.
-    #[error("{kind} {id} is still used by {used_by}")]
-    StillReferenced {
-        kind: CatalogKind,
-        id: String,
-        used_by: &'static str,
-    },
 
     /// A shape rule — the §2.32 floor for a question (a stem or an option,
     /// option text, difficulty 1–100) or a recipe board rule (P11.13, §2.32).
@@ -121,8 +120,13 @@ pub enum CatalogError {
 
     /// An id that belongs to a row local to another workspace. A save cannot
     /// reach across: only copy and move change where a row lives.
-    #[error("that {kind} is in another workspace")]
-    WrongWorkspace { kind: CatalogKind, id: String },
+    #[error("the {} {name} is in another workspace", kind.noun())]
+    WrongWorkspace {
+        kind: CatalogKind,
+        id: String,
+        /// What the operator calls it (beta.3).
+        name: String,
+    },
 
     /// No active workspace to open the library in. Every library has one from
     /// migration 4 on, and the last active one cannot be archived, so this is
@@ -137,7 +141,7 @@ pub enum CatalogError {
 
     /// A move or *Make local* that would strand a row something else still
     /// uses — named, so the operator can choose *Copy instead*.
-    #[error("{kind} {name} is still used by {used_by}")]
+    #[error("{} {name} is still used by {used_by}", kind.noun())]
     StillUsed {
         kind: CatalogKind,
         id: String,

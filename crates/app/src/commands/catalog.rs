@@ -156,10 +156,11 @@ pub fn catalog_import_questions(
     commit: bool,
     default_domain_id: Option<DomainId>,
 ) -> AppResult<ImportReport> {
-    let (report, changes) = catalog_write(&window, &state, "catalog_import_questions", |h, now| {
-        Ok(h.catalog
-            .import_questions(&text, commit, default_domain_id.as_ref(), now)?)
-    })?;
+    let (report, changes) =
+        catalog_write(&window, &state, "catalog_import_questions", |h, now| {
+            Ok(h.catalog
+                .import_questions(&text, commit, default_domain_id.as_ref(), now)?)
+        })?;
     if !changes.is_empty() {
         for kind in [CatalogKind::Question, CatalogKind::Domain] {
             emit::catalog_changed(
@@ -194,11 +195,14 @@ pub fn referenced_by(
     window: WebviewWindow,
     state: State<'_, AppState>,
     kind: CatalogKind,
-    id: String,
+    id: Option<String>,
+    ids: Option<Vec<String>>,
 ) -> AppResult<Option<String>> {
     guard::allow(window.label(), "referenced_by")?;
+    // One row (`id`) or a selection (`ids`, beta.3), one sentence either way.
+    let ids: Vec<String> = ids.unwrap_or_default().into_iter().chain(id).collect();
     let host = state.lock();
-    Ok(host.catalog.referenced_by(kind, &id)?)
+    Ok(host.catalog.referenced_by_many(kind, &ids)?)
 }
 
 #[tauri::command(async)]

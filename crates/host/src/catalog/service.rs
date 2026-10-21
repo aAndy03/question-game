@@ -326,18 +326,26 @@ impl CatalogService {
                 CatalogItem::Asset(asset) => store::asset_upsert(&tx, asset, now_ms)?,
             }
         }
+        // A question's tags are re-spelled on the way in: index what was
+        // stored, as `catalog_upsert` does.
+        let mut texts = Vec::with_capacity(items.len());
+        for item in items {
+            texts.push(match item {
+                CatalogItem::Question(question) => {
+                    CatalogItem::Question(Box::new(store::question_get(&tx, &question.id)?))
+                        .search_text()
+                }
+                _ => item.search_text(),
+            });
+        }
         tx.commit()?;
         drop(guard);
 
         // The index is lazy: this marks every document dirty and the next
         // search commits once, whatever the batch size.
-        for item in items {
-            self.search.put(
-                item.kind(),
-                &item.id(),
-                item.is_archived(),
-                &item.search_text(),
-            )?;
+        for (item, text) in items.iter().zip(&texts) {
+            self.search
+                .put(item.kind(), &item.id(), item.is_archived(), text)?;
         }
         Ok(items
             .iter()
@@ -492,7 +500,18 @@ impl CatalogService {
     /// confirmation shows the operator before they archive something a show
     /// depends on.
     pub fn referenced_by(&self, kind: CatalogKind, id: &str) -> CatalogResult<Option<String>> {
-        store::referenced_by(&self.conn(), kind, id)
+        store::referenced_by(&self.conn(), kind, &[id])
+    }
+
+    /// The same for many rows at once, in one sentence: what a bulk Archive
+    /// confirmation names (beta.3).
+    pub fn referenced_by_many(
+        &self,
+        kind: CatalogKind,
+        ids: &[String],
+    ) -> CatalogResult<Option<String>> {
+        let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+        store::referenced_by(&self.conn(), kind, &ids)
     }
 
     // ------------------------------------------------------------- the recipes

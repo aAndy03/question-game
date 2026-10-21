@@ -394,11 +394,18 @@ pub fn catalog_upsert_propagating(
     app: AppHandle,
     state: State<'_, AppState>,
     item: CatalogItem,
+    with: Option<Vec<CatalogItem>>,
 ) -> AppResult<PropagationPreview> {
     guard::allow(window.label(), "catalog_upsert_propagating")?;
     let host = state.lock();
-    let (change, done) = host.catalog.catalog_upsert_propagating(&item, now_ms())?;
+    // `with`: the rows of this workspace the same save changes (a question
+    // editor's domains), in the same transaction (beta.3).
+    let with = with.unwrap_or_default();
+    let (change, done) = host.catalog.catalog_upsert_propagating_with(&item, &with, now_ms())?;
     emit::catalog_changed(&app, &change);
+    for row in &with {
+        emit::catalog_changed(&app, &CatalogChange { kind: row.kind(), id: row.id(), op: ChangeOp::Upserted });
+    }
     for copy in &done.update {
         emit::catalog_changed(&app, &CatalogChange { kind: change.kind, id: copy.id.clone(), op: ChangeOp::Upserted });
     }

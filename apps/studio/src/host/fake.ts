@@ -72,6 +72,7 @@ import { FAKE_LEDGER, FAKE_PREVIEW } from './fake/preview'
 import { ImportRefused, planImport } from './fake/import'
 import { sameBody, seedLibrary, seedRecipe } from './fake/seed'
 import { bodyGaps, effectiveBody } from './question'
+import { isTwin } from './twins'
 
 type Handler = (payload: unknown) => void
 
@@ -568,9 +569,10 @@ export function createFakeHost(): FakeHost {
     },
     referenced_by: (a) => {
       // By name, as the host says it (beta.3): "the game Friday", "the games A and B".
-      const id = a.id as string
+      // One row (`id`) or a selection (`ids`), as the host takes it; active users only.
+      const picked = new Set([...((a.ids as string[] | undefined) ?? []), ...(typeof a.id === 'string' ? [a.id] : [])])
       const named = (one: string, many: string, names: string[]): string | null => {
-        const sorted = [...new Set(names)].sort()
+        const sorted = [...names].sort()
         if (sorted.length === 0) return null
         if (sorted.length === 1) return `the ${one} ${sorted[0]}`
         if (sorted.length === 2) return `the ${many} ${sorted[0]} and ${sorted[1]}`
@@ -578,13 +580,16 @@ export function createFakeHost(): FakeHost {
       }
       const games = [...recipes.values()].filter(
         (r) =>
-          (a.kind === 'team' && r.teams.includes(id)) ||
-          (a.kind === 'domain' && r.board.some((b) => b.domainId === id)) ||
-          (a.kind === 'question' && r.board.some((b) => b.questionIds.includes(id))),
+          r.archivedAt === null &&
+          ((a.kind === 'team' && r.teams.some((t) => picked.has(t))) ||
+            (a.kind === 'domain' && r.board.some((b) => picked.has(b.domainId))) ||
+            (a.kind === 'question' && r.board.some((b) => b.questionIds.some((q) => picked.has(q))))),
       )
       const byGame = named('game', 'games', games.map((r) => r.name))
       if (byGame || a.kind !== 'question') return byGame
-      const domains = [...library.values()].flatMap((row) => (row.kind === 'domain' && row.item.questions.some((m) => m.questionId === id) ? [row.item.name] : []))
+      const domains = [...library.values()].flatMap((row) =>
+        row.kind === 'domain' && row.item.archivedAt === null && row.item.questions.some((m) => picked.has(m.questionId)) ? [row.item.name] : [],
+      )
       return named('domain', 'domains', domains)
     },
     recipe_list: (a) => [...recipes.values()].filter((r) => inScope(r.archivedAt, a.scope as ArchiveScope) && visibleRecipe(r.id)),
@@ -1168,13 +1173,25 @@ export function createFakeHost(): FakeHost {
     if (op === 'copy') {
       // A row that only came along reuses an active member of its family in
       // the target, as the host does; a picked row is always new.
+      // A question a copied game boards is reused only by a member that the
+      // game sees as it sees the source — difficulty and completeness, its
+      // overlay applied — else it is copied fresh (beta.3, as the host).
+      const plays = (q: Question, overlay: QuestionOverlay | undefined) => {
+        const body = effectiveBody(q, overlay)
+        return `${body.difficulty}|${bodyGaps(body).length === 0}`
+      }
       const member = (kind: LibraryKind, id: string): string | undefined => {
         const family = families.get(key(kind, id))
         if (family === undefined) return undefined
-        const found = [...families.entries()].find(
-          ([k, f]) => f === family && k.startsWith(`${kind}:`) && homeOf(k) === target && library.get(k)?.item.archivedAt === null,
-        )
-        return found ? (library.get(found[0]) as CatalogItem).item.id : undefined
+        const source = library.get(key(kind, id))
+        const boarding = kind === 'question' ? games.find((g) => g.board.some((b) => b.questionIds.includes(id))) : undefined
+        const overlay = boarding?.overlays?.questions?.[id]
+        const found = [...families.entries()]
+          .filter(([k, f]) => f === family && k.startsWith(`${kind}:`) && homeOf(k) === target && library.get(k)?.item.archivedAt === null)
+          .map(([k]) => library.get(k) as CatalogItem)
+          .sort((x, y) => x.item.createdAt - y.item.createdAt || (x.item.id < y.item.id ? -1 : 1))
+          .find((there) => !boarding || source?.kind !== 'question' || there.kind !== 'question' || plays(there.item, overlay) === plays(source.item, overlay))
+        return found?.item.id
       }
       const reused = new Map(rows.filter((r) => !r.picked).flatMap((r) => {
         const there = member(r.kind, r.id)
@@ -1271,20 +1288,24 @@ export function createFakeHost(): FakeHost {
         const source = t.kind === 'recipe' ? recipes.get(t.from) : library.get(key(t.kind, t.from))?.item
         const name = (source as { name?: string } | undefined)?.name
         if (!name || !['team', 'domain', 'recipe'].includes(t.kind)) continue
-        const fold = name.trim().toLowerCase()
-        const there =
+        const others =
           t.kind === 'recipe'
-            ? [...recipes.values()].some((r) => r.id !== t.id && recipeHomeOf(r.id) === target && r.archivedAt === null && r.name.trim().toLowerCase() === fold)
-            : [...library.entries()].some(
-                ([k, row]) => k.startsWith(`${t.kind}:`) && row.item.id !== t.id && homeOf(k) === target && row.item.archivedAt === null && (row.item as { name: string }).name.trim().toLowerCase() === fold,
-              )
-        if (there) twins.push(`${t.kind === 'recipe' ? 'game' : t.kind} ${name}`)
+            ? [...recipes.values()].filter((r) => r.id !== t.id && recipeHomeOf(r.id) === target && r.archivedAt === null)
+            : [...library.entries()]
+                .filter(([k, row]) => k.startsWith(`${t.kind}:`) && row.item.id !== t.id && homeOf(k) === target && row.item.archivedAt === null)
+                .map(([, row]) => row.item as { name: string })
+        const line = `${t.kind === 'recipe' ? 'game' : t.kind} ${name}`
+        if (isTwin(name, others) && !twins.includes(line)) twins.push(line)
       }
       report = { ...report, twins }
     }
     if (!write) return report
     const first = report.refused[0]
-    if (first) refuse('catalog', `${first.kind} ${first.id} is still used by ${[...new Set(report.refused.map((r) => r.usedBy))].join(', ')}`)
+    if (first) {
+      const row = first.kind === 'recipe' ? recipes.get(first.id) : library.get(key(first.kind, first.id))?.item
+      const name = (row as { name?: string; stem?: string } | undefined)?.name ?? (row as { stem?: string } | undefined)?.stem ?? first.id
+      refuse('catalog', `${first.kind === 'recipe' ? 'game' : first.kind} ${name} is still used by ${[...new Set(report.refused.map((r) => r.usedBy))].join(', ')}`)
+    }
     for (const t of [...report.created, ...report.moved, ...(report.joined ?? [])]) emit('catalog-changed', { kind: t.kind, id: t.id, op: 'upserted' })
     return report
   }
@@ -1634,10 +1655,23 @@ export function createFakeHost(): FakeHost {
       ({ update: familyCopies(a.item as CatalogItem), skipped: [] }) satisfies PropagationPreview,
     catalog_upsert_propagating: (a: Record<string, unknown>) => {
       const item = a.item as CatalogItem
+      // `with`: this workspace's rows the same save changes (beta.3), written
+      // in the same go — all of it, or nothing of it.
+      const alongside = (a.with as CatalogItem[] | undefined) ?? []
       validate(item)
+      alongside.forEach(validate)
       const copies = familyCopies(item)
-      upsert(item)
+      const before = new Map(library)
+      try {
+        upsert(item)
+        alongside.forEach((row) => upsert(row))
+      } catch (e) {
+        library.clear()
+        for (const [k, v] of before) library.set(k, v)
+        throw e
+      }
       emit('catalog-changed', { kind: item.kind, id: item.item.id, op: 'upserted' })
+      for (const row of alongside) emit('catalog-changed', { kind: row.kind, id: row.item.id, op: 'upserted' })
       for (const copy of copies) {
         const k = key(item.kind, copy.id)
         const stored = library.get(k) as CatalogItem

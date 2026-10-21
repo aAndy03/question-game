@@ -57,7 +57,14 @@ describe('the fake import mirrors the host (§2.32)', () => {
     expect(plan.questions[0]?.tags).toEqual(['Empire', 'Rome'])
     expect(rows[1]?.duplicateOf).toBe('Who built Rome?')
     expect(rows[2]?.landing).toEqual(['Geography (new)', 'History (HIS_200), one of 2 named History'])
-    expect(rows[3]?.duplicateOf).toBe('row 1')
+    expect(rows[3]?.duplicateOf).toBeNull()
+    expect(rows[3]?.duplicateRow).toBe(1)
+  })
+
+  it('a row repeated three times names the first row each time', () => {
+    const row = { question: 'Q?', options: [{ text: 'A', correct: true }, 'B'] }
+    const plan = run(JSON.stringify([row, row, row]))
+    expect(plan.report.rows.map((r) => r.duplicateRow)).toEqual([null, 1, 1])
   })
 
   it('sends a row with no domain to the default one', () => {

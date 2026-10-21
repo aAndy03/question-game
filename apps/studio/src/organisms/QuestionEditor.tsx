@@ -131,6 +131,9 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
   const back: Route = { tab: 'library', ...(domainId ? { domainId } : {}) }
 
   const save = async (): Promise<boolean> => {
+    // One save at a time: a second press while the copies are asked about
+    // would cancel the first and clear its spinner (review).
+    if (saving) return false
     setSaving(true)
     const item: Question = {
       ...q,
@@ -156,17 +159,17 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
       }
     }
     // One write (beta.3): the question and the memberships it changes, so a
-    // refused membership never leaves a saved question behind it. The copies
-    // are asked about only when the body changed — a domain or a group is
-    // not theirs to follow — and their save goes first, the memberships after.
+    // refused membership never leaves a saved question behind it — with its
+    // copies too (`with`: the domains ride in the propagating transaction).
+    // The copies are asked about only when the body changed: a domain or a
+    // group is not theirs to follow.
     const bodyChanged = !source.data || !sameBody(source.data, item)
     const domainItems = changed.map((d) => ({ kind: 'domain', item: d }))
-    const choice = bodyChanged ? await propagating.decide({ kind: 'question', item }) : 'none'
+    const choice = bodyChanged ? await propagating.decide({ kind: 'question', item }, { targetPath: path }) : 'none'
     let ok: unknown
     if (choice === 'cancel') ok = null
     else if (choice === 'also') {
-      ok = await run('catalog_upsert_propagating', { item: { kind: 'question', item } }, { targetPath: path })
-      if (ok !== null && domainItems.length > 0) ok = await run('catalog_upsert_many', { items: domainItems }, { targetPath: path })
+      ok = await run('catalog_upsert_propagating', { item: { kind: 'question', item }, with: domainItems }, { targetPath: path })
     } else {
       const items = [...(bodyChanged ? [{ kind: 'question', item }] : []), ...domainItems]
       ok = items.length === 0 ? true : await run('catalog_upsert_many', { items }, { targetPath: path })

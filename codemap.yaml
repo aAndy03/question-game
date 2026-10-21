@@ -189,7 +189,7 @@ commands:
     callers: [main]
     doc: "*Also update {n} copies*: the save and every copy it can reach, in one transaction."
     file: crates/app/src/commands/workspace.rs
-    params: ["item: CatalogItem"]
+    params: ["item: CatalogItem", "with: Option<Vec<CatalogItem>>"]
     returns: "AppResult<PropagationPreview>"
   choose_domain:
     async: true
@@ -430,8 +430,8 @@ commands:
     callers: [main]
     doc: "What still points at a row — what the Archive confirmation shows before the operator archives something a show depends on (§4.1)."
     file: crates/app/src/commands/catalog.rs
-    params: ["kind: CatalogKind", "id: String"]
-    returns: "AppResult<Option<&'static str>>"
+    params: ["kind: CatalogKind", "id: Option<String>", "ids: Option<Vec<String>>"]
+    returns: "AppResult<Option<String>>"
   reorder_ring:
     async: true
     callers: [main]
@@ -1405,14 +1405,16 @@ host_api:
     "catalog::db::place_for_test": {doc: "Test support: in a file written by [`write_older_schema`] at step 5 or before, put a row in the shared library (`workspace_id` NULL) or in a named workspace — how the beta.2 tests build a beta.1 li...", kind: fn, sig: "fn place_for_test(path: &Path, table: &str, id: &str, workspace: Option<&str>) -> CatalogResult<()>"}
     "catalog::db::write_older_schema": {doc: "Test support: write `to` as the library `from` would look to a build that knew only the first `steps` migrations — the same rows, the columns that build had.", kind: fn, sig: "fn write_older_schema(from: &Path, to: &Path, steps: u32) -> CatalogResult<()>"}
   crates/host/src/catalog/error.rs:
-    "catalog::error::CatalogError": {kind: enum, sig: "enum CatalogError { NotFound { kind: CatalogKind, id: String } | StillReferenced { kind: CatalogKind, id: String, used_by: &'static str } | Invalid { target_path: String, reason: &'static str } | Import { reason: String } | Settings(MatchError) | PlayAlreadyOpen { recipe: String, play: String } | SchemaTooNew { found: u32, known: u32 } | BackupFailed { dir: std::path::PathBuf, reason: String } | WrongWorkspace { kind: CatalogKind, id: String } | NoWorkspace | ScopeRule { rule: &'static str, detail: String } | StillUsed { kind: CatalogKind, id: String, used_by: String } | Sqlite(rusqlite::Error) | Search(tantivy::TantivyError) | Corrupt(serde_json::Error) }"}
+    "catalog::error::CatalogError": {kind: enum, sig: "enum CatalogError { NotFound { kind: CatalogKind, id: String } | Invalid { target_path: String, reason: &'static str } | Import { reason: String } | Settings(MatchError) | PlayAlreadyOpen { recipe: String, play: String } | SchemaTooNew { found: u32, known: u32 } | BackupFailed { dir: std::path::PathBuf, reason: String } | WrongWorkspace { kind: CatalogKind, id: String, name: String } | NoWorkspace | ScopeRule { rule: &'static str, detail: String } | StillUsed { kind: CatalogKind, id: String, name: String, used_by: String } | Sqlite(rusqlite::Error) | Search(tantivy::TantivyError) | Corrupt(serde_json::Error) }"}
     "catalog::error::CatalogKind": {doc: "What the catalog was asked about, and what `catalog-changed { kind, … }` reports (§11.A).", kind: enum, sig: "enum CatalogKind { Team | Domain | Question | Operator | Asset | Recipe }"}
     "catalog::error::CatalogKind::ALL": {kind: const, sig: "const ALL: [CatalogKind; 6] = [CatalogKind::Team, CatalogKind::Domain, CatalogKind::Question, CatalogKind::Operator, ..."}
     "catalog::error::CatalogKind::as_str": {doc: "The tab name, and the `kind` field of `catalog-changed`.", kind: method, sig: "fn as_str(self) -> &'static str"}
+    "catalog::error::CatalogKind::noun": {doc: "What the operator calls it (beta.3): a recipe is a game in Studio.", kind: method, sig: "fn noun(self) -> &'static str"}
     "catalog::error::CatalogResult": {kind: type, sig: "type CatalogResult = Result<T, CatalogError>"}
   crates/host/src/catalog/family.rs:
     "catalog::family::CatalogService::catalog_unfollow": {doc: "*Stop following its copies*: the row leaves its family; the copies stay one family without it.", kind: method, sig: "fn catalog_unfollow(&self, kind: CatalogKind, id: &str) -> CatalogResult<()>"}
     "catalog::family::CatalogService::catalog_upsert_propagating": {doc: "Save `item` and carry its body to every copy the preview did not skip, in one transaction.", kind: method, sig: "fn catalog_upsert_propagating(&self, item: &CatalogItem, now_ms: u64) -> CatalogResult<(CatalogChange, PropagationPreview)>"}
+    "catalog::family::CatalogService::catalog_upsert_propagating_with": {doc: "The same, with rows of this workspace written in the same transaction after it — the domains a question editor changes (beta.3: written apart, a refused membership left the question and its copies ...", kind: method, sig: "fn catalog_upsert_propagating_with(&self, item: &CatalogItem, with: &[CatalogItem], now_ms: u64) -> CatalogResult<(CatalogChange, PropagationPreview)>"}
     "catalog::family::CatalogService::propagation_preview": {doc: "The other rows of `item`'s family, split into the ones the change can reach and the ones it would break.", kind: method, sig: "fn propagation_preview(&self, item: &CatalogItem) -> CatalogResult<PropagationPreview>"}
     "catalog::family::FamilyCopy": {doc: "One other member of a row's family.", kind: struct, sig: "struct FamilyCopy { id: String, workspace: WorkspaceId, workspace_name: Option<String>, archived: bool }"}
     "catalog::family::PropagationPreview": {doc: "What *Also update {n} copies* would do.", kind: struct, sig: "struct PropagationPreview { update: Vec<FamilyCopy>, skipped: Vec<SkippedCopy> }"}
@@ -1435,7 +1437,7 @@ host_api:
     "catalog::import::ImportCounts": {kind: struct, sig: "struct ImportCounts { complete: usize, incomplete: usize, duplicate: usize, rejected: usize }"}
     "catalog::import::ImportPlan": {doc: "The rows to write and the report that describes them.", kind: struct, sig: "struct ImportPlan { report: ImportReport, questions: Vec<Question>, domains: Vec<Domain> }"}
     "catalog::import::ImportReport": {doc: "`catalog_import_questions`' answer, preview and commit alike.", kind: struct, sig: "struct ImportReport { committed: bool, rows: Vec<ImportRow>, new_domains: Vec<NewDomain>, counts: ImportCounts }"}
-    "catalog::import::ImportRow": {kind: struct, sig: "struct ImportRow { index: usize, status: RowStatus, stem: String, domains: Vec<String>, gaps: Vec<QuestionGap>, ignored: Vec<Ignored>, reason: Option<RejectReason> }"}
+    "catalog::import::ImportRow": {kind: struct, sig: "struct ImportRow { index: usize, status: RowStatus, stem: String, domains: Vec<String>, landing: Vec<String>, tags: Vec<String>, duplicate_of: Option<String>, duplicate_row: Option<usize>, gaps: Vec<QuestionGap>, ignored: Vec<Ignored>, reason: Option<RejectReason> }"}
     "catalog::import::Library": {doc: "What the import needs to know about the library: the **active** questions, for duplicates, and the **active** domains, to match names against.", kind: struct, sig: "struct Library<'a> { questions: &'a [Question], domains: &'a [Domain] }"}
     "catalog::import::MAX_ROWS": {doc: "Past this the file is refused whole: one transaction, and a preview the operator can still read.", kind: const, sig: "const MAX_ROWS: usize = 2_000"}
     "catalog::import::NewDomain": {kind: struct, sig: "struct NewDomain { name: String, code: String }"}
@@ -1557,7 +1559,8 @@ host_api:
     "catalog::service::CatalogService::recipe_set_overlay": {doc: "`recipe_set_overlay` — ScopeConfirm at the data layer (§2.17).", kind: method, sig: "fn recipe_set_overlay(&self, id: &RecipeId, target: OverlayTarget, scope: EditScope, now_ms: u64) -> CatalogResult<RecipeChange>"}
     "catalog::service::CatalogService::recipe_set_settings": {doc: "`recipe_set_settings` — the B5 document (§11.L L3).", kind: method, sig: "fn recipe_set_settings(&self, id: &RecipeId, settings: GameSettings, now_ms: u64) -> CatalogResult<RecipeChange>"}
     "catalog::service::CatalogService::recipe_upsert": {doc: "`recipe_upsert` — **one transaction** (§11.B).", kind: method, sig: "fn recipe_upsert(&self, recipe: &Recipe, now_ms: u64) -> CatalogResult<RecipeChange>"}
-    "catalog::service::CatalogService::referenced_by": {doc: "What still points at a row — a recipe roster, a board, a domain, an open Play.", kind: method, sig: "fn referenced_by(&self, kind: CatalogKind, id: &str) -> CatalogResult<Option<&'static str>>"}
+    "catalog::service::CatalogService::referenced_by": {doc: "What still points at a row — a recipe roster, a board, a domain, an open Play.", kind: method, sig: "fn referenced_by(&self, kind: CatalogKind, id: &str) -> CatalogResult<Option<String>>"}
+    "catalog::service::CatalogService::referenced_by_many": {doc: "The same for many rows at once, in one sentence: what a bulk Archive confirmation names (beta.3).", kind: method, sig: "fn referenced_by_many(&self, kind: CatalogKind, ids: &[String]) -> CatalogResult<Option<String>>"}
     "catalog::service::CatalogService::resume_open_play": {doc: "The Play that was still open when the process stopped, replayed from its log.", kind: method, sig: "fn resume_open_play(&self) -> CatalogResult<Option<Play>>"}
     "catalog::service::CatalogService::settings_load": {doc: "The all-games document (§11.L L1/L2).", kind: method, sig: "fn settings_load(&self) -> CatalogResult<Option<GlobalSettings>>"}
     "catalog::service::CatalogService::settings_store": {doc: "Store the globals.", kind: method, sig: "fn settings_store(&self, settings: &GlobalSettings) -> CatalogResult<()>"}
@@ -1579,7 +1582,7 @@ host_api:
     "catalog::transfer::Selection::is_empty": {kind: method, sig: "fn is_empty(&self) -> bool"}
     "catalog::transfer::Touched": {doc: "One row a transfer touched: its kind, its id where it ends up, and the id it came from (the same id for a move or a share).", kind: struct, sig: "struct Touched { kind: CatalogKind, id: String, from: String, picked: bool }"}
     "catalog::transfer::TransferOp": {kind: enum, sig: "enum TransferOp { Copy | Move }"}
-    "catalog::transfer::TransferReport": {doc: "What a transfer did, or — from [`CatalogService::transfer_preview`] — would do.", kind: struct, sig: "struct TransferReport { created: Vec<Touched>, reused: Vec<Touched>, moved: Vec<Touched>, joined: Vec<Touched>, homes: Vec<Touched>, refused: Vec<Refusal> }"}
+    "catalog::transfer::TransferReport": {doc: "What a transfer did, or — from [`CatalogService::transfer_preview`] — would do.", kind: struct, sig: "struct TransferReport { created: Vec<Touched>, reused: Vec<Touched>, moved: Vec<Touched>, joined: Vec<Touched>, homes: Vec<Touched>, twins: Vec<String>, refused: Vec<Refusal> }"}
   crates/host/src/catalog/workspace.rs:
     "catalog::workspace::CatalogService::current_workspace": {doc: "The workspace every read and write is scoped to.", kind: method, sig: "fn current_workspace(&self) -> WorkspaceId"}
     "catalog::workspace::CatalogService::group_create": {kind: method, sig: "fn group_create(&self, name: &str, now_ms: u64) -> CatalogResult<WorkspaceGroup>"}
@@ -2079,7 +2082,7 @@ studio_calls:
       - apps/studio/src/organisms/QuestionEditor.tsx
       - apps/studio/src/organisms/usePropagatingSave.tsx
     catalog_upsert_many: [apps/studio/src/organisms/QuestionEditor.tsx]
-    catalog_upsert_propagating: [apps/studio/src/organisms/usePropagatingSave.tsx]
+    catalog_upsert_propagating: [apps/studio/src/organisms/QuestionEditor.tsx, apps/studio/src/organisms/usePropagatingSave.tsx]
     choose_domain: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useControlHotkeys.ts]
     domain_group_create: [apps/studio/src/organisms/GroupsDialog.tsx]
     domain_group_delete: [apps/studio/src/organisms/GroupsDialog.tsx]

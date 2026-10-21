@@ -103,6 +103,8 @@ pub struct ImportRow {
     pub tags: Vec<String>,
     /// For a duplicate: the question it repeats — its stem, or "row 4".
     pub duplicate_of: Option<String>,
+    /// Or the earlier row of this file it repeats, 1-based.
+    pub duplicate_row: Option<usize>,
     pub gaps: Vec<QuestionGap>,
     pub ignored: Vec<Ignored>,
     pub reason: Option<RejectReason>,
@@ -118,6 +120,7 @@ impl ImportRow {
             landing: Vec::new(),
             tags: Vec::new(),
             duplicate_of: None,
+            duplicate_row: None,
             gaps: Vec::new(),
             ignored,
             reason: Some(reason),
@@ -187,7 +190,7 @@ pub fn plan(
     }
 
     // Each fingerprint with what the operator would recognise it by.
-    let mut seen: BTreeMap<Fingerprint, String> = library
+    let mut seen: BTreeMap<Fingerprint, (Option<String>, Option<usize>)> = library
         .questions
         .iter()
         .map(|q| {
@@ -196,7 +199,7 @@ pub fn plan(
                     &q.stem,
                     q.options.iter().map(|o| (o.text.as_str(), o.correct)),
                 ),
-                q.stem.clone(),
+                (Some(q.stem.clone()), None),
             )
         })
         .collect();
@@ -243,14 +246,15 @@ pub fn plan(
                 domains: Vec::new(),
                 landing: Vec::new(),
                 tags: Vec::new(),
-                duplicate_of: Some(of.clone()),
+                duplicate_of: of.0.clone(),
+                duplicate_row: of.1,
                 gaps: Vec::new(),
                 ignored: read.ignored,
                 reason: None,
             });
             continue;
         }
-        seen.insert(print, format!("row {index}"));
+        seen.insert(print, (None, Some(index)));
 
         let mut domain_ids: Vec<DomainId> = Vec::new();
         for name in &read.domains {
@@ -301,6 +305,7 @@ pub fn plan(
             landing: domain_ids.iter().map(|d| resolver.landing_of(d)).collect(),
             tags,
             duplicate_of: None,
+            duplicate_row: None,
             gaps,
             ignored: read.ignored,
             reason: None,
@@ -599,12 +604,12 @@ impl<'a> Resolver<'a> {
         });
         // Names before codes, so a code that happens to spell another
         // domain's name never shadows it.
-        for domain in oldest {
+        for domain in &oldest {
             by_key
                 .entry(fold(&domain.name))
                 .or_insert_with(|| domain.id.clone());
         }
-        for domain in library {
+        for domain in &oldest {
             by_key
                 .entry(fold(&domain.code))
                 .or_insert_with(|| domain.id.clone());

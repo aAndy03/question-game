@@ -208,9 +208,9 @@ function PreviewRow({ row }: { row: ImportRow }) {
           {IMPORT.tags(row.tags)}
         </Text>
       ) : null}
-      {row.duplicateOf ? (
+      {row.duplicateOf !== null || row.duplicateRow !== null ? (
         <Text as="div" variant="studio-caption" tone="muted" className="pl-10">
-          {IMPORT.duplicateOf(row.duplicateOf)}
+          {row.duplicateRow !== null ? IMPORT.duplicateRow(row.duplicateRow) : IMPORT.duplicateOf(row.duplicateOf ?? '')}
         </Text>
       ) : null}
       {row.ignored.map((i) => (

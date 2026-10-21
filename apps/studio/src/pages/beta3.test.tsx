@@ -9,7 +9,7 @@ import { createFakeHost, type FakeHost } from '@/host/fake'
 import { demoLibrary, demoRecipe } from '@/host/devFake'
 import { setHostTransport } from '@/host/host'
 import { receivePlayState } from '@/host/playState'
-import type { CatalogItem, Team } from '@/host/types'
+import type { CatalogItem, Question, Team } from '@/host/types'
 
 /** beta.3 in Studio: twin names said, theme colours shown as swatches, archive confirms naming games. */
 let fake: FakeHost
@@ -40,6 +40,10 @@ describe('twin names (beta.3)', () => {
     expect(await screen.findByText(CONFIRM.twinTeam(' alpha '))).toBeTruthy()
     fireEvent.change(name, { target: { value: 'Echo' } })
     await waitFor(() => expect(screen.queryByText(/Another team in this workspace/)).toBeNull())
+    // Said, never refused: the twin saves.
+    fireEvent.change(name, { target: { value: 'Alpha' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Save/ }))
+    await waitFor(() => expect([...fake.library.values()].filter((r) => r.kind === 'team' && r.item.name === 'Alpha')).toHaveLength(2))
   })
 })
 
@@ -53,13 +57,27 @@ describe('a theme colour (beta.3, seen in the real app)', () => {
     await at({ tab: 'teams', id: 'seed-team-red', mode: 'edit' } as Route)
     const swatch = await screen.findByRole('radio', { name: TEAM.themeColour })
     expect(swatch.getAttribute('aria-checked')).toBe('true')
-    const field = screen.getByRole('textbox', { name: TEAM.color }) as HTMLInputElement
+    const field = screen.getByRole('textbox', { name: TEAM.colorCode }) as HTMLInputElement
     expect(field.value).toBe('')
     expect(document.body.textContent).not.toContain('var(--state-incorrect)')
+  })
+
+  it('a colour typed without its # stays in the field (review: keystrokes vanished)', async () => {
+    await at({ tab: 'teams', id: 'team-alpha', mode: 'edit' } as Route)
+    const field = (await screen.findByRole('textbox', { name: TEAM.colorCode })) as HTMLInputElement
+    fireEvent.change(field, { target: { value: 'ff0000' } })
+    expect(field.value).toBe('ff0000')
+    expect(screen.queryByRole('radio', { name: TEAM.themeColour })).toBeNull()
   })
 })
 
 describe('the archive confirm names what uses the rows (beta.3)', () => {
+  it('asks the host about every picked row, not the first 50', async () => {
+    const many = Array.from({ length: 60 }, (_, n) => `team-none-${n}`)
+    expect(await fake.invoke('referenced_by', { kind: 'team', ids: [...many, 'team-alpha'] })).toBe('the game Season opener')
+    expect(await fake.invoke('referenced_by', { kind: 'team', ids: many })).toBeNull()
+  })
+
   it('for many teams at once, and the a-a wording is gone', async () => {
     await at({ tab: 'teams' } as Route)
     for (const name of ['Alpha', 'Bravo']) fireEvent.click(await screen.findByRole('checkbox', { name: `Select ${name}` }, { timeout: 5000 }))
@@ -89,6 +107,45 @@ describe('the question editor writes once (beta.3)', () => {
     expect(q?.kind === 'question' ? q.item.stem : '').toBe('Which empire built the road network that reached Britain?')
     expect(spy).not.toHaveBeenCalledWith('Question saved')
     spy.mockRestore()
+  })
+
+  /** q-h1 with a copy, so a body change has someone to ask about. */
+  const withCopy = () => {
+    const h1 = fake.library.get('question:q-h1')
+    if (h1?.kind !== 'question') throw new Error('q-h1')
+    const copy: Question = { ...h1.item, id: 'q-copy', familyId: 9 }
+    fake.seed([{ kind: 'question', item: copy }])
+    fake.library.set('question:q-h1', { kind: 'question', item: { ...h1.item, familyId: 9 } })
+    fake.families.set('question:q-h1', 9)
+    fake.families.set('question:q-copy', 9)
+  }
+
+  it('a change to the question itself asks about the copies', async () => {
+    withCopy()
+    await at({ tab: 'library', questionId: 'q-h1', mode: 'edit', domainId: 'dom-history' } as Route)
+    const stem = await screen.findByDisplayValue('Which empire built the road network that reached Britain?')
+    fireEvent.change(stem, { target: { value: 'Which empire built the roads?' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Save/ }))
+    expect(await screen.findByText('This row has copies')).toBeTruthy()
+  })
+
+  it('Also update copies with a refused membership saves nothing, copies included', async () => {
+    withCopy()
+    const d = fake.library.get('domain:dom-tech')
+    if (d?.kind === 'domain') fake.library.set('domain:dom-tech', { kind: 'domain', item: { ...d.item, questions: d.item.questions.map((m) => ({ ...m, groupId: 'grp-elsewhere' })) } })
+    await at({ tab: 'library', questionId: 'q-h1', mode: 'edit', domainId: 'dom-history' } as Route)
+    const stem = await screen.findByDisplayValue('Which empire built the road network that reached Britain?')
+    fireEvent.change(stem, { target: { value: 'Which empire built the roads?' } })
+    fireEvent.click(await screen.findByRole('checkbox', { name: /Technology/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Save/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Also update/ }))
+    await waitFor(() => expect(fake.calls.some((c) => c.name === 'catalog_upsert_propagating')).toBe(true))
+    const stems = ['question:q-h1', 'question:q-copy'].map((k) => {
+      const row = fake.library.get(k)
+      return row?.kind === 'question' ? row.item.stem : ''
+    })
+    expect(stems).toEqual(['Which empire built the road network that reached Britain?', 'Which empire built the road network that reached Britain?'])
+    expect(fake.calls.some((c) => c.name === 'catalog_upsert_many')).toBe(false)
   })
 
   it('a change of domain alone does not ask about the copies', async () => {

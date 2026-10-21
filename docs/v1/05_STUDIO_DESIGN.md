@@ -2384,8 +2384,8 @@ Design: `docs/superpowers/specs/2026-10-21-groups-tags-bulk-design.md`. Organisi
 Design: `docs/superpowers/specs/2026-10-21-beta3-copy-import-editor-design.md`.
 
 - **A name used twice is said, never refused**: the team, domain and game name fields carry the description "Another {kind} in this workspace is named {name}." while the name matches (ignoring case and spaces) another active row; the transfer dialog says "Club already has a team Red. Both will be there." for a picked row that would arrive beside one.
-- **The archive confirm names the games** that use the rows — "the game Friday", "the games A and B" — for one row or a selection; with none, it is the plain confirm.
+- **The archive confirm names the games** that use the rows — "the game Friday", "the games A and B" — for one row or a whole selection, archived games not counted; with none, it is the plain confirm.
 - **The question editor** asks *This row has copies* only when the question itself changed (text, options, difficulty, explanation, media, tags); a change of domain or group saves without asking. A refused save says why and leaves nothing half-saved.
-- **Team colour**: a theme colour shows as a checked swatch, *Theme colour*; the hex field is then empty, `#RRGGBB` its placeholder.
+- **Team colour**: a theme colour shows as a checked swatch, *Theme colour*; the hex field, *Colour code*, is then empty, `#RRGGBB` its placeholder.
 - **The import preview**, under each row: *In History (HIS_100)* — "(new)" for a domain the import creates, and "the oldest of 2 named History" / "one of 2 named History" when two share a name — then *Tags: …*, and for a duplicate (status *Duplicate*) *Repeats "…"* or *Repeats row 4 of this file*.
 - **Dialog footers wrap** inside the frame; an action never leaves it.

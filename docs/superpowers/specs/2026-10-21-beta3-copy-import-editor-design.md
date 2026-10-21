@@ -1,6 +1,6 @@
 # beta.3: copy, import, the editor, readable refusals
 
-Status: building, 2026-10-21. The scope is the roadmap's beta.3 line (approved with the shared-library design), from the two parity audits. `main` only.
+Status: built, 2026-10-21 (reviewed by Opus and Sonnet; every finding fixed). The scope is the roadmap's beta.3 line (approved with the shared-library design), from the two parity audits. `main` only.
 
 ## What changes, and the rule each follows
 
@@ -11,10 +11,10 @@ Status: building, 2026-10-21. The scope is the roadmap's beta.3 line (approved w
 
 **Import**
 4. **The preview says where each row lands**: the domains (name and code), its tags, and for a duplicate, which question it duplicates.
-5. **Two domains with one name**: a row naming the name lands in the oldest-created one, and the preview row says so ("History (HIS), one of two named History"). A code always picks exactly.
+5. **Two domains with one name**: a row naming the name lands in the oldest-created one, and the preview row says so ("History (HIS_100), the oldest of 2 named History"; a code naming another: "one of 2"). A code always picks exactly.
 
 **Question editor**
-6. **One write**: the question and every membership it changes are saved together (`catalog_upsert_many`), so there is never a saved question with a refused membership. When copies are updated, the propagating save runs first and the memberships follow. A refusal there is a notice, never "Question saved".
+6. **One write**: the question and every membership it changes are saved together (`catalog_upsert_many`), so there is never a saved question with a refused membership. When copies are updated, the memberships ride in the propagating save's transaction (`with`). A refusal there is a notice, never "Question saved".
 7. ***Also update copies* is asked only when the body changed**: the stem, options, difficulty, explanation, media or tags. A change of domain or group is not the copies' business.
 
 **Refusals and notices**

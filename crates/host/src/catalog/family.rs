@@ -65,7 +65,22 @@ impl CatalogService {
         item: &CatalogItem,
         now_ms: u64,
     ) -> CatalogResult<(CatalogChange, PropagationPreview)> {
+        self.catalog_upsert_propagating_with(item, &[], now_ms)
+    }
+
+    /// The same, with rows of this workspace written in the same transaction
+    /// after it — the domains a question editor changes (beta.3: written
+    /// apart, a refused membership left the question and its copies saved).
+    pub fn catalog_upsert_propagating_with(
+        &self,
+        item: &CatalogItem,
+        with: &[CatalogItem],
+        now_ms: u64,
+    ) -> CatalogResult<(CatalogChange, PropagationPreview)> {
         item.validate()?;
+        for row in with {
+            row.validate()?;
+        }
         let plan = {
             let mut conn = self.conn();
             let current = store::current_workspace(&conn)?;
@@ -73,6 +88,9 @@ impl CatalogService {
             let result = propagate(&tx, item, &current, now_ms);
             db::bind_workspace(&tx, current.as_str())?;
             let plan = result?;
+            for row in with {
+                upsert(&tx, row, now_ms)?;
+            }
             tx.commit()?;
             plan
         };

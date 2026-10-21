@@ -92,6 +92,7 @@ fn ensure_in_view(conn: &Connection, kind: CatalogKind, id: &str) -> CatalogResu
         Some(false) => Err(CatalogError::WrongWorkspace {
             kind,
             id: id.to_owned(),
+            name: row_name(conn, kind, id)?,
         }),
         _ => Ok(()),
     }
@@ -1180,18 +1181,15 @@ pub(super) fn set_archived(
     Ok(())
 }
 
-/// What still points at this row. `None` means nothing does.
-///
-/// This is the guard behind "cannot purge a row recipes or open Plays still
-/// point at" (§4.1). Archiving stays legal — an archived team a recipe uses is
-/// a warn for the operator, not a corrupted board — so this is consulted by
-/// the paths that would *remove* data, and by `catalog_archive` to report it.
+/// A stem as a name: at most 40 characters, cut with an ellipsis.
+const STEM_40: &str = "CASE WHEN length(stem) > 40 THEN substr(stem, 1, 39) || '…' ELSE stem END";
+
 /// What the operator calls a row, whatever workspace it is in: its name, a
 /// question's stem (40 characters), an asset's path — the id when it is gone.
 /// For messages only (beta.3: refusals named ids).
 pub(super) fn row_name(conn: &Connection, kind: CatalogKind, id: &str) -> CatalogResult<String> {
     let column = match kind {
-        CatalogKind::Question => "substr(stem, 1, 40)",
+        CatalogKind::Question => STEM_40,
         CatalogKind::Asset => "path",
         CatalogKind::Operator => "display_name",
         _ => "name",
@@ -1203,60 +1201,77 @@ pub(super) fn row_name(conn: &Connection, kind: CatalogKind, id: &str) -> Catalo
         .unwrap_or_else(|| id.to_owned()))
 }
 
+/// What still points at these rows, as one sentence. `None` means nothing does.
+///
+/// This is the guard behind "cannot purge a row recipes or open Plays still
+/// point at" (§4.1). Archiving stays legal — an archived team a recipe uses is
+/// a warn for the operator, not a corrupted board — so this is consulted by
+/// the paths that would *remove* data, and by the Archive confirmation. Only
+/// active users count: an archived game holding the row is not one.
 pub(super) fn referenced_by(
     conn: &Connection,
     kind: CatalogKind,
-    id: &str,
+    ids: &[&str],
 ) -> CatalogResult<Option<String>> {
     // What uses the row, by name, nearest first (beta.3: "a recipe board"
     // told the operator nothing, and Studio printed "a a recipe board").
     let queries: &[(&str, &str, &str)] = match kind {
         CatalogKind::Team => &[(
-            "SELECT DISTINCT r.name FROM recipe_teams x JOIN recipes r ON r.id = x.recipe_id WHERE x.team_id = ?1 ORDER BY r.name",
+            "SELECT DISTINCT r.id, r.name FROM recipe_teams x JOIN recipes r ON r.id = x.recipe_id WHERE x.team_id = ?1 AND r.archived_at IS NULL",
             "game",
             "games",
         )],
         CatalogKind::Domain => &[(
-            "SELECT DISTINCT r.name FROM recipe_domains x JOIN recipes r ON r.id = x.recipe_id WHERE x.domain_id = ?1 ORDER BY r.name",
+            "SELECT DISTINCT r.id, r.name FROM recipe_domains x JOIN recipes r ON r.id = x.recipe_id WHERE x.domain_id = ?1 AND r.archived_at IS NULL",
             "game",
             "games",
         )],
         CatalogKind::Question => &[
             (
-                "SELECT DISTINCT r.name FROM recipe_questions x JOIN recipes r ON r.id = x.recipe_id WHERE x.question_id = ?1 ORDER BY r.name",
+                "SELECT DISTINCT r.id, r.name FROM recipe_questions x JOIN recipes r ON r.id = x.recipe_id WHERE x.question_id = ?1 AND r.archived_at IS NULL",
                 "game",
                 "games",
             ),
             (
-                "SELECT DISTINCT d.name FROM domain_questions x JOIN domains d ON d.id = x.domain_id WHERE x.question_id = ?1 ORDER BY d.name",
+                "SELECT DISTINCT d.id, d.name FROM domain_questions x JOIN domains d ON d.id = x.domain_id WHERE x.question_id = ?1 AND d.archived_at IS NULL",
                 "domain",
                 "domains",
             ),
         ],
         CatalogKind::Asset => &[
             (
-                "SELECT DISTINCT name FROM teams WHERE logo_asset_id = ?1 ORDER BY name",
+                "SELECT id, name FROM teams WHERE logo_asset_id = ?1 AND archived_at IS NULL",
                 "team",
                 "teams",
             ),
             (
-                "SELECT DISTINCT substr(stem, 1, 40) FROM questions WHERE media_asset_id = ?1 ORDER BY stem",
+                "SELECT id, CASE WHEN length(stem) > 40 THEN substr(stem, 1, 39) || '…' ELSE stem END FROM questions WHERE media_asset_id = ?1 AND archived_at IS NULL",
                 "question",
                 "questions",
             ),
         ],
         CatalogKind::Recipe => &[(
-            "SELECT 'an open Play' FROM plays WHERE recipe_id = ?1 AND status IN ('playing', 'paused') LIMIT 1",
+            "SELECT id, 'an open Play' FROM plays WHERE recipe_id = ?1 AND status IN ('playing', 'paused') LIMIT 1",
             "",
             "",
         )],
         CatalogKind::Operator => &[],
     };
+    // Every picked row at once (beta.3: a bulk archive asked about the first
+    // 50 only); each user once, by id, so two games of one name are two.
     for (sql, one, many) in queries {
         let mut stmt = conn.prepare(sql)?;
-        let names: Vec<String> = stmt
-            .query_map(params![id], |row| row.get(0))?
-            .collect::<rusqlite::Result<_>>()?;
+        let mut users = BTreeMap::new();
+        for id in ids {
+            for user in stmt.query_map(params![id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })? {
+                let (id, name) = user?;
+                users.insert(id, name);
+            }
+        }
+        let mut names: Vec<String> = users.into_values().collect();
+        names.sort();
         if names.is_empty() {
             continue;
         }
@@ -1785,6 +1800,25 @@ pub(super) fn family_member_in(
     Ok(conn
         .query_row(&sql, params![family, workspace.as_str()], |row| row.get(0))
         .optional()?)
+}
+
+/// Every active member of a family in one workspace, oldest first.
+pub(super) fn family_members_in(
+    conn: &Connection,
+    kind: CatalogKind,
+    family: i64,
+    workspace: &crate::ids::WorkspaceId,
+) -> CatalogResult<Vec<String>> {
+    let sql = format!(
+        "SELECT id FROM {} WHERE family_id = ?1 AND workspace_id = ?2 AND archived_at IS NULL
+         ORDER BY created_at, id",
+        kind.table()
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let ids = stmt
+        .query_map(params![family, workspace.as_str()], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(ids)
 }
 
 /// Where a row lives from now on.

@@ -896,3 +896,198 @@ fn a_copy_beside_a_row_of_the_same_name_says_so() {
         .unwrap();
     assert!(lone.twins.is_empty());
 }
+
+#[test]
+fn twins_fold_beyond_ascii_and_are_said_once() {
+    let (catalog, _a, b) = setup();
+    catalog.workspace_switch(&b).unwrap();
+    catalog
+        .catalog_upsert(
+            &CatalogItem::Team(Box::new(Team::new("theirs", "ȘTIINȚĂ  echipa", "TM"))),
+            NOW,
+        )
+        .unwrap();
+    catalog
+        .workspace_switch(&WorkspaceId::from("ws-1"))
+        .unwrap();
+    for id in ["s1", "s2"] {
+        catalog
+            .catalog_upsert(
+                &CatalogItem::Team(Box::new(Team::new(id, "știință echipa", "SE"))),
+                NOW,
+            )
+            .unwrap();
+    }
+    let preview = catalog
+        .transfer_preview(
+            TransferOp::Copy,
+            &Selection {
+                teams: vec![TeamId::from("s1"), TeamId::from("s2")],
+                ..Selection::default()
+            },
+            Some(&b),
+            CopyOptions::default(),
+        )
+        .unwrap();
+    assert_eq!(preview.twins, ["team știință echipa"]);
+}
+
+#[test]
+fn a_refusal_calls_a_recipe_a_game() {
+    use questiongame_host::catalog::{CatalogError, CatalogKind};
+    let still = CatalogError::StillUsed {
+        kind: CatalogKind::Recipe,
+        id: "r1".into(),
+        name: "Friday".into(),
+        used_by: "an open Play".into(),
+    };
+    assert_eq!(
+        still.to_string(),
+        "game Friday is still used by an open Play"
+    );
+    let elsewhere = CatalogError::WrongWorkspace {
+        kind: CatalogKind::Recipe,
+        id: "r1".into(),
+        name: "Friday".into(),
+    };
+    assert_eq!(
+        elsewhere.to_string(),
+        "the game Friday is in another workspace"
+    );
+}
+
+/// Copy g1 to B and say whether the copy loads there.
+fn copy_game_and_load(
+    catalog: &CatalogService,
+    b: &WorkspaceId,
+) -> questiongame_host::catalog::TransferReport {
+    let report = catalog
+        .catalog_copy_to(
+            &Selection {
+                recipes: vec![RecipeId::from("g1")],
+                ..Selection::default()
+            },
+            b,
+            CopyOptions::default(),
+            NOW,
+        )
+        .unwrap();
+    let game = report
+        .created
+        .iter()
+        .find(|t| t.kind == CatalogKind::Recipe)
+        .unwrap()
+        .id
+        .clone();
+    catalog.workspace_switch(b).unwrap();
+    let mut flags = FlagService::default();
+    flags.load_recipe(GameSettings::default()).unwrap();
+    catalog
+        .build_snapshot(
+            &RecipeId::from(game.as_str()),
+            PlayId::from("p"),
+            flags.freeze().unwrap(),
+        )
+        .expect("the copied game loads");
+    catalog
+        .workspace_switch(&WorkspaceId::from("ws-1"))
+        .unwrap();
+    report
+}
+
+#[test]
+fn a_question_the_game_completes_is_judged_with_the_game_overlay() {
+    use questiongame_host::catalog::QuestionOverlay;
+    let (catalog, _a, b) = setup();
+    // q2 has no text of its own; the game gives it one.
+    let CatalogItem::Question(mut q2) = get(&catalog, CatalogKind::Question, "q2") else {
+        panic!()
+    };
+    q2.stem = String::new();
+    catalog
+        .catalog_upsert(&CatalogItem::Question(q2), NOW)
+        .unwrap();
+    let mut game = catalog.recipe_get(&RecipeId::from("g1")).unwrap();
+    game.overlays.questions.insert(
+        QuestionId::from("q2"),
+        QuestionOverlay {
+            stem: Some("From the game".into()),
+            ..QuestionOverlay::default()
+        },
+    );
+    catalog.recipe_upsert(&game, NOW).unwrap();
+    // Its copy in B has a text, but no correct answer: incomplete, as the source is on its own.
+    let first = catalog
+        .catalog_copy_to(&domains(&["d1"]), &b, CopyOptions::default(), NOW)
+        .unwrap();
+    let there = first
+        .created
+        .iter()
+        .find(|t| t.from == "q2")
+        .unwrap()
+        .id
+        .clone();
+    catalog.workspace_switch(&b).unwrap();
+    let CatalogItem::Question(mut copy) = get(&catalog, CatalogKind::Question, &there) else {
+        panic!()
+    };
+    copy.stem = "Its own text".into();
+    for o in &mut copy.options {
+        o.correct = false;
+    }
+    catalog
+        .catalog_upsert(&CatalogItem::Question(copy), NOW)
+        .unwrap();
+    catalog
+        .workspace_switch(&WorkspaceId::from("ws-1"))
+        .unwrap();
+    let report = copy_game_and_load(&catalog, &b);
+    assert!(!report.reused.iter().any(|t| t.id == there), "{report:?}");
+}
+
+#[test]
+fn a_question_copied_fresh_once_is_reused_by_the_next_copy_of_the_game() {
+    let (catalog, _a, b) = setup();
+    let first = catalog
+        .catalog_copy_to(&domains(&["d1"]), &b, CopyOptions::default(), NOW)
+        .unwrap();
+    let drifted = first
+        .created
+        .iter()
+        .find(|t| t.from == "q2")
+        .unwrap()
+        .id
+        .clone();
+    catalog.workspace_switch(&b).unwrap();
+    let CatalogItem::Question(mut q) = get(&catalog, CatalogKind::Question, &drifted) else {
+        panic!()
+    };
+    q.difficulty = Some(10);
+    catalog
+        .catalog_upsert(&CatalogItem::Question(q), NOW)
+        .unwrap();
+    catalog
+        .workspace_switch(&WorkspaceId::from("ws-1"))
+        .unwrap();
+    let second = copy_game_and_load(&catalog, &b);
+    let fresh = second
+        .created
+        .iter()
+        .find(|t| t.kind == CatalogKind::Question && t.from == "q2")
+        .unwrap()
+        .id
+        .clone();
+    // The next copy finds the fresh one, not the drifted one, and makes no third.
+    let third = copy_game_and_load(&catalog, &b);
+    assert!(
+        third.reused.iter().any(|t| t.from == "q2" && t.id == fresh),
+        "{third:?}"
+    );
+    assert!(
+        !third
+            .created
+            .iter()
+            .any(|t| t.kind == CatalogKind::Question),
+        "{third:?}"
+    );
+}

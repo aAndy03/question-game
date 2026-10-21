@@ -142,7 +142,9 @@ export function planImport(
   }
 
   // Each fingerprint with what the operator would recognise it by.
-  const seen = new Map(library.questions.map((q) => [fingerprint(q.stem, q.options.map((o) => [o.text, o.correct] as const)), q.stem]))
+  const seen = new Map<string, { stem: string | null; row: number | null }>(
+    library.questions.map((q) => [fingerprint(q.stem, q.options.map((o) => [o.text, o.correct] as const)), { stem: q.stem, row: null }]),
+  )
   // Names before codes, so a code that spells another domain's name never shadows it;
   // of two domains with one name the oldest takes it (beta.3).
   const oldest = [...library.domains].sort((a, b) => a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
@@ -189,23 +191,23 @@ export function planImport(
     const index = i + 1
     if (!isObject(raw)) {
       counts.rejected += 1
-      reportRows.push({ index, status: 'rejected', stem: '', domains: [], landing: [], tags: [], duplicateOf: null, gaps: [], ignored: [], reason: 'not_an_object' })
+      reportRows.push({ index, status: 'rejected', stem: '', domains: [], landing: [], tags: [], duplicateOf: null, duplicateRow: null, gaps: [], ignored: [], reason: 'not_an_object' })
       return
     }
     const read = readRow(raw)
     if (!read.stem && read.options.length === 0) {
       counts.rejected += 1
-      reportRows.push({ index, status: 'rejected', stem: read.stem, domains: [], landing: [], tags: [], duplicateOf: null, gaps: [], ignored: read.ignored, reason: 'no_content' })
+      reportRows.push({ index, status: 'rejected', stem: read.stem, domains: [], landing: [], tags: [], duplicateOf: null, duplicateRow: null, gaps: [], ignored: read.ignored, reason: 'no_content' })
       return
     }
     const print = fingerprint(read.stem, read.options)
     const of = seen.get(print)
     if (of !== undefined) {
       counts.duplicate += 1
-      reportRows.push({ index, status: 'duplicate', stem: read.stem, domains: [], landing: [], tags: [], duplicateOf: of, gaps: [], ignored: read.ignored, reason: null })
+      reportRows.push({ index, status: 'duplicate', stem: read.stem, domains: [], landing: [], tags: [], duplicateOf: of.stem, duplicateRow: of.row, gaps: [], ignored: read.ignored, reason: null })
       return
     }
-    seen.set(print, `row ${index}`)
+    seen.set(print, { stem: null, row: index })
 
     const domainIds: string[] = []
     for (const name of read.domains) {
@@ -232,7 +234,7 @@ export function planImport(
     const status = gaps.length === 0 ? 'complete' : 'incomplete'
     counts[status] += 1
     for (const d of domainIds) members.set(d, [...(members.get(d) ?? []), id])
-    reportRows.push({ index, status, stem: read.stem, domains: domainIds.map((d) => find(d)?.name ?? ''), landing: domainIds.map(landing), tags: read.tags, duplicateOf: null, gaps, ignored: read.ignored, reason: null })
+    reportRows.push({ index, status, stem: read.stem, domains: domainIds.map((d) => find(d)?.name ?? ''), landing: domainIds.map(landing), tags: read.tags, duplicateOf: null, duplicateRow: null, gaps, ignored: read.ignored, reason: null })
     questions.push(question)
   })
 

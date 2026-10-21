@@ -20,7 +20,7 @@ export interface PropagatingSave {
    * Only the question, without the write (beta.3, the question editor): `none`
    * when the row has no copies to ask about, else what the operator chose.
    */
-  decide(item: CatalogItem): Promise<'none' | Choice>
+  decide(item: CatalogItem, options?: RunOptions): Promise<'none' | Choice>
   dialog: ReactNode
 }
 
@@ -45,15 +45,13 @@ export function usePropagatingSave(): PropagatingSave {
     setPreview(null)
   }
 
-  const decide: PropagatingSave['decide'] = async (item) => {
+  const decide: PropagatingSave['decide'] = async (item, options) => {
     if (answer.current) return 'cancel'
     if (item.item.familyId == null) return 'none'
-    let plan: PropagationPreview
-    try {
-      plan = await command<PropagationPreview>('catalog_propagation_preview', { item })
-    } catch {
-      return 'none'
-    }
+    // A preview the host refused is said, and nothing is written: saving
+    // without the question would leave the copies behind unasked (review).
+    const plan = await run<PropagationPreview>('catalog_propagation_preview', { item }, options)
+    if (plan === null) return 'cancel'
     if (plan.update.length === 0 && plan.skipped.length === 0) return 'none'
     return new Promise<Choice>((resolve) => {
       answer.current = resolve

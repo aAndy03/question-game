@@ -283,6 +283,30 @@ fn a_row_a_recipe_points_at_reports_what_uses_it() {
 }
 
 #[test]
+fn a_selection_is_asked_about_at_once_in_one_sentence() {
+    let service = CatalogService::in_memory().unwrap();
+    seed(&service);
+    let ids: Vec<String> = (0..60)
+        .map(|n| format!("team-none-{n}"))
+        .chain(["team-a".to_owned()])
+        .collect();
+    // The used row is the 61st: a bulk archive past 50 rows still names its game.
+    assert_eq!(
+        service
+            .referenced_by_many(CatalogKind::Team, &ids)
+            .unwrap()
+            .as_deref(),
+        Some("the game Demo")
+    );
+    assert_eq!(
+        service
+            .referenced_by_many(CatalogKind::Team, &["team-nobody".to_owned()])
+            .unwrap(),
+        None
+    );
+}
+
+#[test]
 fn the_floor_is_refused_by_the_host_not_only_disabled_in_the_editor() {
     // §2.32: one option, or no correct mark, is an *incomplete* question — the
     // library stores it (see the P11.17 block below). What the host refuses

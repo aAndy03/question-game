@@ -213,7 +213,7 @@ export const CONFIRM = {
   twinDomain: (name: string) => `Another domain in this workspace is named ${name.trim()}.`,
   twinGame: (name: string) => `Another game in this workspace is named ${name.trim()}.`,
   referencedBy: (by: string) => `Still used by ${by}. It stays there; only the library row is archived.`,
-  referencedByMany: (by: readonly string[]) => `Some are still used, by ${by.join('; ')}. They stay there; only the library rows are archived.`,
+  referencedByMany: (by: string) => `Some are still used, by ${by}. They stay there; only the library rows are archived.`,
   arm: 'Archive',
   armed: 'Confirm archive',
   dirtyTitle: 'Unsaved changes',
@@ -236,6 +236,9 @@ export const FIELD = {
 } as const
 
 export const TEAM = {
+  colorPlaceholder: '#RRGGBB',
+  /** The hex field beside the swatches: its own name, not the group's (review). */
+  colorCode: 'Colour code',
   one: 'team',
   many: 'teams',
   name: 'Name',
@@ -345,7 +348,8 @@ export const IMPORT = {
   landsIn: (landing: readonly string[]) => `In ${landing.join(' · ')}`,
   tags: (tags: readonly string[]) => `Tags: ${tags.join(', ')}`,
   /** What a duplicate repeats: a question here, or an earlier row of the same file. */
-  duplicateOf: (of: string) => (/^row \d+$/.test(of) ? `Repeats ${of} of this file` : `Repeats “${of}”`),
+  duplicateOf: (of: string) => (of.trim() ? `Repeats “${of}”` : 'Repeats a question with no text'),
+  duplicateRow: (row: number) => `Repeats row ${row} of this file`,
   submit: (n: number) => (n === 1 ? 'Import 1 question' : `Import ${n} questions`),
   done: (c: ImportCounts) => {
     const n = c.complete + c.incomplete

@@ -51,7 +51,9 @@ export function TeamEditor({ id }: TeamEditorProps) {
   const inline = noticesAt(notices, path)
   const fieldError = (field: string) => inline.find((n) => n.targetPath === `${path}.${field}`)?.detail.message ?? null
   const canSave = draft.value.name.trim().length > 0 && draft.isDirty
-  const themeColour = !draft.value.color.trim().startsWith('#')
+  // A theme token (the Demo's teams), not something typed: a typed value,
+  // with or without its #, stays in the field (review: every keystroke vanished).
+  const themeColour = draft.value.color.trim().startsWith('var(')
 
   const save = async (): Promise<boolean> => {
     setSaving(true)
@@ -141,11 +143,11 @@ export function TeamEditor({ id }: TeamEditorProps) {
                 </button>
               ))}
               <TextField
-                label={TEAM.color}
+                label={TEAM.colorCode}
                 hideLabel
                 value={themeColour ? '' : draft.value.color}
                 onChange={(color) => draft.set({ color })}
-                placeholder="#RRGGBB"
+                placeholder={TEAM.colorPlaceholder}
                 font="mono"
                 className="w-36"
               />

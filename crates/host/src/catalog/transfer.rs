@@ -257,16 +257,31 @@ fn twins(
             _ => continue,
         };
         let name = store::row_name(conn, touched.kind, &touched.id)?;
-        let others: i64 = conn.query_row(
-            &format!("SELECT count(*) FROM {table} WHERE workspace_id = ?1 AND id <> ?2 AND archived_at IS NULL AND lower(trim(name)) = lower(trim(?3))"),
-            rusqlite::params![target.as_str(), touched.id, name],
-            |row| row.get(0),
-        )?;
-        if others > 0 {
-            out.push(format!("{noun} {name}"));
+        // Folded here, not in SQL: `lower()` folds ASCII only, and "Știință"
+        // must meet "știință" as Studio's `isTwin` does.
+        let mut stmt = conn.prepare(&format!(
+            "SELECT name FROM {table} WHERE workspace_id = ?1 AND id <> ?2 AND archived_at IS NULL"
+        ))?;
+        let mut names = stmt.query_map(rusqlite::params![target.as_str(), touched.id], |row| {
+            row.get::<_, String>(0)
+        })?;
+        let twin = names.try_fold(false, |hit, other| {
+            other.map(|o| hit || fold_name(&o) == fold_name(&name))
+        })?;
+        let line = format!("{noun} {name}");
+        if twin && !out.contains(&line) {
+            out.push(line);
         }
     }
     Ok(out)
+}
+
+/// Case and spaces folded, as `apps/studio/src/host/twins.ts` folds.
+fn fold_name(name: &str) -> String {
+    name.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
 }
 
 fn check_target(
@@ -500,8 +515,11 @@ fn copy(
         }
     }
     // A copied game's board must load as the original does: a reused question
-    // whose difficulty or completeness drifted since is copied fresh instead
-    // (beta.3; the audit: a reused, re-graded copy broke the new game).
+    // must have the source's difficulty and completeness, as the game sees
+    // them (its overlay applied). Any member of the family there that does is
+    // reused, oldest first, so a drifted one does not breed a copy per game
+    // copied; with none, the question is copied fresh (beta.3; the audit: a
+    // reused, re-graded copy broke the new game).
     for recipe in rows.recipes.values() {
         for board in &recipe.board {
             for q in &board.question_ids {
@@ -512,22 +530,48 @@ fn copy(
                 let Some(source) = rows.questions.get(q.as_str()) else {
                     continue;
                 };
-                db::bind_workspace(tx, target.as_str())?;
-                let there = store::question_get(tx, &QuestionId::new(existing.clone()));
-                db::bind_workspace(tx, current.as_str())?;
-                let drifted = match there {
-                    Ok(there) => {
-                        there.difficulty != source.difficulty
-                            || super::complete::effective_gaps(&there, None).is_empty()
-                                != super::complete::effective_gaps(source, None).is_empty()
-                    }
-                    Err(_) => true,
+                let Some(&family) = family_of.get(&key) else {
+                    continue;
                 };
-                if drifted {
-                    ids.remove(&key);
-                    report
-                        .reused
-                        .retain(|t| !(t.kind == CatalogKind::Question && t.id == existing));
+                let overlay = recipe.overlays.questions.get(q);
+                let seen = |question: &Question| {
+                    (
+                        overlay.and_then(|o| o.difficulty).or(question.difficulty),
+                        super::complete::effective_gaps(question, overlay).is_empty(),
+                    )
+                };
+                let want = seen(source);
+                db::bind_workspace(tx, target.as_str())?;
+                let mut fits = None;
+                for id in store::family_members_in(tx, CatalogKind::Question, family, target)? {
+                    if let Ok(there) = store::question_get(tx, &QuestionId::new(id.clone()))
+                        && seen(&there) == want
+                    {
+                        fits = Some(id);
+                        break;
+                    }
+                }
+                db::bind_workspace(tx, current.as_str())?;
+                if fits.as_deref() == Some(existing.as_str()) {
+                    continue;
+                }
+                for t in report
+                    .reused
+                    .iter_mut()
+                    .filter(|t| t.kind == CatalogKind::Question && t.from == *q.as_str())
+                {
+                    t.id = fits.clone().unwrap_or_default();
+                }
+                match fits {
+                    Some(id) => {
+                        ids.insert(key, id);
+                    }
+                    None => {
+                        ids.remove(&key);
+                        report.reused.retain(|t| {
+                            !(t.kind == CatalogKind::Question && t.from == *q.as_str())
+                        });
+                    }
                 }
             }
         }

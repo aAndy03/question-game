@@ -464,8 +464,10 @@ export interface ImportRow {
   readonly landing: readonly string[]
   /** Its tags, as they will be written. */
   readonly tags: readonly string[]
-  /** For a duplicate: the question it repeats — its text, or "row 4" of this file. */
+  /** For a duplicate of a library question: its text. */
   readonly duplicateOf: string | null
+  /** For a duplicate of an earlier row of this file: that row, 1-based. */
+  readonly duplicateRow: number | null
   readonly gaps: readonly QuestionGap[]
   readonly ignored: readonly ImportIgnored[]
   readonly reason: 'not_an_object' | 'no_content' | null
