@@ -5,11 +5,12 @@ import { BoardSection, PlaysSection, RosterSection, RulesPreviewPanel, RulesSect
 import { RecordPageLayout } from '@/templates'
 import { useNavStore, type GameSection } from '@/chrome/nav'
 import { gameSectionOf, useNoticeStore } from '@/chrome/notices'
-import { CHROME, GAME, LIST, TABS } from '@/copy'
+import { CHROME, CONFIRM, GAME, LIST, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import { isPlayOpen, usePlayState } from '@/host/playState'
-import { useRecipe } from '@/host/queries'
+import { useRecipe, useRecipeList } from '@/host/queries'
+import { isTwin } from '@/host/twins'
 import { isArchived } from '@/host/types'
 
 export interface GamePageProps {
@@ -32,6 +33,7 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
   const run = useHostCommand()
   const archive = useArchive()
   const [name, setName] = useState<string | null>(null)
+  const games = useRecipeList('active')
   const [loading, setLoading] = useState(false)
   // Sections holding a refusal that still stands, so the rail can say where to
   // look from whichever section the operator is on (P12.8).
@@ -164,6 +166,7 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
               label={GAME.name}
               value={name ?? r.name}
               onChange={setName}
+              description={isTwin(name ?? r.name, (games.data ?? []).filter((g) => g.id !== r.id)) ? CONFIRM.twinGame(name ?? r.name) : undefined}
               onBlur={() => void commitName()}
               isRequired
               disabledReason={frozenReason}

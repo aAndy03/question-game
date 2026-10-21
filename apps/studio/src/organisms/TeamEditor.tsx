@@ -3,9 +3,10 @@ import { Panel, Swatch, Text, TextAreaField, TextField } from '@/atoms'
 import { DirtyGuard, EditorFooter, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
-import { LIST, TABS, TEAM } from '@/copy'
+import { CONFIRM, LIST, TABS, TEAM } from '@/copy'
 import { toast } from '@/chrome/toast'
-import { useCatalogItem } from '@/host/queries'
+import { useCatalogItem, useCatalogList } from '@/host/queries'
+import { isTwin } from '@/host/twins'
 import type { Team } from '@/host/types'
 import { useDirtyGuard, useDraft } from './useDraft'
 import { usePropagatingSave } from './usePropagatingSave'
@@ -37,6 +38,7 @@ function emptyTeam(): Team {
 /** Name · short code · colour · notes. Writes `catalog_upsert`; refusals land inline. */
 export function TeamEditor({ id }: TeamEditorProps) {
   const source = useCatalogItem('team', id)
+  const teams = useCatalogList('team', 'active')
   const draft = useDraft<Team>(source.data, emptyTeam())
   const guard = useDirtyGuard(draft)
   const propagating = usePropagatingSave()
@@ -49,6 +51,7 @@ export function TeamEditor({ id }: TeamEditorProps) {
   const inline = noticesAt(notices, path)
   const fieldError = (field: string) => inline.find((n) => n.targetPath === `${path}.${field}`)?.detail.message ?? null
   const canSave = draft.value.name.trim().length > 0 && draft.isDirty
+  const themeColour = !draft.value.color.trim().startsWith('#')
 
   const save = async (): Promise<boolean> => {
     setSaving(true)
@@ -99,6 +102,7 @@ export function TeamEditor({ id }: TeamEditorProps) {
           onChange={(name) => draft.set({ name })}
           isRequired
           autoFocus={!id}
+          description={isTwin(draft.value.name, (teams.data ?? []).filter((t) => t.id !== draft.value.id)) ? CONFIRM.twinTeam(draft.value.name) : undefined}
           error={fieldError('name')}
         />
         <div className="grid grid-cols-[12rem_1fr] gap-5">
@@ -114,6 +118,12 @@ export function TeamEditor({ id }: TeamEditorProps) {
           <div className="flex flex-col gap-2">
             <Text variant="studio-label">{TEAM.color}</Text>
             <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label={TEAM.color}>
+              {/* A theme colour (the Demo's teams) is a swatch, never raw text in the field (beta.3). */}
+              {themeColour ? (
+                <button type="button" role="radio" aria-checked aria-label={TEAM.themeColour} className="rounded-full p-0.5 ring-2 ring-[var(--accent)]">
+                  <Swatch color={draft.value.color} size="lg" className="rounded-full" />
+                </button>
+              ) : null}
               {TEAM_PALETTE.map((color) => (
                 <button
                   key={color}
@@ -133,8 +143,9 @@ export function TeamEditor({ id }: TeamEditorProps) {
               <TextField
                 label={TEAM.color}
                 hideLabel
-                value={draft.value.color}
+                value={themeColour ? '' : draft.value.color}
                 onChange={(color) => draft.set({ color })}
+                placeholder="#RRGGBB"
                 font="mono"
                 className="w-36"
               />

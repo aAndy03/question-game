@@ -87,6 +87,7 @@ export const TRANSFER = {
   withDomainsHint: 'Each question arrives in its domain there: the copy that is already there, or a new one holding only these questions.',
   joins: (names: string) => `Added to ${names} there`,
   creates: (names: string) => `New there: ${names}, with only these questions`,
+  twins: (where: string, what: string) => `${where} already has a ${what}. Both will be there.`,
   noDomain: 'Questions arrive in no domain, unless a domain you picked holds them.',
   confirmCopy: 'Copy',
   confirmMove: 'Move',

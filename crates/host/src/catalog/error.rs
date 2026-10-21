@@ -118,7 +118,7 @@ pub enum CatalogError {
 
     /// An id that belongs to a row local to another workspace. A save cannot
     /// reach across: only copy and move change where a row lives.
-    #[error("{kind} {id} belongs to another workspace")]
+    #[error("that {kind} is in another workspace")]
     WrongWorkspace { kind: CatalogKind, id: String },
 
     /// No active workspace to open the library in. Every library has one from
@@ -134,10 +134,12 @@ pub enum CatalogError {
 
     /// A move or *Make local* that would strand a row something else still
     /// uses — named, so the operator can choose *Copy instead*.
-    #[error("{kind} {id} is still used by {used_by}")]
+    #[error("{kind} {name} is still used by {used_by}")]
     StillUsed {
         kind: CatalogKind,
         id: String,
+        /// What the operator calls it (beta.3: the message named an id).
+        name: String,
         used_by: String,
     },
 

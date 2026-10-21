@@ -555,18 +555,25 @@ export function createFakeHost(): FakeHost {
         .map((r) => ({ kind: r.kind, id: r.item.id, score: 1 }))
     },
     referenced_by: (a) => {
+      // By name, as the host says it (beta.3): "the game Friday", "the games A and B".
       const id = a.id as string
-      for (const recipe of recipes.values()) {
-        if (a.kind === 'team' && recipe.teams.includes(id)) return 'recipe'
-        if (a.kind === 'domain' && recipe.board.some((b) => b.domainId === id)) return 'recipe'
-        if (a.kind === 'question' && recipe.board.some((b) => b.questionIds.includes(id))) return 'recipe'
+      const named = (one: string, many: string, names: string[]): string | null => {
+        const sorted = [...new Set(names)].sort()
+        if (sorted.length === 0) return null
+        if (sorted.length === 1) return `the ${one} ${sorted[0]}`
+        if (sorted.length === 2) return `the ${many} ${sorted[0]} and ${sorted[1]}`
+        return `the ${many} ${sorted[0]} and ${sorted.length - 1} more`
       }
-      if (a.kind === 'question') {
-        for (const row of library.values()) {
-          if (row.kind === 'domain' && row.item.questions.some((m) => m.questionId === id)) return 'domain'
-        }
-      }
-      return null
+      const games = [...recipes.values()].filter(
+        (r) =>
+          (a.kind === 'team' && r.teams.includes(id)) ||
+          (a.kind === 'domain' && r.board.some((b) => b.domainId === id)) ||
+          (a.kind === 'question' && r.board.some((b) => b.questionIds.includes(id))),
+      )
+      const byGame = named('game', 'games', games.map((r) => r.name))
+      if (byGame || a.kind !== 'question') return byGame
+      const domains = [...library.values()].flatMap((row) => (row.kind === 'domain' && row.item.questions.some((m) => m.questionId === id) ? [row.item.name] : []))
+      return named('domain', 'domains', domains)
     },
     recipe_list: (a) => [...recipes.values()].filter((r) => inScope(r.archivedAt, a.scope as ArchiveScope) && visibleRecipe(r.id)),
     recipe_get: (a) => {
@@ -1227,7 +1234,7 @@ export function createFakeHost(): FakeHost {
         })
         recipeHomes.set(id, target)
       }
-      return finish(report, write)
+      return finish(report, write, target)
     }
     // move
     const going = new Set(rows.map((r) => key(r.kind, r.id)))
@@ -1241,10 +1248,28 @@ export function createFakeHost(): FakeHost {
       rows.forEach((r) => homes.set(key(r.kind, r.id), target))
       games.forEach((g) => recipeHomes.set(g.id, target))
     }
-    return finish(report, write)
+    return finish(report, write, target)
   }
 
-  const finish = (report: TransferReport, write: boolean): TransferReport => {
+  const finish = (report: TransferReport, write: boolean, target?: string | null): TransferReport => {
+    // Picked teams, domains and games beside a row of the same name there (beta.3).
+    if (target) {
+      const twins: string[] = []
+      for (const t of [...report.created, ...report.moved].filter((t) => t.picked)) {
+        const source = t.kind === 'recipe' ? recipes.get(t.from) : library.get(key(t.kind, t.from))?.item
+        const name = (source as { name?: string } | undefined)?.name
+        if (!name || !['team', 'domain', 'recipe'].includes(t.kind)) continue
+        const fold = name.trim().toLowerCase()
+        const there =
+          t.kind === 'recipe'
+            ? [...recipes.values()].some((r) => r.id !== t.id && recipeHomeOf(r.id) === target && r.archivedAt === null && r.name.trim().toLowerCase() === fold)
+            : [...library.entries()].some(
+                ([k, row]) => k.startsWith(`${t.kind}:`) && row.item.id !== t.id && homeOf(k) === target && row.item.archivedAt === null && (row.item as { name: string }).name.trim().toLowerCase() === fold,
+              )
+        if (there) twins.push(`${t.kind === 'recipe' ? 'game' : t.kind} ${name}`)
+      }
+      report = { ...report, twins }
+    }
     if (!write) return report
     const first = report.refused[0]
     if (first) refuse('catalog', `${first.kind} ${first.id} is still used by ${[...new Set(report.refused.map((r) => r.usedBy))].join(', ')}`)

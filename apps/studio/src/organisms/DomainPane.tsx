@@ -84,7 +84,7 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
 
   const form = (
     <Panel variant="secondary" className="flex flex-col gap-3">
-      <DomainForm value={draft} onChange={setDraft} autoFocus />
+      <DomainForm value={draft} onChange={setDraft} autoFocus others={(domains.data ?? []).filter((d) => d.id !== editing && d.archivedAt === null)} />
       <div className="flex justify-end gap-2">
         <Button size="sm" variant="tertiary" onPress={() => setEditing(null)} isDisabled={saving}>
           {CONFIRM.cancel}

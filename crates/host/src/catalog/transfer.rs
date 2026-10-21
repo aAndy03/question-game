@@ -112,6 +112,9 @@ pub struct TransferReport {
     /// Domains made in the target only to hold the copied questions — a copy
     /// of their domain with just those questions. Also in `created`.
     pub homes: Vec<Touched>,
+    /// Picked rows that arrive beside a row of the same name there, as
+    /// `team Red` — said, never refused (beta.3).
+    pub twins: Vec<String>,
     pub refused: Vec<Refusal>,
 }
 
@@ -165,12 +168,14 @@ impl CatalogService {
             };
             // Whatever happened, the operator is still where they were.
             db::bind_workspace(&tx, current.as_str())?;
-            let report = result?;
+            let mut report = result?;
+            report.twins = twins(&tx, &report, target)?;
             if write {
                 if let Some(first) = report.refused.first() {
                     return Err(CatalogError::StillUsed {
                         kind: first.kind,
                         id: first.id.clone(),
+                        name: store::row_name(&tx, first.kind, &first.id)?,
                         used_by: report.refused.iter().map(|r| r.used_by.clone()).collect::<BTreeSet<_>>().into_iter().collect::<Vec<_>>().join(", "),
                     });
                 }
@@ -184,6 +189,30 @@ impl CatalogService {
         }
         Ok(report)
     }
+}
+
+/// Picked teams, domains and games that now sit beside another row of the
+/// same name (folded) in `target`.
+fn twins(conn: &Connection, report: &TransferReport, target: &WorkspaceId) -> CatalogResult<Vec<String>> {
+    let mut out = Vec::new();
+    for touched in report.created.iter().chain(&report.moved).filter(|t| t.picked) {
+        let (table, noun) = match touched.kind {
+            CatalogKind::Team => ("teams", "team"),
+            CatalogKind::Domain => ("domains", "domain"),
+            CatalogKind::Recipe => ("recipes", "game"),
+            _ => continue,
+        };
+        let name = store::row_name(conn, touched.kind, &touched.id)?;
+        let others: i64 = conn.query_row(
+            &format!("SELECT count(*) FROM {table} WHERE workspace_id = ?1 AND id <> ?2 AND archived_at IS NULL AND lower(trim(name)) = lower(trim(?3))"),
+            rusqlite::params![target.as_str(), touched.id, name],
+            |row| row.get(0),
+        )?;
+        if others > 0 {
+            out.push(format!("{noun} {name}"));
+        }
+    }
+    Ok(out)
 }
 
 fn check_target(conn: &Connection, current: &WorkspaceId, target: &WorkspaceId) -> CatalogResult<()> {

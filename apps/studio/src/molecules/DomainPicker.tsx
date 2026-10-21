@@ -87,7 +87,7 @@ export function DomainPicker({ domains, selectedIds, onChange, onCreate, isDisab
       {onCreate ? (
         creating ? (
           <Panel variant="secondary" className="flex flex-col gap-3">
-            <DomainForm value={draft} onChange={setDraft} compact autoFocus />
+            <DomainForm others={domains} value={draft} onChange={setDraft} compact autoFocus />
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="tertiary" onPress={() => setCreating(false)} isDisabled={pending}>
                 {CONFIRM.cancel}

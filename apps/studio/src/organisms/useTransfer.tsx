@@ -108,6 +108,8 @@ export function useTransfer(): TransferController {
   const nameOf = (id: string) => domains.data?.find((d) => d.id === id)?.name ?? id
   const joined = (preview?.joined ?? []).map((t) => nameOf(t.from))
   const created = homes.map((t) => nameOf(t.from))
+  const targetWorkspace = others.find((w) => w.id === chosen)
+  const targetName = targetWorkspace ? workspaceName(targetWorkspace) : ''
   const refused = preview?.refused ?? []
   const refusedLines = [...new Set(refused.map((r) => r.usedBy))]
 
@@ -143,6 +145,11 @@ export function useTransfer(): TransferController {
                   {TRANSFER.comesAlong(came)}
                 </Text>
               ) : null}
+              {(preview?.twins ?? []).map((what) => (
+                <Text key={what} as="p" variant="studio-body" tone="warning">
+                  {TRANSFER.twins(targetName, what)}
+                </Text>
+              ))}
               {preview && preview.reused.length > 0 ? (
                 <Text as="p" variant="studio-body" tone="muted">
                   {TRANSFER.reused(preview.reused.length)}

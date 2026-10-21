@@ -392,3 +392,34 @@ fn a_game_copy_copies_fresh_a_reused_question_that_drifted_so_the_game_loads() {
     flags.load_recipe(GameSettings::default()).unwrap();
     catalog.build_snapshot(&RecipeId::from(game.as_str()), PlayId::from("p"), flags.freeze().unwrap()).expect("the copied game loads");
 }
+
+#[test]
+fn a_refused_move_names_the_row_not_its_id() {
+    let (catalog, _a, b) = setup();
+    catalog.catalog_upsert(&question("q9", 50), NOW).unwrap();
+    let mut science = Domain::new("dom-7f3a", "Science", "SCI");
+    science.questions = vec![DomainMember { question_id: QuestionId::from("q9"), sort_key: 0, group_id: None }];
+    catalog.catalog_upsert(&CatalogItem::Domain(Box::new(science)), NOW).unwrap();
+    let mut game = Recipe::new("g2", "Friday", GameSettings::default());
+    game.board = vec![BoardDomain { domain_id: DomainId::from("dom-7f3a"), question_ids: vec![QuestionId::from("q9")] }];
+    catalog.recipe_upsert(&game, NOW).unwrap();
+    let err = catalog.catalog_move_to(&domains(&["dom-7f3a"]), &b, NOW).unwrap_err().to_string();
+    assert!(err.contains("domain Science is still used by game Friday"), "{err}");
+    assert!(!err.contains("dom-7f3a"), "{err}");
+}
+
+#[test]
+fn a_copy_beside_a_row_of_the_same_name_says_so() {
+    let (catalog, _a, b) = setup();
+    catalog.workspace_switch(&b).unwrap();
+    catalog.catalog_upsert(&CatalogItem::Team(Box::new(Team::new("theirs", "t1", "TM"))), NOW).unwrap();
+    catalog.workspace_switch(&WorkspaceId::from("ws-1")).unwrap();
+    let preview = catalog
+        .transfer_preview(TransferOp::Copy, &Selection { teams: vec![TeamId::from("t1")], ..Selection::default() }, Some(&b), CopyOptions::default())
+        .unwrap();
+    assert_eq!(preview.twins, ["team t1"]);
+    let lone = catalog
+        .transfer_preview(TransferOp::Copy, &Selection { teams: vec![TeamId::from("t2")], ..Selection::default() }, Some(&b), CopyOptions::default())
+        .unwrap();
+    assert!(lone.twins.is_empty());
+}

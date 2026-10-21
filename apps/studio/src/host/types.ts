@@ -587,6 +587,8 @@ export interface TransferReport {
   readonly joined?: readonly Touched[]
   /** Domains made in the target only to hold the copied questions (also in `created`). */
   readonly homes?: readonly Touched[]
+  /** Picked rows arriving beside a row of the same name there, as `team Red` (beta.3). */
+  readonly twins?: readonly string[]
   readonly refused: readonly Refusal[]
 }
 

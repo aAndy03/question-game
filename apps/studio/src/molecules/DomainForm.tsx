@@ -1,5 +1,6 @@
 import { TextAreaField, TextField } from '@/atoms'
-import { DOMAIN } from '@/copy'
+import { CONFIRM, DOMAIN } from '@/copy'
+import { isTwin } from '@/host/twins'
 import { suggestDomainCode } from '@/host/domain'
 
 export { suggestDomainCode }
@@ -19,10 +20,12 @@ export interface DomainFormProps {
   /** Embedded inside `DomainPicker`'s create-in-place: no description. */
   compact?: boolean | undefined
   autoFocus?: boolean | undefined
+  /** The other domains of this workspace: a name they already use is said (beta.3). */
+  others?: readonly { readonly name: string }[] | undefined
 }
 
 /** Name · code · description. The same form in the Domains pane and inside `DomainPicker` (spec §2.22). */
-export function DomainForm({ value, onChange, errors, isDisabled, disabledReason, compact, autoFocus }: DomainFormProps) {
+export function DomainForm({ value, onChange, errors, isDisabled, disabledReason, compact, autoFocus, others }: DomainFormProps) {
   const set = (patch: Partial<DomainFormValue>) => onChange({ ...value, ...patch })
   return (
     <div className="flex flex-col gap-4">
@@ -32,6 +35,7 @@ export function DomainForm({ value, onChange, errors, isDisabled, disabledReason
           value={value.name}
           onChange={(name) => set({ name })}
           isRequired
+          description={others && isTwin(value.name, others) ? CONFIRM.twinDomain(value.name) : undefined}
           error={errors?.name}
           isDisabled={isDisabled}
           disabledReason={disabledReason}

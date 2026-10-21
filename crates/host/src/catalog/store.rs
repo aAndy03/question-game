@@ -456,7 +456,7 @@ pub(super) fn domain_rule(conn: &Connection, domain: &str) -> CatalogResult<()> 
         None => Ok(()),
         Some(question) => Err(CatalogError::ScopeRule {
             rule: "a domain holds its own workspace's questions",
-            detail: format!("domain {domain}, question {question}"),
+            detail: format!("domain {}, question {}", row_name(conn, CatalogKind::Domain, domain)?, row_name(conn, CatalogKind::Question, &question)?),
         }),
     }
 }
@@ -474,7 +474,7 @@ fn asset_rule(conn: &Connection, table: &str, column: &str, id: &str) -> Catalog
         None => Ok(()),
         Some(asset) => Err(CatalogError::ScopeRule {
             rule: "a row uses its own workspace's assets",
-            detail: format!("{id}, asset {asset}"),
+            detail: format!("{} uses asset {}", row_name(conn, if table == "teams" { CatalogKind::Team } else { CatalogKind::Question }, id)?, row_name(conn, CatalogKind::Asset, &asset)?),
         }),
     }
 }
@@ -941,7 +941,11 @@ pub(super) fn recipe_rule(conn: &Connection, recipe: &str) -> CatalogResult<()> 
         if let Some(id) = offender {
             return Err(CatalogError::ScopeRule {
                 rule: "a game uses its own workspace's rows",
-                detail: format!("game {recipe}, {noun} {id}"),
+                detail: format!(
+                    "game {}, {noun} {}",
+                    row_name(conn, CatalogKind::Recipe, recipe)?,
+                    row_name(conn, match noun { "team" => CatalogKind::Team, "domain" => CatalogKind::Domain, _ => CatalogKind::Question }, &id)?
+                ),
             });
         }
     }
@@ -1121,53 +1125,83 @@ pub(super) fn set_archived(
 /// point at" (§4.1). Archiving stays legal — an archived team a recipe uses is
 /// a warn for the operator, not a corrupted board — so this is consulted by
 /// the paths that would *remove* data, and by `catalog_archive` to report it.
+/// What the operator calls a row, whatever workspace it is in: its name, a
+/// question's stem (40 characters), an asset's path — the id when it is gone.
+/// For messages only (beta.3: refusals named ids).
+pub(super) fn row_name(conn: &Connection, kind: CatalogKind, id: &str) -> CatalogResult<String> {
+    let column = match kind {
+        CatalogKind::Question => "substr(stem, 1, 40)",
+        CatalogKind::Asset => "path",
+        CatalogKind::Operator => "display_name",
+        _ => "name",
+    };
+    let sql = format!("SELECT {column} FROM {} WHERE id = ?1", kind.table());
+    Ok(conn
+        .query_row(&sql, params![id], |row| row.get::<_, String>(0))
+        .optional()?
+        .unwrap_or_else(|| id.to_owned()))
+}
+
 pub(super) fn referenced_by(
     conn: &Connection,
     kind: CatalogKind,
     id: &str,
-) -> CatalogResult<Option<&'static str>> {
-    let queries: &[(&str, &'static str)] = match kind {
+) -> CatalogResult<Option<String>> {
+    // What uses the row, by name, nearest first (beta.3: "a recipe board"
+    // told the operator nothing, and Studio printed "a a recipe board").
+    let queries: &[(&str, &str, &str)] = match kind {
         CatalogKind::Team => &[(
-            "SELECT 1 FROM recipe_teams WHERE team_id = ?1 LIMIT 1",
-            "a recipe roster",
+            "SELECT DISTINCT r.name FROM recipe_teams x JOIN recipes r ON r.id = x.recipe_id WHERE x.team_id = ?1 ORDER BY r.name",
+            "game",
+            "games",
         )],
         CatalogKind::Domain => &[(
-            "SELECT 1 FROM recipe_domains WHERE domain_id = ?1 LIMIT 1",
-            "a recipe board",
+            "SELECT DISTINCT r.name FROM recipe_domains x JOIN recipes r ON r.id = x.recipe_id WHERE x.domain_id = ?1 ORDER BY r.name",
+            "game",
+            "games",
         )],
         CatalogKind::Question => &[
             (
-                "SELECT 1 FROM recipe_questions WHERE question_id = ?1 LIMIT 1",
-                "a recipe board",
+                "SELECT DISTINCT r.name FROM recipe_questions x JOIN recipes r ON r.id = x.recipe_id WHERE x.question_id = ?1 ORDER BY r.name",
+                "game",
+                "games",
             ),
             (
-                "SELECT 1 FROM domain_questions WHERE question_id = ?1 LIMIT 1",
-                "a domain",
+                "SELECT DISTINCT d.name FROM domain_questions x JOIN domains d ON d.id = x.domain_id WHERE x.question_id = ?1 ORDER BY d.name",
+                "domain",
+                "domains",
             ),
         ],
         CatalogKind::Asset => &[
+            ("SELECT DISTINCT name FROM teams WHERE logo_asset_id = ?1 ORDER BY name", "team", "teams"),
             (
-                "SELECT 1 FROM teams WHERE logo_asset_id = ?1 LIMIT 1",
-                "a team logo",
-            ),
-            (
-                "SELECT 1 FROM questions WHERE media_asset_id = ?1 LIMIT 1",
-                "question media",
+                "SELECT DISTINCT substr(stem, 1, 40) FROM questions WHERE media_asset_id = ?1 ORDER BY stem",
+                "question",
+                "questions",
             ),
         ],
         CatalogKind::Recipe => &[(
-            "SELECT 1 FROM plays WHERE recipe_id = ?1 AND status IN ('playing', 'paused') LIMIT 1",
-            "an open play",
+            "SELECT 'an open Play' FROM plays WHERE recipe_id = ?1 AND status IN ('playing', 'paused') LIMIT 1",
+            "",
+            "",
         )],
         CatalogKind::Operator => &[],
     };
-    for (sql, used_by) in queries {
-        let hit: Option<i64> = conn
-            .query_row(sql, params![id], |row| row.get(0))
-            .optional()?;
-        if hit.is_some() {
-            return Ok(Some(used_by));
+    for (sql, one, many) in queries {
+        let mut stmt = conn.prepare(sql)?;
+        let names: Vec<String> = stmt.query_map(params![id], |row| row.get(0))?.collect::<rusqlite::Result<_>>()?;
+        if names.is_empty() {
+            continue;
         }
+        if one.is_empty() {
+            return Ok(names.into_iter().next());
+        }
+        return Ok(Some(match names.as_slice() {
+            [only] => format!("the {one} {only}"),
+            [a, b] => format!("the {many} {a} and {b}"),
+            [first, rest @ ..] => format!("the {many} {first} and {} more", rest.len()),
+            [] => unreachable!(),
+        }));
     }
     Ok(None)
 }

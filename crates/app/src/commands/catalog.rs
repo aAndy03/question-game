@@ -195,7 +195,7 @@ pub fn referenced_by(
     state: State<'_, AppState>,
     kind: CatalogKind,
     id: String,
-) -> AppResult<Option<&'static str>> {
+) -> AppResult<Option<String>> {
     guard::allow(window.label(), "referenced_by")?;
     let host = state.lock();
     Ok(host.catalog.referenced_by(kind, &id)?)

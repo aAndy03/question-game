@@ -261,12 +261,12 @@ fn a_row_a_recipe_points_at_reports_what_uses_it() {
     let service = CatalogService::in_memory().unwrap();
     seed(&service);
     assert_eq!(
-        service.referenced_by(CatalogKind::Team, "team-a").unwrap(),
-        Some("a recipe roster")
+        service.referenced_by(CatalogKind::Team, "team-a").unwrap().as_deref(),
+        Some("the game Demo")
     );
     assert_eq!(
-        service.referenced_by(CatalogKind::Domain, "dom-1").unwrap(),
-        Some("a recipe board")
+        service.referenced_by(CatalogKind::Domain, "dom-1").unwrap().as_deref(),
+        Some("the game Demo")
     );
     assert_eq!(
         service

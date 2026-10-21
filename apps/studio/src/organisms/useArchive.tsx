@@ -31,19 +31,17 @@ export function useArchive(): ArchiveController {
   const run = useHostCommand()
   const [pending, setPending] = useState(false)
   const [request, setRequest] = useState<ArchiveRequest | null>(null)
-  const [referenced, setReferenced] = useState<string | null>(null)
+  const [referenced, setReferenced] = useState<readonly string[]>([])
 
+  // What uses the rows, by name — for one row or many (beta.3: a bulk archive
+  // said nothing about the games it would leave holding an archived row).
   const archive = (req: ArchiveRequest) => {
-    setReferenced(null)
+    setReferenced([])
     setRequest(req)
-    if (req.kind !== 'recipe' && req.ids.length === 1) {
-      const id = req.ids[0]
-      if (id) {
-        command<string | null>('referenced_by', { kind: req.kind, id })
-          .then((by) => setReferenced(by))
-          .catch(() => setReferenced(null))
-      }
-    }
+    if (req.kind === 'recipe') return
+    void Promise.all(req.ids.slice(0, 50).map((id) => command<string | null>('referenced_by', { kind: req.kind, id }).catch(() => null))).then((all) =>
+      setReferenced([...new Set(all.filter((by): by is string => typeof by === 'string'))]),
+    )
   }
 
   const confirm = async () => {
@@ -80,10 +78,14 @@ export function useArchive(): ArchiveController {
       isOpen
       onOpenChange={(open) => !open && setRequest(null)}
       title={n === 1 ? CONFIRM.archiveOne(request.what) : CONFIRM.archiveMany(n, request.what)}
-      body={referenced ? `${CONFIRM.referencedBy(referenced)} ${CONFIRM.archiveBody}` : CONFIRM.archiveBody}
+      body={
+        referenced.length === 0
+          ? CONFIRM.archiveBody
+          : `${n === 1 ? CONFIRM.referencedBy(referenced[0] as string) : CONFIRM.referencedByMany(referenced)} ${CONFIRM.archiveBody}`
+      }
       severity="danger"
       confirmLabel={CONFIRM.arm}
-      arm={referenced !== null}
+      arm={referenced.length > 0}
       armedLabel={CONFIRM.armed}
       isPending={pending}
       onConfirm={confirm}

@@ -493,7 +493,7 @@ impl CatalogService {
         &self,
         kind: CatalogKind,
         id: &str,
-    ) -> CatalogResult<Option<&'static str>> {
+    ) -> CatalogResult<Option<String>> {
         store::referenced_by(&self.conn(), kind, id)
     }
 
