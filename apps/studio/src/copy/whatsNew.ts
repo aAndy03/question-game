@@ -264,7 +264,7 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
       en: [
         {
           title: 'Works in a smaller window',
-          body: 'Below a window width of 1280 pixels, opening a team, question or operator now shows it over the list, with a Close to go back. Before, nothing appeared.',
+          body: 'Below a window width of 1280 pixels, opening a team, question or operator now shows it over the list. At any width it now closes: with Close, with Escape, by clicking the same row again or by clicking an empty part of the list. Beside it, the list keeps the text readable.',
         },
         {
           title: 'Difficulty in a dialog',
@@ -278,7 +278,7 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
       ro: [
         {
           title: 'Merge și într-o fereastră mai mică',
-          body: 'Sub o lățime de 1280 de pixeli, deschiderea unei echipe, întrebări sau a unui operator o arată acum peste listă, cu un Close pentru întoarcere. Înainte nu apărea nimic.',
+          body: 'Sub o lățime de 1280 de pixeli, deschiderea unei echipe, întrebări sau a unui operator o arată acum peste listă. La orice lățime se închide acum: cu Close, cu Escape, cu un nou clic pe același rând sau cu un clic pe o parte goală a listei. Lângă ea, lista își păstrează textul lizibil.',
         },
         {
           title: 'Dificultatea într-o fereastră',

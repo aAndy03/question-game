@@ -49,6 +49,8 @@ export interface LibraryListProps {
   columns?: { readonly title: ListColumn; readonly meta: readonly (ListColumn | null)[]; readonly lead?: string | undefined } | undefined
   currentId?: string | null | undefined
   onOpen?: ((id: string) => void) | undefined
+  /** A click on the list's empty space: the page closes its opened row (1.1.1). */
+  onDismiss?: (() => void) | undefined
   actions?: ((row: RecordView) => ReactNode) | undefined
   /** Enables selection and the bulk bar. */
   bulk?:
@@ -68,6 +70,13 @@ export interface LibraryListProps {
 }
 
 const VIRTUAL_ABOVE = 200
+
+/**
+ * A table's meta column only where the list is wide enough for it (1.1.1):
+ * the first from 36rem, the rest from 48rem — the title keeps its room.
+ * The same rule for a row's cell and its column's heading.
+ */
+export const metaFits = (i: number): string => (i === 0 ? 'hidden @xl/list:block' : 'hidden @3xl/list:block')
 
 /**
  * Every record list (05_STUDIO_DESIGN.md §4.3, §20): the list view's page —
@@ -93,6 +102,7 @@ export function LibraryList({
   columns,
   currentId,
   onOpen,
+  onDismiss,
   actions,
   bulk,
   onRetry,
@@ -202,7 +212,7 @@ export function LibraryList({
           <SortHeader column={columns.title} view={view} align="left" />
         </div>
         {columns.meta.map((c, i) => (
-          <div key={c?.sortId ?? `m${i}`} className="w-28 shrink-0 text-right">
+          <div key={c?.sortId ?? `m${i}`} className={`${metaFits(i)} w-28 shrink-0 text-right`}>
             {c ? <SortHeader column={c} view={view} align="right" /> : null}
           </div>
         ))}
@@ -281,7 +291,19 @@ export function LibraryList({
         />
       ) : null}
       {/* No table role: rows open records and groups have headings, which a table could not hold. */}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" data-list-body>
+      <div
+        ref={scrollRef}
+        // The list's own width decides which table columns fit (1.1.1): beside
+        // the domains pane and an opened row it can be 25rem wide.
+        className="@container/list min-h-0 flex-1 overflow-y-auto"
+        data-list-body
+        onClick={(e) => {
+          // Empty space: not a row, a header, a control or a link.
+          if (!onDismiss) return
+          const hit = (e.target as HTMLElement).closest('[role="button"], [role="row"], [role="heading"], button, a, input, label, [data-list-header]')
+          if (!hit) onDismiss()
+        }}
+      >
         {body()}
       </div>
       <PageFooter
