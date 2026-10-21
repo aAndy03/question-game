@@ -10,7 +10,7 @@
 use std::path::{Path, PathBuf};
 
 use questiongame_host::catalog::{
-    ArchiveScope, CatalogChange, CatalogKind, CatalogLocation, ChangeOp, OpenOptions,
+    CatalogChange, CatalogKind, CatalogLocation, ChangeOp, OpenOptions,
 };
 use serde::Serialize;
 use tauri::{AppHandle, State, WebviewWindow};
@@ -47,18 +47,11 @@ fn beta_only(channel: Channel) -> AppResult<()> {
 }
 
 /// Nothing an operator made: no operator, team, domain, question, asset,
-/// recipe or Play, archived ones included, and no Play loaded. Settings and
-/// meta rows do not count.
+/// recipe or Play in any workspace, archived ones included, and no Play
+/// loaded. Settings and meta rows do not count.
 pub fn is_empty_library(host: &Host) -> AppResult<bool> {
-    let catalog = &host.catalog;
-    for kind in [CatalogKind::Operator, CatalogKind::Team, CatalogKind::Domain, CatalogKind::Question, CatalogKind::Asset] {
-        if !catalog.catalog_list(kind, ArchiveScope::All)?.is_empty() {
-            return Ok(false);
-        }
-    }
-    Ok(catalog.recipe_list(ArchiveScope::All)?.is_empty()
-        && catalog.play_list(None)?.is_empty()
-        && host.play.get_state().is_none())
+    // Every workspace, not just this one: the copy replaces the whole file.
+    Ok(host.catalog.is_empty_everywhere()? && host.play.get_state().is_none())
 }
 
 /// What `beta_welcome_get` answers. `stable` is `None` when the build has no
@@ -359,6 +352,22 @@ mod tests {
         assert_eq!(host.catalog.meta_get(META_BETA_WELCOME_SEEN).unwrap().as_deref(), Some("copied"));
         assert!(!copy.exists());
         // CMD08: a second copy is refused, because the library now holds work.
+        assert!(matches!(check_copyable(Channel::Beta, &host), Err(AppError::Beta { code: "beta.library_not_empty", .. })));
+    }
+
+    /// Review (audit, beta.2): an empty workspace is not an empty library —
+    /// the copy replaces the whole file, other workspaces' work with it.
+    #[test]
+    fn a_library_with_work_in_another_workspace_is_not_empty() {
+        let dir = Dir::new("other-ws");
+        let host = dir.host();
+        let first = host.catalog.current_workspace();
+        let other = host.catalog.workspace_create("Other", None, 1).unwrap().id;
+        host.catalog.workspace_switch(&other).unwrap();
+        host.catalog.catalog_upsert(&team("theirs"), 1).unwrap();
+        host.catalog.workspace_switch(&first).unwrap();
+        assert!(host.catalog.catalog_list(CatalogKind::Team, questiongame_host::catalog::ArchiveScope::All).unwrap().is_empty());
+        assert!(!is_empty_library(&host).unwrap());
         assert!(matches!(check_copyable(Channel::Beta, &host), Err(AppError::Beta { code: "beta.library_not_empty", .. })));
     }
 

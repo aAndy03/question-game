@@ -1781,6 +1781,19 @@ pub(super) fn family_members(
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
+/// The domains of this workspace that hold `question`, archived ones included.
+pub(super) fn domains_holding(conn: &Connection, question: &str) -> CatalogResult<Vec<Domain>> {
+    let ids: Vec<String> = {
+        let mut stmt = conn.prepare(&format!(
+            "SELECT d.id FROM domain_questions dq JOIN domains d ON d.id = dq.domain_id
+             WHERE dq.question_id = ?1 AND {} ORDER BY d.name, d.id",
+            in_view("d")
+        ))?;
+        stmt.query_map(params![question], |row| row.get(0))?.collect::<rusqlite::Result<_>>()?
+    };
+    ids.into_iter().map(|id| domain_get(conn, &DomainId::new(id))).collect()
+}
+
 /// The games whose board names this question.
 pub(super) fn recipes_with_question(conn: &Connection, question: &str) -> CatalogResult<Vec<RecipeId>> {
     let mut stmt = conn.prepare(

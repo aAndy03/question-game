@@ -170,6 +170,7 @@ impl CatalogService {
     /// workspace its game lives in. The search index is rebuilt for the new
     /// scope (a few dozen milliseconds for thousands of rows).
     pub fn workspace_switch(&self, id: &WorkspaceId) -> CatalogResult<()> {
+        let previous = self.current_workspace();
         {
             let conn = self.conn();
             let workspace = workspace_row(&conn, id)?;
@@ -180,14 +181,34 @@ impl CatalogService {
                 ));
             }
             db::bind_workspace(&conn, id.as_str())?;
-            store::global_set(
-                &conn,
-                db::META_CURRENT_WORKSPACE,
-                &serde_json::to_string(id.as_str())?,
-            )?;
         }
-        self.rebuild_search_index()?;
+        // The index first: a switch that cannot read the new workspace leaves
+        // the old one bound and current, so host and Studio agree (review).
+        if let Err(error) = self.rebuild_search_index() {
+            let conn = self.conn();
+            db::bind_workspace(&conn, previous.as_str())?;
+            drop(conn);
+            let _ = self.rebuild_search_index();
+            return Err(error);
+        }
+        store::global_set(&self.conn(), db::META_CURRENT_WORKSPACE, &serde_json::to_string(id.as_str())?)?;
         Ok(())
+    }
+
+    /// Whether the file holds nothing an operator made, in **any** workspace:
+    /// no operator, team, domain, question, asset, game or Play, archived ones
+    /// included. What the Beta welcome checks before it puts a stable library
+    /// in place of this one (review: a scoped check saw one empty workspace).
+    pub fn is_empty_everywhere(&self) -> CatalogResult<bool> {
+        let conn = self.conn();
+        let any: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM operators) OR EXISTS(SELECT 1 FROM teams) OR EXISTS(SELECT 1 FROM domains)
+                 OR EXISTS(SELECT 1 FROM questions) OR EXISTS(SELECT 1 FROM assets) OR EXISTS(SELECT 1 FROM recipes)
+                 OR EXISTS(SELECT 1 FROM plays)",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(!any)
     }
 
     /// Archive a workspace: it leaves the switcher, its rows stay. Not the
@@ -454,9 +475,21 @@ fn duplicate_into(
     };
     let mut archived: Vec<(CatalogKind, String, u64)> = Vec::new();
 
+    // A Demo row keeps being a Demo row: it takes the new workspace's own seed
+    // id, so *Restore sample game* there recognises it (R5).
+    let spaces: Vec<String> = store::workspace_list(tx)?.into_iter().map(|w| w.id.to_string()).collect();
+    let target_id = target.id.to_string();
     let fresh = |rows: Vec<String>, prefix: &str| -> HashMap<String, String> {
-        rows.into_iter().map(|id| (id, fresh_id(prefix))).collect()
+        rows.into_iter()
+            .map(|id| {
+                let to = super::unshare::seed_rest(&id, &spaces)
+                    .map(|rest| format!("seed-{target_id}-{rest}"))
+                    .unwrap_or_else(|| fresh_id(prefix));
+                (id, to)
+            })
+            .collect()
     };
+    let recipe_ids = fresh(recipes.iter().map(|r| r.id.to_string()).collect(), "game");
     let asset_ids = fresh(assets.iter().map(|r| r.id.to_string()).collect(), "asset");
     let question_ids = fresh(questions.iter().map(|r| r.id.to_string()).collect(), "q");
     let team_ids = fresh(teams.iter().map(|r| r.id.to_string()).collect(), "team");
@@ -506,7 +539,7 @@ fn duplicate_into(
     }
     for recipe in &recipes {
         let mut copy = recipe.clone();
-        copy.id = RecipeId::new(fresh_id("game"));
+        copy.id = RecipeId::new(map(&recipe_ids, recipe.id.as_str()));
         copy.rev = 0;
         copy.teams = recipe.teams.iter().map(|t| TeamId::new(map(&team_ids, t.as_str()))).collect();
         for board in &mut copy.board {
@@ -517,7 +550,10 @@ fn duplicate_into(
         }
         copy.overlays.teams = std::mem::take(&mut copy.overlays.teams)
             .into_iter()
-            .map(|(k, v)| (TeamId::new(map(&team_ids, k.as_str())), v))
+            .map(|(k, mut v)| {
+                v.logo_asset_id = v.logo_asset_id.map(|a| AssetId::new(map(&asset_ids, a.as_str())));
+                (TeamId::new(map(&team_ids, k.as_str())), v)
+            })
             .collect();
         copy.overlays.domains = std::mem::take(&mut copy.overlays.domains)
             .into_iter()

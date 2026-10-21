@@ -9,7 +9,7 @@
 //! document, which `FlagService` holds in memory.
 
 use questiongame_host::catalog::{
-    CatalogChange, CatalogItem, CatalogKind, ChangeOp, PropagationPreview, DeleteReport, OpenOptions, Selection, TransferOp, TransferReport, Workspace,
+    CatalogChange, CatalogItem, CatalogKind, ChangeOp, CopyOptions, PropagationPreview, DeleteReport, OpenOptions, Selection, TransferOp, TransferReport, Workspace,
     WorkspaceGroup,
 };
 use questiongame_host::{WorkspaceGroupId, WorkspaceId};
@@ -303,7 +303,7 @@ fn refuse_moving_the_loaded_game(host: &Host, selection: &Selection) -> AppResul
 /// Every row a transfer touched, as `catalog-changed`: the rows that left
 /// this workspace change what its lists show.
 fn transferred(app: &AppHandle, report: &TransferReport) {
-    for touched in report.created.iter().chain(&report.moved) {
+    for touched in report.created.iter().chain(&report.moved).chain(&report.joined) {
         emit::catalog_changed(
             app,
             &CatalogChange { kind: touched.kind, id: touched.id.clone(), op: ChangeOp::Upserted },
@@ -320,9 +320,11 @@ pub fn transfer_preview(
     op: TransferOp,
     selection: Selection,
     target: Option<WorkspaceId>,
+    with_domains: Option<bool>,
 ) -> AppResult<TransferReport> {
     guard::allow(window.label(), "transfer_preview")?;
-    Ok(state.lock().catalog.transfer_preview(op, &selection, target.as_ref())?)
+    let options = CopyOptions { with_domains: with_domains.unwrap_or(true) };
+    Ok(state.lock().catalog.transfer_preview(op, &selection, target.as_ref(), options)?)
 }
 
 #[tauri::command(async)]
@@ -332,10 +334,13 @@ pub fn catalog_copy_to(
     state: State<'_, AppState>,
     selection: Selection,
     target: WorkspaceId,
+    with_domains: Option<bool>,
 ) -> AppResult<TransferReport> {
     guard::allow(window.label(), "catalog_copy_to")?;
     let host = state.lock();
-    let report = host.catalog.catalog_copy_to(&selection, &target, now_ms())?;
+    // A picked question brings its domains unless Studio says otherwise.
+    let options = CopyOptions { with_domains: with_domains.unwrap_or(true) };
+    let report = host.catalog.catalog_copy_to(&selection, &target, options, now_ms())?;
     transferred(&app, &report);
     Ok(report)
 }

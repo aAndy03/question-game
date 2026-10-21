@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 
 use questiongame_host::catalog::db::{place_for_test, write_older_schema};
-use questiongame_host::catalog::{
+use questiongame_host::catalog::{CopyOptions, 
     Asset, BoardDomain, CatalogItem, CatalogLocation, CatalogService, Domain, DomainMember, OpenOptions, Question,
     QuestionOption, Recipe, Selection, Team, TeamOverlay,
 };
@@ -118,7 +118,7 @@ fn beta1(tag: &str) -> Fixture {
         s.recipe_upsert(&rb, NOW).unwrap();
 
         // qf's copy in B: one family before beta.1 shared the original.
-        s.catalog_copy_to(&Selection { questions: vec![QuestionId::from("qf")], ..Selection::default() }, &WorkspaceId::from(b.as_str()), NOW).unwrap();
+        s.catalog_copy_to(&Selection { questions: vec![QuestionId::from("qf")], ..Selection::default() }, &WorkspaceId::from(b.as_str()), CopyOptions::default(), NOW).unwrap();
         s.catalog_archive(questiongame_host::catalog::CatalogKind::Question, "qa", NOW).unwrap();
         s.workspace_archive(&WorkspaceId::from(c.as_str()), NOW).unwrap();
 

@@ -23,7 +23,7 @@ use crate::ids::{AssetId, DomainId, QuestionId, RecipeId, TeamId, WorkspaceId};
 
 use super::db;
 use super::error::{CatalogError, CatalogKind, CatalogResult};
-use super::model::{Asset, Domain, Question, Recipe, Team};
+use super::model::{Asset, Domain, DomainMember, Question, Recipe, Team};
 use super::service::CatalogService;
 use super::store;
 use super::workspace::fresh_id;
@@ -50,6 +50,22 @@ impl Selection {
 
     pub fn is_empty(&self) -> bool {
         self.teams.is_empty() && self.domains.is_empty() && self.questions.is_empty() && self.recipes.is_empty()
+    }
+}
+
+/// How a copy treats the picked questions' domains (beta.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CopyOptions {
+    /// A picked question arrives in its domains: it joins the target's copy
+    /// of each (same family), or a copy of the domain holding only the picked
+    /// questions is made. Off, it arrives in no domain.
+    pub with_domains: bool,
+}
+
+impl Default for CopyOptions {
+    fn default() -> Self {
+        CopyOptions { with_domains: true }
     }
 }
 
@@ -90,16 +106,25 @@ pub struct TransferReport {
     pub created: Vec<Touched>,
     pub reused: Vec<Touched>,
     pub moved: Vec<Touched>,
+    /// Domains in the target the copied questions were added to (the
+    /// target's copy of their domain, same family).
+    pub joined: Vec<Touched>,
     pub refused: Vec<Refusal>,
 }
 
 impl CatalogService {
-    pub fn catalog_copy_to(&self, selection: &Selection, target: &WorkspaceId, now_ms: u64) -> CatalogResult<TransferReport> {
-        self.transfer(TransferOp::Copy, selection, Some(target), now_ms, true)
+    pub fn catalog_copy_to(
+        &self,
+        selection: &Selection,
+        target: &WorkspaceId,
+        options: CopyOptions,
+        now_ms: u64,
+    ) -> CatalogResult<TransferReport> {
+        self.transfer(TransferOp::Copy, selection, Some(target), options, now_ms, true)
     }
 
     pub fn catalog_move_to(&self, selection: &Selection, target: &WorkspaceId, now_ms: u64) -> CatalogResult<TransferReport> {
-        self.transfer(TransferOp::Move, selection, Some(target), now_ms, true)
+        self.transfer(TransferOp::Move, selection, Some(target), CopyOptions::default(), now_ms, true)
     }
 
     /// What the operation would do — what comes along, what is reused, what
@@ -109,8 +134,9 @@ impl CatalogService {
         op: TransferOp,
         selection: &Selection,
         target: Option<&WorkspaceId>,
+        options: CopyOptions,
     ) -> CatalogResult<TransferReport> {
-        self.transfer(op, selection, target, 0, false)
+        self.transfer(op, selection, target, options, 0, false)
     }
 
     fn transfer(
@@ -118,6 +144,7 @@ impl CatalogService {
         op: TransferOp,
         selection: &Selection,
         target: Option<&WorkspaceId>,
+        options: CopyOptions,
         now_ms: u64,
         write: bool,
     ) -> CatalogResult<TransferReport> {
@@ -130,7 +157,7 @@ impl CatalogService {
             })?;
             check_target(&tx, &current, target)?;
             let result = match op {
-                TransferOp::Copy => copy(&tx, selection, &current, target, now_ms),
+                TransferOp::Copy => copy(&tx, selection, &current, target, options, now_ms),
                 TransferOp::Move => relocate(&tx, selection, &current, target),
             };
             // Whatever happened, the operator is still where they were.
@@ -250,6 +277,10 @@ fn closure(conn: &Connection, selection: &Selection) -> CatalogResult<Closure> {
     let mut asset_ids: BTreeSet<String> = BTreeSet::new();
     asset_ids.extend(out.teams.values().filter_map(|t| t.logo_asset_id.as_ref().map(|a| a.to_string())));
     asset_ids.extend(out.questions.values().filter_map(|q| q.media_asset_id.as_ref().map(|a| a.to_string())));
+    // A game's team overlay may show its own logo: that asset comes too (R13).
+    for recipe in out.recipes.values() {
+        asset_ids.extend(recipe.overlays.teams.values().filter_map(|o| o.logo_asset_id.as_ref().map(|a| a.to_string())));
+    }
     for id in asset_ids {
         if let Ok(asset) = store::asset_get(conn, &AssetId::new(id.clone())) {
             out.assets.insert(id, asset);
@@ -265,9 +296,28 @@ fn copy(
     selection: &Selection,
     current: &WorkspaceId,
     target: &WorkspaceId,
+    options: CopyOptions,
     now_ms: u64,
 ) -> CatalogResult<TransferReport> {
     let mut rows = closure(tx, selection)?;
+    // The picked questions' domains, read here while bound to the source:
+    // each, with the picked questions it holds (not a domain the copy brings
+    // anyway). Only active domains.
+    let mut homes: BTreeMap<String, (Domain, Vec<String>)> = BTreeMap::new();
+    if options.with_domains {
+        for question in &selection.questions {
+            for domain in store::domains_holding(tx, question.as_str())? {
+                if rows.domains.contains_key(domain.id.as_str()) || domain.stamps.archived_at.is_some() {
+                    continue;
+                }
+                homes
+                    .entry(domain.id.to_string())
+                    .or_insert_with(|| (domain.clone(), Vec::new()))
+                    .1
+                    .push(question.to_string());
+            }
+        }
+    }
     let mut report = TransferReport::default();
     let mut next_family = store::next_family(tx)?;
     // source id → id in the target, per kind
@@ -416,6 +466,51 @@ fn copy(
         store::set_family(tx, CatalogKind::Domain, row.id.as_str(), family_of.get(&(CatalogKind::Domain, id.clone())).copied())?;
         created(CatalogKind::Domain, id, &mut report);
     }
+    // The picked questions' domains: the target's copy, joined at the end in
+    // no group; else a copy holding only the picked questions, with the
+    // groups they use.
+    for (source_id, (source, picked)) in &homes {
+        let family = match store::family_of(tx, CatalogKind::Domain, source_id)? {
+            Some(f) => f,
+            None => {
+                let fresh = store::next_family(tx)?;
+                store::set_family(tx, CatalogKind::Domain, source_id, Some(fresh))?;
+                fresh
+            }
+        };
+        let members: Vec<DomainMember> = source
+            .questions
+            .iter()
+            .filter(|m| picked.contains(&m.question_id.to_string()))
+            .cloned()
+            .collect();
+        if let Some(existing) = store::family_member_in(tx, CatalogKind::Domain, family, target)? {
+            let mut there = store::domain_get(tx, &DomainId::new(existing.clone()))?;
+            let mut next = there.questions.iter().map(|m| m.sort_key + 1).max().unwrap_or(0);
+            for member in &members {
+                let question = QuestionId::new(map(CatalogKind::Question, member.question_id.as_str()));
+                if !there.questions.iter().any(|m| m.question_id == question) {
+                    there.questions.push(DomainMember { question_id: question, sort_key: next, group_id: None });
+                    next += 1;
+                }
+            }
+            store::domain_upsert(tx, &there, now_ms)?;
+            report.joined.push(Touched { kind: CatalogKind::Domain, id: existing, from: source_id.clone(), picked: false });
+        } else {
+            let used: BTreeSet<_> = members.iter().filter_map(|m| m.group_id.clone()).collect();
+            let mut original = source.clone();
+            original.questions = members.clone();
+            original.groups.retain(|g| used.contains(&g.id));
+            let mut row = original.clone();
+            row.id = DomainId::new(fresh_id("dom"));
+            for member in &mut row.questions {
+                member.question_id = QuestionId::new(map(CatalogKind::Question, member.question_id.as_str()));
+            }
+            super::groups::write_copy_with_groups(tx, &original, &mut row, now_ms)?;
+            store::set_family(tx, CatalogKind::Domain, row.id.as_str(), Some(family))?;
+            report.created.push(Touched { kind: CatalogKind::Domain, id: row.id.to_string(), from: source_id.clone(), picked: false });
+        }
+    }
     for (id, recipe) in &rows.recipes {
         let mut row = recipe.clone();
         row.id = RecipeId::new(map(CatalogKind::Recipe, id));
@@ -430,7 +525,10 @@ fn copy(
         }
         row.overlays.teams = std::mem::take(&mut row.overlays.teams)
             .into_iter()
-            .map(|(k, v)| (TeamId::new(map(CatalogKind::Team, k.as_str())), v))
+            .map(|(k, mut v)| {
+                v.logo_asset_id = v.logo_asset_id.map(|a| AssetId::new(map(CatalogKind::Asset, a.as_str())));
+                (TeamId::new(map(CatalogKind::Team, k.as_str())), v)
+            })
             .collect();
         row.overlays.domains = std::mem::take(&mut row.overlays.domains)
             .into_iter()

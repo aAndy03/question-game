@@ -379,7 +379,7 @@ The recommendation stands except where a change is noted.
   - When a workspace's own seed ids are taken elsewhere, its Demo takes the first free generation (`seed-<ws>-r2-…`).
   - *Copy to* keeps fresh ids.
 - **R6, R7, R8, R9, R10** Accepted.
-- **R11** Accepted, with a narrow scope. Studio writes no assets today, so `asset_get_any` is the one read used where a Play resolves its snapshot's assets. C45 asserts that call site.
+- **R11** Changed: nothing resolves a Play's assets by id today. The snapshot carries the ids and no read of them exists (Studio writes no assets), so `asset_get_any` is not added (no port without a caller). It comes with the first asset read.
 - **R12** Accepted: the table is `events`.
 - **R13** Accepted: fixed in beta.2 for copy, move and duplicate.
 - **R14** Accepted.

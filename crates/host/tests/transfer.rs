@@ -2,7 +2,7 @@
 //! beta.2): what comes along, what is reused, what refuses — and that a
 //! refusal changes nothing.
 
-use questiongame_host::catalog::{
+use questiongame_host::catalog::{CopyOptions, 
     ArchiveScope, CatalogError, CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo, Domain,
     DomainMember, Question, QuestionOption, Recipe, SeedMode, Selection, Team, TransferOp,
 };
@@ -70,7 +70,7 @@ fn dump(catalog: &CatalogService) -> String {
 #[test]
 fn copying_a_domain_brings_its_questions_as_new_rows() {
     let (catalog, _a, b) = setup();
-    let report = catalog.catalog_copy_to(&domains(&["d1"]), &b, NOW).unwrap();
+    let report = catalog.catalog_copy_to(&domains(&["d1"]), &b, CopyOptions::default(), NOW).unwrap();
     assert_eq!(report.created.iter().filter(|t| t.kind == CatalogKind::Question).count(), 3);
     assert!(report.created.iter().any(|t| t.kind == CatalogKind::Domain && t.picked));
     assert!(report.created.iter().filter(|t| t.kind == CatalogKind::Question).all(|t| !t.picked), "they came along");
@@ -89,7 +89,7 @@ fn copying_a_domain_brings_its_questions_as_new_rows() {
 fn copying_a_game_makes_it_work_in_the_target() {
     let (catalog, _a, b) = setup();
     let report = catalog
-        .catalog_copy_to(&Selection { recipes: vec![RecipeId::from("g1")], ..Selection::default() }, &b, NOW)
+        .catalog_copy_to(&Selection { recipes: vec![RecipeId::from("g1")], ..Selection::default() }, &b, CopyOptions::default(), NOW)
         .unwrap();
     let game = report.created.iter().find(|t| t.kind == CatalogKind::Recipe).unwrap().id.clone();
     catalog.workspace_switch(&b).unwrap();
@@ -105,8 +105,8 @@ fn copying_a_game_makes_it_work_in_the_target() {
 fn copying_a_second_domain_that_shares_a_question_reuses_the_first_copy() {
     let (catalog, _a, b) = setup();
     catalog.catalog_upsert(&domain("d2", &["q1"]), NOW).unwrap();
-    catalog.catalog_copy_to(&domains(&["d1"]), &b, NOW).unwrap();
-    let report = catalog.catalog_copy_to(&domains(&["d2"]), &b, NOW).unwrap();
+    catalog.catalog_copy_to(&domains(&["d1"]), &b, CopyOptions::default(), NOW).unwrap();
+    let report = catalog.catalog_copy_to(&domains(&["d2"]), &b, CopyOptions::default(), NOW).unwrap();
     assert_eq!(report.reused.len(), 1, "{report:?}");
     assert_eq!(report.reused[0].from, "q1");
     catalog.workspace_switch(&b).unwrap();
@@ -116,8 +116,8 @@ fn copying_a_second_domain_that_shares_a_question_reuses_the_first_copy() {
 #[test]
 fn a_picked_row_is_always_new_and_an_archived_earlier_copy_is_not_reused() {
     let (catalog, a, b) = setup();
-    catalog.catalog_copy_to(&domains(&["d1"]), &b, NOW).unwrap();
-    let again = catalog.catalog_copy_to(&domains(&["d1"]), &b, NOW).unwrap();
+    catalog.catalog_copy_to(&domains(&["d1"]), &b, CopyOptions::default(), NOW).unwrap();
+    let again = catalog.catalog_copy_to(&domains(&["d1"]), &b, CopyOptions::default(), NOW).unwrap();
     assert!(again.created.iter().any(|t| t.kind == CatalogKind::Domain), "the picked domain is new again");
     assert_eq!(again.reused.len(), 3, "its questions are reused");
 
@@ -126,17 +126,17 @@ fn a_picked_row_is_always_new_and_an_archived_earlier_copy_is_not_reused() {
         catalog.catalog_archive(CatalogKind::Question, &id, NOW).unwrap();
     }
     catalog.workspace_switch(&a).unwrap();
-    let third = catalog.catalog_copy_to(&domains(&["d1"]), &b, NOW).unwrap();
+    let third = catalog.catalog_copy_to(&domains(&["d1"]), &b, CopyOptions::default(), NOW).unwrap();
     assert!(third.reused.is_empty(), "archived copies are not reused: {third:?}");
 }
 
 #[test]
 fn copy_refuses_this_workspace_and_an_archived_one() {
     let (catalog, a, b) = setup();
-    assert!(catalog.catalog_copy_to(&domains(&["d1"]), &a, NOW).is_err());
+    assert!(catalog.catalog_copy_to(&domains(&["d1"]), &a, CopyOptions::default(), NOW).is_err());
     let c = catalog.workspace_create("C", None, NOW).unwrap().id;
     catalog.workspace_archive(&c, NOW).unwrap();
-    assert!(catalog.catalog_copy_to(&domains(&["d1"]), &c, NOW).is_err());
+    assert!(catalog.catalog_copy_to(&domains(&["d1"]), &c, CopyOptions::default(), NOW).is_err());
     let _ = b;
 }
 
@@ -144,10 +144,10 @@ fn copy_refuses_this_workspace_and_an_archived_one() {
 fn copies_join_one_family_across_siblings_and_copies_of_copies() {
     let (catalog, a, b) = setup();
     let c = catalog.workspace_create("C", None, NOW).unwrap().id;
-    catalog.catalog_copy_to(&Selection { questions: vec![QuestionId::from("q1")], ..Selection::default() }, &b, NOW).unwrap();
+    catalog.catalog_copy_to(&Selection { questions: vec![QuestionId::from("q1")], ..Selection::default() }, &b, CopyOptions::default(), NOW).unwrap();
     catalog.workspace_switch(&b).unwrap();
     let in_b = ids(&catalog, CatalogKind::Question).into_iter().next().unwrap();
-    catalog.catalog_copy_to(&Selection { questions: vec![QuestionId::from(in_b.as_str())], ..Selection::default() }, &c, NOW).unwrap();
+    catalog.catalog_copy_to(&Selection { questions: vec![QuestionId::from(in_b.as_str())], ..Selection::default() }, &c, CopyOptions::default(), NOW).unwrap();
     catalog.workspace_switch(&c).unwrap();
     let in_c = ids(&catalog, CatalogKind::Question).into_iter().next().unwrap();
     let family = |catalog: &CatalogService, id: &str| get(catalog, CatalogKind::Question, id).stamps().family_id;
@@ -179,7 +179,7 @@ fn moving_a_domain_moves_its_questions() {
 fn moving_is_refused_while_something_staying_uses_a_row_and_names_it() {
     let (catalog, _a, b) = setup();
     let before = dump(&catalog);
-    let preview = catalog.transfer_preview(TransferOp::Move, &domains(&["d1"]), Some(&b)).unwrap();
+    let preview = catalog.transfer_preview(TransferOp::Move, &domains(&["d1"]), Some(&b), CopyOptions::default()).unwrap();
     assert!(preview.refused.iter().any(|r| r.used_by == "game Game One"), "{preview:?}");
     match catalog.catalog_move_to(&domains(&["d1"]), &b, NOW) {
         Err(CatalogError::StillUsed { used_by, .. }) => assert!(used_by.contains("game Game One")),
@@ -212,9 +212,9 @@ fn moving_a_game_carries_its_rows_and_its_plays() {
 fn a_preview_writes_nothing_and_matches_the_write() {
     let (catalog, _a, b) = setup();
     let before = dump(&catalog);
-    let preview = catalog.transfer_preview(TransferOp::Copy, &domains(&["d1"]), Some(&b)).unwrap();
+    let preview = catalog.transfer_preview(TransferOp::Copy, &domains(&["d1"]), Some(&b), CopyOptions::default()).unwrap();
     assert_eq!(dump(&catalog), before);
-    let done = catalog.catalog_copy_to(&domains(&["d1"]), &b, NOW).unwrap();
+    let done = catalog.catalog_copy_to(&domains(&["d1"]), &b, CopyOptions::default(), NOW).unwrap();
     assert_eq!(preview.created.len(), done.created.len());
     assert_eq!(preview.reused, done.reused);
 }
@@ -224,7 +224,7 @@ fn the_demo_can_be_copied_whole_into_another_workspace() {
     let (catalog, _a, b) = setup();
     catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
     let report = catalog
-        .catalog_copy_to(&Selection { recipes: vec![RecipeId::from("seed-recipe-demo")], ..Selection::default() }, &b, NOW)
+        .catalog_copy_to(&Selection { recipes: vec![RecipeId::from("seed-recipe-demo")], ..Selection::default() }, &b, CopyOptions::default(), NOW)
         .unwrap();
     assert!(report.refused.is_empty());
     catalog.workspace_switch(&b).unwrap();
@@ -237,14 +237,109 @@ fn the_demo_can_be_copied_whole_into_another_workspace() {
 fn a_reused_domain_does_not_leave_its_new_questions_behind_in_no_domain() {
     let (catalog, _a, b) = setup();
     let game = Selection { recipes: vec![RecipeId::from("g1")], ..Selection::default() };
-    catalog.catalog_copy_to(&game, &b, NOW).unwrap();
+    catalog.catalog_copy_to(&game, &b, CopyOptions::default(), NOW).unwrap();
     catalog.catalog_upsert(&question("q3", 40), NOW).unwrap();
     let CatalogItem::Domain(mut d1) = get(&catalog, CatalogKind::Domain, "d1") else { panic!() };
     d1.questions.push(DomainMember { question_id: QuestionId::from("q3"), sort_key: 9, group_id: None });
     catalog.catalog_upsert(&CatalogItem::Domain(d1), NOW).unwrap();
 
-    let again = catalog.catalog_copy_to(&game, &b, NOW).unwrap();
+    let again = catalog.catalog_copy_to(&game, &b, CopyOptions::default(), NOW).unwrap();
     assert!(again.reused.iter().any(|t| t.kind == CatalogKind::Domain), "{again:?}");
     assert!(!again.created.iter().any(|t| t.from == "q3"), "q3 would land in no domain: {again:?}");
 }
 
+
+// ---------------------------------------------- copy with domains (beta.2)
+
+fn one_question(id: &str) -> Selection {
+    Selection { questions: vec![QuestionId::from(id)], ..Selection::default() }
+}
+
+#[test]
+fn copy_one_question_with_domains_brings_the_domain_row_with_only_that_question() {
+    let (catalog, _a, b) = setup();
+    // A big domain: 300 questions, one picked.
+    let many: Vec<String> = (0..300).map(|i| format!("m{i}")).collect();
+    for (i, id) in many.iter().enumerate() {
+        catalog.catalog_upsert(&question(id, (i % 100 + 1) as u8), NOW).unwrap();
+    }
+    let refs: Vec<&str> = many.iter().map(|s| s.as_str()).collect();
+    catalog.catalog_upsert(&domain("big", &refs), NOW).unwrap();
+    let g = catalog.domain_group_create(&DomainId::from("big"), "Kings", NOW).unwrap();
+    let _other = catalog.domain_group_create(&DomainId::from("big"), "Unused", NOW).unwrap();
+    let CatalogItem::Domain(mut big) = get(&catalog, CatalogKind::Domain, "big") else { panic!() };
+    big.questions[0].group_id = Some(g.id.clone());
+    catalog.catalog_upsert(&CatalogItem::Domain(big), NOW).unwrap();
+
+    let report = catalog.catalog_copy_to(&one_question("m0"), &b, CopyOptions::default(), NOW).unwrap();
+    assert_eq!(report.created.iter().filter(|t| t.kind == CatalogKind::Question).count(), 1);
+    assert!(report.created.iter().any(|t| t.kind == CatalogKind::Domain && t.from == "big"), "{report:?}");
+    catalog.workspace_switch(&b).unwrap();
+    let copied = ids(&catalog, CatalogKind::Domain);
+    let CatalogItem::Domain(d) = get(&catalog, CatalogKind::Domain, &copied[0]) else { panic!() };
+    assert_eq!(d.questions.len(), 1, "one member, not 300");
+    assert_eq!(d.groups.len(), 1, "only the group the picked question uses");
+    assert_eq!(d.questions[0].group_id.as_ref(), Some(&d.groups[0].id));
+    assert_eq!(ids(&catalog, CatalogKind::Question).len(), 1);
+}
+
+#[test]
+fn copy_with_domains_joins_an_existing_family_copy_at_the_end_in_no_group() {
+    let (catalog, _a, b) = setup();
+    catalog.catalog_copy_to(&domains(&["d1"]), &b, CopyOptions::default(), NOW).unwrap();
+    catalog.catalog_upsert(&question("q4", 40), NOW).unwrap();
+    let CatalogItem::Domain(mut d1) = get(&catalog, CatalogKind::Domain, "d1") else { panic!() };
+    d1.questions.push(DomainMember { question_id: QuestionId::from("q4"), sort_key: 9, group_id: None });
+    catalog.catalog_upsert(&CatalogItem::Domain(d1), NOW).unwrap();
+
+    let report = catalog.catalog_copy_to(&one_question("q4"), &b, CopyOptions::default(), NOW).unwrap();
+    assert_eq!(report.joined.len(), 1, "{report:?}");
+    assert!(!report.created.iter().any(|t| t.kind == CatalogKind::Domain));
+    catalog.workspace_switch(&b).unwrap();
+    let only_domain = ids(&catalog, CatalogKind::Domain);
+    assert_eq!(only_domain.len(), 1, "no second copy of d1");
+    let CatalogItem::Domain(d) = get(&catalog, CatalogKind::Domain, &only_domain[0]) else { panic!() };
+    assert_eq!(d.questions.len(), 4);
+    let last = d.questions.iter().max_by_key(|m| m.sort_key).unwrap();
+    assert!(last.group_id.is_none());
+    assert_eq!(report.created.iter().find(|t| t.kind == CatalogKind::Question).unwrap().id, last.question_id.as_str());
+}
+
+#[test]
+fn copy_without_domains_lands_in_no_domain_and_the_preview_says_so() {
+    let (catalog, _a, b) = setup();
+    let off = CopyOptions { with_domains: false };
+    let preview = catalog.transfer_preview(TransferOp::Copy, &one_question("q1"), Some(&b), off).unwrap();
+    assert!(preview.created.iter().all(|t| t.kind == CatalogKind::Question) && preview.joined.is_empty(), "{preview:?}");
+    catalog.catalog_copy_to(&one_question("q1"), &b, off, NOW).unwrap();
+    catalog.workspace_switch(&b).unwrap();
+    assert!(ids(&catalog, CatalogKind::Domain).is_empty());
+    assert_eq!(ids(&catalog, CatalogKind::Question).len(), 1);
+}
+
+#[test]
+fn copy_with_domains_ignores_an_archived_source_domain() {
+    let (catalog, _a, b) = setup();
+    catalog.catalog_upsert(&domain("old", &["q1"]), NOW).unwrap();
+    catalog.catalog_archive(CatalogKind::Domain, "old", NOW).unwrap();
+    let report = catalog.catalog_copy_to(&one_question("q1"), &b, CopyOptions::default(), NOW).unwrap();
+    let domains_made: Vec<_> = report.created.iter().filter(|t| t.kind == CatalogKind::Domain).map(|t| t.from.clone()).collect();
+    assert_eq!(domains_made, ["d1"]);
+}
+
+#[test]
+fn a_copied_game_overlay_shows_the_targets_logo() {
+    use questiongame_host::catalog::{Asset, TeamOverlay};
+    let (catalog, _a, b) = setup();
+    catalog.catalog_upsert(&CatalogItem::Asset(Box::new(Asset::new("logo", "logo.png", "image"))), NOW).unwrap();
+    let mut game = catalog.recipe_get(&RecipeId::from("g1")).unwrap();
+    game.overlays.teams.insert(TeamId::from("t1"), TeamOverlay { logo_asset_id: Some(questiongame_host::AssetId::from("logo")), ..TeamOverlay::default() });
+    catalog.recipe_upsert(&game, NOW).unwrap();
+    let report = catalog.catalog_copy_to(&Selection { recipes: vec![RecipeId::from("g1")], ..Selection::default() }, &b, CopyOptions::default(), NOW).unwrap();
+    let copy = report.created.iter().find(|t| t.kind == CatalogKind::Recipe).unwrap().id.clone();
+    catalog.workspace_switch(&b).unwrap();
+    let copied = catalog.recipe_get(&RecipeId::from(copy.as_str())).unwrap();
+    let logo = copied.overlays.teams.values().find_map(|o| o.logo_asset_id.clone()).unwrap();
+    assert_ne!(logo.as_str(), "logo");
+    assert!(catalog.catalog_get(CatalogKind::Asset, logo.as_str()).is_ok(), "B's own asset");
+}

@@ -374,7 +374,9 @@ fn duplicate_copies_local_rows_and_games_into_one_family_and_no_plays() {
     let teams = catalog.catalog_list(CatalogKind::Team, ArchiveScope::All).unwrap();
     assert_eq!(teams.len(), 3, "two Demo teams and the archived one");
     let local: Vec<_> = teams.iter().collect();
-    assert!(local.iter().all(|t| !t.id().starts_with("seed-") && t.id() != "gone"), "new ids");
+    assert!(local.iter().all(|t| t.id() != "gone" && !t.id().starts_with("seed-team")), "new ids");
+    assert!(local.iter().filter(|t| t.id().starts_with("seed-")).all(|t| t.id().starts_with(&format!("seed-{}-", copy.id))), "a Demo row takes the copy's own seed id (R5)");
+    assert_eq!(catalog.seed_status(Demo::En, GameSettings::default()).unwrap().missing, 0, "the copy recognises its Demo: no second one");
     assert!(local.iter().all(|t| t.stamps().family_id.is_some()));
     assert_eq!(local.iter().filter(|t| t.stamps().is_archived()).count(), 1, "archived stays archived");
 
@@ -500,4 +502,54 @@ fn restore_sample_game_works_after_the_first_demo_moved_away() {
     assert!(again.inserted > 0);
     assert_eq!(catalog.recipe_list(ArchiveScope::All).unwrap().len(), 1);
     assert!(catalog.seed_status(Demo::En, GameSettings::default()).unwrap().missing == 0);
+}
+
+#[test]
+fn a_second_workspaces_demo_can_be_restored_after_it_moved_away() {
+    use questiongame_host::catalog::{CopyOptions, Selection};
+    let (catalog, a, b) = two();
+    let c = catalog.workspace_create("C", None, NOW).unwrap().id;
+    catalog.workspace_switch(&b.as_str().into()).unwrap();
+    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+    let game = catalog.recipe_list(ArchiveScope::All).unwrap().remove(0).id;
+    catalog.catalog_move_to(&Selection { recipes: vec![game], ..Selection::default() }, &c, NOW).unwrap();
+    // B's Demo went to C; restoring it in B builds B's own again, beside it.
+    assert!(catalog.seed_status(Demo::En, GameSettings::default()).unwrap().missing > 0);
+    catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).expect("review P4: no collision");
+    assert_eq!(catalog.seed_status(Demo::En, GameSettings::default()).unwrap().missing, 0);
+    assert_eq!(catalog.recipe_list(ArchiveScope::All).unwrap().len(), 1);
+    let _ = (a, CopyOptions::default());
+}
+
+#[test]
+fn a_switch_that_cannot_read_the_new_workspace_leaves_the_old_one_current() {
+    let dir = std::env::temp_dir().join(format!("qg-switch-rollback-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("questiongame.sqlite3");
+    let catalog = CatalogService::open(CatalogLocation::file(&path)).unwrap();
+    let a = catalog.current_workspace();
+    catalog.catalog_upsert(&team("a-team"), NOW).unwrap();
+    let b = catalog.workspace_create("B", None, NOW).unwrap().id;
+    // A row of B that cannot be read: the index rebuild for B fails.
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute(
+            "INSERT INTO teams (id, name, short_code, color, origin, created_at, updated_at, play_count, workspace_id)
+             VALUES ('broken', 'Broken', 'BR', '#000', 'operator', 'not a time', 0, 0, ?1)",
+            [b.as_str()],
+        )
+        .unwrap();
+    assert!(catalog.workspace_switch(&b).is_err());
+    assert_eq!(catalog.current_workspace(), a, "still bound to A");
+    assert_eq!(ids(&catalog, CatalogKind::Team), ["a-team"]);
+    let hits = catalog
+        .catalog_search(&SearchQuery { text: "team".into(), kinds: vec![CatalogKind::Team], scope: ArchiveScope::All, limit: 5 })
+        .unwrap();
+    assert_eq!(hits.len(), 1, "A's index is back");
+    drop(catalog);
+    let reopened = CatalogService::open(CatalogLocation::file(&path)).unwrap();
+    assert_eq!(reopened.current_workspace(), a, "and A is what the file says");
+    drop(reopened);
+    let _ = std::fs::remove_dir_all(dir);
 }

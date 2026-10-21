@@ -1,7 +1,7 @@
 //! Groups inside a domain and tags on a question (Beta, P15): organising only.
 //! Ids in the names are from `docs/superpowers/plans/2026-10-21-groups-tags-bulk-tests.md`.
 
-use questiongame_host::catalog::{
+use questiongame_host::catalog::{CopyOptions, 
     ArchiveScope, CatalogItem, CatalogKind, CatalogLocation, CatalogService, Domain, DomainMember, Question,
     QuestionOption, SearchQuery, Selection,
 };
@@ -244,7 +244,7 @@ fn w1_w2_copying_a_domain_copies_its_groups_and_a_question_its_tags() {
     catalog.domain_group_create(&DomainId::from("d1"), "Later", NOW).unwrap();
     put_in(&catalog, "d1", "q1", Some(&romans.id));
     catalog.catalog_upsert(&question("q1", &["Rome"]).into(), NOW).unwrap();
-    catalog.catalog_copy_to(&Selection { domains: vec![DomainId::from("d1")], ..Selection::default() }, &b, NOW).unwrap();
+    catalog.catalog_copy_to(&Selection { domains: vec![DomainId::from("d1")], ..Selection::default() }, &b, CopyOptions::default(), NOW).unwrap();
 
     catalog.workspace_switch(&b).unwrap();
     let copies = catalog.catalog_list(CatalogKind::Domain, ArchiveScope::All).unwrap();
@@ -268,9 +268,9 @@ fn w4_a_reused_domain_keeps_its_groups_and_arrivals_have_none() {
         catalog.recipe_upsert(&r, NOW).unwrap();
         Selection { recipes: vec![questiongame_host::RecipeId::from("g1")], ..Selection::default() }
     };
-    catalog.catalog_copy_to(&d, &b, NOW).unwrap();
+    catalog.catalog_copy_to(&d, &b, CopyOptions::default(), NOW).unwrap();
     catalog.domain_group_create(&DomainId::from("d1"), "Romans", NOW).unwrap();
-    let report = catalog.catalog_copy_to(&game, &b, NOW).unwrap();
+    let report = catalog.catalog_copy_to(&game, &b, CopyOptions::default(), NOW).unwrap();
     assert!(report.reused.iter().any(|t| t.kind == CatalogKind::Domain));
     catalog.workspace_switch(&b).unwrap();
     let CatalogItem::Domain(copy) = &catalog.catalog_list(CatalogKind::Domain, ArchiveScope::All).unwrap()[0] else { panic!() };
@@ -299,7 +299,7 @@ fn w12_propagation_carries_tags_and_never_groups() {
     let (_a, b) = two(&catalog);
     let romans = catalog.domain_group_create(&DomainId::from("d1"), "Romans", NOW).unwrap();
     put_in(&catalog, "d1", "q1", Some(&romans.id));
-    catalog.catalog_copy_to(&Selection { domains: vec![DomainId::from("d1")], ..Selection::default() }, &b, NOW).unwrap();
+    catalog.catalog_copy_to(&Selection { domains: vec![DomainId::from("d1")], ..Selection::default() }, &b, CopyOptions::default(), NOW).unwrap();
     catalog.catalog_upsert_propagating(&question("q1", &["Rome", "Empire"]).into(), NOW).unwrap();
     catalog.workspace_switch(&b).unwrap();
     let CatalogItem::Domain(copy) = &catalog.catalog_list(CatalogKind::Domain, ArchiveScope::All).unwrap()[0] else { panic!() };

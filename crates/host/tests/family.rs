@@ -1,6 +1,6 @@
 //! Families of copies and edits that follow them (Beta 2.0).
 
-use questiongame_host::catalog::{
+use questiongame_host::catalog::{CopyOptions, 
     ArchiveScope, BoardDomain, CatalogItem, CatalogKind, CatalogLocation, CatalogService, Domain, DomainMember,
     Question, QuestionOption, Recipe, Selection,
 };
@@ -47,7 +47,7 @@ fn setup() -> (CatalogService, WorkspaceId, WorkspaceId) {
     catalog.catalog_upsert(&question("q2", 20).into(), NOW).unwrap();
     catalog.catalog_upsert(&domain("d1", &["q1", "q2"]).into(), NOW).unwrap();
     catalog
-        .catalog_copy_to(&Selection { domains: vec![DomainId::from("d1")], ..Selection::default() }, &b, NOW)
+        .catalog_copy_to(&Selection { domains: vec![DomainId::from("d1")], ..Selection::default() }, &b, CopyOptions::default(), NOW)
         .unwrap();
     (catalog, a, b)
 }
@@ -141,7 +141,7 @@ fn a_family_spans_copies_of_copies_and_unfollow_leaves_it() {
     catalog.workspace_switch(&b).unwrap();
     let in_b = only(&catalog, CatalogKind::Domain);
     catalog
-        .catalog_copy_to(&Selection { domains: vec![DomainId::from(in_b.as_str())], ..Selection::default() }, &c, NOW)
+        .catalog_copy_to(&Selection { domains: vec![DomainId::from(in_b.as_str())], ..Selection::default() }, &c, CopyOptions::default(), NOW)
         .unwrap();
     catalog.workspace_switch(&a).unwrap();
     let mine = get_domain(&catalog, "d1");
@@ -183,12 +183,12 @@ fn a_changed_asset_follows_to_the_copy_as_the_copys_own() {
     let mut q = question("qm", 30);
     q.media_asset_id = Some(AssetId::from("a1"));
     catalog.catalog_upsert(&q.clone().into(), NOW).unwrap();
-    catalog.catalog_copy_to(&Selection { questions: vec![QuestionId::from("qm")], ..Selection::default() }, &b, NOW).unwrap();
+    catalog.catalog_copy_to(&Selection { questions: vec![QuestionId::from("qm")], ..Selection::default() }, &b, CopyOptions::default(), NOW).unwrap();
     // a2 has its own copy in B too.
     let mut holder = question("holder", 40);
     holder.media_asset_id = Some(AssetId::from("a2"));
     catalog.catalog_upsert(&holder.into(), NOW).unwrap();
-    catalog.catalog_copy_to(&Selection { questions: vec![QuestionId::from("holder")], ..Selection::default() }, &b, NOW).unwrap();
+    catalog.catalog_copy_to(&Selection { questions: vec![QuestionId::from("holder")], ..Selection::default() }, &b, CopyOptions::default(), NOW).unwrap();
 
     q.media_asset_id = Some(AssetId::from("a2"));
     catalog.catalog_upsert_propagating(&q.into(), NOW).unwrap();
@@ -213,7 +213,7 @@ fn a_copy_keeps_its_workspaces_asset_and_the_preview_matches_the_save() {
     let mut t = Team::new("t1", "Lions", "LIO");
     t.logo_asset_id = Some(AssetId::from("logo"));
     catalog.catalog_upsert(&CatalogItem::Team(Box::new(t.clone())), NOW).unwrap();
-    catalog.catalog_copy_to(&Selection { teams: vec![TeamId::from("t1")], ..Selection::default() }, &b, NOW).unwrap();
+    catalog.catalog_copy_to(&Selection { teams: vec![TeamId::from("t1")], ..Selection::default() }, &b, CopyOptions::default(), NOW).unwrap();
     catalog.workspace_switch(&b).unwrap();
     let copy = only(&catalog, CatalogKind::Team);
     catalog.workspace_switch(&a).unwrap();

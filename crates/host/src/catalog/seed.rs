@@ -478,29 +478,37 @@ fn stored_recipe(service: &CatalogService, id: &RecipeId) -> CatalogResult<Store
 // --------------------------------------------------------------- the service
 
 impl CatalogService {
-    /// This workspace's Demo. The first workspace keeps the Demo's old ids —
-    /// unless they now live elsewhere (the Demo was moved to another
-    /// workspace), and then it takes its own, as any other workspace does.
+    /// This workspace's Demo: the first workspace keeps the Demo's old ids,
+    /// any other takes `seed-<workspace>-…`. When those ids now live in
+    /// another workspace (its Demo was moved there), the next generation is
+    /// taken — `seed-<workspace>-r2-…` — so a Demo is always this
+    /// workspace's own rows (R5; review P4: a moved Demo collided).
     fn demo_here(&self, demo: Demo, settings: GameSettings) -> CatalogResult<(Vec<CatalogItem>, Recipe)> {
         let current = self.current_workspace();
-        let document = demo_document_in(demo, settings.clone(), &current);
-        if current.as_str() != FIRST_WORKSPACE {
-            return Ok(document);
-        }
         let conn = self.conn();
         let elsewhere = |kind: CatalogKind, id: &str| -> CatalogResult<bool> {
             Ok(matches!(super::store::home_of(&conn, kind, id)?, Some(home) if home != current.as_str()))
         };
-        let moved = elsewhere(CatalogKind::Recipe, document.1.id.as_str())?
-            || document.0.iter().map(|i| elsewhere(i.kind(), &i.id())).collect::<CatalogResult<Vec<_>>>()?.into_iter().any(|m| m);
-        drop(conn);
-        if !moved {
-            return Ok(document);
+        let build_at = |scope: &str| match demo {
+            Demo::En => build(&ENGLISH, settings.clone(), scope),
+            Demo::Ro => build(&ROMANIAN, GameSettings { language: Language::Ro, ..settings.clone() }, scope),
+        };
+        let first = current.as_str() == FIRST_WORKSPACE;
+        for generation in 1.. {
+            let scope = match (first, generation) {
+                (true, 1) => String::new(),
+                (true, 2) | (false, 1) => format!("{current}-"),
+                (true, n) => format!("{current}-r{}-", n - 1),
+                (false, n) => format!("{current}-r{n}-"),
+            };
+            let document = build_at(&scope);
+            let taken = elsewhere(CatalogKind::Recipe, document.1.id.as_str())?
+                || document.0.iter().map(|i| elsewhere(i.kind(), &i.id())).collect::<CatalogResult<Vec<_>>>()?.into_iter().any(|m| m);
+            if !taken {
+                return Ok(document);
+            }
         }
-        Ok(match demo {
-            Demo::En => build(&ENGLISH, settings, &format!("{current}-")),
-            Demo::Ro => build(&ROMANIAN, GameSettings { language: Language::Ro, ..settings }, &format!("{current}-")),
-        })
+        unreachable!("some generation is free")
     }
 
     /// `catalog_seed_demo` (§12.1) — one Demo. Writes go through

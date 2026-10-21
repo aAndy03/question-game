@@ -61,5 +61,5 @@ pub use service::{
 pub use bulk::{BulkEdit, BulkReport};
 pub use groups::{TAG_MAX, TAGS_PER_QUESTION, TagCount, tag_key};
 pub use family::{FamilyCopy, PropagationPreview, SkippedCopy};
-pub use transfer::{Refusal, Selection, Touched, TransferOp, TransferReport};
+pub use transfer::{CopyOptions, Refusal, Selection, Touched, TransferOp, TransferReport};
 pub use workspace::{DeleteReport, WORKSPACE_NAME_MAX, Workspace, WorkspaceGroup};

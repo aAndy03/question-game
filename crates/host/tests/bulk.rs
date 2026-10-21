@@ -1,7 +1,7 @@
 //! Bulk edits and *Manage tags* (Beta, P15): one transaction, refused whole,
 //! the one-by-one rules, and copies left alone. Ids from the test list.
 
-use questiongame_host::catalog::{
+use questiongame_host::catalog::{CopyOptions, 
     ArchiveScope, BoardDomain, BulkEdit, CatalogItem, CatalogKind, CatalogLocation, CatalogService, Domain,
     DomainMember, Question, QuestionOption, Recipe, SearchQuery, Selection,
 };
@@ -177,7 +177,7 @@ fn b2_b8_a_preview_writes_nothing_and_counts_duplicates_once() {
 fn b6_a_bulk_edit_leaves_copies_in_other_workspaces_alone() {
     let c = setup();
     let b = c.workspace_create("B", None, NOW).unwrap().id;
-    c.catalog_copy_to(&Selection { questions: ids(&["q1"]), ..Selection::default() }, &b, NOW).unwrap();
+    c.catalog_copy_to(&Selection { questions: ids(&["q1"]), ..Selection::default() }, &b, CopyOptions::default(), NOW).unwrap();
     edit(&c, &["q1"], BulkEdit::Tag { tag: "x".into() });
     edit(&c, &["q1"], BulkEdit::SetDifficulty { difficulty: Some(77) });
     c.workspace_switch(&b).unwrap();
