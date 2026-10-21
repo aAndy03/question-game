@@ -355,7 +355,8 @@ fn s6_undo_returns_the_question_and_the_token() {
     let play = demo.play.get_state().expect("a play");
     assert!(play.session().is_none(), "the question was never issued");
     assert_eq!(
-        play.next_question(&DomainId::new(GEO)).map(|q| q.id.clone()),
+        play.next_question(&DomainId::new(GEO))
+            .map(|q| q.id.clone()),
         Some(QuestionId::new("seed-q-geo-1")),
         "and it is first in the pool again"
     );
@@ -545,7 +546,10 @@ fn s12_a_game_can_be_put_down_at_any_point() {
     let mut demo = Demo::load();
     let now = demo.tick(100);
     let closed = demo.play.unload(now).expect("unloads");
-    assert_eq!(closed.expect("the loaded play").status(), PlayStatus::Abandoned);
+    assert_eq!(
+        closed.expect("the loaded play").status(),
+        PlayStatus::Abandoned
+    );
     assert!(demo.play.get_state().is_none(), "Control is empty");
     // Idempotent: unloading nothing is not an error.
     let now = demo.tick(100);
@@ -586,7 +590,10 @@ fn s13_a_discarded_play_leaves_the_library_as_it_was() {
     demo.catalog.play_delete(closed.id()).expect("discarded");
     assert!(demo.catalog.play_list(None).expect("listed").is_empty());
     assert!(
-        demo.catalog.play_events(closed.id()).expect("read").is_empty(),
+        demo.catalog
+            .play_events(closed.id())
+            .expect("read")
+            .is_empty(),
         "the log goes with it"
     );
     // The library itself is untouched — a Play is a record of a run, not a row.
@@ -736,13 +743,12 @@ fn s17_two_questions_at_one_difficulty_are_asked_in_id_order_and_pay_the_same() 
     use questiongame_host::ids::RecipeId;
 
     let mut demo = Demo::load_prepared(|catalog| {
-        let twin = Question::new("seed-q-geo-4", "Which ocean borders Portugal?", 10)
-            .with_options(
-                ['a', 'b', 'c', 'd']
-                    .into_iter()
-                    .map(|l| QuestionOption::new(format!("seed-q-geo-4-{l}"), l.to_string(), l == 'a'))
-                    .collect(),
-            );
+        let twin = Question::new("seed-q-geo-4", "Which ocean borders Portugal?", 10).with_options(
+            ['a', 'b', 'c', 'd']
+                .into_iter()
+                .map(|l| QuestionOption::new(format!("seed-q-geo-4-{l}"), l.to_string(), l == 'a'))
+                .collect(),
+        );
         catalog.catalog_upsert(&twin.into(), 1_100).unwrap();
         let CatalogItem::Domain(mut geo) = catalog.catalog_get(CatalogKind::Domain, GEO).unwrap()
         else {
@@ -787,5 +793,9 @@ fn s17_two_questions_at_one_difficulty_are_asked_in_id_order_and_pay_the_same() 
 
     let now = demo.tick(1_000);
     demo.play.choose_domain(&DomainId::new(GEO), now).unwrap();
-    assert_eq!(demo.question_id(), QuestionId::new("seed-q-geo-2"), "then the walk goes on");
+    assert_eq!(
+        demo.question_id(),
+        QuestionId::new("seed-q-geo-2"),
+        "then the walk goes on"
+    );
 }

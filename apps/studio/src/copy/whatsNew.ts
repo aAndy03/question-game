@@ -43,7 +43,7 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
         },
         {
           title: 'Small fixes',
-          body: 'Plays are numbered Play 1, Play 2 and so on. A theme colour shows as its swatch, not as code. Saving a question saves its domains in the same step. Messages read cleanly, and dialog buttons stay inside the dialog.',
+          body: 'Plays are numbered Play 1, Play 2 and so on. A theme colour shows as its swatch, not as code. Saving a question saves its domains in the same step. A refusal says what is wrong in plain words, and dialog buttons stay inside the dialog.',
         },
       ],
       ro: [
@@ -57,7 +57,7 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
         },
         {
           title: 'Mici reparații',
-          body: 'Jocurile rulate sunt numerotate Play 1, Play 2 și așa mai departe. O culoare din temă apare ca mostră, nu ca cod. Salvarea unei întrebări îi salvează și domeniile în același pas. Mesajele se citesc curat, iar butoanele rămân în fereastră.',
+          body: 'Play-urile sunt numerotate Play 1, Play 2 și așa mai departe. O culoare din temă apare ca mostră, nu ca cod. Salvarea unei întrebări îi salvează și domeniile în același pas. Un refuz spune în cuvinte simple ce nu e în regulă, iar butoanele rămân în fereastră.',
         },
       ],
     },

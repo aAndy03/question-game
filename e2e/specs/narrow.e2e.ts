@@ -26,7 +26,7 @@ describe('a narrow window', () => {
     await aside.waitForDisplayed({ timeout: 15_000 })
     await sees('Short code')
     await shot('narrow-detail')
-    await (await aside.$('button[aria-label="Close"]')).click()
+    await (await aside.$('button[aria-label="Close details"]')).click()
     await browser.waitUntil(async () => !(await $('[data-detail-aside]').isExisting()), { timeoutMsg: 'the detail did not close' })
 
     await press('Games')

@@ -222,7 +222,12 @@ const ROMANIAN: Document = Document {
                 ),
                 (
                     "Care este, aproximativ, viteza luminii în vid?",
-                    ["300.000 km/s", "150.000 km/s", "30.000 km/s", "3.000.000 km/s"],
+                    [
+                        "300.000 km/s",
+                        "150.000 km/s",
+                        "30.000 km/s",
+                        "3.000.000 km/s",
+                    ],
                 ),
             ],
         ),
@@ -235,10 +240,7 @@ const ROMANIAN: Document = Document {
                     "Cine a construit arca?",
                     ["Noe", "Moise", "Avraam", "David"],
                 ),
-                (
-                    "Câți apostoli și-a ales Iisus?",
-                    ["12", "7", "10", "40"],
-                ),
+                ("Câți apostoli și-a ales Iisus?", ["12", "7", "10", "40"]),
                 (
                     "Cine a fost primul rege al lui Israel?",
                     ["Saul", "David", "Solomon", "Samuel"],
@@ -468,7 +470,11 @@ impl CatalogService {
         if !to_write.is_empty() {
             self.catalog_upsert_many(&to_write, now_ms)?;
         }
-        for kind in [CatalogKind::Team, CatalogKind::Question, CatalogKind::Domain] {
+        for kind in [
+            CatalogKind::Team,
+            CatalogKind::Question,
+            CatalogKind::Domain,
+        ] {
             let ids: Vec<String> = to_restore
                 .iter()
                 .filter(|(k, _)| *k == kind)

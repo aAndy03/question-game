@@ -16,17 +16,20 @@
 //! - `--more-questions <n>` adds `n` plain questions in no domain, for the
 //!   specs that need a list longer than a page (stable 1.1).
 
+use questiongame_host::OperatorId;
 use questiongame_host::catalog::{
-    CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo, Operator, Question, QuestionOption, SeedMode,
+    CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo, Operator, Question,
+    QuestionOption, SeedMode,
 };
 use questiongame_host::flags::{GameSettings, GlobalSettings};
-use questiongame_host::OperatorId;
 
 const NOW: u64 = 1_790_000_000_000;
 
 fn main() {
     let mut args = std::env::args().skip(1);
-    let path = args.next().expect("usage: e2e_library <path> [--broken-board]");
+    let path = args
+        .next()
+        .expect("usage: e2e_library <path> [--broken-board]");
     let rest: Vec<String> = args.collect();
     let broken = rest.iter().any(|a| a == "--broken-board");
     let more: usize = rest
@@ -73,10 +76,20 @@ fn main() {
             .expect("a library edit the catalog allows");
     }
     for i in 0..more {
-        let mut question = Question::new(format!("e2e-extra-{i:03}"), format!("Extra question {i:03}"), (i % 100) as u8 + 1);
-        question.options = vec![QuestionOption::new(format!("e2e-extra-{i:03}-a"), "Yes", true), QuestionOption::new(format!("e2e-extra-{i:03}-b"), "No", false)];
+        let mut question = Question::new(
+            format!("e2e-extra-{i:03}"),
+            format!("Extra question {i:03}"),
+            (i % 100) as u8 + 1,
+        );
+        question.options = vec![
+            QuestionOption::new(format!("e2e-extra-{i:03}-a"), "Yes", true),
+            QuestionOption::new(format!("e2e-extra-{i:03}-b"), "No", false),
+        ];
         catalog
-            .catalog_upsert(&CatalogItem::Question(Box::new(question)), NOW + 2 + i as u64)
+            .catalog_upsert(
+                &CatalogItem::Question(Box::new(question)),
+                NOW + 2 + i as u64,
+            )
             .expect("an extra question");
     }
     drop(catalog);

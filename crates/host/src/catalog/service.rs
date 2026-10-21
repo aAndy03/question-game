@@ -40,13 +40,13 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
 use crate::event::Event;
-use crate::preview::{PreviewBoard, PreviewDomain, PreviewQuestion};
-use crate::stats::{self, StatsDimension, StatsQuery, StatsResult, TurnAward};
 use crate::flags::{GameSettings, GlobalSettings};
 use crate::ids::{AssetId, DomainId, OperatorId, PlayId, QuestionId, RecipeId, TeamId};
 use crate::play::Play;
+use crate::preview::{PreviewBoard, PreviewDomain, PreviewQuestion};
 use crate::settings::FrozenSettings;
 use crate::snapshot::PlaySnapshot;
+use crate::stats::{self, StatsDimension, StatsQuery, StatsResult, TurnAward};
 
 use super::backup::{OpenOptions, OpenReport};
 use super::complete;
@@ -691,6 +691,7 @@ impl CatalogService {
                         "a per-question duration is a game overlay; it has no original",
                     ));
                 }
+                let applied = patch.clone();
                 let mut question = store::question_get(&self.conn(), &question_id)?;
                 if let Some(stem) = patch.stem {
                     question.stem = stem;
@@ -701,15 +702,35 @@ impl CatalogService {
                 if let Some(difficulty) = patch.difficulty {
                     question.difficulty = Some(difficulty);
                 }
-                // P11.13, §2.32. Applying to the original changes the catalog
-                // row *and* drops this recipe's patch, so both halves are in the
-                // recipe this write would produce — checked before either lands.
+                // Only what was applied leaves this recipe's patch: a this-game
+                // stem stays when the difficulty goes to the original (1.1.1:
+                // the difficulty dialog made dropping all of it one press).
+                // P11.13, §2.32: both halves are in the recipe this write would
+                // produce — checked before either lands.
+                let rest = recipe
+                    .overlays
+                    .questions
+                    .get(&question_id)
+                    .cloned()
+                    .map(|o| QuestionOverlay {
+                        stem: o.stem.filter(|_| applied.stem.is_none()),
+                        options: o.options.filter(|_| applied.options.is_none()),
+                        difficulty: o.difficulty.filter(|_| applied.difficulty.is_none()),
+                        duration_ms: o.duration_ms,
+                    })
+                    .filter(|o| !o.is_empty());
                 let mut prospective = recipe.clone();
-                prospective.overlays.questions.remove(&question_id);
+                match &rest {
+                    Some(rest) => prospective
+                        .overlays
+                        .questions
+                        .insert(question_id.clone(), rest.clone()),
+                    None => prospective.overlays.questions.remove(&question_id),
+                };
                 self.check_board(&prospective, Some(&question))?;
                 self.catalog_upsert(&question.into(), now_ms)?;
                 self.write_overlay(id, |tx| {
-                    store::overlay_set_question(tx, id, &question_id, None)
+                    store::overlay_set_question(tx, id, &question_id, rest.as_ref())
                 })?;
             }
         }
@@ -912,17 +933,13 @@ impl CatalogService {
                             .iter()
                             .filter(|option| option.correct)
                             .count() as u32,
-                        stem: patch
-                            .and_then(|p| p.stem.clone())
-                            .unwrap_or(question.stem),
+                        stem: patch.and_then(|p| p.stem.clone()).unwrap_or(question.stem),
                         id: question.id,
                     })
                 })
                 .collect();
             domains.push(PreviewDomain {
-                name: overlay
-                    .and_then(|o| o.name.clone())
-                    .unwrap_or(domain.name),
+                name: overlay.and_then(|o| o.name.clone()).unwrap_or(domain.name),
                 id: domain.id,
                 questions,
                 incomplete,

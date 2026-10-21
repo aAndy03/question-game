@@ -209,7 +209,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
             />
           </div>
           {currentId ? (
-            <DetailAside onClose={() => void go({ tab: 'library', ...(domainId ? { domainId } : {}) })}>
+            <DetailAside onClose={() => replace({ tab: 'library', ...(domainId ? { domainId } : {}) })}>
               <QuestionDetail id={currentId} domainId={domainId ?? undefined} compact />
             </DetailAside>
           ) : null}

@@ -187,7 +187,11 @@ impl SpeedWindow {
     pub fn resolve(&self, duration_ms: u32) -> u32 {
         match self {
             SpeedWindow::Fraction(f) => {
-                let f = if f.is_finite() { f.clamp(0.0, 1.0) } else { 0.0 };
+                let f = if f.is_finite() {
+                    f.clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
                 (f64::from(duration_ms) * f).round() as u32
             }
             SpeedWindow::Ms(ms) => (*ms).min(duration_ms),

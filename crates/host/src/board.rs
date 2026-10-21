@@ -53,7 +53,10 @@ pub struct DifficultyClash {
 pub fn clashes(questions: &[(QuestionId, u8)]) -> Vec<DifficultyClash> {
     let mut by_difficulty: BTreeMap<u8, Vec<QuestionId>> = BTreeMap::new();
     for (id, difficulty) in questions {
-        by_difficulty.entry(*difficulty).or_default().push(id.clone());
+        by_difficulty
+            .entry(*difficulty)
+            .or_default()
+            .push(id.clone());
     }
     by_difficulty
         .into_iter()
@@ -131,7 +134,10 @@ mod tests {
 
     #[test]
     fn check_without_finds_the_first_clash() {
-        let clash = check(false, &[q("q-c", 30), q("q-d", 30), q("q-b", 10), q("q-a", 10)]);
+        let clash = check(
+            false,
+            &[q("q-c", 30), q("q-d", 30), q("q-b", 10), q("q-a", 10)],
+        );
         assert_eq!(clash.map(|c| c.difficulty), Some(10));
     }
 }

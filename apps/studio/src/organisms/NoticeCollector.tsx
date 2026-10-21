@@ -1,7 +1,7 @@
 import { AlertDialog, Drawer } from '@heroui/react'
 import { Button, Text } from '@/atoms'
 import { EmptyState, InlineNotice } from '@/molecules'
-import { gameSectionOf, inlineNotices, surfaceOf, useNoticeStore, type OpenNotice } from '@/chrome/notices'
+import { gameSectionOf, inlineNotices, surfaceOf, useNoticeStore, type OpenNotice, noticeText } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
 import { CHROME, CONFIRM, GAME, SCREENS_TAB, noticeAction, noticeTitle } from '@/copy'
 import { useHostCommand } from '@/host/commands'
@@ -199,7 +199,7 @@ export function NoticeCollector() {
                 <Text variant="studio-body" tone="muted">
                   {blocking.frames.length > 0
                     ? blocking.frames[blocking.frames.length - 1]?.body
-                    : (blocking.detail.message ?? '')}
+                    : (noticeText(blocking) ?? '')}
                 </Text>
               </AlertDialog.Body>
               <AlertDialog.Footer>

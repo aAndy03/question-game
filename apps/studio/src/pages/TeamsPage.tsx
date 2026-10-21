@@ -23,6 +23,8 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
   const { view } = usePrefs()
   const setView = useChromeStore((s) => s.setView)
   const go = useNavStore((s) => s.go)
+  // Close goes back to the list without a step Back would reopen (review).
+  const replace = useNavStore((s) => s.replace)
   const archive = useArchive()
   const list = useCatalogList('team', scope)
   const session = useListState('teams')
@@ -66,7 +68,7 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
         />
       }
       aside={currentId ? <TeamDetail id={currentId} compact /> : null}
-      onCloseAside={() => void go({ tab: 'teams' })}
+      onCloseAside={() => replace({ tab: 'teams' })}
     >
       <LibraryList
         view={lv}

@@ -34,15 +34,15 @@
 //! part of `reveal_outcome`, which is the only thing that scores (§2.4). The
 //! channel still reaches Stage, which is where the outcome's arrival animates.
 
-use crate::flags::AudioSettings;
 use crate::error::{MatchError, MatchResult};
+use crate::flags::AudioSettings;
 use crate::play::PlayStatus;
 use crate::service::MatchService;
 use crate::settings::{Language, RevealChannel, RevealMode, RevealSettings};
 use crate::snapshot::AnswerMode;
 use crate::stage::{
-    OverlayRequest, PlayStateForStage, StageDecorSettings, StageGameState, StageOverlay,
-    StageLayoutNodes, StageScreen,
+    OverlayRequest, PlayStateForStage, StageDecorSettings, StageGameState, StageLayoutNodes,
+    StageOverlay, StageScreen,
 };
 
 /// The current screen, the overlay queue, and the recipe's decor settings.

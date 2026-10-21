@@ -24,8 +24,15 @@ use serde_json::Value;
 use support::*;
 
 /// Owned by `PresentationService`, merged into the emission.
-const PRESENTATION_KEYS: [&str; 7] =
-    ["audio", "currentScreen", "decor", "language", "layout", "overlay", "revealModes"];
+const PRESENTATION_KEYS: [&str; 7] = [
+    "audio",
+    "currentScreen",
+    "decor",
+    "language",
+    "layout",
+    "overlay",
+    "revealModes",
+];
 
 fn fixtures_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures")
@@ -113,7 +120,13 @@ fn emitted(with_session: bool) -> Value {
         .show_screen(StageScreen::Question, Some(PlayStatus::Playing))
         .unwrap();
     let game = project(service.get_state().unwrap(), 10_000);
-    let state = presentation.play_state(game, RevealSettings::default(), true, AudioSettings::default(), Language::En);
+    let state = presentation.play_state(
+        game,
+        RevealSettings::default(),
+        true,
+        AudioSettings::default(),
+        Language::En,
+    );
     serde_json::to_value(state).expect("the emission serializes")
 }
 

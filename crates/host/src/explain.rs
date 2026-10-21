@@ -372,7 +372,8 @@ mod tests {
     fn steps_pay_every_lock_in_a_band_the_same() {
         let s = scoring(SpeedWindow::Fraction(1.0), Some(3));
         let judging = JudgingSettings::default();
-        let at = |remaining| explain(&s, &judging, 50, &correct(), Some(remaining), Some(30_000)).points;
+        let at =
+            |remaining| explain(&s, &judging, 50, &correct(), Some(remaining), Some(30_000)).points;
         // Top band (more than 2/3 of the clock left) is the full weight.
         assert_eq!(at(30_000), 200);
         assert_eq!(at(21_000), 200);
@@ -405,7 +406,10 @@ mod tests {
         let BaseSource::Band { span, above_last } = b.base_from else {
             panic!("expected a band, got {:?}", b.base_from);
         };
-        assert_eq!((span.index, span.from, span.up_to, span.points), (1, 34, 66, 20));
+        assert_eq!(
+            (span.index, span.from, span.up_to, span.points),
+            (1, 34, 66, 20)
+        );
         assert!(!above_last);
 
         // A difficulty past the last band takes the last band's award, and the

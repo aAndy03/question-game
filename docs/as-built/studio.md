@@ -92,11 +92,11 @@ The design is `docs/v1/05_STUDIO_DESIGN.md` §13. Statistics is a **projector**,
 
 The design is `docs/superpowers/specs/2026-10-21-stable-1.1.1-design.md`.
 
-- **`DetailAside`** (`templates/`) is every library tab's opened row: beside the list at `xl`, over its right edge below (a surface with a shadow, `w-[min(22rem,100%)]`) with a Close the page wires to its list route (`LibraryTabLayout.onCloseAside`). Its parent row is `relative`. Below 1280 px it used to be `hidden`, so at 1100 px an opened row showed nothing.
-- **`DifficultyDialog`** (`molecules/`) replaced the board's `window.prompt`: its buttons judge the value when pressed, because HeroUI's `NumberField` commits on blur and a button disabled until then ate the press that caused it. `ScopeConfirm` stays for the other scope edits.
-- **A theme colour** (`var(…)`, the Demo's teams) is a swatch and *Theme colour* in the team editor and the team detail; only a `var(` value is one, so what is typed stays typed.
+- **`DetailAside`** (`templates/`) is the opened row of every library tab that opens one (Teams, Questions, Operators): beside the list at `xl`, over its right edge below (a surface with a shadow, `w-[min(22rem,100%)]`) with a Close (*Close details*) the page wires to its list route by `replace` (`LibraryTabLayout.onCloseAside`), so Back does not reopen it; below `xl` it takes the focus and Escape closes it. Its parent row is `relative`. Below 1280 px it used to be `hidden`, so at 1100 px an opened row showed nothing.
+- **`DifficultyDialog`** (`molecules/`) replaced the board's `window.prompt`: its buttons judge the value when pressed, because HeroUI's `NumberField` commits on blur and a button disabled until then ate the press that caused it. A refusal closes it, so the Board's notice can be read. `ScopeConfirm` had no other caller and is gone. *Apply to original* keeps the rest of this game's overrides of the question (the host drops only what it applied).
+- **A theme colour** (`var(…)`, the Demo's teams) is a swatch and *Theme colour* in the team editor and the team detail; only a whole `var(--name)` is one, so what is typed stays typed, and the team's own theme colour can be picked again after a palette colour.
 - **The question editor** writes the question and its changed domains in one `catalog_upsert_many`.
-- **`InlineNotice`** drops the `path: ` the host's message starts with; **`playNumbers`** numbers a game's Plays by start time.
+- **`noticeText`** (`chrome/notices`) is a notice's words without the `path: ` the host's message starts with — `InlineNotice`, every field error, the collector and the PIN prompts read it; **`playNumbers`** numbers a game's Plays by start time.
 
 ## Library views as built (stable 1.1, P13.2–P13.4)
 

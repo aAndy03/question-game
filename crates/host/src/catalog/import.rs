@@ -33,7 +33,13 @@ pub const VERSION: u64 = 1;
 pub const MAX_ROWS: usize = 2_000;
 
 /// The fields a row may carry, in the order they are read and reported.
-const ROW_FIELDS: [&str; 5] = ["question", "options", "difficulty", "domains", "explanation"];
+const ROW_FIELDS: [&str; 5] = [
+    "question",
+    "options",
+    "difficulty",
+    "domains",
+    "explanation",
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -172,7 +178,12 @@ pub fn plan(
     let mut seen: BTreeSet<Fingerprint> = library
         .questions
         .iter()
-        .map(|q| fingerprint(&q.stem, q.options.iter().map(|o| (o.text.as_str(), o.correct))))
+        .map(|q| {
+            fingerprint(
+                &q.stem,
+                q.options.iter().map(|o| (o.text.as_str(), o.correct)),
+            )
+        })
         .collect();
     let mut resolver = Resolver::new(library.domains);
     let mut report_rows = Vec::with_capacity(rows.len());
@@ -204,7 +215,9 @@ pub fn plan(
         }
         let print = fingerprint(
             &read.stem,
-            read.options.iter().map(|(text, correct)| (text.as_str(), *correct)),
+            read.options
+                .iter()
+                .map(|(text, correct)| (text.as_str(), *correct)),
         );
         if !seen.insert(print) {
             counts.duplicate += 1;
@@ -418,7 +431,9 @@ fn read_row(fields: &Map<String, Value>) -> Read {
                 let field = format!("domains[{k}]");
                 match item {
                     Value::String(name) => push_domain(&mut read, &field, name),
-                    _ => read.ignored.push(Ignored::new(field, IgnoredWhy::WrongType)),
+                    _ => read
+                        .ignored
+                        .push(Ignored::new(field, IgnoredWhy::WrongType)),
                 }
             }
         }
@@ -443,7 +458,8 @@ fn read_option(read: &mut Read, k: usize, item: &Value) {
         Value::String(text) => (text, false),
         Value::Object(option) => {
             let Some(Value::String(text)) = option.get("text") else {
-                read.ignored.push(Ignored::new(field, IgnoredWhy::WrongType));
+                read.ignored
+                    .push(Ignored::new(field, IgnoredWhy::WrongType));
                 return;
             };
             let correct = match option.get("correct") {
@@ -460,7 +476,8 @@ fn read_option(read: &mut Read, k: usize, item: &Value) {
             (text, correct)
         }
         _ => {
-            read.ignored.push(Ignored::new(field, IgnoredWhy::WrongType));
+            read.ignored
+                .push(Ignored::new(field, IgnoredWhy::WrongType));
             return;
         }
     };
@@ -740,7 +757,13 @@ mod tests {
 
     #[test]
     fn options_alone_are_accepted_as_incomplete() {
-        let plan = run(r#"[ { "question": "", "options": ["A", "B"] } ]"#, &[], &[], None).unwrap();
+        let plan = run(
+            r#"[ { "question": "", "options": ["A", "B"] } ]"#,
+            &[],
+            &[],
+            None,
+        )
+        .unwrap();
         assert_eq!(statuses(&plan), vec![RowStatus::Incomplete]);
         assert_eq!(plan.report.rows[0].gaps[0], QuestionGap::Stem);
     }
@@ -826,7 +849,13 @@ mod tests {
 
     #[test]
     fn a_row_without_a_domain_goes_to_the_default_one() {
-        let plan = run(r#"[ { "question": "Q?" } ]"#, &[], &[geo()], Some("dom-geo")).unwrap();
+        let plan = run(
+            r#"[ { "question": "Q?" } ]"#,
+            &[],
+            &[geo()],
+            Some("dom-geo"),
+        )
+        .unwrap();
         assert_eq!(plan.report.rows[0].domains, vec!["Geografie".to_owned()]);
         assert!(!plan.report.rows[0].gaps.contains(&QuestionGap::Domain));
     }

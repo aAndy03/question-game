@@ -408,7 +408,8 @@ mod tests {
             for step in &MIGRATIONS[..behind as usize] {
                 conn.execute_batch(step).unwrap();
             }
-            conn.execute_batch(&format!("PRAGMA user_version = {behind}")).unwrap();
+            conn.execute_batch(&format!("PRAGMA user_version = {behind}"))
+                .unwrap();
             super::super::store::global_set(&conn, META_LAST_OPENED, "\"1.0.2\"").unwrap();
         }
 
@@ -420,7 +421,8 @@ mod tests {
         };
         let (conn, report) = open_guarded(&path, &options).unwrap();
         let version = |c: &Connection| -> u32 {
-            c.pragma_query_value(None, "user_version", |row| row.get(0)).unwrap()
+            c.pragma_query_value(None, "user_version", |row| row.get(0))
+                .unwrap()
         };
         assert_eq!(version(&conn), MIGRATIONS.len() as u32);
         let backup = report.backup.expect("a backup before migrating");

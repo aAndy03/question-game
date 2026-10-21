@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button, MeaningChip, Panel, PinField, PIN_SHAPE, Text } from '@/atoms'
 import { InlineNotice } from '@/molecules'
 import { SETTINGS } from '@/copy/settings'
-import { noticesAt, useNoticeStore } from '@/chrome/notices'
+import { noticesAt, useNoticeStore, noticeText } from '@/chrome/notices'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import type { Operator } from '@/host/types'
@@ -31,7 +31,7 @@ export function OperatorPinPanel({ operator }: OperatorPinPanelProps) {
 
   const path = `operator.${operator.id}.pin`
   const inline = noticesAt(notices, path)
-  const hostError = inline[0]?.detail.message ?? null
+  const hostError = noticeText(inline[0])
   const pinned = operator.pinHash !== null
   const needsCurrent = mode === 'change' || mode === 'remove'
   const needsNew = mode === 'set' || mode === 'change'

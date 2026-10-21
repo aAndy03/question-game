@@ -117,12 +117,14 @@ fn judgement() -> impl Strategy<Value = Judgement> {
         0u32..=5,
         1u32..=5,
     )
-        .prop_map(|(verdict, correct_locked, incorrect_locked, correct_total)| Judgement {
-            verdict,
-            correct_locked,
-            incorrect_locked,
-            correct_total,
-        })
+        .prop_map(
+            |(verdict, correct_locked, incorrect_locked, correct_total)| Judgement {
+                verdict,
+                correct_locked,
+                incorrect_locked,
+                correct_total,
+            },
+        )
 }
 
 /// A countdown, or operator pace.

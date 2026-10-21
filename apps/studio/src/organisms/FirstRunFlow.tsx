@@ -3,7 +3,7 @@ import { Button, Panel, PinField, PIN_SHAPE, Text, TextField } from '@/atoms'
 import { InlineNotice, PathRow, WizardSteps } from '@/molecules'
 import { SETTINGS } from '@/copy/settings'
 import { FIRST_RUN, type FirstRunStepId } from '@/copy/firstRun'
-import { noticesAt, useNoticeStore } from '@/chrome/notices'
+import { noticesAt, useNoticeStore, noticeText } from '@/chrome/notices'
 import { useHostCommand } from '@/host/commands'
 import { useCatalogList, usePaths } from '@/host/queries'
 import type { Operator, SeedDemo, SeedResult } from '@/host/types'
@@ -147,7 +147,7 @@ export function useFirstRunFlow({ onFinish }: FirstRunFlowProps): FirstRunView {
               .map((n) => (
                 <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} compact />
               ))}
-            <TextField label={FIRST_RUN.operator.displayName} description={FIRST_RUN.operator.displayNameHint} value={name} onChange={setName} isRequired autoFocus error={inline.find((n) => n.targetPath === `${path}.name`)?.detail.message ?? null} />
+            <TextField label={FIRST_RUN.operator.displayName} description={FIRST_RUN.operator.displayNameHint} value={name} onChange={setName} isRequired autoFocus error={noticeText(inline.find((n) => n.targetPath === `${path}.name`))} />
             <div className="grid grid-cols-2 gap-3">
               <PinField label={SETTINGS.pin.label} description={SETTINGS.pin.hint} value={pin} onChange={setPin} error={pin !== '' && !PIN_SHAPE.test(pin) ? SETTINGS.pin.invalid : (inline.find((n) => n.targetPath === `${path}.pin`)?.detail.message ?? null)} />
               <PinField label={SETTINGS.pin.confirm} value={confirm} onChange={setConfirm} error={confirm !== '' && confirm !== pin ? SETTINGS.pin.mismatch : null} isDisabled={pin === ''} />

@@ -157,7 +157,7 @@ export interface RecipeOverlays {
   readonly questions: Readonly<Record<string, QuestionOverlay>>
 }
 
-/** Which side of ScopeConfirm an inline edit landed on (§2.17). */
+/** Which side of the scope choice an inline edit landed on (§2.17): `DifficultyDialog`. */
 export type EditScope = 'this_game' | 'original'
 
 /** `recipe_set_overlay`'s target. `patch: null` is Reset. */

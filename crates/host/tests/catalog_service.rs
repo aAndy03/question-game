@@ -780,12 +780,20 @@ fn applying_a_difficulty_to_the_original_is_refused_on_the_same_rule() {
         questiongame_host::catalog::CatalogItem::Question(question) => *question,
         other => panic!("expected a question, got {other:?}"),
     };
-    assert_eq!(question.difficulty, Some(20), "the catalog row is untouched");
+    assert_eq!(
+        question.difficulty,
+        Some(20),
+        "the catalog row is untouched"
+    );
 }
 
 // ------------------------------- repeated difficulties, when the game allows (P12.7)
 
-fn allow_repeats(service: &CatalogService, recipe: &Recipe, allow: bool) -> Result<(), CatalogError> {
+fn allow_repeats(
+    service: &CatalogService,
+    recipe: &Recipe,
+    allow: bool,
+) -> Result<(), CatalogError> {
     let mut settings = service.recipe_get(&recipe.id).unwrap().settings;
     settings.board.allow_repeated_difficulty = allow;
     service
@@ -810,7 +818,12 @@ fn a_board_may_repeat_a_difficulty_when_the_game_allows_it() {
         let recipe = seed_with_a_twin(service);
         allow_repeats(service, &recipe, true).unwrap();
         service
-            .recipe_set_membership(&recipe.id, recipe.teams.clone(), board_of_all_three(), 2_000)
+            .recipe_set_membership(
+                &recipe.id,
+                recipe.teams.clone(),
+                board_of_all_three(),
+                2_000,
+            )
             .unwrap();
 
         let snapshot = service
@@ -835,7 +848,12 @@ fn turning_the_switch_off_on_a_repeating_board_is_refused() {
     let recipe = seed_with_a_twin(&service);
     allow_repeats(&service, &recipe, true).unwrap();
     service
-        .recipe_set_membership(&recipe.id, recipe.teams.clone(), board_of_all_three(), 2_000)
+        .recipe_set_membership(
+            &recipe.id,
+            recipe.teams.clone(),
+            board_of_all_three(),
+            2_000,
+        )
         .unwrap();
     let rev_before = service.recipe_get(&recipe.id).unwrap().rev;
 
@@ -1112,7 +1130,12 @@ fn the_two_demos_are_restored_and_counted_apart() {
     assert_eq!((en.present, en.missing), (0, 11));
 
     service
-        .seed_demo(Demo::En, SeedMode::Overwrite, GameSettings::default(), 2_000)
+        .seed_demo(
+            Demo::En,
+            SeedMode::Overwrite,
+            GameSettings::default(),
+            2_000,
+        )
         .unwrap();
     let ro = service
         .seed_status(Demo::Ro, GameSettings::default())
@@ -1312,14 +1335,20 @@ fn a_team_counts_the_plays_the_log_says_it_played() {
         let recipe = seed(service);
         // In the library, on no roster — the count is participation, not
         // existence.
-        service.catalog_upsert(&team("team-c").into(), 1_000).unwrap();
+        service
+            .catalog_upsert(&team("team-c").into(), 1_000)
+            .unwrap();
 
         let read = |service: &CatalogService, id: &str| {
             let row = service.catalog_get(CatalogKind::Team, id).unwrap();
             let team = row.as_team().unwrap().clone();
             (team.play_count, team.last_play_at)
         };
-        assert_eq!(read(service, "team-a"), (0, None), "nothing has been played");
+        assert_eq!(
+            read(service, "team-a"),
+            (0, None),
+            "nothing has been played"
+        );
 
         // Loaded but never started: a game put down before it began is not a
         // Play anyone played, the same rule the operator count keeps.
@@ -1334,7 +1363,11 @@ fn a_team_counts_the_plays_the_log_says_it_played() {
         play.play_start(10_000).unwrap();
         service.play_persist(play.get_state().unwrap()).unwrap();
         assert_eq!(read(service, "team-a"), (1, Some(10_000)));
-        assert_eq!(read(service, "team-b"), (1, Some(10_000)), "the whole roster");
+        assert_eq!(
+            read(service, "team-b"),
+            (1, Some(10_000)),
+            "the whole roster"
+        );
         assert_eq!(
             read(service, "team-c"),
             (0, None),
@@ -1935,4 +1968,49 @@ fn a_bulk_archive_is_all_or_nothing_and_restores_the_same_way() {
             4,
         );
     });
+}
+
+#[test]
+fn apply_to_original_keeps_the_rest_of_this_games_overlay() {
+    let service = CatalogService::in_memory().unwrap();
+    let recipe = seed(&service);
+    let both = QuestionOverlay {
+        stem: Some("This show's words?".into()),
+        difficulty: Some(15),
+        ..QuestionOverlay::default()
+    };
+    service
+        .recipe_set_overlay(
+            &recipe.id,
+            OverlayTarget::Question(QuestionId::from("q-1"), Some(both)),
+            EditScope::ThisGame,
+            2_000,
+        )
+        .unwrap();
+    let difficulty = QuestionOverlay {
+        difficulty: Some(15),
+        ..QuestionOverlay::default()
+    };
+    service
+        .recipe_set_overlay(
+            &recipe.id,
+            OverlayTarget::Question(QuestionId::from("q-1"), Some(difficulty)),
+            EditScope::Original,
+            3_000,
+        )
+        .unwrap();
+    let left = service
+        .recipe_get(&recipe.id)
+        .unwrap()
+        .overlays
+        .questions
+        .get(&QuestionId::from("q-1"))
+        .cloned();
+    assert_eq!(
+        left,
+        Some(QuestionOverlay {
+            stem: Some("This show's words?".into()),
+            ..QuestionOverlay::default()
+        })
+    );
 }

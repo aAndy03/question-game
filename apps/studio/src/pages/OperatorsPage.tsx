@@ -22,6 +22,8 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
   const { view } = usePrefs()
   const setView = useChromeStore((s) => s.setView)
   const go = useNavStore((s) => s.go)
+  // Close goes back to the list without a step Back would reopen (review).
+  const replace = useNavStore((s) => s.replace)
   const { activate, prompt } = useActivateOperator()
   const archive = useArchive()
   const settings = useSettings()
@@ -78,7 +80,7 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
         />
       }
       aside={currentId ? <OperatorDetail id={currentId} compact /> : null}
-      onCloseAside={() => void go({ tab: 'operators' })}
+      onCloseAside={() => replace({ tab: 'operators' })}
     >
       <LibraryList
         view={lv}

@@ -219,7 +219,10 @@ fn an_unwritable_backup_dir_refuses_to_open_and_leaves_the_file_unchanged() {
 #[test]
 fn retention_never_deletes_the_backup_just_taken() {
     let dir = TempDir::new("clock-behind");
-    drop(CatalogService::open_file(&dir.library(), &options(&dir, "1.0.1", "20300101-000000")).unwrap());
+    drop(
+        CatalogService::open_file(&dir.library(), &options(&dir, "1.0.1", "20300101-000000"))
+            .unwrap(),
+    );
     std::fs::create_dir_all(dir.backups()).unwrap();
     for day in 1..=5 {
         let name = format!("questiongame-1.0.0-203001{day:02}-000000.sqlite3");
@@ -241,7 +244,10 @@ fn retention_never_deletes_the_backup_just_taken() {
 #[test]
 fn a_boot_that_fails_after_the_backup_still_keeps_only_five() {
     let dir = TempDir::new("fails-after");
-    drop(CatalogService::open_file(&dir.library(), &options(&dir, "1.0.1", "20261001-000000")).unwrap());
+    drop(
+        CatalogService::open_file(&dir.library(), &options(&dir, "1.0.1", "20261001-000000"))
+            .unwrap(),
+    );
     // A schema this build does not know, as a newer build would leave it.
     rusqlite::Connection::open(dir.library())
         .unwrap()

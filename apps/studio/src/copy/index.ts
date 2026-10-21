@@ -103,7 +103,8 @@ export const LIST = {
   edit: 'Edit',
   duplicate: 'Duplicate',
   /** The opened row's Close below 1280 px (1.1.1). */
-  closeDetail: 'Close',
+  closeDetail: 'Close details',
+  detail: 'Details',
   new: (what: string) => `New ${what}`,
   selected: (n: number) => (n === 1 ? '1 selected' : `${n} selected`),
   clearSelection: 'Clear',
@@ -210,7 +211,7 @@ export const CONFIRM = {
   archiveMany: (n: number, what: string) => `Archive ${n} ${what}?`,
   restoreMany: (n: number, what: string) => `Restore ${n} ${what}?`,
   archiveBody: 'Archived rows leave the active lists and stay restorable. Nothing is deleted.',
-  referencedBy: (by: string) => `Still used by ${by}. It stays there; only the library row is archived.`,
+  referencedBy: (by: string) => `Still used by ${by.replace(/\bplay\b/, 'Play')}. It stays there; only the library row is archived.`,
   arm: 'Archive',
   armed: 'Confirm archive',
   dirtyTitle: 'Unsaved changes',

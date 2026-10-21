@@ -394,7 +394,11 @@ pub fn build(
 /// whatever its own value, since that is the more useful thing to say. Below
 /// that, a value that contributes nothing is `Off`, and everything else is
 /// `Active`.
-fn rules_for(game: &GameSettings, timer: &TimerResolution, effects: &[Disabled]) -> Vec<RuleEffect> {
+fn rules_for(
+    game: &GameSettings,
+    timer: &TimerResolution,
+    effects: &[Disabled],
+) -> Vec<RuleEffect> {
     let scoring = &game.scoring;
     let disabled = |key: &str| effects.iter().find(|d| d.key == key).map(|d| d.reason);
 
@@ -426,8 +430,16 @@ fn rules_for(game: &GameSettings, timer: &TimerResolution, effects: &[Disabled])
 
     vec![
         // Always a decision: every mode picks a base.
-        entry("scoring.mode", false, RuleValue::Choice(mode_key(scoring.mode))),
-        entry("scoring.flat_points", false, RuleValue::Points(scoring.flat_points)),
+        entry(
+            "scoring.mode",
+            false,
+            RuleValue::Choice(mode_key(scoring.mode)),
+        ),
+        entry(
+            "scoring.flat_points",
+            false,
+            RuleValue::Points(scoring.flat_points),
+        ),
         entry("scoring.difficulty_map", false, map_value),
         entry(
             "scoring.lock_speed.enabled",
@@ -450,7 +462,9 @@ fn rules_for(game: &GameSettings, timer: &TimerResolution, effects: &[Disabled])
         entry(
             "scoring.speed_steps",
             scoring.speed_steps.is_none(),
-            scoring.speed_steps.map_or(RuleValue::Unset, |n| RuleValue::Number(f64::from(n))),
+            scoring
+                .speed_steps
+                .map_or(RuleValue::Unset, |n| RuleValue::Number(f64::from(n))),
         ),
         // Off is a mode, not an absence: operator pace changes how the whole
         // show runs, so `timer.enabled = false` is very much in effect.
@@ -480,12 +494,12 @@ fn rules_for(game: &GameSettings, timer: &TimerResolution, effects: &[Disabled])
         entry(
             "turn.bonus_after_consecutive",
             game.turn.bonus_after_consecutive.is_none(),
-            game.turn.bonus_after_consecutive.map_or(RuleValue::Unset, |b| {
-                RuleValue::Streak {
+            game.turn
+                .bonus_after_consecutive
+                .map_or(RuleValue::Unset, |b| RuleValue::Streak {
                     count: b.count,
                     award: b.award,
-                }
-            }),
+                }),
         ),
     ]
 }
@@ -711,7 +725,11 @@ fn ladder_for(game: &GameSettings, domain: &PreviewDomain) -> DomainLadder {
     // `snapshot::queue` issues them in. The ladder has to match, or the rung
     // table would describe a walk the Play never takes.
     let mut ordered: Vec<&PreviewQuestion> = domain.questions.iter().collect();
-    ordered.sort_by(|a, b| a.difficulty.cmp(&b.difficulty).then_with(|| a.id.cmp(&b.id)));
+    ordered.sort_by(|a, b| {
+        a.difficulty
+            .cmp(&b.difficulty)
+            .then_with(|| a.id.cmp(&b.id))
+    });
     let ladder: Vec<u8> = ordered.iter().map(|q| q.difficulty).collect();
     let points_available = ladder
         .iter()
@@ -865,9 +883,7 @@ fn warnings_for(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::settings::{
-        DifficultyBand, ScoringMode, ScoringSettings, TimerLevel, TurnSettings,
-    };
+    use crate::settings::{DifficultyBand, ScoringMode, ScoringSettings, TimerLevel, TurnSettings};
 
     fn question(id: &str, difficulty: u8) -> PreviewQuestion {
         PreviewQuestion {
@@ -926,11 +942,10 @@ mod tests {
         };
         let p = preview(&game(), &board);
         assert!(
-            p.warnings
-                .contains(&PreviewWarning::DuplicateDifficulty {
-                    difficulty: 10,
-                    questions: 2
-                }),
+            p.warnings.contains(&PreviewWarning::DuplicateDifficulty {
+                difficulty: 10,
+                questions: 2
+            }),
             "got {:?}",
             p.warnings
         );
@@ -1020,11 +1035,11 @@ mod tests {
             domains: vec![domain("tec", &[20, 50, 80]), domain("his", &[10])],
         };
         let p = preview(&game(), &board);
-        assert!(matches!(
-            p.board,
-            BoardShape::Ragged { min: 1, max: 3, .. }
-        ));
-        assert!(p.warnings.contains(&PreviewWarning::RaggedBoard { min: 1, max: 3 }));
+        assert!(matches!(p.board, BoardShape::Ragged { min: 1, max: 3, .. }));
+        assert!(
+            p.warnings
+                .contains(&PreviewWarning::RaggedBoard { min: 1, max: 3 })
+        );
     }
 
     #[test]
@@ -1036,7 +1051,10 @@ mod tests {
             panic!("expected Aligned");
         };
         assert_eq!(domains[0].points_available, 200 + 500 + 800);
-        assert_eq!((domains[0].min_difficulty, domains[0].max_difficulty), (20, 80));
+        assert_eq!(
+            (domains[0].min_difficulty, domains[0].max_difficulty),
+            (20, 80)
+        );
     }
 
     #[test]
@@ -1045,7 +1063,10 @@ mod tests {
             domains: vec![domain("tec", &[20, 50]), domain("his", &[50])],
         };
         let p = preview(&game(), &board);
-        assert_eq!(p.rows.iter().map(|r| r.difficulty).collect::<Vec<_>>(), vec![20, 50]);
+        assert_eq!(
+            p.rows.iter().map(|r| r.difficulty).collect::<Vec<_>>(),
+            vec![20, 50]
+        );
         let fifty = p.rows.iter().find(|r| r.difficulty == 50).expect("row");
         assert_eq!(fifty.question_count, 2);
         assert_eq!(fifty.domains, vec!["tec".to_owned(), "his".to_owned()]);
@@ -1084,14 +1105,19 @@ mod tests {
         };
         board.domains[0].questions[0].duration_ms = Some(10_000);
         let p = preview(&g, &board);
-        assert!(p.warnings.contains(&PreviewWarning::MixedDurations { questions: 1 }));
+        assert!(
+            p.warnings
+                .contains(&PreviewWarning::MixedDurations { questions: 1 })
+        );
 
         // An absolute window is exactly the answer to that, so it stops warning.
         g.scoring.speed_window = crate::settings::SpeedWindow::Ms(8_000);
-        assert!(!preview(&g, &board)
-            .warnings
-            .iter()
-            .any(|w| matches!(w, PreviewWarning::MixedDurations { .. })));
+        assert!(
+            !preview(&g, &board)
+                .warnings
+                .iter()
+                .any(|w| matches!(w, PreviewWarning::MixedDurations { .. }))
+        );
     }
 
     #[test]
@@ -1112,10 +1138,12 @@ mod tests {
         let board = PreviewBoard {
             domains: vec![domain("tec", &[20, 80])],
         };
-        assert!(preview(&g, &board)
-            .warnings
-            .iter()
-            .any(|w| matches!(w, PreviewWarning::BandsNotMonotonic { .. })));
+        assert!(
+            preview(&g, &board)
+                .warnings
+                .iter()
+                .any(|w| matches!(w, PreviewWarning::BandsNotMonotonic { .. }))
+        );
     }
 
     #[test]
@@ -1161,12 +1189,14 @@ mod tests {
         let board = PreviewBoard {
             domains: vec![domain("tec", &[20, 80, 90])],
         };
-        assert!(preview(&g, &board)
-            .warnings
-            .contains(&PreviewWarning::AboveLastBand {
-                questions: 2,
-                up_to: 50
-            }));
+        assert!(
+            preview(&g, &board)
+                .warnings
+                .contains(&PreviewWarning::AboveLastBand {
+                    questions: 2,
+                    up_to: 50
+                })
+        );
     }
 
     #[test]
@@ -1176,7 +1206,12 @@ mod tests {
             enabled: Some(false),
             duration_ms: None,
         };
-        let p = build(&g, &PreviewBoard::default(), TimerLevel::new(true, 30_000), Vec::new());
+        let p = build(
+            &g,
+            &PreviewBoard::default(),
+            TimerLevel::new(true, 30_000),
+            Vec::new(),
+        );
         assert_eq!(p.columns.len(), 1);
         assert_eq!(p.columns[0].lock, LockSample::OperatorPace);
         assert_eq!(p.timer.source, TimerSource::OperatorPace);
@@ -1186,9 +1221,14 @@ mod tests {
     fn the_cascade_says_which_level_answered() {
         let g = game();
         assert_eq!(
-            build(&g, &PreviewBoard::default(), TimerLevel::new(true, 30_000), Vec::new())
-                .timer
-                .source,
+            build(
+                &g,
+                &PreviewBoard::default(),
+                TimerLevel::new(true, 30_000),
+                Vec::new()
+            )
+            .timer
+            .source,
             TimerSource::Globals,
         );
         let mut own = game();
@@ -1196,7 +1236,12 @@ mod tests {
             enabled: None,
             duration_ms: Some(12_000),
         };
-        let p = build(&own, &PreviewBoard::default(), TimerLevel::new(true, 30_000), Vec::new());
+        let p = build(
+            &own,
+            &PreviewBoard::default(),
+            TimerLevel::new(true, 30_000),
+            Vec::new(),
+        );
         assert_eq!(p.timer.source, TimerSource::Recipe);
         assert_eq!(p.timer.duration_ms, Some(12_000));
     }
@@ -1222,7 +1267,10 @@ mod tests {
         g.judging.partial_credit = true;
         let on = preview(&g, &PreviewBoard::default());
         assert_eq!(
-            on.rules.iter().find(|r| r.key == "judging.partial_credit").map(|r| r.state),
+            on.rules
+                .iter()
+                .find(|r| r.key == "judging.partial_credit")
+                .map(|r| r.state),
             Some(RuleState::Active),
         );
     }
@@ -1237,14 +1285,26 @@ mod tests {
         g.scoring.lock_speed_enabled = false;
         g.scoring.speed_weight = 0.0;
         let p = preview(&g, &PreviewBoard::default());
-        let weight = p.rules.iter().find(|r| r.key == "scoring.speed_weight").expect("key");
-        assert!(matches!(weight.state, RuleState::Disabled { .. }), "{:?}", weight.state);
+        let weight = p
+            .rules
+            .iter()
+            .find(|r| r.key == "scoring.speed_weight")
+            .expect("key");
+        assert!(
+            matches!(weight.state, RuleState::Disabled { .. }),
+            "{:?}",
+            weight.state
+        );
 
         // Lock-speed on with a weight of 0 is legal and kept (§4.2): usable,
         // contributing nothing.
         g.scoring.lock_speed_enabled = true;
         let kept = preview(&g, &PreviewBoard::default());
-        let weight = kept.rules.iter().find(|r| r.key == "scoring.speed_weight").expect("key");
+        let weight = kept
+            .rules
+            .iter()
+            .find(|r| r.key == "scoring.speed_weight")
+            .expect("key");
         assert_eq!(weight.state, RuleState::Off);
         assert_eq!(weight.value, RuleValue::Number(0.0));
     }
@@ -1254,18 +1314,33 @@ mod tests {
     #[test]
     fn every_key_reports_its_current_value() {
         let mut g = game();
-        g.turn.bonus_after_consecutive = Some(crate::settings::ConsecutiveBonus { count: 3, award: 50 });
+        g.turn.bonus_after_consecutive = Some(crate::settings::ConsecutiveBonus {
+            count: 3,
+            award: 50,
+        });
         g.turn.max_consecutive_correct = Some(4);
         let p = preview(&g, &PreviewBoard::default());
         let value = |key: &str| p.rules.iter().find(|r| r.key == key).map(|r| r.value);
 
         assert_eq!(value("scoring.mode"), Some(RuleValue::Choice("difficulty")));
-        assert_eq!(value("scoring.difficulty_map"), Some(RuleValue::Linear(10.0)));
-        assert_eq!(value("judging.partial_credit"), Some(RuleValue::Flag(false)));
-        assert_eq!(value("turn.max_consecutive_correct"), Some(RuleValue::Number(4.0)));
+        assert_eq!(
+            value("scoring.difficulty_map"),
+            Some(RuleValue::Linear(10.0))
+        );
+        assert_eq!(
+            value("judging.partial_credit"),
+            Some(RuleValue::Flag(false))
+        );
+        assert_eq!(
+            value("turn.max_consecutive_correct"),
+            Some(RuleValue::Number(4.0))
+        );
         assert_eq!(
             value("turn.bonus_after_consecutive"),
-            Some(RuleValue::Streak { count: 3, award: 50 }),
+            Some(RuleValue::Streak {
+                count: 3,
+                award: 50
+            }),
         );
         //  unset at the recipe level reports what the globals
         // decided, not a blank.
@@ -1306,14 +1381,21 @@ mod tests {
         let flat = find("scoring.flat_points");
         assert_eq!(flat["state"], "disabled");
         assert_eq!(flat["reason"], "inert");
-        assert!(flat["detail"].is_string(), "a disabled entry names the sibling");
+        assert!(
+            flat["detail"].is_string(),
+            "a disabled entry names the sibling"
+        );
     }
 
     #[test]
     fn every_award_key_is_listed_so_the_table_cannot_omit_one() {
         let p = preview(&game(), &PreviewBoard::default());
         let keys: Vec<&str> = p.rules.iter().map(|r| r.key).collect();
-        assert_eq!(keys, AWARD_KEYS.to_vec(), "rules must follow AWARD_KEYS exactly");
+        assert_eq!(
+            keys,
+            AWARD_KEYS.to_vec(),
+            "rules must follow AWARD_KEYS exactly"
+        );
         // `board.*` decides what a board may hold, not what an answer pays: the
         // Board section says it (P12.7), the award table has nothing to add.
         for key in crate::flags::GAME_AFFECTING_KEYS

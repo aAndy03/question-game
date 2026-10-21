@@ -10,10 +10,10 @@
 mod support;
 
 use questiongame_host::error::MatchError;
-use questiongame_host::flags::{AudioSettings, CueKey, 
-    Chord, ControlSettings, Disabled, DisabledReason, FLAG_KEYS, FeatureRoot, FlagService,
-    FlagValue, GAME_AFFECTING_KEYS, GameSetting, GameSettings, GlobalSetting, GlobalSettings,
-    MosaicDensity, RuntimeContext,
+use questiongame_host::flags::{
+    AudioSettings, Chord, ControlSettings, CueKey, Disabled, DisabledReason, FLAG_KEYS,
+    FeatureRoot, FlagService, FlagValue, GAME_AFFECTING_KEYS, GameSetting, GameSettings,
+    GlobalSetting, GlobalSettings, MosaicDensity, RuntimeContext,
 };
 use questiongame_host::monitor::StageReattach;
 use questiongame_host::play::PlayStatus;
@@ -588,13 +588,14 @@ fn the_active_operator_is_a_global_setting_with_a_default() {
     assert_eq!(flags.globals().active_operator_id, None);
 
     flags
-        .settings_set_global(
-            GlobalSetting::ActiveOperatorId(Some("op-1".into())),
-            idle(),
-        )
+        .settings_set_global(GlobalSetting::ActiveOperatorId(Some("op-1".into())), idle())
         .unwrap();
     assert_eq!(
-        flags.globals().active_operator_id.as_ref().map(|id| id.as_str()),
+        flags
+            .globals()
+            .active_operator_id
+            .as_ref()
+            .map(|id| id.as_str()),
         Some("op-1")
     );
 
@@ -629,17 +630,21 @@ fn audio_is_live_mid_play_and_scoring_is_not() {
     assert_eq!(audio.volume, 35);
     assert_eq!(audio.cues[&CueKey::Lock], None);
 
-    let refused = flags.settings_set_current_game(
-        GameSetting::ScoringMode(ScoringMode::Flat),
-        playing(),
-    );
+    let refused =
+        flags.settings_set_current_game(GameSetting::ScoringMode(ScoringMode::Flat), playing());
     assert!(
         matches!(refused, Err(MatchError::SettingFrozen { .. })),
         "scoring is frozen at play_start: {refused:?}"
     );
 
     let over = flags.settings_set_global(GlobalSetting::AudioVolume(101), playing());
-    assert!(matches!(over, Err(MatchError::IllegalSettings { key: "audio.volume", .. })));
+    assert!(matches!(
+        over,
+        Err(MatchError::IllegalSettings {
+            key: "audio.volume",
+            ..
+        })
+    ));
 }
 
 /// P11.11. Mirrors are remembered beside the pacer's display, not instead of
@@ -737,5 +742,8 @@ fn the_update_check_is_on_by_default_and_the_operator_can_turn_it_off() {
         .settings_set_global(GlobalSetting::UpdatesCheckOnStart(false), playing())
         .unwrap();
     assert!(!flags.globals().updates.check_on_start);
-    assert_eq!(GlobalSetting::UpdatesCheckOnStart(false).key(), "updates.check_on_start");
+    assert_eq!(
+        GlobalSetting::UpdatesCheckOnStart(false).key(),
+        "updates.check_on_start"
+    );
 }

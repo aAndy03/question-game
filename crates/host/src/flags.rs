@@ -35,9 +35,9 @@ use crate::monitor::StageReattach;
 use crate::play::PlayStatus;
 use crate::service::MatchService;
 use crate::settings::{
-    BoardSettings, ConsecutiveBonus, DifficultyMap, FrozenSettings, JudgingSettings, Language, LiveSettings, LockSpeedBase,
-    OverrideAfterLock, RevealChannel, RevealMode, RevealSettings, ScoringMode, ScoringSettings,
-    SpeedWindow, TimerCascade, TimerLevel, TurnSettings,
+    BoardSettings, ConsecutiveBonus, DifficultyMap, FrozenSettings, JudgingSettings, Language,
+    LiveSettings, LockSpeedBase, OverrideAfterLock, RevealChannel, RevealMode, RevealSettings,
+    ScoringMode, ScoringSettings, SpeedWindow, TimerCascade, TimerLevel, TurnSettings,
 };
 
 // ---------------------------------------------------------------- feature roots
@@ -228,7 +228,6 @@ impl ShortcutMap {
         self.0.is_empty()
     }
 }
-
 
 // ----------------------------------------------------------------------- audio
 
@@ -467,7 +466,9 @@ pub struct UpdateSettings {
 
 impl Default for UpdateSettings {
     fn default() -> Self {
-        UpdateSettings { check_on_start: true }
+        UpdateSettings {
+            check_on_start: true,
+        }
     }
 }
 
@@ -1028,7 +1029,9 @@ impl FlagService {
     /// recipe in Control's, English when nothing is loaded. Read per call,
     /// never stored twice.
     pub fn language(&self) -> Language {
-        self.current_game.as_ref().map_or(Language::En, |g| g.language)
+        self.current_game
+            .as_ref()
+            .map_or(Language::En, |g| g.language)
     }
 
     /// The `audio` record `PresentationService` merges into `play-state`
@@ -1128,7 +1131,11 @@ impl FlagService {
         let Some(game) = self.current_game.as_ref() else {
             return out;
         };
-        out.extend(interlocks(game, self.timer_cascade().enabled(), ctx.play_is_open()));
+        out.extend(interlocks(
+            game,
+            self.timer_cascade().enabled(),
+            ctx.play_is_open(),
+        ));
         out
     }
 

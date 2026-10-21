@@ -6,7 +6,7 @@ import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import { usePlayState } from '@/host/playState'
 import { useCatalogItem, usePaths, usePlays, useSettings } from '@/host/queries'
-import { useNoticeStore, noticesAt } from '@/chrome/notices'
+import { useNoticeStore, noticesAt, noticeText } from '@/chrome/notices'
 
 type Action = 'wipe' | 'uninstall' | 'app'
 
@@ -43,7 +43,7 @@ export function DataActions() {
   const playOpen = play !== null
   const blocked = playOpen ? SETTINGS.data.playOpen : null
   const pinPath = activeId ? `operator.${activeId}.pin` : ''
-  const pinError = pinPath ? (noticesAt(notices, pinPath)[0]?.detail.message ?? null) : null
+  const pinError = pinPath ? noticeText(noticesAt(notices, pinPath)[0]) : null
 
   const close = () => {
     setOpen(null)

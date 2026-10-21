@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { App } from '@/App'
 import { useChromeStore } from '@/chrome/chrome'
 import { HOME, useNavStore, type Route } from '@/chrome/nav'
-import { useNoticeStore } from '@/chrome/notices'
+import { noticeText, useNoticeStore } from '@/chrome/notices'
 import { CONFIRM, LIST, TEAM } from '@/copy'
 import { createFakeHost, type FakeHost } from '@/host/fake'
 import { demoLibrary, demoRecipe } from '@/host/devFake'
@@ -113,5 +113,64 @@ describe('the 1.1 bugs (1.1.1)', () => {
     )
     expect(screen.getByText('the board has no questions')).toBeTruthy()
     expect(document.body.textContent).not.toContain('recipe.r1.board:')
+  })
+})
+
+describe('the 1.1.1 review', () => {
+  it('a refused difficulty edit closes the dialog, so the Board says why', async () => {
+    // Two at 20 in History once q-h1 is set to 45 (q-h2's): the host refuses it.
+    await at({ tab: 'games', id: 'recipe-demo', section: 'board' } as Route)
+    fireEvent.click(await screen.findByRole('button', { name: /^Difficulty of Which empire built the road/ }, { timeout: 5000 }))
+    const dialog = await screen.findByRole('dialog')
+    const field = within(dialog).getByRole('textbox')
+    fireEvent.change(field, { target: { value: '45' } })
+    fireEvent.blur(field)
+    fireEvent.click(within(dialog).getByRole('button', { name: CONFIRM.thisGame }))
+    await waitFor(() => expect(useNoticeStore.getState().notices.length).toBeGreaterThan(0))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('Apply to original of the value this game asks writes it', async () => {
+    await at({ tab: 'games', id: 'recipe-demo', section: 'board' } as Route)
+    fireEvent.click(await screen.findByRole('button', { name: /^Difficulty of Which two of these were signatories/ }, { timeout: 5000 }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: CONFIRM.original }))
+    await waitFor(() => expect(fake.calls.find((c) => c.name === 'recipe_set_overlay')?.args).toMatchObject({ scope: 'original', target: { patch: { difficulty: 70 } } }))
+  })
+
+  it('the question aside closes back to its domain', async () => {
+    await at({ tab: 'library', questionId: 'q-h1', mode: 'view', domainId: 'dom-history' } as Route)
+    const aside = (await waitFor(() => {
+      const el = document.querySelector('[data-detail-aside]')
+      if (!el) throw new Error('no aside')
+      return el
+    })) as HTMLElement
+    fireEvent.click(within(aside).getByRole('button', { name: LIST.closeDetail }))
+    await waitFor(() => expect(useNavStore.getState().route).toEqual({ tab: 'library', domainId: 'dom-history' }))
+  })
+
+  it('the theme colour can be picked again after a palette colour', async () => {
+    const red: CatalogItem = {
+      kind: 'team',
+      item: { id: 'seed-team-red', origin: 'seed', name: 'Red', shortCode: 'RED', color: 'var(--state-incorrect)', logoAssetId: null, notes: null, playCount: 0, lastPlayAt: null, createdAt: 0, updatedAt: 0, archivedAt: null } satisfies Team,
+    }
+    fake.seed([red])
+    await at({ tab: 'teams', id: 'seed-team-red', mode: 'edit' } as Route)
+    const theme = await screen.findByRole('radio', { name: TEAM.themeColour })
+    const field = screen.getByRole('textbox', { name: TEAM.colorCode }) as HTMLInputElement
+    fireEvent.change(field, { target: { value: '#123456' } })
+    expect(theme.getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(theme)
+    expect(theme.getAttribute('aria-checked')).toBe('true')
+    // A value being typed is not a theme colour yet.
+    fireEvent.change(field, { target: { value: 'var(' } })
+    expect(field.value).toBe('var(')
+  })
+
+  it('a field error is the reason, not the path', () => {
+    expect(noticeText({ targetPath: 'team.t1.name', detail: { message: 'team.t1.name: a team needs a name' } })).toBe('a team needs a name')
+    expect(noticeText({ targetPath: 'team.t1', detail: { message: 'team.t1.name: a team needs a name' } })).toBe('a team needs a name')
+    expect(noticeText({ targetPath: null, detail: { message: 'Plain words' } })).toBe('Plain words')
+    expect(CONFIRM.referencedBy('an open play')).toContain('an open Play')
   })
 })

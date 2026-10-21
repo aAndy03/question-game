@@ -202,7 +202,9 @@ pub fn awards(events: &[Event]) -> Vec<TurnAward> {
                 let settings = &snapshot.settings;
                 let judgement = judge(
                     turn.locked.as_deref(),
-                    question.map(|q| q.correct_option_ids.as_slice()).unwrap_or(&[]),
+                    question
+                        .map(|q| q.correct_option_ids.as_slice())
+                        .unwrap_or(&[]),
                     &settings.judging,
                 );
                 let award = explain::explain(
@@ -492,7 +494,10 @@ fn fold(facts: &[&TurnFact], query: &StatsQuery, awards: &[TurnAward]) -> StatsR
     let mut groups: BTreeMap<String, Group> = BTreeMap::new();
     for fact in &kept {
         let (key, label) = group_of(fact, query.group_by);
-        groups.entry(key.clone()).or_insert_with(|| Group::new(label)).push(fact);
+        groups
+            .entry(key.clone())
+            .or_insert_with(|| Group::new(label))
+            .push(fact);
     }
 
     let mut rows: Vec<StatsRow> = groups
@@ -553,7 +558,10 @@ fn group_of(fact: &TurnFact, by: StatsDimension) -> (String, String) {
         StatsDimension::Question => (fact.question_id.to_string(), fact.question_stem.clone()),
         StatsDimension::Difficulty => {
             let band = band_of(fact.difficulty);
-            (band.to_string(), format!("{}–{}", band.saturating_sub(9), band))
+            (
+                band.to_string(),
+                format!("{}–{}", band.saturating_sub(9), band),
+            )
         }
         StatsDimension::Operator => match &fact.operator_id {
             Some(id) => (id.to_string(), id.to_string()),
@@ -685,7 +693,9 @@ impl Group {
 mod tests {
     use super::*;
     use crate::settings::FrozenSettings;
-    use crate::snapshot::{PlaySnapshot, SnapshotDomain, SnapshotOption, SnapshotQuestion, SnapshotTeam};
+    use crate::snapshot::{
+        PlaySnapshot, SnapshotDomain, SnapshotOption, SnapshotQuestion, SnapshotTeam,
+    };
 
     fn question(id: &str, stem: &str, difficulty: u8) -> SnapshotQuestion {
         SnapshotQuestion {
@@ -722,7 +732,10 @@ mod tests {
                 "dom-geo",
                 "Geography",
                 "GEO_101",
-                vec![question("q1", "Largest ocean?", 10), question("q2", "Capital?", 30)],
+                vec![
+                    question("q1", "Largest ocean?", 10),
+                    question("q2", "Capital?", 30),
+                ],
             )],
             FrozenSettings::default(),
         )
@@ -732,7 +745,14 @@ mod tests {
     fn log(turns: &[(u32, Verdict, u32, Option<u32>)]) -> Vec<Event> {
         let play = PlayId::new("play-1");
         let mut events = vec![
-            Event::new(&play, 1, 1_000, EventKind::PlayLoaded { snapshot: Box::new(snapshot(2)) }),
+            Event::new(
+                &play,
+                1,
+                1_000,
+                EventKind::PlayLoaded {
+                    snapshot: Box::new(snapshot(2)),
+                },
+            ),
             Event::new(&play, 2, 1_000, EventKind::PlayStarted),
         ];
         let mut seq = 2;
@@ -792,7 +812,10 @@ mod tests {
 
     #[test]
     fn an_undone_turn_is_not_a_fact() {
-        let mut events = log(&[(0, Verdict::Correct, 20, None), (1, Verdict::Incorrect, 0, None)]);
+        let mut events = log(&[
+            (0, Verdict::Correct, 20, None),
+            (1, Verdict::Incorrect, 0, None),
+        ]);
         // Invert the second turn, exactly as `undo_turn` does.
         let target = events[events.len() - 1].id.clone();
         let from = events[events.len() - 3].seq;
@@ -802,7 +825,11 @@ mod tests {
             &PlayId::new("play-1"),
             seq,
             9_000,
-            EventKind::TurnInverted { target_event_id: target.clone(), from_seq: from, to_seq: to },
+            EventKind::TurnInverted {
+                target_event_id: target.clone(),
+                from_seq: from,
+                to_seq: to,
+            },
         ));
         assert_eq!(facts(&events).len(), 1, "the undone turn is gone");
 
@@ -811,7 +838,9 @@ mod tests {
             &PlayId::new("play-1"),
             seq + 1,
             9_500,
-            EventKind::TurnReapplied { target_event_id: target },
+            EventKind::TurnReapplied {
+                target_event_id: target,
+            },
         ));
         assert_eq!(facts(&events).len(), 2);
     }
@@ -836,9 +865,15 @@ mod tests {
         assert_eq!(result.play_count, 1);
         // Ordered by the first column (turns), so Red leads.
         assert_eq!(result.rows[0].label, "Red");
-        assert_eq!(result.rows[0].values, vec![Some(2.0), Some(2.0), Some(1.0), Some(50.0)]);
+        assert_eq!(
+            result.rows[0].values,
+            vec![Some(2.0), Some(2.0), Some(1.0), Some(50.0)]
+        );
         assert_eq!(result.rows[1].label, "Blue");
-        assert_eq!(result.rows[1].values, vec![Some(1.0), Some(0.0), Some(0.0), Some(0.0)]);
+        assert_eq!(
+            result.rows[1].values,
+            vec![Some(1.0), Some(0.0), Some(0.0), Some(0.0)]
+        );
         assert_eq!(result.totals.values[3], Some(50.0), "points total");
     }
 
@@ -847,7 +882,10 @@ mod tests {
         // Operator pace: no duration, so no lock time exists to average.
         let play = PlayId::new("play-1");
         let mut events = log(&[(0, Verdict::Correct, 20, None)]);
-        if let EventKind::QuestionIssued { timer_duration_ms, .. } = &mut events[2].kind {
+        if let EventKind::QuestionIssued {
+            timer_duration_ms, ..
+        } = &mut events[2].kind
+        {
             *timer_duration_ms = None;
         }
         let result = aggregate(
@@ -891,12 +929,22 @@ mod tests {
     fn a_rehearsal_is_excluded_unless_asked_for() {
         let play = PlayId::new("play-1");
         let mut events = log(&[(0, Verdict::Correct, 20, None)]);
-        events[0] = Event::new(&play, 1, 1_000, EventKind::PlayLoaded { snapshot: Box::new(snapshot(1)) });
+        events[0] = Event::new(
+            &play,
+            1,
+            1_000,
+            EventKind::PlayLoaded {
+                snapshot: Box::new(snapshot(1)),
+            },
+        );
         let facts = facts(&events);
         assert!(facts[0].rehearsal);
         assert_eq!(aggregate(&facts, &StatsQuery::default()).turn_count, 0);
         let asked = StatsQuery {
-            filter: StatsFilter { include_rehearsal: true, ..StatsFilter::default() },
+            filter: StatsFilter {
+                include_rehearsal: true,
+                ..StatsFilter::default()
+            },
             ..StatsQuery::default()
         };
         assert_eq!(aggregate(&facts, &asked).turn_count, 1);
@@ -918,7 +966,13 @@ mod tests {
             StatsDimension::Play,
             StatsDimension::Day,
         ] {
-            let result = aggregate(&facts, &StatsQuery { group_by: by, ..StatsQuery::default() });
+            let result = aggregate(
+                &facts,
+                &StatsQuery {
+                    group_by: by,
+                    ..StatsQuery::default()
+                },
+            );
             assert!(!result.rows.is_empty(), "{by:?} grouped nothing");
             assert_eq!(result.turn_count, 2, "{by:?} lost a turn");
         }

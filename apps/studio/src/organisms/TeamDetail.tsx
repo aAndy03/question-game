@@ -22,7 +22,7 @@ export function TeamDetail({ id, compact }: TeamDetailProps) {
   if (!team.data) return <EmptyState kind="error" what={TEAM.many} detail={team.error?.message} compact />
   const t = team.data
   // A theme token is a swatch and its name, never the raw var() text (1.1.1, found on the real app).
-  const theme = t.color.trim().startsWith('var(')
+  const theme = /^var\(--[\w-]+\)$/.test(t.color.trim())
   const colour = theme ? (
     <span className="inline-flex items-center gap-2">
       <Swatch color={t.color} size="sm" className="rounded-full" />

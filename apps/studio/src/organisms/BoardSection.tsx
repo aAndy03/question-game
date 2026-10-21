@@ -97,12 +97,14 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
 
   const applyDifficulty = async (scope: EditScope, difficulty: number): Promise<boolean> => {
     if (!difficultyFor) return false
-    const done = await run(
+    // Closes whatever the host said: a refusal lands on the Board, under the
+    // dialog, where it could not be read while the dialog stayed (review).
+    await run(
       'recipe_set_overlay',
       { id: recipe.id, target: { target: 'question', id: difficultyFor.questionId, patch: { difficulty } }, scope },
       { targetPath: `recipe.${recipe.id}.board` },
     )
-    return done !== null
+    return true
   }
 
   const total = recipe.board.reduce((n, b) => n + b.questionIds.length, 0)
