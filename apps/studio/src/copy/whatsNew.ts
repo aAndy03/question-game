@@ -53,6 +53,18 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
           title: 'Groups, duplicates and a clean-up',
           body: 'Manage workspaces puts them in groups, renames, duplicates (without the Plays) and archives them. An archived workspace can be deleted for good; questiongame takes a backup first, and the one taken before workspaces is always kept.',
         },
+        {
+          title: 'Groups inside a domain',
+          body: 'Open a domain and choose Groups… to make groups of your own — Romans, Medieval, Warm-ups — and put questions in them. A domain with groups opens grouped by them. Groups only organise: games and Plays ignore them.',
+        },
+        {
+          title: 'Tags on questions',
+          body: 'Give a question tags as you write it, in any domain. Find them with the Tag filter or by searching, see a list grouped by tag, and rename, merge or delete a tag everywhere from Manage tags….',
+        },
+        {
+          title: 'Change many questions at once',
+          body: 'Select questions and choose Edit… to tag or untag them, put them in a group, add them to a domain or take them out of one, or set their difficulty — Studio says how many will change before anything does.',
+        },
       ],
       ro: [
         {
@@ -74,6 +86,18 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
         {
           title: 'Grupuri, duplicate și curățenie',
           body: 'Manage workspaces le pune în grupuri, le redenumește, le duplică (fără partidele jucate) și le arhivează. Un spațiu arhivat poate fi șters definitiv; questiongame face mai întâi o copie de siguranță, iar cea făcută înainte de spațiile de lucru se păstrează mereu.',
+        },
+        {
+          title: 'Grupuri într-un domeniu',
+          body: 'Deschizi un domeniu și alegi Groups… ca să-ți faci grupurile tale — Romani, Ev Mediu, Încălzire — și pui întrebări în ele. Un domeniu cu grupuri se deschide grupat după ele. Grupurile doar organizează: jocurile și partidele nu țin cont de ele.',
+        },
+        {
+          title: 'Etichete pe întrebări',
+          body: 'Pui etichete unei întrebări când o scrii, în orice domeniu. Le găsești cu filtrul Tag sau căutând, vezi lista grupată pe etichete și redenumești, unești sau ștergi o etichetă peste tot din Manage tags….',
+        },
+        {
+          title: 'Schimbi mai multe întrebări deodată',
+          body: 'Selectezi întrebări și alegi Edit… ca să le pui sau să le scoți o etichetă, să le pui într-un grup, să le adaugi într-un domeniu sau să le scoți din el, ori să le stabilești dificultatea — Studio îți spune câte se vor schimba înainte să se schimbe ceva.',
         },
       ],
     },

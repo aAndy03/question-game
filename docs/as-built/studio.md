@@ -105,6 +105,15 @@ The design is `05_STUDIO_DESIGN.md` §21; the host half is `host.md` ▸ Workspa
 - **The fake keeps a home per row** (`homes`, `recipeHomes`; a row seeded without one is the first workspace's) and runs the workspace, transfer and propagation commands with the host's refusals, so a shell test never passes against a fake that cannot say no. `?fake&unnamed` (and `?fake&firstrun`) open on an unnamed workspace.
 - **Where is filtered in Studio, over the host's scope.** The design's builder ruling (F13) put `where` on the host; it stayed a client filter because the host already never returns another workspace's row — the filter only splits *this workspace* from *shared*, and the shared flag is on every row.
 
+## Domain groups, tags, bulk edits in Studio (P15)
+
+The design is `05_STUDIO_DESIGN.md` §22.
+
+- **The default grouping is computed** (`questionsSpec` → `defaults.group = 'groups'` when the domain has groups); a grouping the operator picked is remembered per tab and wins, as in 1.1.
+- **`tag_list` sits under the question key** (`['catalog', 'question', 'tags']`), so every question change refetches it and a workspace switch resets it.
+- **Every Studio site that rebuilds a `DomainMember` carries `groupId`** — the domain pane saves what the host sent, and the question editor writes its group pickers through the same membership loop.
+- **The fake host** keeps domain groups in a map of its own (never on the stored row, as the host ignores `groups` on a save), cleans tags as the host does, and treats a seeded row with `shared: true` as shared.
+
 ## Library views as built (stable 1.1, P13.2–P13.4)
 
 The design is `05_STUDIO_DESIGN.md` §20. What a later change must not undo:

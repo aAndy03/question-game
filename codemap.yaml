@@ -2064,6 +2064,7 @@ studio_calls:
     beta_welcome_get: [apps/studio/src/host/queries.ts]
     catalog_archive: [apps/studio/src/organisms/useArchive.tsx]
     catalog_archive_many: [apps/studio/src/organisms/useArchive.tsx]
+    catalog_bulk_edit: [apps/studio/src/organisms/useBulkEdit.tsx]
     catalog_get: [apps/studio/src/host/queries.ts]
     catalog_import_questions: [apps/studio/src/host/queries.ts, apps/studio/src/organisms/ImportQuestionsDialog.tsx]
     catalog_list: [apps/studio/src/host/queries.ts]
@@ -2089,6 +2090,10 @@ studio_calls:
     catalog_upsert_many: [apps/studio/src/organisms/QuestionEditor.tsx]
     catalog_upsert_propagating: [apps/studio/src/organisms/usePropagatingSave.tsx]
     choose_domain: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useControlHotkeys.ts]
+    domain_group_create: [apps/studio/src/organisms/GroupsDialog.tsx]
+    domain_group_delete: [apps/studio/src/organisms/GroupsDialog.tsx]
+    domain_group_rename: [apps/studio/src/organisms/GroupsDialog.tsx]
+    domain_group_reorder: [apps/studio/src/organisms/GroupsDialog.tsx]
     get_state: [apps/studio/src/host/bridge.tsx]
     give_token: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useControlHotkeys.ts]
     health_get: [apps/studio/src/host/bridge.tsx]
@@ -2160,6 +2165,9 @@ studio_calls:
     start_timer: [apps/studio/src/organisms/ActionPanel.tsx]
     stats_query: [apps/studio/src/host/queries.ts]
     stats_window: [apps/studio/src/organisms/ControlTopBar.tsx, apps/studio/src/organisms/MonitorsSettings.tsx]
+    tag_delete: [apps/studio/src/organisms/ManageTagsDialog.tsx]
+    tag_list: [apps/studio/src/host/queries.ts]
+    tag_rename: [apps/studio/src/organisms/ManageTagsDialog.tsx]
     transfer_preview: [apps/studio/src/organisms/useTransfer.tsx]
     undo_turn:
       - apps/studio/src/organisms/ActionPanel.tsx
@@ -2988,6 +2996,7 @@ e2e:
     beta-stable-running.e2e.ts: "null"
     beta-start-empty.e2e.ts: "null"
     first-run.e2e.ts: "null"
+    groups-tags.e2e.ts: "[]"
     library-views.e2e.ts: "['--more-questions', '120']"
     load-refusal.e2e.ts: "['--broken-board']"
     show.e2e.ts: "[]"
@@ -3000,6 +3009,7 @@ e2e:
     e2e/specs/beta-stable-running.e2e.ts: ["questiongame Beta while questiongame is running > asks to close it first, then copies"]
     e2e/specs/beta-start-empty.e2e.ts: ["questiongame Beta, started empty > goes to first run"]
     e2e/specs/first-run.e2e.ts: ["first run > sets up an operator and the Demo"]
+    e2e/specs/groups-tags.e2e.ts: ["groups, tags and bulk edits > groups a domain, tags across domains, and sets a difficulty at once"]
     e2e/specs/library-views.e2e.ts: ["library views > pages, filters, groups and keeps the operator in place"]
     e2e/specs/load-refusal.e2e.ts: ["a refused Load > says why from the Roster and leads to the Board"]
     e2e/specs/show.e2e.ts: ["a show > loads a game, opens Stage, and puts the first question on air"]

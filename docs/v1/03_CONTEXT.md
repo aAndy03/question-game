@@ -143,3 +143,15 @@ _Avoid_: toast (one surface only), alert
 **Screen**:
 One Stage layout (Idle, TeamOrder, ChooseDomain, Question, Scoreboard, FinalLeaderboard).
 _Avoid_: Slide, deck page
+
+**Workspace**:
+One library of teams, domains, questions and games in the file, named by the operator; the **shared library** is the rows every workspace sees (Beta 2.0).
+_Avoid_: project, space, profile
+
+**Domain group**:
+An operator-made group of questions inside one domain, for organising only — boards and Plays never read it (P15). Say *domain group* where *group* could mean a workspace group or a list grouping.
+_Avoid_: category, folder, section
+
+**Tag**:
+A word or phrase on a question, across domains, part of its body (P15).
+_Avoid_: label, keyword

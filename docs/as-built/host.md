@@ -102,6 +102,17 @@ Design: `docs/superpowers/specs/2026-10-21-workspaces-design.md`; plan and test 
 - **Families and propagation** (`catalog/family.rs`): a copy and its original share an integer `family_id` (copies of copies too). *Also update {n} copies* carries the **body** — never membership, archive state or overlays; a local asset is carried as its copy in the target workspace, or left alone. A question whose new version would break a board where a copy lives (a difficulty clash, §2.31; an incomplete question, §2.32) is **skipped and named**, through the same `board_problem` check `recipe_upsert` runs. Option ids are kept: they are unique per question. *Save here only* is plain `catalog_upsert`; *Stop following its copies* clears `family_id`.
 - Tests: `tests/transfer.rs`, `tests/family.rs`, `tests/workspaces.rs` (scope, rules, verbs, a property test over generated workspaces) and the migration tests in `tests/upgrade.rs` (`db::write_older_schema` builds a real 1.0.2 file from a head library).
 
+## Domain groups, tags, bulk edits (P15)
+
+Design: `docs/superpowers/specs/2026-10-21-groups-tags-bulk-design.md`; plan and Sonnet's test list (with rulings) in `docs/superpowers/plans/2026-10-21-groups-tags-bulk*.md`.
+
+- **Migration 5**: `domain_groups` (with their domain, `ON DELETE CASCADE`; no workspace column — a group lives where its domain lives), `domain_questions.group_id` (`ON DELETE SET NULL`), `question_tags(tag, tag_key)` with `tag_key` the Rust `to_lowercase` fold — never SQLite `NOCASE`, which folds ASCII only.
+- **A member's group rides on `DomainMember`**: `domain_upsert` writes exactly the groups it is sent and refuses a group of another domain, so every caller that rebuilds members carries `group_id`. `Domain.groups` is read-only on a save; the group verbs write it.
+- **Tags ride on `Question`** and are cleaned in the one write every question takes (`question_upsert` → `groups::clean_tags`): trimmed, 1–40 characters, one per fold, the spelling on the earliest-created question in view kept, at most 20 (refused, never trimmed). So import, transfers, propagation and bulk edits all hit the same rules. Tags are body — copies and *Also update copies* carry them; a group is membership — never carried, and a reused domain keeps its own (`write_copy_with_groups` gives a copied domain its own groups).
+- **Bulk edits** (`catalog/bulk.rs`): one transaction, refused whole, `changed / unchanged / shared` counts, a preview that is the write rolled back, copies untouched; the search index rebuilds after. *Set difficulty* adds no refusal: a board left with a clash is Load's to report, as for one edit (and a shared question can break another workspace's board that way).
+- **Manage tags** renames and deletes over questions in view in SQL (`store::tag_rename`, `tag_delete`); a merge never adds a tag, so it cannot pass the cap.
+- `db::write_older_schema` replaces the rows an older step seeds and copies with foreign keys off, so a v4 library can be written for the migration tests.
+
 ## One arithmetic, and rules the operator can see (P11.12)
 
 The design is `docs/v1/05_STUDIO_DESIGN.md` §14. What a later phase must not undo:

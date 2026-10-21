@@ -24,6 +24,8 @@ const SEEDS: Readonly<Record<string, readonly string[] | null>> = {
   'library-views.e2e.ts': ['--more-questions', '120'],
   // Beta 2.0: the Demo, as 1.x left it; it moves into a workspace the spec names.
   'workspaces.e2e.ts': [],
+  // P15: the Demo, as 1.x left it.
+  'groups-tags.e2e.ts': [],
   // questiongame Beta's first launch (P13.1): its own library starts empty.
   'beta-start-empty.e2e.ts': null,
   'beta-copy.e2e.ts': null,

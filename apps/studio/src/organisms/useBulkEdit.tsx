@@ -76,9 +76,10 @@ export function useBulkEdit(): BulkEditController {
   const key = JSON.stringify(edit)
 
   useEffect(() => {
-    setPreview(null)
+    // The last answer stands while the next one is asked: a field that commits
+    // its value on blur would otherwise disable Apply under the click (e2e).
     setRefusal(null)
-    if (!open || !edit) return
+    if (!open || !edit) return setPreview(null)
     let live = true
     command<BulkReport>('catalog_bulk_edit', { ids: open.ids, edit, preview: true })
       .then((r) => live && setPreview(r))
@@ -90,6 +91,7 @@ export function useBulkEdit(): BulkEditController {
   }, [open, key])
 
   const start = (op: Op, ids: readonly string[], context: BulkEditContext) => {
+    setPreview(null)
     setCtx(context)
     setTag('')
     setChoice(op === 'group' ? '~none' : null)

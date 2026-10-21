@@ -2368,3 +2368,14 @@ Design: `docs/superpowers/specs/2026-10-21-workspaces-design.md`. A workspace is
 - **Edits that follow their copies** (`organisms/usePropagatingSave`): saving a team, domain or question that has copies asks, in the editor's own frame, *Save here only* · *Also update {n} copies ({m} skipped)*, naming where the copies live and why any is skipped. A row never copied saves as before.
 - **Statistics** has *All workspaces* beside *Include rehearsals*; off, it counts this workspace's Plays.
 - **List views are per workspace** (`prefs.<op>.workspaceLists`; `lists` is the first workspace's, so a 1.x document carries over) and another workspace starts with a clean session view.
+
+## 22. Domain groups, tags, bulk edits (Beta, P15)
+
+Design: `docs/superpowers/specs/2026-10-21-groups-tags-bulk-design.md`. Organising only: no board, Stage or Play reads a group or a tag.
+
+- **Groups…** (inside a domain, Domains & Questions toolbar) opens the domain's groups in order — *New group*, and on each *Rename · Move up · Move down · Delete group* with its member count. Deleting says how many questions stay, ungrouped. A group name is typed (empty field, no placeholder).
+- **The list inside a domain** offers *Group: Domain groups* (headers in the operator's order, *No group* last) — the default when the domain has groups and the operator has not picked a grouping for the tab — and a *Domain group* filter. Under *All questions* neither exists.
+- **Tags** everywhere on the tab: a *Tag* filter (any-of, ignoring case), *Group: Tag* (a question under each of its tags, *No tag* last), up to three tag chips on a row (`MeaningChip meaning="tag"`, then *+n*), and search finds a question by its tag.
+- **Manage tags…** (toolbar): each tag with "*n* questions, *m* shared"; *Rename* (to a name that exists merges them) and *Delete tag*, each confirmed with the count and, when shared questions carry it, *the change reaches every workspace*.
+- **The question editor**: `TagField` — chips with a remove button, Enter or a comma adds, Backspace on an empty field removes the last; tags already used are offered as the operator types, and nothing else is ever suggested; at 20 the field says so. Beside each domain the question is in, a *Group in {domain}* picker, saved with the memberships.
+- **Edit…** in the bulk bar (before *Copy, move or share…*): *Tag… · Untag… · Group…* · *Add to domain… · Remove from domain · Set difficulty…* (*Group…* and *Remove from domain* only inside a domain). Each dialog asks for its one value and shows the host's preview — "Applies to *n* questions", "*m* already …", the shared count, and for *Set difficulty* that a board holding two at one difficulty says so when the game loads. The last preview stands while the next is asked, so *Apply* never goes disabled under the click.

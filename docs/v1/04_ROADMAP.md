@@ -1805,6 +1805,14 @@ Design: `docs/superpowers/specs/2026-10-21-workspaces-design.md`; plan and Sonne
 - ☑ **P14.2** — Studio: the switcher above Library, naming before first run (no suggestion anywhere), Manage workspaces with groups, Where and the Shared chip, Copy · Move · Make shared · Make local with a preview, *Also update {n} copies* in the editors, Statistics *All workspaces*.
 - ☑ **P14.3** — `workspaces.e2e.ts` on the real app, the e2e library written as 1.x left it (every spec names its workspace), docs, *What's new* 2.0.0-beta.1 in English and Romanian.
 
+### P15 — Beta: domain groups, tags, bulk edits  ☑
+
+Design: `docs/superpowers/specs/2026-10-21-groups-tags-bulk-design.md`; plan and Sonnet's test list in `docs/superpowers/plans/`. On `main` only.
+
+- ☑ **P15.0** — migration 5; groups in a domain (typed names, order, delete leaves questions ungrouped); tags on questions (cleaned in the one write path, cap 20, found by search, carried by copies); bulk Tag · Untag · Group · Add to / Remove from domain · Set difficulty, one transaction, previewed; Manage tags rename/merge/delete.
+- ☑ **P15.1** — Studio: Groups…, Domain groups grouping (the default) and filter, Tag filter and grouping, tag chips, Manage tags…, the editor's TagField and group pickers, the bulk *Edit…* menu.
+- ☑ **P15.2** — `groups-tags.e2e.ts` on the real app, docs, *What's new*.
+
 ### Next
 
 - ☐ Finish **P14**; `npm run version:beta -- --start 2.0.0` when the maintainer says.
