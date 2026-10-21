@@ -2403,9 +2403,9 @@ config:
       build.frontendDist: "../../dist"
       bundle.active: true
       bundle.category: Education
-      bundle.copyright: "© 2026 aAndy03 and the questiongame contributors — GPL-3.0-or-later"
+      bundle.copyright: "© 2026 Darius and Andy (aAndy03), co-founders — GPL-3.0-or-later"
       bundle.icon: [icons/32x32.png, icons/128x128.png, "icons/128x128@2x.png", icons/icon.icns, icons/icon.ico]
-      bundle.licenseFile: "../../LICENSE"
+      bundle.licenseFile: installer/LICENSE.txt
       bundle.longDescription: "questiongame runs a quiz show from one c... #bd1ade72"
       bundle.publisher: aAndy03
       bundle.shortDescription: "An offline quiz show: an operator studio and a fullscreen audience stage."

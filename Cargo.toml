@@ -12,7 +12,7 @@ members = ["crates/host", "crates/app", "tools/codemap"]
 version = "1.1.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
-authors = ["aAndy03 <https://github.com/aAndy03>"]
+authors = ["Darius", "Andy (aAndy03) <https://github.com/aAndy03>"]
 repository = "https://github.com/aAndy03/question-game"
 publish = false
 

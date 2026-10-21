@@ -139,6 +139,19 @@ export function AboutPanel() {
           </div>
         ) : null}
       </SettingsGroup>
+      {/* Who made it (1.1.1): the two co-founders, as the installer names them. */}
+      <SettingsGroup title={SETTINGS.about.creditsTitle} description={SETTINGS.about.creditsBody}>
+        <ul className="flex flex-col gap-1" data-credits>
+          {SETTINGS.about.founders.map((f) => (
+            <li key={f.name}>
+              <Text variant="studio-body">{SETTINGS.about.founderLine(f)}</Text>
+            </li>
+          ))}
+        </ul>
+        <Text as="div" variant="studio-caption" tone="muted">
+          {SETTINGS.about.copyright}
+        </Text>
+      </SettingsGroup>
       <Updates />
       <SettingsGroup title={SETTINGS.about.licenceTitle}>
         <Text as="p" variant="studio-body">

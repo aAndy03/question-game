@@ -19,12 +19,12 @@
     "active": true,
     "targets": ["nsis"],
     "publisher": "aAndy03",
-    "copyright": "© 2026 aAndy03 and the questiongame contributors — GPL-3.0-or-later",
+    "copyright": "© 2026 Darius and Andy (aAndy03), co-founders — GPL-3.0-or-later",
     "category": "Education",
     "shortDescription": "An offline quiz show: an operator studio and a fullscreen audience stage.",
     "longDescription": "questiongame runs a quiz show from one computer. Studio is where the operator prepares teams, domains, questions and games and runs each Play; Stage is the fullscreen audience surface, on one display or several. Everything works offline.",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
-    "licenseFile": "../../LICENSE",
+    "licenseFile": "installer/LICENSE.txt",
     "windows": {
       "nsis": {
         "installMode": "currentUser"
