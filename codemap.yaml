@@ -2516,14 +2516,9 @@ build:
     ".github/workflows/release.yml":
       build:
         name: "Build (${{ matrix.name }})"
-        needs: [test, e2e]
+        needs: [test]
         runs: ["npm ci"]
         runs_on: "${{ matrix.os }}"
-      e2e:
-        name: "End-to-end (Windows)"
-        needs: []
-        runs: ["npm ci", "npm run e2e:build", "npm run e2e"]
-        runs_on: windows-2022
       test:
         name: Test
         needs: []

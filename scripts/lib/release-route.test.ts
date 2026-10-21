@@ -93,7 +93,7 @@ describe('the workflow asks the route (WF01, WF04, WF05, WF08, WF09)', () => {
     expect(yml).toContain('needs.test.outputs.config_args')
     expect(yml).toContain("prerelease: ${{ needs.test.outputs.prerelease == 'true' }}")
     expect(yml).not.toContain('does not match version')
-    expect(yml).toContain('needs: [test, e2e]')
+    expect(yml).toContain('needs: [test]')
   })
 
   it('keeps the macOS target beside the Beta config', () => {
@@ -111,7 +111,8 @@ describe('the workflow asks the route (WF01, WF04, WF05, WF08, WF09)', () => {
     expect(yml).toContain('name: questiongame-${{ needs.test.outputs.channel }}-${{ matrix.name }}')
   })
 
-  it('runs the whole e2e suite once, both channels inside it', () => {
-    expect(yml.match(/run: npm run e2e$/gm)).toHaveLength(1)
+  it('leaves the e2e suite to the maintainer machine (v1.1.0)', () => {
+    expect(yml).not.toMatch(/run: npm run e2e$/m)
+    expect(yml).not.toContain('needs: [test, e2e]')
   })
 })
