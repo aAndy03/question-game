@@ -553,3 +553,29 @@ fn a_switch_that_cannot_read_the_new_workspace_leaves_the_old_one_current() {
     drop(reopened);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn a_switch_that_cannot_save_the_new_workspace_leaves_the_old_one_current() {
+    let dir = std::env::temp_dir().join(format!("qg-switch-save-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("questiongame.sqlite3");
+    let catalog = CatalogService::open(CatalogLocation::file(&path)).unwrap();
+    let a = catalog.current_workspace();
+    catalog.catalog_upsert(&team("a-team"), NOW).unwrap();
+    let b = catalog.workspace_create("B", None, NOW).unwrap().id;
+    rusqlite::Connection::open(&path)
+        .unwrap()
+        .execute_batch(
+            "CREATE TRIGGER no_switch BEFORE UPDATE ON globals WHEN NEW.key = 'workspace.current'
+             BEGIN SELECT RAISE(ABORT, 'refused for the test'); END;
+             CREATE TRIGGER no_switch_insert BEFORE INSERT ON globals WHEN NEW.key = 'workspace.current'
+             BEGIN SELECT RAISE(ABORT, 'refused for the test'); END;",
+        )
+        .unwrap();
+    assert!(catalog.workspace_switch(&b).is_err());
+    assert_eq!(catalog.current_workspace(), a, "still bound to A");
+    assert_eq!(ids(&catalog, CatalogKind::Team), ["a-team"]);
+    drop(catalog);
+    let _ = std::fs::remove_dir_all(dir);
+}

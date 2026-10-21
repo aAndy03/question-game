@@ -220,22 +220,6 @@ pub fn reconcile_mirrors(app: &AppHandle, wanted: &[MonitorKey]) -> AppResult<()
     Ok(())
 }
 
-/// Open the Statistics window, on the remembered display (§11.K, P11).
-///
-/// **Only the operator calls this.** Nothing in the host opens this window:
-/// not a setting, not a display coming back, not the monitor watch. Choosing a
-/// display says *where* it would go; `stats_window` is what makes it appear,
-/// and closing it — by the button or by the window's own close box — means it
-/// stays closed (revised 2026-09-07).
-///
-/// Fullscreen is the operator's choice (`stats.fullscreen`): right on a wall
-/// display, wrong on the single display a laptop has, where it would bury
-/// Studio behind a screen of numbers.
-///
-/// **The caller must not hold the host lock.** Building a webview pumps the
-/// Windows message loop, and the new window's first act is to `invoke` — which
-/// wants the same lock. That is what left the window white and unresponsive
-/// when it was built inside `monitors_list`.
 /// The Statistics window's title: it names the workspace it shows, because
 /// on another display nothing else says which library the numbers are from
 /// (beta.2). An unnamed workspace leaves the plain title.
@@ -253,6 +237,22 @@ pub fn retitle_stats(app: &AppHandle, title: &str) {
     }
 }
 
+/// Open the Statistics window, on the remembered display (§11.K, P11).
+///
+/// **Only the operator calls this.** Nothing in the host opens this window:
+/// not a setting, not a display coming back, not the monitor watch. Choosing a
+/// display says *where* it would go; `stats_window` is what makes it appear,
+/// and closing it — by the button or by the window's own close box — means it
+/// stays closed (revised 2026-09-07).
+///
+/// Fullscreen is the operator's choice (`stats.fullscreen`): right on a wall
+/// display, wrong on the single display a laptop has, where it would bury
+/// Studio behind a screen of numbers.
+///
+/// **The caller must not hold the host lock.** Building a webview pumps the
+/// Windows message loop, and the new window's first act is to `invoke` — which
+/// wants the same lock. That is what left the window white and unresponsive
+/// when it was built inside `monitors_list`.
 pub fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool, title: &str) -> AppResult<()> {
     crate::state::assert_unlocked("windows::open_stats");
     let origin = match key {

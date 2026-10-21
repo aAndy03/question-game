@@ -109,6 +109,9 @@ pub struct TransferReport {
     /// Domains in the target the copied questions were added to (the
     /// target's copy of their domain, same family).
     pub joined: Vec<Touched>,
+    /// Domains made in the target only to hold the copied questions — a copy
+    /// of their domain with just those questions. Also in `created`.
+    pub homes: Vec<Touched>,
     pub refused: Vec<Refusal>,
 }
 
@@ -391,6 +394,10 @@ fn copy(
         let mut assets: BTreeSet<String> = BTreeSet::new();
         assets.extend(rows.teams.values().filter_map(|t| t.logo_asset_id.as_ref().map(|a| a.to_string())));
         assets.extend(rows.questions.values().filter_map(|q| q.media_asset_id.as_ref().map(|a| a.to_string())));
+        // A game's team overlay logo still comes (review: R13 lost it here).
+        for recipe in rows.recipes.values() {
+            assets.extend(recipe.overlays.teams.values().filter_map(|o| o.logo_asset_id.as_ref().map(|a| a.to_string())));
+        }
         rows.assets.retain(|id, _| assets.contains(id));
         report.reused.retain(|t| match t.kind {
             CatalogKind::Question => rows.questions.contains_key(&t.from),
@@ -508,7 +515,9 @@ fn copy(
             }
             super::groups::write_copy_with_groups(tx, &original, &mut row, now_ms)?;
             store::set_family(tx, CatalogKind::Domain, row.id.as_str(), Some(family))?;
-            report.created.push(Touched { kind: CatalogKind::Domain, id: row.id.to_string(), from: source_id.clone(), picked: false });
+            let home = Touched { kind: CatalogKind::Domain, id: row.id.to_string(), from: source_id.clone(), picked: false };
+            report.created.push(home.clone());
+            report.homes.push(home);
         }
     }
     for (id, recipe) in &rows.recipes {

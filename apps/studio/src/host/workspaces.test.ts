@@ -120,3 +120,46 @@ describe('a window that never cached the list (the Statistics window, beta.2)', 
     expect(receiveWorkspaces(client, list('ws-2')), 'the same workspace again: nothing to reset').toBe(false)
   })
 })
+
+describe('the workspace generation (review)', () => {
+  it('counts moves to another workspace, not learning the first one', async () => {
+    const { renderHook, act } = await import('@testing-library/react')
+    // TanStack notifies on the next tick.
+    const set = (w: Workspaces) => act(async () => {
+      client.setQueryData(keys.workspaces, w)
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    const { QueryClientProvider } = await import('@tanstack/react-query')
+    const { createElement } = await import('react')
+    const { useWorkspaceGeneration } = await import('./queries')
+    const client = new QueryClient()
+    const { result } = renderHook(() => useWorkspaceGeneration(), {
+      wrapper: ({ children }) => createElement(QueryClientProvider, { client }, children),
+    })
+    expect(result.current).toBe(0)
+    await set(list('ws-1'))
+    expect(result.current, 'learning it is not a move').toBe(0)
+    await set(list('ws-1'))
+    expect(result.current).toBe(0)
+    await set(list('ws-2'))
+    expect(result.current).toBe(1)
+  })
+})
+
+describe('the fake copies as the host does (review)', () => {
+  it('reuses a question that only came along when its copy is already there', async () => {
+    const fake = createFakeHost()
+    const q = (id: string): CatalogItem => ({
+      kind: 'question',
+      item: { id, origin: 'operator', stem: id, mediaAssetId: null, difficulty: 10, explanation: null, tags: [], options: [], createdAt: 0, updatedAt: 0, archivedAt: null } as never,
+    })
+    await fake.invoke('catalog_upsert', { item: q('q1') })
+    await fake.invoke('catalog_upsert', { item: { kind: 'domain', item: { id: 'd1', origin: 'operator', name: 'D', code: 'D', description: null, questions: [{ questionId: 'q1', sortKey: 0, groupId: null }], createdAt: 0, updatedAt: 0, archivedAt: null } } })
+    const other = await fake.invoke<Workspace>('workspace_create', { name: 'Club' })
+    await fake.invoke('catalog_copy_to', { selection: { domains: ['d1'] }, target: other.id })
+    const again = await fake.invoke<TransferReport>('catalog_copy_to', { selection: { domains: ['d1'] }, target: other.id })
+    expect(again.reused.map((t) => t.from)).toEqual(['q1'])
+    await fake.invoke('workspace_switch', { id: other.id })
+    expect(await fake.invoke<CatalogItem[]>('catalog_list', { kind: 'question', scope: 'all' })).toHaveLength(1)
+  })
+})

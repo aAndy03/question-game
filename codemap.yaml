@@ -959,7 +959,7 @@ contract:
   files:
     packages/contract/src/commands.ts:
       COMMANDS: {kind: const, sig: "#e3696517"}
-      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, organise, workspace, app } #f66cb106"}
+      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, organise, workspace, app } #71e29d19"}
       CatalogChange: {doc: "`catalog-changed`.", kind: interface, sig: "{ kind, id, op }"}
       Command: {kind: type, sig: "(typeof COMMAND_GROUPS)[CommandGroup][number]"}
       CommandGroup: {kind: type, sig: "keyof typeof COMMAND_GROUPS"}
@@ -1579,7 +1579,7 @@ host_api:
     "catalog::transfer::Selection::is_empty": {kind: method, sig: "fn is_empty(&self) -> bool"}
     "catalog::transfer::Touched": {doc: "One row a transfer touched: its kind, its id where it ends up, and the id it came from (the same id for a move or a share).", kind: struct, sig: "struct Touched { kind: CatalogKind, id: String, from: String, picked: bool }"}
     "catalog::transfer::TransferOp": {kind: enum, sig: "enum TransferOp { Copy | Move }"}
-    "catalog::transfer::TransferReport": {doc: "What a transfer did, or — from [`CatalogService::transfer_preview`] — would do.", kind: struct, sig: "struct TransferReport { created: Vec<Touched>, reused: Vec<Touched>, moved: Vec<Touched>, joined: Vec<Touched>, refused: Vec<Refusal> }"}
+    "catalog::transfer::TransferReport": {doc: "What a transfer did, or — from [`CatalogService::transfer_preview`] — would do.", kind: struct, sig: "struct TransferReport { created: Vec<Touched>, reused: Vec<Touched>, moved: Vec<Touched>, joined: Vec<Touched>, homes: Vec<Touched>, refused: Vec<Refusal> }"}
   crates/host/src/catalog/workspace.rs:
     "catalog::workspace::CatalogService::current_workspace": {doc: "The workspace every read and write is scoped to.", kind: method, sig: "fn current_workspace(&self) -> WorkspaceId"}
     "catalog::workspace::CatalogService::group_create": {kind: method, sig: "fn group_create(&self, name: &str, now_ms: u64) -> CatalogResult<WorkspaceGroup>"}
@@ -2292,14 +2292,14 @@ app_crate:
       "windows::ensure_stage": {doc: "Stage, ready.", kind: fn, sig: "fn ensure_stage(app: &AppHandle, on: Option<&MonitorKey>) -> AppResult<WebviewWindow>"}
       "windows::focus_studio": {doc: "A second launch of the app (P12.2): bring the running Studio to the front rather than start a second copy of the library.", kind: fn, sig: "fn focus_studio(app: &AppHandle)"}
       "windows::mirror_label": {doc: "The label of the n-th mirror.", kind: fn, sig: "fn mirror_label(index: usize) -> String"}
-      "windows::open_stats": {kind: fn, sig: "fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool, title: &str) -> AppResult<()>"}
+      "windows::open_stats": {doc: "Open the Statistics window, on the remembered display (§11.K, P11).", kind: fn, sig: "fn open_stats(app: &AppHandle, key: Option<&MonitorKey>, fullscreen: bool, title: &str) -> AppResult<()>"}
       "windows::open_studio": {kind: fn, sig: "fn open_studio(app: &AppHandle) -> AppResult<WebviewWindow>"}
       "windows::reconcile_mirrors": {doc: "Make the mirror windows match `wanted` — [`StageDisplay::live_mirrors`], the connected displays that should carry one right now (§9, P11.11).", kind: fn, sig: "fn reconcile_mirrors(app: &AppHandle, wanted: &[MonitorKey]) -> AppResult<()>"}
       "windows::refresh": {doc: "Re-read the OS display list, run the §9 policy over it, and **act on the result** — move the window, raise the notice, tell `main`.", kind: fn, sig: "fn refresh(app: &AppHandle, state: &crate::state::AppState) -> AppResult<()>"}
       "windows::retitle_stats": {doc: "Retitle the Statistics window, if it is open.", kind: fn, sig: "fn retitle_stats(app: &AppHandle, title: &str)"}
       "windows::stage_is_open": {doc: "Is it on screen right now?", kind: fn, sig: "fn stage_is_open(app: &AppHandle) -> bool"}
       "windows::stats_is_open": {doc: "Is it on screen right now?", kind: fn, sig: "fn stats_is_open(app: &AppHandle) -> bool"}
-      "windows::stats_title": {doc: "Open the Statistics window, on the remembered display (§11.K, P11).", kind: fn, sig: "fn stats_title(workspace: Option<&str>) -> String"}
+      "windows::stats_title": {doc: "The Statistics window's title: it names the workspace it shows, because on another display nothing else says which library the numbers are from (beta.2).", kind: fn, sig: "fn stats_title(workspace: Option<&str>) -> String"}
       "windows::studio_title": {doc: "Studio.", kind: fn, sig: "fn studio_title(is_dev: bool) -> &'static str"}
   modules:
     - boot

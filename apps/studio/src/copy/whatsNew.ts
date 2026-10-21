@@ -49,7 +49,7 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
       ro: [
         {
           title: 'Nu mai există bibliotecă partajată',
-          body: 'O echipă, un domeniu sau o întrebare stă acum într-un singur spațiu de lucru. Ce era partajat este acum o copie în fiecare spațiu care îl vedea, așa că nu lipsește nimic, iar copiile se știu între ele: schimbi una și questiongame se oferă să le actualizeze pe celelalte.',
+          body: 'O echipă, un domeniu sau o întrebare stă acum într-un singur spațiu de lucru. Ce era partajat este acum o copie în fiecare spațiu care îl vedea, așa că nu lipsește nimic, iar copiile rămân legate între ele: schimbi una și questiongame se oferă să le actualizeze pe celelalte.',
         },
         {
           title: 'O întrebare copiată își aduce domeniul',
@@ -57,7 +57,7 @@ export const WHATS_NEW: readonly WhatsNewRelease[] = [
         },
         {
           title: 'Schimbarea spațiului de lucru pornește curat',
-          body: 'Screens, Statistics și butonul Înapoi nu mai arată nimic din spațiul de lucru pe care l-ai părăsit, iar fereastra Statistics spune ce spațiu de lucru arată.',
+          body: 'Screens, Statistics și butonul Back nu mai arată nimic din spațiul de lucru pe care l-ai părăsit, iar fereastra Statistics spune ce spațiu de lucru arată.',
         },
       ],
     },

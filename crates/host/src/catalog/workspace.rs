@@ -191,7 +191,17 @@ impl CatalogService {
             let _ = self.rebuild_search_index();
             return Err(error);
         }
-        store::global_set(&self.conn(), db::META_CURRENT_WORKSPACE, &serde_json::to_string(id.as_str())?)?;
+        // Saving the new one can fail too: then the old one is bound and
+        // indexed again, as above (review).
+        // The guard is dropped before the error path takes it again.
+        let saved = store::global_set(&self.conn(), db::META_CURRENT_WORKSPACE, &serde_json::to_string(id.as_str())?);
+        if let Err(error) = saved {
+            let conn = self.conn();
+            db::bind_workspace(&conn, previous.as_str())?;
+            drop(conn);
+            let _ = self.rebuild_search_index();
+            return Err(error);
+        }
         Ok(())
     }
 
@@ -479,11 +489,15 @@ fn duplicate_into(
     // id, so *Restore sample game* there recognises it (R5).
     let spaces: Vec<String> = store::workspace_list(tx)?.into_iter().map(|w| w.id.to_string()).collect();
     let target_id = target.id.to_string();
+    // Two generations of the Demo in one workspace map onto one seed id: the
+    // first keeps it, the next gets a fresh id (review: they had merged).
     let fresh = |rows: Vec<String>, prefix: &str| -> HashMap<String, String> {
+        let mut used = std::collections::HashSet::new();
         rows.into_iter()
             .map(|id| {
                 let to = super::unshare::seed_rest(&id, &spaces)
                     .map(|rest| format!("seed-{target_id}-{rest}"))
+                    .filter(|seed| used.insert(seed.clone()))
                     .unwrap_or_else(|| fresh_id(prefix));
                 (id, to)
             })
@@ -508,6 +522,13 @@ fn duplicate_into(
     for question in &questions {
         let mut copy = question.clone();
         copy.id = QuestionId::new(map(&question_ids, question.id.as_str()));
+        // An option id written after its question's follows the new id, so a
+        // Demo copy reads unedited (review).
+        for option in &mut copy.options {
+            if let Some(rest) = option.id.as_str().strip_prefix(question.id.as_str()) {
+                option.id = format!("{}{rest}", copy.id).into();
+            }
+        }
         copy.media_asset_id = question.media_asset_id.as_ref().map(|a| AssetId::new(map(&asset_ids, a.as_str())));
         store::question_upsert(tx, &copy, now_ms)?;
         join(CatalogKind::Question, question.id.as_str(), copy.id.as_str())?;

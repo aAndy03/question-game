@@ -99,10 +99,12 @@ export function useTransfer(): TransferController {
   }
 
   const total = state ? picked(state.selection) : 0
-  const pickedDomains = new Set(state?.selection.domains ?? [])
-  // A domain a copied question brought is listed by name, not counted as "came along".
-  const homes = preview && askDomains ? preview.created.filter((t) => t.kind === 'domain' && !t.picked && !pickedDomains.has(t.from)) : []
-  const came = preview ? [...preview.created, ...preview.moved].filter((t) => !t.picked && !homes.includes(t)).length : 0
+  // A domain made to hold the copied questions is listed by name, not counted
+  // as "came along"; the host says which those are (review: a domain a game
+  // brought whole is not one).
+  const homes = preview && askDomains ? (preview.homes ?? []) : []
+  const homeIds = new Set(homes.map((t) => t.id))
+  const came = preview ? [...preview.created, ...preview.moved].filter((t) => !t.picked && !homeIds.has(t.id)).length : 0
   const nameOf = (id: string) => domains.data?.find((d) => d.id === id)?.name ?? id
   const joined = (preview?.joined ?? []).map((t) => nameOf(t.from))
   const created = homes.map((t) => nameOf(t.from))

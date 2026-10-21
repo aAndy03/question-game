@@ -83,6 +83,7 @@ describe('workspaces', () => {
     await browser.waitUntil(async () => !(await body()).includes('1 picked'), { timeoutMsg: 'the copy dialog did not close' })
 
     // Nothing is shared any more: the menu offers copy and move only (Red is still selected).
+    expect(await (await named('Select Red')).isSelected()).toBe(true)
     await press('Copy or move…')
     // The menu draws its items a moment after it opens: read them once they are there.
     await browser.waitUntil(async () => JSON.stringify(await $$('[role="menuitem"]').map((i) => i.getText())) === JSON.stringify(['Copy to…', 'Move to…']), {

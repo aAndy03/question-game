@@ -116,7 +116,7 @@ The design is `05_STUDIO_DESIGN.md` §22.
 - **A filter value that is no longer an option goes** (`useListView`): a deleted group, a renamed tag, or another domain's groups would otherwise empty the list behind a chip that names nothing. Options still loading (an empty list) prune nothing.
 - **A field that commits on blur must not eat a click**: `TagField`'s offered tags keep focus with `onMouseDown` → `preventDefault`, and `EditorFooter`'s Cancel sits in `data-keep-draft`, which the field's blur skips. The bulk dialog keys its preview by the edit it was asked for; *Apply* on a stale key re-asks, then writes (waiting instead disabled *Apply* under the click — e2e, twice).
 - **Group dialogs stack**: the Groups and Manage tags dialogs stay open under their Rename / Delete (closing and reopening the parent flickered and threw focus back to the toolbar). `useGroupEditing` is shared by the Groups dialog and the group header menu.
-- **The fake host** keeps domain groups in a map of its own (never on the stored row, as the host ignores `groups` on a save), cleans tags as the host does, and treats a seeded row with `shared: true` as shared.
+- **The fake host** keeps domain groups in a map of its own (never on the stored row, as the host ignores `groups` on a save), and cleans tags as the host does.
 
 ## Library views as built (stable 1.1, P13.2–P13.4)
 

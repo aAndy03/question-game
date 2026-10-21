@@ -163,7 +163,7 @@ export const COMMAND_GROUPS = {
   organise: [
     /** One edit for every selected question: tag, untag, group, add to / remove from a domain, set difficulty. `preview` writes nothing. */
     'catalog_bulk_edit',
-    /** Every tag in view, with how many questions carry it and how many are shared. */
+    /** Every tag in this workspace, with how many questions carry it. */
     'tag_list',
     /** Manage tags ▸ Rename (to an existing tag merges). */
     'tag_rename',
@@ -176,7 +176,7 @@ export const COMMAND_GROUPS = {
     /** The group goes; its questions stay in the domain, ungrouped. */
     'domain_group_delete',
   ],
-  /** Workspaces (Beta 2.0): several libraries in one file and a shared one. The scope is the host's. */
+  /** Workspaces (Beta 2.0): several libraries in one file; a row lives in one. The scope is the host's. */
   workspace: [
     /** Every workspace (archived ones flagged), every group, and which one Studio works in. */
     'workspace_list',

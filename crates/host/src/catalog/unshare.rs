@@ -43,6 +43,13 @@ pub(crate) fn run(conn: &Connection) -> CatalogResult<()> {
 
     let mut map: Map = BTreeMap::new();
     let mut copied_domains: Vec<(String, String, String)> = Vec::new(); // (workspace, original, copy)
+    let mut reused_domains: Vec<(String, String, String)> = Vec::new(); // (workspace, shared, member)
+    // A member stands in for one shared row only: two shared rows of one
+    // family must not fold into one row there (review: a roster holding both
+    // broke its key; a domain holding both lost one).
+    let mut taken: BTreeSet<(String, &'static str, String)> = BTreeSet::new();
+    // R5: each workspace's copies of a shared Demo take one free generation.
+    let scopes = demo_scopes(conn, &workspaces)?;
     let mut next_family: i64 = conn.query_row(
         "SELECT COALESCE(MAX(f), 0) + 1 FROM (
              SELECT MAX(family_id) AS f FROM teams UNION ALL
@@ -82,15 +89,24 @@ pub(crate) fn run(conn: &Connection) -> CatalogResult<()> {
             for ws in workspaces.iter().filter(|w| **w != keeper) {
                 // A member of the family already here is this workspace's row —
                 // reused, never twinned (the "two Biblie" this removes) — when
-                // reusing it cannot change what this workspace sees or plays.
-                let existing = match member_in(conn, table, family, ws, Some(archived))? {
-                    Some(member) if reusable(conn, table, &id, &member, ws)? => Some(member),
-                    _ => None,
-                };
+                // reusing it cannot change what this workspace sees or plays,
+                // and no other shared row already stands on it.
+                let mut existing = None;
+                for member in members_in(conn, table, family, ws, archived)? {
+                    if !taken.contains(&(ws.clone(), table, member.clone())) && reusable(conn, table, &id, &member, ws)? {
+                        existing = Some(member);
+                        break;
+                    }
+                }
+                if let Some(member) = &existing
+                    && table == "domains"
+                {
+                    reused_domains.push((ws.clone(), id.clone(), member.clone()));
+                }
                 let to = match existing {
                     Some(member) => member,
                     None => {
-                        let copy = seed_id(conn, table, &id, ws, &workspaces)?.unwrap_or_else(|| fresh_id(prefix));
+                        let copy = seed_id(conn, table, &id, ws, &workspaces, &scopes)?.unwrap_or_else(|| fresh_id(prefix));
                         copy_row(conn, table, &id, &copy, ws)?;
                         if table == "domains" {
                             copied_domains.push((ws.clone(), id.clone(), copy.clone()));
@@ -98,6 +114,7 @@ pub(crate) fn run(conn: &Connection) -> CatalogResult<()> {
                         copy
                     }
                 };
+                taken.insert((ws.clone(), table, to.clone()));
                 map.insert((ws.clone(), table, id.clone()), to);
             }
         }
@@ -106,6 +123,29 @@ pub(crate) fn run(conn: &Connection) -> CatalogResult<()> {
     for ws in &workspaces {
         remap(conn, ws, &map)?;
     }
+    // A reused domain holds what the shared one held: the questions added to
+    // it after this workspace's copy was taken join at the end, in no group
+    // (review: they had been in no domain).
+    for (ws, shared, member) in &reused_domains {
+        let wanted: Vec<String> = {
+            let mut stmt = conn.prepare("SELECT question_id FROM domain_questions WHERE domain_id = ?1 ORDER BY sort_key, question_id")?;
+            stmt.query_map(params![shared], |row| row.get::<_, String>(0))?.collect::<rusqlite::Result<_>>()?
+        };
+        let mut next: i64 = conn.query_row("SELECT COALESCE(MAX(sort_key), -1) + 1 FROM domain_questions WHERE domain_id = ?1", params![member], |row| row.get(0))?;
+        for question in wanted {
+            let here = map.get(&(ws.clone(), "questions", question.clone())).cloned().unwrap_or(question);
+            let held: bool = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM domain_questions WHERE domain_id = ?1 AND question_id = ?2)",
+                params![member, here],
+                |row| row.get(0),
+            )?;
+            let ours: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM questions WHERE id = ?1 AND workspace_id = ?2)", params![here, ws], |row| row.get(0))?;
+            if !held && ours {
+                conn.execute("INSERT INTO domain_questions (domain_id, question_id, sort_key, group_id) VALUES (?1, ?2, ?3, NULL)", params![member, here, next])?;
+                next += 1;
+            }
+        }
+    }
     for (ws, original, copy) in &copied_domains {
         copy_groups(conn, ws, original, copy)?;
     }
@@ -113,6 +153,15 @@ pub(crate) fn run(conn: &Connection) -> CatalogResult<()> {
         respell(conn, ws)?;
     }
     Ok(())
+}
+
+/// Every member of `family` in `ws` in that archive state (R2), oldest first.
+fn members_in(conn: &Connection, table: &str, family: i64, ws: &str, archived: bool) -> CatalogResult<Vec<String>> {
+    let state = if archived { "archived_at IS NOT NULL" } else { "archived_at IS NULL" };
+    let mut stmt = conn.prepare(&format!(
+        "SELECT id FROM {table} WHERE family_id = ?1 AND workspace_id = ?2 AND {state} ORDER BY created_at, id"
+    ))?;
+    Ok(stmt.query_map(params![family, ws], |row| row.get(0))?.collect::<rusqlite::Result<_>>()?)
 }
 
 /// A member of `family` in `ws`; with `archived`, only one in that state (R2).
@@ -145,7 +194,9 @@ fn reusable(conn: &Connection, table: &str, id: &str, member: &str, ws: &str) ->
                 "SELECT EXISTS(SELECT 1 FROM domain_questions a JOIN domain_questions b ON a.domain_id = b.domain_id
                  WHERE a.question_id = ?1 AND b.question_id = ?2 AND a.domain_id IN (SELECT id FROM domains WHERE workspace_id = ?3))
                  OR EXISTS(SELECT 1 FROM recipe_questions a JOIN recipe_questions b ON a.recipe_id = b.recipe_id
-                 WHERE a.question_id = ?1 AND b.question_id = ?2 AND a.recipe_id IN ({recipes}))"
+                 WHERE a.question_id = ?1 AND b.question_id = ?2 AND a.recipe_id IN ({recipes}))
+                 OR EXISTS(SELECT 1 FROM recipe_overlays a JOIN recipe_overlays b ON a.recipe_id = b.recipe_id AND a.target_kind = b.target_kind
+                 WHERE a.target_kind = 'question' AND a.target_id = ?1 AND b.target_id = ?2 AND a.recipe_id IN ({recipes}))"
             ))? {
                 return Ok(false);
             }
@@ -176,14 +227,62 @@ fn reusable(conn: &Connection, table: &str, id: &str, member: &str, ws: &str) ->
     }
 }
 
-/// R5: a Demo row copied into `ws` takes `ws`'s own seed id, so *Restore
-/// sample game* there recognises it; `None` when the row is not a Demo row or
-/// that id is taken.
-fn seed_id(conn: &Connection, table: &str, id: &str, ws: &str, workspaces: &[String]) -> CatalogResult<Option<String>> {
-    let Some(rest) = seed_rest(id, workspaces) else { return Ok(None) };
-    let candidate = if ws == "ws-1" { format!("seed-{rest}") } else { format!("seed-{ws}-{rest}") };
+/// R5: a Demo row copied into `ws` takes `ws`'s seed id in the generation
+/// [`demo_scopes`] chose for it, so *Restore sample game* there recognises
+/// it; `None` when the row is not a Demo row or that id is somehow taken.
+fn seed_id(
+    conn: &Connection,
+    table: &str,
+    id: &str,
+    ws: &str,
+    workspaces: &[String],
+    scopes: &BTreeMap<String, String>,
+) -> CatalogResult<Option<String>> {
+    let (Some(rest), Some(scope)) = (seed_rest(id, workspaces), scopes.get(ws)) else { return Ok(None) };
+    let candidate = format!("seed-{scope}{rest}");
     let taken: bool = conn.query_row(&format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE id = ?1)"), params![candidate], |row| row.get(0))?;
     Ok((!taken).then_some(candidate))
+}
+
+/// For each workspace, the first Demo generation — the scopes `demo_here`
+/// tries, in its order — whose ids for every shared Demo row are all free.
+fn demo_scopes(conn: &Connection, workspaces: &[String]) -> CatalogResult<BTreeMap<String, String>> {
+    let mut rows: Vec<(&'static str, String)> = Vec::new();
+    for (table, _) in KINDS {
+        let mut stmt = conn.prepare(&format!("SELECT id FROM {table} WHERE workspace_id IS NULL AND id LIKE 'seed-%'"))?;
+        for id in stmt.query_map([], |row| row.get::<_, String>(0))? {
+            rows.push((table, id?));
+        }
+    }
+    let mut out = BTreeMap::new();
+    if rows.is_empty() {
+        return Ok(out);
+    }
+    for ws in workspaces {
+        for generation in 1.. {
+            let scope = match (ws == "ws-1", generation) {
+                (true, 1) => String::new(),
+                (true, 2) | (false, 1) => format!("{ws}-"),
+                (true, n) => format!("{ws}-r{}-", n - 1),
+                (false, n) => format!("{ws}-r{n}-"),
+            };
+            let mut free = true;
+            for (table, id) in &rows {
+                let Some(rest) = seed_rest(id, workspaces) else { continue };
+                let candidate = format!("seed-{scope}{rest}");
+                let exists: bool = conn.query_row(&format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE id = ?1)"), params![candidate], |row| row.get(0))?;
+                if exists {
+                    free = false;
+                    break;
+                }
+            }
+            if free {
+                out.insert(ws.clone(), scope);
+                break;
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// A seed id without its workspace scope (and generation): `seed-ws-2-r2-team-red` → `team-red`.
@@ -222,6 +321,12 @@ fn copy_row(conn: &Connection, table: &str, id: &str, copy: &str, ws: &str) -> C
     match table {
         "questions" => {
             copy_children(conn, "question_options", "question_id", id, copy)?;
+            // An option id written after its question's (`seed-q-geo-1-a`)
+            // follows the new question id, so a Demo copy reads unedited.
+            conn.execute(
+                "UPDATE question_options SET id = ?1 || substr(id, length(?2) + 1) WHERE question_id = ?1 AND substr(id, 1, length(?2)) = ?2",
+                params![copy, id],
+            )?;
             copy_children(conn, "question_tags", "question_id", id, copy)?;
         }
         "domains" => copy_children(conn, "domain_questions", "domain_id", id, copy)?,

@@ -122,6 +122,41 @@ describe('copy and move', () => {
   })
 })
 
+describe('copy with domains, joined and mixed (review)', () => {
+  const question = (id: string, stem: string): CatalogItem => ({
+    kind: 'question',
+    item: { id, origin: 'operator', stem, mediaAssetId: null, difficulty: 10, explanation: null, tags: [],
+      options: [{ id: 'a', text: 'Yes', correct: true }, { id: 'b', text: 'No', correct: false }], createdAt: 0, updatedAt: 0, archivedAt: null } as never,
+  })
+  const domainOf = (id: string, name: string, members: string[]): CatalogItem => ({
+    kind: 'domain',
+    item: { id, origin: 'operator', name, code: name.slice(0, 3), description: null, questions: members.map((q, i) => ({ questionId: q, sortKey: i, groupId: null })), createdAt: 0, updatedAt: 0, archivedAt: null } as never,
+  })
+
+  it('says a copied question joins the copy of its domain already there', async () => {
+    fake.seed([question('q1', 'First stem'), question('q2', 'Second stem'), domainOf('d1', 'Biblie', ['q1', 'q2'])])
+    const club = await library({ tab: 'library' })
+    await fake.invoke('catalog_copy_to', { selection: { questions: ['q1'] }, target: club.id })
+    await rowAction('Second stem', TRANSFER.copyTo)
+    const dialog = await screen.findByRole('alertdialog')
+    expect(await within(dialog).findByText(TRANSFER.joins('Biblie'))).toBeTruthy()
+    expect(within(dialog).queryByText(TRANSFER.creates('Biblie'))).toBeNull()
+  })
+
+  it('names a domain made for the questions, and not one a picked domain brings whole', async () => {
+    fake.seed([question('q1', 'First stem'), question('q3', 'Third stem'), domainOf('d1', 'Biblie', ['q1']), domainOf('d2', 'Istorie', ['q3'])])
+    await library({ tab: 'library' })
+    const { useTransfer } = await import('@/organisms/useTransfer')
+    void useTransfer
+    // The bulk menu with one question and another, whole, domain.
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select First stem' }))
+    fireEvent.click(await screen.findByRole('button', { name: TRANSFER.menu }))
+    fireEvent.click(await screen.findByText(TRANSFER.copyTo))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(await within(dialog).findByText(TRANSFER.creates('Biblie'))).toBeTruthy()
+  })
+})
+
 describe('an edit that can follow its copies', () => {
   it('asks Save here only or Also update, and sends what was chosen', async () => {
     fake.seed([team('beta', 'Beta copy', { familyId: 7 })])

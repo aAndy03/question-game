@@ -343,3 +343,15 @@ fn a_copied_game_overlay_shows_the_targets_logo() {
     assert_ne!(logo.as_str(), "logo");
     assert!(catalog.catalog_get(CatalogKind::Asset, logo.as_str()).is_ok(), "B's own asset");
 }
+
+#[test]
+fn a_home_domain_is_named_apart_from_a_domain_a_game_brings() {
+    let (catalog, _a, b) = setup();
+    catalog.catalog_upsert(&question("q5", 50), NOW).unwrap();
+    catalog.catalog_upsert(&domain("solo", &["q5"]), NOW).unwrap();
+    let sel = Selection { questions: vec![QuestionId::from("q5")], recipes: vec![RecipeId::from("g1")], ..Selection::default() };
+    let report = catalog.transfer_preview(TransferOp::Copy, &sel, Some(&b), CopyOptions::default()).unwrap();
+    let homes: Vec<_> = report.homes.iter().map(|t| t.from.as_str()).collect();
+    assert_eq!(homes, ["solo"], "d1 came whole with the game: {report:?}");
+    assert!(report.created.iter().any(|t| t.kind == CatalogKind::Domain && t.from == "d1"));
+}

@@ -585,6 +585,8 @@ export interface TransferReport {
   readonly moved: readonly Touched[]
   /** Domains in the target a copied question joined (the target's copy of its domain). */
   readonly joined?: readonly Touched[]
+  /** Domains made in the target only to hold the copied questions (also in `created`). */
+  readonly homes?: readonly Touched[]
   readonly refused: readonly Refusal[]
 }
 

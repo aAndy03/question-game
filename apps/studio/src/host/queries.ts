@@ -14,7 +14,7 @@
  * because the host said so, not because a component remembered to refetch.
  */
 
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { MonitorInfo } from '@questiongame/contract'
 import { command, hasHost } from './host'
@@ -332,6 +332,19 @@ export function useTags() {
 export function useCurrentWorkspaceId(): string | null {
   const known = useQuery({ queryKey: keys.workspaces, queryFn: () => command<Workspaces>('workspace_list'), enabled: false, staleTime: Infinity })
   return known.data?.current ?? null
+}
+
+/**
+ * Counts the times Studio moved to **another** workspace: a key for what must
+ * start over then (Screens, Statistics). Learning the workspace for the first
+ * time is not a move — the Statistics window only learns it from its first
+ * event, which would otherwise throw its filters away once (review).
+ */
+export function useWorkspaceGeneration(): number {
+  const current = useCurrentWorkspaceId()
+  const [seen, setSeen] = useState<{ id: string | null; n: number }>({ id: current, n: 0 })
+  if (current !== null && current !== seen.id) setSeen({ id: current, n: seen.id === null ? seen.n : seen.n + 1 })
+  return seen.id !== null && current !== null && current !== seen.id ? seen.n + 1 : seen.n
 }
 
 /** Every workspace, every group, and the one Studio works in (Beta 2.0). */

@@ -162,8 +162,12 @@ describe('Screens after a workspace switch (beta.2)', () => {
   })
   afterEach(() => setHostTransport(null))
 
-  it('drops the game of the workspace it left', async () => {
+  it('drops the game of the workspace it left, and opens the new workspace game', async () => {
     const other = await fake.invoke<{ id: string }>('workspace_create', { name: 'Club' })
+    // Club has a game of its own; the page must pick it, not keep the old one.
+    await fake.invoke('workspace_switch', { id: other.id })
+    await fake.invoke('recipe_upsert', { recipe: { ...demoRecipe(), id: 'club-game', name: 'Club night' } })
+    await fake.invoke('workspace_switch', { id: 'ws-1' })
     render(<App />)
     await act(async () => {
       await useNavStore.getState().go({ tab: 'screens' })
@@ -172,6 +176,6 @@ describe('Screens after a workspace switch (beta.2)', () => {
     await act(async () => {
       await fake.invoke('workspace_switch', { id: other.id })
     })
-    await waitFor(() => expect(document.querySelector('iframe'), 'no editor on the old workspace’s game').toBeNull())
+    await waitFor(() => expect(fake.calls.filter((c) => c.name === 'recipe_get').at(-1)?.args).toMatchObject({ id: 'club-game' }))
   })
 })

@@ -1131,7 +1131,7 @@ export function createFakeHost(): FakeHost {
     return users
   }
 
-  const emptyReport = (): TransferReport => ({ created: [], reused: [], moved: [], joined: [], refused: [] })
+  const emptyReport = (): TransferReport => ({ created: [], reused: [], moved: [], joined: [], homes: [], refused: [] })
   const familyOf = (k: string): number => {
     const known = families.get(k)
     if (known !== undefined) return known
@@ -1141,15 +1141,33 @@ export function createFakeHost(): FakeHost {
   }
 
   const transfer = (op: TransferOp, sel: Selection, target: string | null, write: boolean, withDomains = true): TransferReport => {
-    const report = emptyReport() as { created: Touched[]; reused: Touched[]; moved: Touched[]; joined: Touched[]; refused: Refusal[] }
+    const report = emptyReport() as { created: Touched[]; reused: Touched[]; moved: Touched[]; joined: Touched[]; homes: Touched[]; refused: Refusal[] }
     if (target === null) refuse('catalog', 'transfer.target: copy and move need a workspace to go to')
     if (target === fake.currentWorkspace) refuse('catalog', `workspace/${target}: that is this workspace; use Duplicate for a second copy here`)
     if (workspaceRow(target).archivedAt !== null) refuse('catalog', `workspace/${target}: an archived workspace takes nothing`)
     const { rows, games } = closureOf(sel)
     if (op === 'copy') {
-      const ids = new Map(rows.map((r) => [key(r.kind, r.id), freshId(r.kind === 'question' ? 'q' : r.kind === 'domain' ? 'dom' : r.kind)]))
+      // A row that only came along reuses an active member of its family in
+      // the target, as the host does; a picked row is always new.
+      const member = (kind: LibraryKind, id: string): string | undefined => {
+        const family = families.get(key(kind, id))
+        if (family === undefined) return undefined
+        const found = [...families.entries()].find(
+          ([k, f]) => f === family && k.startsWith(`${kind}:`) && homeOf(k) === target && library.get(k)?.item.archivedAt === null,
+        )
+        return found ? (library.get(found[0]) as CatalogItem).item.id : undefined
+      }
+      const reused = new Map(rows.filter((r) => !r.picked).flatMap((r) => {
+        const there = member(r.kind, r.id)
+        return there ? [[key(r.kind, r.id), there] as const] : []
+      }))
+      const ids = new Map(rows.map((r) => [key(r.kind, r.id), reused.get(key(r.kind, r.id)) ?? freshId(r.kind === 'question' ? 'q' : r.kind === 'domain' ? 'dom' : r.kind)]))
       const map = (kind: LibraryKind, id: string) => ids.get(key(kind, id)) ?? id
       for (const r of rows) {
+        if (reused.has(key(r.kind, r.id))) {
+          report.reused.push({ kind: r.kind, id: map(r.kind, r.id), from: r.id, picked: false })
+          continue
+        }
         report.created.push({ kind: r.kind, id: map(r.kind, r.id), from: r.id, picked: r.picked })
         if (!write) continue
         const row = library.get(key(r.kind, r.id)) as CatalogItem
@@ -1181,11 +1199,13 @@ export function createFakeHost(): FakeHost {
             report.joined.push({ kind: 'domain', id: existing.item.id, from: domainId, picked: false })
             if (!write) continue
             let next = Math.max(-1, ...existing.item.questions.map((m) => m.sortKey)) + 1
-            const questions = [...existing.item.questions, ...picked.map((q) => ({ questionId: map('question', q), sortKey: next++, groupId: null }))]
+            const fresh = picked.map((q) => map('question', q)).filter((q) => !existing.item.questions.some((m) => m.questionId === q))
+            const questions = [...existing.item.questions, ...fresh.map((questionId) => ({ questionId, sortKey: next++, groupId: null }))]
             library.set(there[0], { kind: 'domain', item: { ...existing.item, questions } })
           } else {
             const id = freshId('dom')
             report.created.push({ kind: 'domain', id, from: domainId, picked: false })
+            report.homes.push({ kind: 'domain', id, from: domainId, picked: false })
             if (!write) continue
             const questions = source.item.questions.filter((m) => picked.includes(m.questionId)).map((m) => ({ ...m, questionId: map('question', m.questionId), groupId: null }))
             library.set(key('domain', id), { kind: 'domain', item: { ...source.item, id, questions } })

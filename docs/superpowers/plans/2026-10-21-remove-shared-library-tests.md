@@ -386,3 +386,9 @@ The recommendation stands except where a change is noted.
 - **R15** Accepted: (a) yes, (b) reset, (c) yes.
 - **R16** Changed: no host change. On a switch Studio drops every notice whose target path names a row (recipe, team, domain, question). Health and app notices stay.
 - **R17, R18, R19, R20** Accepted.
+
+## Review rulings (Opus and Sonnet, 2026-10-21)
+
+- **Opus #8, stands:** copying the same question twice with *Bring their domains* adds two members to the target domain. A picked row is always copied new, by the rule copy has had since P14. The second copy is a deliberate second copy, the same as copying a domain twice.
+- **Sonnet #7, partly:** the Statistics window still resets its queries on its first `workspace-changed`, because it cannot know the previous workspace. It no longer remounts and loses its filters for it: `useWorkspaceGeneration` counts moves, and learning the first workspace is not a move.
+- **Sonnet #9, the Demo in Second:** a workspace made by name holds no Demo, so "New there: Geography" is what the host says. Confirmed on the real run.
