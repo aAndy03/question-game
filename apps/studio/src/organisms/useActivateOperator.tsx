@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { ConfirmDialog } from '@/molecules'
 import { SETTINGS } from '@/copy/settings'
-import { noticesAt, useNoticeStore } from '@/chrome/notices'
+import { noticesAt, useNoticeStore, noticeText } from '@/chrome/notices'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import type { Operator } from '@/host/types'
@@ -30,7 +30,7 @@ export function useActivateOperator(): ActivateOperator {
   const [target, setTarget] = useState<Operator | null>(null)
   const [pending, setPending] = useState(false)
   const path = target ? `operator.${target.id}.pin` : ''
-  const pinError = path ? (noticesAt(notices, path)[0]?.detail.message ?? null) : null
+  const pinError = path ? noticeText(noticesAt(notices, path)[0]) : null
 
   const close = () => {
     notices.filter((n) => n.targetPath === path).forEach((n) => dismiss(n.id))

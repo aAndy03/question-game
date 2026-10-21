@@ -108,12 +108,14 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
       if (choice === 'cancel') return false
       alsoCopies = choice === 'also'
     }
-    const done = await run(
+    // Closes whatever the host said: a refusal lands on the Board, under the
+    // dialog, where it could not be read while the dialog stayed (1.1.1 review).
+    await run(
       'recipe_set_overlay',
       { id: recipe.id, target: { target: 'question', id: difficultyFor.questionId, patch: { difficulty } }, scope, alsoCopies },
       { targetPath: `recipe.${recipe.id}.board` },
     )
-    return done !== null
+    return true
   }
 
   const domainItems = useMemo(

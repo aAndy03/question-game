@@ -2,6 +2,7 @@ import { Alert } from '@heroui/react'
 import type { Notice } from '@questiongame/contract'
 import { Button, IconButton, Text } from '@/atoms'
 import { CONFIRM, SHELL, noticeAction, noticeTitle } from '@/copy'
+import { noticeText } from '@/chrome/notices'
 
 export interface ConfirmFrameView {
   readonly title: string
@@ -37,7 +38,7 @@ export function InlineNotice({ notice, frames = [], onAction, onDismiss, onCance
   const frame = frames[frames.length - 1]
   const title = frame ? frame.title : noticeTitle(notice.code, notice.detail)
   // The host's `path: reason` — the path routes the notice here, it is not words (beta.4: ids on screen).
-  const message = notice.targetPath && notice.detail.message?.startsWith(`${notice.targetPath}: `) ? notice.detail.message.slice(notice.targetPath.length + 2) : notice.detail.message
+  const message = noticeText(notice)
   const body = frame ? frame.body : message && message !== title ? message : null
   const actions = frame ? frame.actions : notice.actions
 

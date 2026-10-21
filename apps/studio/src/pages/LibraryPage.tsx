@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button, MeaningChip, Text } from '@/atoms'
 import { ActionMenu, IncompleteMark, PageHeader } from '@/molecules'
 import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, useBulkEdit, GroupsDialog, ManageTagsDialog, useGroupEditing, type RecordView } from '@/organisms'
-import { SplitLayout } from '@/templates'
+import { DetailAside, SplitLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { toast } from '@/chrome/toast'
@@ -174,7 +174,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
       }
       primary={<DomainPane selectedId={domainId} onSelect={(id) => replace({ tab: 'library', ...(id ? { domainId: id } : {}) })} />}
       secondary={
-        <div className="flex min-h-0 flex-1 gap-6">
+        <div className="relative flex min-h-0 flex-1 gap-6">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
             <ListToolbar
               view={lv}
@@ -282,9 +282,9 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
             />
           </div>
           {currentId ? (
-            <aside className="hidden w-[22rem] shrink-0 overflow-y-auto xl:block">
+            <DetailAside onClose={() => replace({ tab: 'library', ...(domainId ? { domainId } : {}) })}>
               <QuestionDetail id={currentId} domainId={domainId ?? undefined} compact />
-            </aside>
+            </DetailAside>
           ) : null}
           {archive.dialog}
           {transfer.dialog}

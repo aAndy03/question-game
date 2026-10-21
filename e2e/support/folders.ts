@@ -26,6 +26,8 @@ const SEEDS: Readonly<Record<string, readonly string[] | null>> = {
   'workspaces.e2e.ts': [],
   // P15: the Demo, as 1.x left it.
   'groups-tags.e2e.ts': [],
+  // 1.1.1: Studio at 1100 px.
+  'narrow.e2e.ts': [],
   // beta.4: the Game page's pickers, its menu and the Games bulk bar.
   'games.e2e.ts': [],
   // beta.5: Duplicate here, Manage workspaces as a list.

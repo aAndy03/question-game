@@ -1845,6 +1845,17 @@ Design: `docs/superpowers/specs/2026-10-21-beta5-the-rest-design.md`; plan and S
 - ☑ **P19.1** — Studio: *Copies* in the panels, *Duplicate*, Manage workspaces as a list, *Workspace group* / *Domain group* / *Question tag* / *Game tag*, `SHELL` strings, the switcher's reason by keyboard, Repair.
 - ☑ **P19.2** — `beta5.e2e.ts` on the real app; docs, *What's new* 2.0.0-beta.5.
 
+### Stable 1.1.1 — the narrow window and the 1.1 bugs  ☑
+
+Design: `docs/superpowers/specs/2026-10-21-stable-1.1.1-design.md`. Built on `release/1.x`, merged forward into `main`.
+
+- ☑ An opened row below 1280 px opens over the list with a Close (`DetailAside`); `narrow.e2e.ts` at 1100 px on the real app.
+- ☑ The board's difficulty edit is `DifficultyDialog`, not a `window.prompt`.
+- ☑ The 1.1 bugs beta.3–beta.4 fixed on `main`: "used by a a recipe board"; a theme colour as a swatch (editor and detail); dialog footers that wrap; Plays numbered; the question editor's one write; a refusal's text without its routing path.
+- ☑ *What's new* 1.1.1 in English and Romanian.
+- ☐ `npm run version:stable -- patch` and the `v1.1.1` tag, when the maintainer says.
+
+
 ### Beta parity (from the 2026-10-21 audits)
 
 | Version | Focus |
@@ -1852,7 +1863,7 @@ Design: `docs/superpowers/specs/2026-10-21-beta5-the-rest-design.md`; plan and S
 | **beta.3** ☑ | Copy, import, the editor: archived rows keep their state on copy; a reused copy that would break a game is copied fresh or named; import resolves domains in this workspace, shows tags and new domains, refuses inside the dialog; the question editor saves question and memberships in one write; readable refusals (names, not ids — no new notice codes: the readable message is the notice); archive confirms name the games that use the row; a soft warning for twin names. |
 | **beta.4** ☑ | Games parity: Board and Roster pickers on the list-view model (search, difficulty and tag filters, domain-group headers, select all in group, paging); an archived team on a roster refused at Load; a Rules warning for an archived row on the board; *Apply to original* through *Also update copies*; Game page Copy/Move/Duplicate; a Games bulk bar; Plays by name; the difficulty prompt as a dialog. |
 | **beta.5** ☑ | The rest: detail panels (tags, groups, copies, *Stop following*); Statistics by workspace; Settings copy "in this workspace"; Manage workspaces as a list view; vocabulary; a library health check; strings to copy; *Duplicate* within a workspace; the disabled switcher's reason by keyboard. |
-| **stable 1.1.1** | Studio below 1280 px; the board difficulty prompt; the other 1.1 bugs the audits named — on `release/1.x`, merged forward. |
+| **stable 1.1.1** ☑ | Studio below 1280 px; the board difficulty prompt; the other 1.1 bugs the audits named — on `release/1.x`, merged forward. |
 
 After beta.5: interface passes, the Board first.
 

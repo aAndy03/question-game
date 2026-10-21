@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Panel, Text, TextField } from '@/atoms'
 import { DirtyGuard, EditorFooter, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
-import { noticesAt, useNoticeStore } from '@/chrome/notices'
+import { noticesAt, useNoticeStore, noticeText } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
 import { LIST, OPERATOR, SHELL, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
@@ -84,7 +84,7 @@ export function OperatorEditor({ id }: OperatorEditorProps) {
           onChange={(displayName) => draft.set({ displayName })}
           isRequired
           autoFocus={!id}
-          error={inline.find((n) => n.targetPath === `${path}.name`)?.detail.message ?? null}
+          error={noticeText(inline.find((n) => n.targetPath === `${path}.name`))}
         />
         {id ? null : (
           <Text variant="studio-caption" tone="muted">

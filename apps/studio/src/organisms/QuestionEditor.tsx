@@ -13,7 +13,7 @@ import {
   PageHeader,
   type DomainFormValue,
 } from '@/molecules'
-import { noticesAt, useNoticeStore } from '@/chrome/notices'
+import { noticesAt, useNoticeStore, noticeText } from '@/chrome/notices'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { useNavStore, type Route } from '@/chrome/nav'
 import { LIST, QUESTION, TABS } from '@/copy'
@@ -117,7 +117,7 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
 
   const path = `question.${q.id}`
   const inline = noticesAt(notices, path)
-  const fieldError = (field: string) => inline.find((n) => n.targetPath === `${path}.${field}`)?.detail.message ?? null
+  const fieldError = (field: string) => noticeText(inline.find((n) => n.targetPath === `${path}.${field}`))
 
   const correctCount = q.options.filter((o) => o.correct).length
   // A blank option row is not an option yet: it is dropped on save rather

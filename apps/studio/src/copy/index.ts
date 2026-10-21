@@ -103,6 +103,9 @@ export const LIST = {
   open: 'Open',
   edit: 'Edit',
   duplicate: 'Duplicate',
+  /** The opened row's Close below 1280 px (1.1.1). */
+  closeDetail: 'Close details',
+  detail: 'Details',
   new: (what: string) => `New ${what}`,
   selected: (n: number) => (n === 1 ? '1 selected' : `${n} selected`),
   clearSelection: 'Clear',
@@ -213,7 +216,7 @@ export const CONFIRM = {
   twinTeam: (name: string) => `Another team in this workspace is named ${name.trim()}.`,
   twinDomain: (name: string) => `Another domain in this workspace is named ${name.trim()}.`,
   twinGame: (name: string) => `Another game in this workspace is named ${name.trim()}.`,
-  referencedBy: (by: string) => `Still used by ${by}. It stays there; only the library row is archived.`,
+  referencedBy: (by: string) => `Still used by ${by.replace(/\bplay\b/, 'Play')}. It stays there; only the library row is archived.`,
   referencedByMany: (by: string) => `Some are still used, by ${by}. They stay there; only the library rows are archived.`,
   arm: 'Archive',
   armed: 'Confirm archive',

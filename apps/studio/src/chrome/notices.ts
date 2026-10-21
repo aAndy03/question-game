@@ -201,6 +201,18 @@ export function noticesAt(notices: readonly OpenNotice[], path: string): OpenNot
  * depth — a Board refusal is `recipe.<id>.board.<domain>.difficulty.<n>`.
  * What the collector's *Show* and the Game rail both read (P12.8).
  */
+/**
+ * What a notice says, as words: the host's message without the `path: ` it
+ * starts with — the path routes the notice, it is not for reading (1.1.1).
+ */
+export function noticeText(notice: { readonly targetPath: string | null; readonly detail: Readonly<Record<string, string>> } | undefined): string | null {
+  const message = notice?.detail.message
+  if (!message) return null
+  const own = /^((?:team|domain|question|operator|recipe|asset|audio|shortcuts|import)(?:\.[^\s:]+)?): /.exec(message)?.[1]
+  const path = notice.targetPath && message.startsWith(`${notice.targetPath}: `) ? notice.targetPath : own
+  return path ? message.slice(path.length + 2) : message
+}
+
 export function gameSectionOf(path: string | null): { recipeId: string; section: GameSection } | null {
   const match = /^recipe\.([^.]+)\.(roster|board|rules|plays)(?:\.|$)/.exec(path ?? '')
   if (!match?.[1] || !match[2]) return null

@@ -52,7 +52,7 @@ export function DifficultyDialog({ isOpen, onOpenChange, current, isPending, onC
     if (done !== false) onOpenChange(false)
   }
   return (
-    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
+    <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange} isDismissable={!pending} isKeyboardDismissDisabled={pending}>
       <Modal.Container size="md">
         <Modal.Dialog>
           <Modal.CloseTrigger />
@@ -60,7 +60,7 @@ export function DifficultyDialog({ isOpen, onOpenChange, current, isPending, onC
             <Modal.Heading>{QUESTION.difficulty}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="flex flex-col gap-3">
-            <NumberField label={QUESTION.difficulty} value={value} onChange={setValue} minValue={1} maxValue={100} step={1} error={error} autoFocus />
+            <NumberField label={QUESTION.difficulty} hideLabel value={value} onChange={setValue} minValue={1} maxValue={100} step={1} error={error} autoFocus />
             <Text variant="studio-caption" tone="muted">
               {CONFIRM.scopeDifficulty}
             </Text>

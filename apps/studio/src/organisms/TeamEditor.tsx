@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Panel, Swatch, Text, TextAreaField, TextField } from '@/atoms'
 import { DirtyGuard, EditorFooter, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
-import { noticesAt, useNoticeStore } from '@/chrome/notices'
+import { noticesAt, useNoticeStore, noticeText } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
 import { CONFIRM, LIST, SHELL, TABS, TEAM } from '@/copy'
 import { toast } from '@/chrome/toast'
@@ -49,11 +49,14 @@ export function TeamEditor({ id }: TeamEditorProps) {
 
   const path = `team.${draft.value.id}`
   const inline = noticesAt(notices, path)
-  const fieldError = (field: string) => inline.find((n) => n.targetPath === `${path}.${field}`)?.detail.message ?? null
+  const fieldError = (field: string) => noticeText(inline.find((n) => n.targetPath === `${path}.${field}`))
   const canSave = draft.value.name.trim().length > 0 && draft.isDirty
   // A theme token (the Demo's teams), not something typed: a typed value,
   // with or without its #, stays in the field (review: every keystroke vanished).
-  const themeColour = draft.value.color.trim().startsWith('var(')
+  const isTheme = (c: string | undefined) => /^var\(--[\w-]+\)$/.test((c ?? '').trim())
+  const themeColour = isTheme(draft.value.color)
+  // The team's own theme colour, so it can be chosen again after a palette pick (1.1.1 review).
+  const theme = isTheme(source.data?.color) ? (source.data?.color ?? null) : themeColour ? draft.value.color : null
 
   const save = async (): Promise<boolean> => {
     setSaving(true)
@@ -121,9 +124,19 @@ export function TeamEditor({ id }: TeamEditorProps) {
             <Text variant="studio-label">{TEAM.color}</Text>
             <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label={TEAM.color}>
               {/* A theme colour (the Demo's teams) is a swatch, never raw text in the field (beta.3). */}
-              {themeColour ? (
-                <button type="button" role="radio" aria-checked aria-label={TEAM.themeColour} className="rounded-full p-0.5 ring-2 ring-[var(--accent)]">
-                  <Swatch color={draft.value.color} size="lg" className="rounded-full" />
+              {theme ? (
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={themeColour}
+                  aria-label={TEAM.themeColour}
+                  onClick={() => draft.set({ color: theme })}
+                  className={[
+                    'rounded-full p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]',
+                    themeColour ? 'ring-2 ring-[var(--accent)]' : '',
+                  ].join(' ')}
+                >
+                  <Swatch color={theme} size="lg" className="rounded-full" />
                 </button>
               ) : null}
               {TEAM_PALETTE.map((color) => (
