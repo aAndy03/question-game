@@ -30,6 +30,47 @@ export interface WhatsNewRelease {
 
 export const WHATS_NEW: readonly WhatsNewRelease[] = [
   {
+    version: '2.0.0-beta.5',
+    notes: {
+      en: [
+        {
+          title: 'See where the copies are',
+          body: 'A team, a question or a domain now shows the other workspaces that hold a copy of it, and Stop following its copies makes it a row of its own. A question also shows its tags and its domain group in each domain.',
+        },
+        {
+          title: 'Duplicate here',
+          body: 'Teams, domains and questions can be duplicated inside the same workspace, one or many at once. The duplicate is named “(copy)”, keeps the same domains and groups, and is not tied to the original.',
+        },
+        {
+          title: 'Workspaces as a list',
+          body: 'Manage workspaces can be searched, sorted and grouped like the other lists. Statistics can group by workspace when All workspaces is on, and a team’s Plays count only this workspace’s games.',
+        },
+        {
+          title: 'Clearer words, and a library check',
+          body: 'Workspace groups and domain groups, question tags and game tags are now named apart. If the library ever holds a reference that points nowhere, Health says so and Repair removes just that reference.',
+        },
+      ],
+      ro: [
+        {
+          title: 'Vezi unde sunt copiile',
+          body: 'O echipă, o întrebare sau un domeniu arată acum celelalte spații de lucru care au o copie a lui, iar Stop following its copies îl face un rând de sine stătător. O întrebare își arată și etichetele și grupul din fiecare domeniu.',
+        },
+        {
+          title: 'Duplicare aici',
+          body: 'Echipele, domeniile și întrebările pot fi duplicate în același spațiu de lucru, una sau mai multe deodată. Duplicatul se numește „(copy)”, păstrează aceleași domenii și grupuri și nu e legat de original.',
+        },
+        {
+          title: 'Spațiile de lucru ca listă',
+          body: 'Manage workspaces poate fi căutat, sortat și grupat ca celelalte liste. Statistics poate grupa după spațiul de lucru când All workspaces e activ, iar Plays ale unei echipe numără doar jocurile din acest spațiu.',
+        },
+        {
+          title: 'Cuvinte mai clare și o verificare a bibliotecii',
+          body: 'Grupurile de spații de lucru și grupurile de domenii, etichetele întrebărilor și ale jocurilor au acum nume diferite. Dacă biblioteca ar avea vreodată o trimitere spre nimic, Health o spune, iar Repair elimină doar acea trimitere.',
+        },
+      ],
+    },
+  },
+  {
     version: '2.0.0-beta.4',
     notes: {
       en: [

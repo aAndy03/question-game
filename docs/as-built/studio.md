@@ -130,6 +130,19 @@ The host half is `host.md` ▸ Copy, import and refusals.
 - **Twins are not re-checked on Restore**: restoring an archived row beside an active one of the same name says nothing; the next edit of either shows the note. A soft warning, by design.
 - **Dialog footers wrap** (`studio.css`: `.alert-dialog__footer`, `.modal__footer`), and *This row has copies* is `md`: its three actions spilled out of the frame at `sm` (the maintainer's beta.2 screenshot; `workspaces.e2e.ts` now asserts every button sits inside the dialog).
 
+## The rest in Studio (beta.5)
+
+The design is `05_STUDIO_DESIGN.md` §25; the host half is `host.md` ▸ The rest of the parity audits.
+
+- **`CopiesBlock`** (Team and Question detail, the domain's edit form) reads `useFamily` — keyed under the row's kind, so a `catalog-changed` of that kind refetches it — and renders nothing for a row with no copies.
+- **`catalog_duplicate`** is a row action and a bulk-bar button on Teams and Questions and a row action on a domain; the fake host mirrors the host's naming and memberships.
+- **Manage workspaces** runs `useListView` over `workspacesSpec` (tab `workspaces`): search is a fold over the names, Status is the page's own (`useArchiveScope('workspaces')`), a workspace group's header carries its menu (`headerActions`, key `wg:<id>`), and a group with no workspace yet is listed under the list with its menu.
+- **Whose group**: workspace groups say *workspace group*, domain groups *domain group*; *Group* alone is only the list's *Group by*. Tags: *Question tag* (`GROUPS_TAGS.tag`), *Game tag* (`VIEWS.tag`).
+- **`SHELL`** (`copy/index.ts`) holds the toasts, column heads, aria-labels and "Id" that had lived at their call sites.
+- **The disabled switcher** is a focusable span named "Workspace: {name}. {why}" around the disabled button.
+- **Repair** is a two-step notice: *Repair…* pushes a frame naming the count, *Remove them* calls `library_repair`.
+- **Statistics' *Group by: Workspace*** is offered only with *All workspaces*; turning that off while grouped by workspace goes back to teams.
+
 ## Games parity in Studio (beta.4)
 
 The design is `05_STUDIO_DESIGN.md` §24; the host half is `host.md` ▸ Games parity.

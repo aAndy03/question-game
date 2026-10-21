@@ -132,6 +132,18 @@ _Avoid_: frozen setting (state, not kind)
 No countdown; the operator advances.
 _Avoid_: untimed, manual timer
 
+**Workspace group**:
+A named shelf of workspaces in *Manage workspaces*. Not a *domain group*.
+_Avoid_: group (bare), folder
+
+**Domain group**:
+A named group of questions inside one domain, for organising only. Not a *workspace group*.
+_Avoid_: group (bare), category
+
+**Question tag** / **Game tag**:
+A word on a question (across domains) or on a game (the Games tab's filter). Two different things.
+_Avoid_: tag (bare) where both could be meant
+
 **Scope choice**:
 Cancel, *This game only*, or *Apply to original* (the library row) — asked by `DifficultyDialog` (beta.4; once `ScopeConfirm`).
 _Avoid_: save dialog

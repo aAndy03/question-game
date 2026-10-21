@@ -92,6 +92,20 @@ commands:
     file: crates/app/src/commands/workspace.rs
     params: ["selection: Selection", "target: WorkspaceId", "with_domains: Option<bool>"]
     returns: "AppResult<TransferReport>"
+  catalog_duplicate:
+    async: true
+    callers: [main]
+    doc: "*Duplicate* within this workspace (beta.5): teams, domains, questions."
+    file: crates/app/src/commands/workspace.rs
+    params: ["kind: CatalogKind", "ids: Vec<String>"]
+    returns: "AppResult<Vec<String>>"
+  catalog_family:
+    async: true
+    callers: [main]
+    doc: "The other members of a row's family (beta.5: the detail panels' *Copies*)."
+    file: crates/app/src/commands/workspace.rs
+    params: ["kind: CatalogKind", "id: String"]
+    returns: "AppResult<Vec<FamilyCopy>>"
   catalog_get:
     async: true
     callers: [main, stats]
@@ -248,6 +262,13 @@ commands:
     file: crates/app/src/commands/flags.rs
     params: []
     returns: "AppResult<HealthReport>"
+  library_repair:
+    async: true
+    callers: [main]
+    doc: "*Repair* (beta.5): remove the library's references that point at nothing or at another workspace — the action behind `health.library_refs`."
+    file: crates/app/src/commands/catalog.rs
+    params: []
+    returns: "AppResult<u32>"
   lock_selection:
     async: true
     callers: [main]
@@ -945,6 +966,9 @@ contract:
       - catalog_propagation_preview
       - catalog_upsert_propagating
       - catalog_unfollow
+      - catalog_family
+      - catalog_duplicate
+      - library_repair
   events:
     - catalog-changed
     - workspace-changed
@@ -959,7 +983,7 @@ contract:
   files:
     packages/contract/src/commands.ts:
       COMMANDS: {kind: const, sig: "#e3696517"}
-      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, organise, workspace, app } #71e29d19"}
+      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, organise, workspace, app } #db0f7859"}
       CatalogChange: {doc: "`catalog-changed`.", kind: interface, sig: "{ kind, id, op }"}
       Command: {kind: type, sig: "(typeof COMMAND_GROUPS)[CommandGroup][number]"}
       CommandGroup: {kind: type, sig: "keyof typeof COMMAND_GROUPS"}
@@ -1404,6 +1428,8 @@ host_api:
     "catalog::db::META_CURRENT_WORKSPACE": {doc: "The global that names the workspace in use.", kind: const, sig: "const META_CURRENT_WORKSPACE: &str = \"workspace.current\""}
     "catalog::db::place_for_test": {doc: "Test support: in a file written by [`write_older_schema`] at step 5 or before, put a row in the shared library (`workspace_id` NULL) or in a named workspace — how the beta.2 tests build a beta.1 li...", kind: fn, sig: "fn place_for_test(path: &Path, table: &str, id: &str, workspace: Option<&str>) -> CatalogResult<()>"}
     "catalog::db::write_older_schema": {doc: "Test support: write `to` as the library `from` would look to a build that knew only the first `steps` migrations — the same rows, the columns that build had.", kind: fn, sig: "fn write_older_schema(from: &Path, to: &Path, steps: u32) -> CatalogResult<()>"}
+  crates/host/src/catalog/duplicate.rs:
+    "catalog::duplicate::CatalogService::catalog_duplicate": {doc: "Duplicate `ids` of one kind in this workspace, in one transaction: every one or none.", kind: method, sig: "fn catalog_duplicate(&self, kind: CatalogKind, ids: &[String], now_ms: u64) -> CatalogResult<(Vec<String>, Vec<CatalogChange>)>"}
   crates/host/src/catalog/error.rs:
     "catalog::error::CatalogError": {kind: enum, sig: "enum CatalogError { NotFound { kind: CatalogKind, id: String } | Invalid { target_path: String, reason: &'static str } | Refused { target_path: String, reason: String } | Import { reason: String } | Settings(MatchError) | PlayAlreadyOpen { recipe: String, play: String } | SchemaTooNew { found: u32, known: u32 } | BackupFailed { dir: std::path::PathBuf, reason: String } | WrongWorkspace { kind: CatalogKind, id: String, name: String } | NoWorkspace | ScopeRule { rule: &'static str, detail: String } | StillUsed { kind: CatalogKind, id: String, name: String, used_by: String } | Sqlite(rusqlite::Error) | Search(tantivy::TantivyError) | Corrupt(serde_json::Error) }"}
     "catalog::error::CatalogKind": {doc: "What the catalog was asked about, and what `catalog-changed { kind, … }` reports (§11.A).", kind: enum, sig: "enum CatalogKind { Team | Domain | Question | Operator | Asset | Recipe }"}
@@ -1412,6 +1438,7 @@ host_api:
     "catalog::error::CatalogKind::noun": {doc: "What the operator calls it (beta.3): a recipe is a game in Studio.", kind: method, sig: "fn noun(self) -> &'static str"}
     "catalog::error::CatalogResult": {kind: type, sig: "type CatalogResult = Result<T, CatalogError>"}
   crates/host/src/catalog/family.rs:
+    "catalog::family::CatalogService::catalog_family": {doc: "The other members of a row's family, wherever they live (beta.5: the detail panels' *Copies*).", kind: method, sig: "fn catalog_family(&self, kind: CatalogKind, id: &str) -> CatalogResult<Vec<FamilyCopy>>"}
     "catalog::family::CatalogService::catalog_unfollow": {doc: "*Stop following its copies*: the row leaves its family; the copies stay one family without it.", kind: method, sig: "fn catalog_unfollow(&self, kind: CatalogKind, id: &str) -> CatalogResult<()>"}
     "catalog::family::CatalogService::catalog_upsert_propagating": {doc: "Save `item` and carry its body to every copy the preview did not skip, in one transaction.", kind: method, sig: "fn catalog_upsert_propagating(&self, item: &CatalogItem, now_ms: u64) -> CatalogResult<(CatalogChange, PropagationPreview)>"}
     "catalog::family::CatalogService::catalog_upsert_propagating_with": {doc: "The same, with rows of this workspace written in the same transaction after it — the domains a question editor changes (beta.3: written apart, a refused membership left the question and its copies ...", kind: method, sig: "fn catalog_upsert_propagating_with(&self, item: &CatalogItem, with: &[CatalogItem], now_ms: u64) -> CatalogResult<(CatalogChange, PropagationPreview)>"}
@@ -1451,6 +1478,7 @@ host_api:
     "catalog::bulk": {kind: mod, sig: "mod bulk"}
     "catalog::complete": {kind: mod, sig: "mod complete"}
     "catalog::db": {kind: mod, sig: "mod db"}
+    "catalog::duplicate": {kind: mod, sig: "mod duplicate"}
     "catalog::error": {kind: mod, sig: "mod error"}
     "catalog::family": {kind: mod, sig: "mod family"}
     "catalog::groups": {kind: mod, sig: "mod groups"}
@@ -1537,6 +1565,8 @@ host_api:
     "catalog::service::CatalogService::catalog_upsert": {doc: "`catalog_upsert`.", kind: method, sig: "fn catalog_upsert(&self, item: &CatalogItem, now_ms: u64) -> CatalogResult<CatalogChange>"}
     "catalog::service::CatalogService::catalog_upsert_many": {doc: "`catalog_upsert_many` — §2.19's bulk edit as **one** transaction.", kind: method, sig: "fn catalog_upsert_many(&self, items: &[CatalogItem], now_ms: u64) -> CatalogResult<Vec<CatalogChange>>"}
     "catalog::service::CatalogService::in_memory": {doc: "The test adapter: the same code path, the same SQL, no file.", kind: method, sig: "fn in_memory() -> CatalogResult<Self>"}
+    "catalog::service::CatalogService::library_check": {doc: "How many references in the library point at nothing or at another workspace (beta.5, `health.library_refs`).", kind: method, sig: "fn library_check(&self) -> CatalogResult<u32>"}
+    "catalog::service::CatalogService::library_repair": {doc: "Remove those references and nothing else (beta.5, *Repair*), in one transaction.", kind: method, sig: "fn library_repair(&self, now_ms: u64) -> CatalogResult<(u32, Vec<RecipeChange>)>"}
     "catalog::service::CatalogService::location": {kind: method, sig: "fn location(&self) -> &CatalogLocation"}
     "catalog::service::CatalogService::meta_get": {doc: "A string the app keeps beside the settings document — [`super::META_LAST_OPENED`], [`super::META_LAST_SEEN`].", kind: method, sig: "fn meta_get(&self, key: &str) -> CatalogResult<Option<String>>"}
     "catalog::service::CatalogService::meta_set": {kind: method, sig: "fn meta_set(&self, key: &str, value: &str) -> CatalogResult<()>"}
@@ -1707,7 +1737,7 @@ host_api:
     "flags::validate": {doc: "The §4.2 interlock table over one recipe document.", kind: fn, sig: "fn validate(game: &GameSettings) -> MatchResult<()>"}
   crates/host/src/health.rs:
     "health::DISK_LOW_BYTES": {doc: "Below this the data volume is a problem worth a notice: one show's worth of Plays and a search index fit in a fraction of it, so the warning arrives long before a save can fail.", kind: const, sig: "const DISK_LOW_BYTES: u64 = 500 * 1024 * 1024"}
-    "health::HealthInputs": {doc: "What the app crate can see and the host cannot.", kind: struct, sig: "struct HealthInputs { free_bytes: Option<u64>, last_persist_error: Option<String>, search_ok: bool, stage_window_exists: bool, stage_ready: bool, stage_contract_version: Option<u32>, missing_cues: Vec<(CueKey, String)>, failed_cues: Vec<(CueKey, String)>, unused_displays: Vec<String> }"}
+    "health::HealthInputs": {doc: "What the app crate can see and the host cannot.", kind: struct, sig: "struct HealthInputs { free_bytes: Option<u64>, last_persist_error: Option<String>, search_ok: bool, stage_window_exists: bool, stage_ready: bool, stage_contract_version: Option<u32>, missing_cues: Vec<(CueKey, String)>, failed_cues: Vec<(CueKey, String)>, unused_displays: Vec<String>, library_refs: u32 }"}
     "health::HealthReport": {kind: struct, sig: "struct HealthReport { status: HealthStatus, items: Vec<Notice> }"}
     "health::HealthReport::ok": {kind: method, sig: "fn ok() -> Self"}
     "health::HealthStatus": {doc: "The worst severity among the items.", kind: enum, sig: "enum HealthStatus { Ok | Warn | Error }"}
@@ -2019,7 +2049,7 @@ host_api:
     "stage::project": {doc: "Project a Play as of `now_ms`.", kind: fn, sig: "fn project(play: &Play, now_ms: u64) -> StageGameState"}
     "stage::tick": {doc: "The clock of a Play as of `now_ms`, for `play-tick`.", kind: fn, sig: "fn tick(play: &Play, now_ms: u64) -> PlayTick<'_>"}
   crates/host/src/stats.rs:
-    "stats::StatsDimension": {doc: "What one row of the result stands for.", kind: enum, sig: "enum StatsDimension { Team | Domain | Question | Difficulty | Operator | Recipe | Play | Day }"}
+    "stats::StatsDimension": {doc: "What one row of the result stands for.", kind: enum, sig: "enum StatsDimension { Team | Domain | Question | Difficulty | Operator | Recipe | Play | Day | Workspace }"}
     "stats::StatsFilter": {doc: "Every variable §11.K offers, and time.", kind: struct, sig: "struct StatsFilter { from_ms: Option<u64>, to_ms: Option<u64>, play_ids: Vec<PlayId>, recipe_ids: Vec<RecipeId>, operator_ids: Vec<OperatorId>, team_ids: Vec<TeamId>, domain_ids: Vec<DomainId>, question_ids: Vec<QuestionId>, verdicts: Vec<Verdict>, min_difficulty: Option<u8>, max_difficulty: Option<u8>, include_rehearsal: bool, all_workspaces: bool }"}
     "stats::StatsFilter::keeps": {kind: method, sig: "fn keeps(&self, fact: &TurnFact) -> bool"}
     "stats::StatsFilter::play_scope": {doc: "Every Play this filter could possibly touch, or `None` for \"any Play\".", kind: method, sig: "fn play_scope(&self) -> Option<&[PlayId]>"}
@@ -2031,7 +2061,7 @@ host_api:
     "stats::StatsRow": {doc: "One group: its key, its label, and the metrics in the order asked for.", kind: struct, sig: "struct StatsRow { key: String, label: String, values: Vec<Option<f64>>, turns: u32, plays: u32 }"}
     "stats::StatsUnit": {kind: enum, sig: "enum StatsUnit { Count | Points | Ratio | Milliseconds }"}
     "stats::TurnAward": {doc: "One resolved turn with its award taken apart (P11.12).", kind: struct, sig: "struct TurnAward { fact: TurnFact, award: AwardBreakdown }"}
-    "stats::TurnFact": {doc: "One resolved turn, flattened.", kind: struct, sig: "struct TurnFact { play_id: PlayId, recipe_id: RecipeId, at_ms: u64, team_id: TeamId, team_name: String, domain_id: DomainId, domain_name: String, question_id: QuestionId, question_stem: String, difficulty: u8, verdict: Verdict, points: u32, bonus: u32, remaining_ms_at_lock: Option<u32>, timer_duration_ms: Option<u32>, auto_locked: bool, streak: u32, token_ends: bool, operator_id: Option<OperatorId>, rehearsal: bool }"}
+    "stats::TurnFact": {doc: "One resolved turn, flattened.", kind: struct, sig: "struct TurnFact { play_id: PlayId, recipe_id: RecipeId, workspace_id: String, at_ms: u64, team_id: TeamId, team_name: String, domain_id: DomainId, domain_name: String, question_id: QuestionId, question_stem: String, difficulty: u8, verdict: Verdict, points: u32, bonus: u32, remaining_ms_at_lock: Option<u32>, timer_duration_ms: Option<u32>, auto_locked: bool, streak: u32, token_ends: bool, operator_id: Option<OperatorId>, rehearsal: bool }"}
     "stats::TurnFact::lock_ms": {doc: "How long the team took to lock, when both ends of the subtraction exist.", kind: method, sig: "fn lock_ms(&self) -> Option<u32>"}
     "stats::aggregate": {doc: "Aggregate facts into rows.", kind: fn, sig: "fn aggregate(facts: &[TurnFact], query: &StatsQuery) -> StatsResult"}
     "stats::aggregate_awards": {doc: "The same, keeping the award breakdowns so `query.detail` can return the ledger.", kind: fn, sig: "fn aggregate_awards(awards: &[TurnAward], query: &StatsQuery) -> StatsResult"}
@@ -2063,6 +2093,11 @@ studio_calls:
     catalog_archive: [apps/studio/src/organisms/useArchive.tsx]
     catalog_archive_many: [apps/studio/src/organisms/useArchive.tsx]
     catalog_bulk_edit: [apps/studio/src/organisms/useBulkEdit.tsx]
+    catalog_duplicate:
+      - apps/studio/src/organisms/DomainPane.tsx
+      - apps/studio/src/pages/LibraryPage.tsx
+      - apps/studio/src/pages/TeamsPage.tsx
+    catalog_family: [apps/studio/src/host/queries.ts]
     catalog_get: [apps/studio/src/host/queries.ts]
     catalog_import_questions: [apps/studio/src/host/queries.ts, apps/studio/src/organisms/ImportQuestionsDialog.tsx]
     catalog_list: [apps/studio/src/host/queries.ts]
@@ -2077,6 +2112,7 @@ studio_calls:
       - apps/studio/src/pages/GamesPage.tsx
     catalog_seed_status: [apps/studio/src/host/queries.ts]
     catalog_unfollow:
+      - apps/studio/src/organisms/CopiesBlock.tsx
       - apps/studio/src/organisms/DomainPane.tsx
       - apps/studio/src/pages/LibraryPage.tsx
       - apps/studio/src/pages/TeamsPage.tsx
@@ -2095,6 +2131,7 @@ studio_calls:
     get_state: [apps/studio/src/host/bridge.tsx]
     give_token: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useControlHotkeys.ts]
     health_get: [apps/studio/src/host/bridge.tsx]
+    library_repair: [apps/studio/src/organisms/NoticeCollector.tsx]
     lock_selection: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useControlHotkeys.ts]
     monitors_list: [apps/studio/src/host/queries.ts]
     operator_activate: [apps/studio/src/organisms/FirstRunFlow.tsx, apps/studio/src/organisms/useActivateOperator.tsx]
@@ -2991,6 +3028,7 @@ e2e:
     beta-no-stable.e2e.ts: "null"
     beta-stable-running.e2e.ts: "null"
     beta-start-empty.e2e.ts: "null"
+    beta5.e2e.ts: "[]"
     first-run.e2e.ts: "null"
     games.e2e.ts: "[]"
     groups-tags.e2e.ts: "[]"
@@ -3006,6 +3044,7 @@ e2e:
     e2e/specs/beta-no-stable.e2e.ts: ["questiongame Beta without a stable library > offers only Start empty"]
     e2e/specs/beta-stable-running.e2e.ts: ["questiongame Beta while questiongame is running > asks to close it first, then copies"]
     e2e/specs/beta-start-empty.e2e.ts: ["questiongame Beta, started empty > goes to first run"]
+    e2e/specs/beta5.e2e.ts: ["beta.5 > duplicates a team here, and lists workspaces with search"]
     e2e/specs/first-run.e2e.ts: ["first run > sets up an operator and the Demo"]
     e2e/specs/games.e2e.ts:
       - "games parity > builds a roster and a board through the pickers, edits a difficulty, and refuses an archived team"

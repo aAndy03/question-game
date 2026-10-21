@@ -126,6 +126,16 @@ Design: `docs/superpowers/specs/2026-10-21-beta3-copy-import-editor-design.md` (
 - **Import resolves names in this workspace, oldest first**: of two domains with one name the oldest-created takes it, and codes are walked in the same order; a code names exactly one. Each `ImportRow` carries `landing` ("History (HIS_100)", "Rome (new)", "History (HIS_200), one of 2 named History"), its cleaned `tags`, and for a duplicate either `duplicate_of` (the library question's stem) or `duplicate_row` (the earlier row of the file, 1-based) — a value, so Studio never reads host English. `fake/import.ts` mirrors all of it.
 - `catalog_upsert_many` indexes the question it stored, tags re-spelled, as `catalog_upsert` does.
 
+## The rest of the parity audits (beta.5)
+
+Design: `docs/superpowers/specs/2026-10-21-beta5-the-rest-design.md`.
+
+- **`catalog_family(kind, id)`** reads the other members of a row's family, every workspace's, with the workspace name and archive state — the detail panels' *Copies*. Empty for a row never copied.
+- **`catalog_duplicate(kind, ids)`** (`catalog/duplicate.rs`): teams, domains, questions, all in one transaction or none. New ids, fresh stamps, **no family** (a duplicate is a variant to edit, not a copy to follow), active whatever its source. Teams and domains take "(copy)", then "(copy 2)"… when the name is taken in this workspace (folded as `same_name`); a question keeps its text and joins each domain its source is in, at the end, in the same domain group; a domain holds the same questions (members) and copies of its groups (`write_copy_with_groups`).
+- **The library check** (`catalog/integrity.rs`): references that point at nothing or at another workspace — a domain member, a roster entry, a board domain, a board question (also one under a domain the board no longer holds), a team logo, a question's media. Foreign keys keep most of them from existing; a cross-workspace reference is what is left. `library_check` counts them in SQL on every health tick (`health.library_refs`, warn, action `repair_library`); `library_repair` removes exactly those references in one transaction and moves the `rev` of each game it touched. Nothing else is written.
+- **Statistics by workspace**: `StatsDimension::Workspace`. The log does not carry where a game lives, so `stats_query` fills `TurnFact.workspace_id` from the game's row; `relabel` names it (an unnamed or deleted workspace keeps its id).
+- **A team's Plays are its workspace's**: `TEAM_COLUMNS` counts only Plays of games in the team's own workspace.
+
 ## Games parity (beta.4)
 
 Design: `docs/superpowers/specs/2026-10-21-beta4-games-parity-design.md`.

@@ -1,6 +1,6 @@
 # beta.5: the rest of the parity audits
 
-Status: building, 2026-10-21. The scope is the roadmap's beta.5 line, from the two parity audits. `main` only.
+Status: built, 2026-10-21. The scope is the roadmap's beta.5 line, from the two parity audits. `main` only.
 
 ## What changes, and the rule each follows
 

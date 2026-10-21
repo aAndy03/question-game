@@ -2402,3 +2402,17 @@ Design: `docs/superpowers/specs/2026-10-21-beta4-games-parity-design.md`.
 - **Plays** are *Play 1*, *Play 2*… by start time, the date beneath, the id as the tooltip.
 - **A refused Load** is titled *This game cannot start yet.* and lands on the section that holds the problem (the Roster now shows its own); the collector opens only when that section is not the one in view. An inline notice never shows the routing path in its text.
 - **Rules** warns first, by name, of what is archived and still on the game: "This game still uses what is archived: the team Green, the question “Who…”". Removing the team from the roster, or restoring it, clears the Roster's refusal.
+
+## 25. The rest of the parity audits (Beta, beta.5)
+
+Design: `docs/superpowers/specs/2026-10-21-beta5-the-rest-design.md`.
+
+- **Copies** (Team and Question detail, a domain's edit form): "A copy in another workspace" / "Copies in *n* places", each by workspace name with *Archived*, a line that saving can update them, and *Stop following its copies*. Nothing for a row never copied.
+- **Question detail** shows *Tags* as chips (or *No tag*) and, under *In domains*, each domain with its domain group: "History · Ancient".
+- ***Duplicate*** (Teams, Questions, a domain's menu; Teams and Questions bulk bars): toast "Duplicated *n* teams". The copy is a row of its own — no *Copies* — named "Red (copy)", then "Red (copy 2)"; a question keeps its text and the editor's twin note says so.
+- **Statistics**: *Group by: Workspace* appears with *All workspaces* on.
+- **Settings**: *Wipe Plays* and the Demo rows say "this workspace"; other workspaces are not touched.
+- **Manage workspaces**: the library toolbar (Search · Sort · Group, Status) and list; grouped by *Workspace group* by default, *No workspace group* last; a workspace group's header has *Rename workspace group · Move up · Move down · Delete workspace group*; an empty workspace group is listed beneath, with the same menu.
+- **Words**: *Workspace group* and *Domain group* everywhere, never a bare *group*; *Question tag* and *Game tag*.
+- **Health**: "*n* references in the library point at nothing, or at another workspace." · *Repair…* → "Remove *n* broken references?" (only the references go) · *Remove them*.
+- **The workspace switcher**, disabled while a game is loaded, is reached by Tab and read as "Workspace: {name}. Unload the game in Control to change workspace".
