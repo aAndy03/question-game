@@ -78,60 +78,14 @@ jobs:
       - name: codemap.yaml is current
         run: npm run map:check
 
-  # The real app, driven through WebDriver (P12.14). Windows only: there is no
-  # WebDriver for macOS's WKWebView. It drives the e2e build, whose identity
-  # (org.questiongame.e2e) has a data folder of its own.
-  e2e:
-    name: End-to-end (Windows)
-    # windows-2022, not windows-latest: on the windows-2025 image WebView2 ignores
-    # the debugging port msedgedriver passes it, so no session ever starts
-    # (actions/runner-images#14738). If 2022 is retired, attach instead: the app
-    # opens its own port and msedgedriver connects via debuggerAddress.
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: e2e
-      - run: npm ci
-      - name: tauri-driver and the WebView2 driver
-        shell: bash
-        run: |
-          cargo install tauri-driver --locked
-          cargo install --git https://github.com/chippers/msedgedriver-tool
-          cd "$HOME/.cargo/bin" && ./msedgedriver-tool.exe
-      - run: npm run e2e:build
-      - name: Run the suite
-        run: npm run e2e
-        env:
-          E2E_SKIP_BUILD: '1'
-      # A session that never starts leaves no screenshot; the app's own log
-      # says whether it booted, refused, or panicked.
-      - name: Collect the e2e app's logs
-        if: failure()
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force e2e/.artifacts | Out-Null
-          Copy-Item "$env:APPDATA\org.questiongame.e2e\questiongame.log" e2e/.artifacts -ErrorAction SilentlyContinue
-          Copy-Item "$env:APPDATA\org.questiongame.e2e\perf" e2e/.artifacts -Recurse -ErrorAction SilentlyContinue
-          # What the Beta specs copied from (P13.1): the suite's own temp folder.
-          Copy-Item "$env:TEMP\questiongame-e2e-stable" e2e/.artifacts/stable-fixture -Recurse -ErrorAction SilentlyContinue
-      - name: Keep what a failed step looked like
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: e2e-failures
-          path: e2e/.artifacts/
-          include-hidden-files: true
+  # The end-to-end suite is not run here (v1.1.0): the runner's screen and
+  # WebView2 differ from a real machine's, and the release runs failed on that
+  # alone. `npm run e2e` runs on the maintainer's Windows machine before every
+  # tag instead (docs/as-built/release.md ▸ Releasing).
 
   build:
     name: Build (${{ matrix.name }})
-    needs: [test, e2e]
+    needs: [test]
     strategy:
       fail-fast: false
       matrix:

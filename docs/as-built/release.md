@@ -69,3 +69,9 @@ Two products ship from one repository. **questiongame** is the stable app people
 - Refusals carry their own codes (`AppError::Beta`): `beta.not_beta`, `beta.library_not_empty`, `beta.stable_running`, `beta.no_stable`, `beta.copy_failed`, `beta.copy_running`. Studio's welcome reads them inline (`05_STUDIO_DESIGN.md` §19).
 - **The e2e build plays Beta** with `QUESTIONGAME_E2E_CHANNEL=beta`, and copies from `QUESTIONGAME_E2E_STABLE_DIR` — honoured only by the e2e identity, only for an absolute folder that exists and is not named `org.questiongame.desktop`.
 - Still manual: installing *questiongame Beta* beside *questiongame* from a build-only run on Windows and macOS, and that uninstalling one leaves the other's library.
+
+## Releasing (v1.1.0)
+
+- **The tag runs the release workflow**: typecheck, lint, every unit suite, clippy and the map on Windows, then the Windows and macOS builds. **The end-to-end suite is not part of it**: on the runner (a ~1024-wide screen, WebView2 131) the v1.1.0 runs failed on window size alone. Before a tag, on `release/1.x` for stable or `main` for Beta: `npm run e2e` green on a real Windows machine, clippy on the newest stable Rust, then push the branch, then the tag.
+- **A failed run publishes nothing**, so moving its tag to a fix is safe: `git tag -f vX`, delete the remote tag, push it again.
+- Studio below 1280 px wide (its minimum is 1100) is not yet right: an opened question's detail sits in an aside shown only from `xl`. Found by the CI runner's screen; open.
