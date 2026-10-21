@@ -85,6 +85,11 @@ pub enum CatalogError {
         reason: &'static str,
     },
 
+    /// The same, when the reason names a row (beta.4: "the roster has the
+    /// archived team Green"), so it cannot be a `&'static str`.
+    #[error("{target_path}: {reason}")]
+    Refused { target_path: String, reason: String },
+
     /// A question file the import could not read at all (§2.32) — not JSON,
     /// not this format, too long, a default domain that is not there. Nothing
     /// was written. Its own variant because the reason carries the parser's

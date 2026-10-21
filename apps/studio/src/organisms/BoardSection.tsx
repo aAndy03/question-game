@@ -176,8 +176,8 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
             {GAME.boardHint}
           </Text>
         </div>
-        <div className="flex items-center gap-3">
-          <Text variant="studio-caption" tone="muted">
+        <div className="flex shrink-0 items-center gap-3">
+          <Text variant="studio-caption" tone="muted" className="whitespace-nowrap">
             {`${GAME.domainsCount(recipe.board.length)} · ${GAME.questionsCount(total)}`}
           </Text>
           <Button variant="secondary" icon="add" onPress={() => setPickingDomains(true)} isDisabled={pending} disabledReason={frozenReason}>

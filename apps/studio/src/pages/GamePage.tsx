@@ -86,7 +86,7 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
     // `play_load` answers `()`, so the verdict is the only signal here. A
     // refusal usually renders on another section (a Board problem, pressed
     // from the Roster), so it opens the collector where the click was (P12.8).
-    const ok = await run.ok('play_load', { recipeId: r.id, playId: `play-${Date.now()}` }, { openCollectorOnRefusal: true })
+    const ok = await run.ok('play_load', { recipeId: r.id, playId: `play-${Date.now()}` }, { openCollectorOnRefusal: true, code: 'play_refused' })
     setLoading(false)
     if (ok) {
       toast.success(`${r.name} is in Control`, 'Stage is open on the primary display.')

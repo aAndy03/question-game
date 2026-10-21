@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Button, IconButton, MeaningChip, Panel, Text } from '@/atoms'
-import { EmptyState, TeamMark } from '@/molecules'
+import { EmptyState, InlineNotice, TeamMark } from '@/molecules'
+import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { GAME, LIST, PICKER, TEAM } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { pickTeamsSpec } from '@/host/listSpecs'
@@ -27,13 +28,17 @@ export function RosterSection({ recipe, frozenReason }: RosterSectionProps) {
   const run = useHostCommand()
   const [pending, setPending] = useState(false)
   const [picking, setPicking] = useState(false)
+  const notices = useNoticeStore((s) => s.notices)
+  const dismiss = useNoticeStore((s) => s.dismiss)
+  // A refused Load names a roster row (beta.4: an archived team): said here, where it is fixed.
+  const rosterNotices = noticesAt(notices, `recipe.${recipe.id}.roster`)
 
   const byId = new Map((teams.data ?? []).map((t) => [t.id, t]))
   const items = useMemo(
     () =>
       (teams.data ?? [])
         .filter((t) => !isArchived(t))
-        .map((t) => ({ id: t.id, data: t, view: { title: t.name, subtitle: t.shortCode, chips: <TeamMark mark={{ color: t.color, shortCode: t.shortCode, name: t.name }} /> } satisfies PickerRow })),
+        .map((t) => ({ id: t.id, data: t, view: { title: t.name, chips: <TeamMark mark={{ color: t.color, shortCode: t.shortCode, name: t.name }} /> } satisfies PickerRow })),
     [teams.data],
   )
 
@@ -66,6 +71,9 @@ export function RosterSection({ recipe, frozenReason }: RosterSectionProps) {
           {PICKER.addTeams}
         </Button>
       </div>
+      {rosterNotices.map((n) => (
+        <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} compact />
+      ))}
       {recipe.teams.length === 0 ? (
         <EmptyState kind="empty" what={TEAM.many} compact />
       ) : (

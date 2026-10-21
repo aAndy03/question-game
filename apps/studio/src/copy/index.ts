@@ -620,6 +620,8 @@ export const NOTICE_COPY: Readonly<Record<string, { title: string; actions: Read
   },
   match: { title: 'The host refused the command.', actions: {} },
   catalog: { title: 'The library refused the write.', actions: {} },
+  /** A refused Load (beta.4): nothing was written, the game cannot start yet. */
+  play_refused: { title: 'This game cannot start yet.', actions: {} },
   monitor: { title: 'Display problem.', actions: {} },
   window: { title: 'Window problem.', actions: {} },
   no_host: { title: 'No host is connected.', actions: {} },

@@ -77,9 +77,9 @@ pub(super) fn build(
                 .ok_or_else(|| missing("team", &recipe.id, id.as_str()))?;
             // beta.4: as an archived domain or question already was.
             if team.stamps.is_archived() {
-                return Err(CatalogError::Invalid {
+                return Err(CatalogError::Refused {
                     target_path: format!("recipe.{}.roster.team.{id}", recipe.id),
-                    reason: "the roster has an archived team; restore it or take it off the roster",
+                    reason: format!("the roster has the archived team {}; restore it or take it off the roster", team.name),
                 });
             }
             let overlay = recipe.overlays.teams.get(id);

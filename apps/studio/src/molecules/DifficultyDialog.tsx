@@ -29,15 +29,24 @@ export function DifficultyDialog({ isOpen, onOpenChange, current, isPending, onC
   useEffect(() => {
     if (isOpen) setValue(current)
   }, [isOpen, current])
-  const ok = acceptsDifficulty(value, current)
-  const error = value !== null && !(Number.isInteger(value) && value >= 1 && value <= 100) ? QUESTION.difficultyRange : null
+  const [tried, setTried] = useState(false)
+  useEffect(() => {
+    if (isOpen) setTried(false)
+  }, [isOpen])
+  const valid = value !== null && Number.isInteger(value) && value >= 1 && value <= 100
+  const error = (tried || value !== null) && !valid ? QUESTION.difficultyRange : null
+  // The buttons stay pressable: the number field commits on blur, which the
+  // press itself causes — a button disabled until then ate the first click
+  // (found on the real app). The value is judged when pressed.
   const choose = async (scope: EditScope) => {
-    if (!ok) return
+    setTried(true)
+    if (!valid) return
+    if (!acceptsDifficulty(value, current)) return onOpenChange(false)
     if ((await onChoose(scope, value)) !== false) onOpenChange(false)
   }
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
-      <Modal.Container size="sm">
+      <Modal.Container size="md">
         <Modal.Dialog>
           <Modal.CloseTrigger />
           <Modal.Header>
@@ -53,10 +62,10 @@ export function DifficultyDialog({ isOpen, onOpenChange, current, isPending, onC
             <Button variant="tertiary" onPress={() => onOpenChange(false)} isDisabled={isPending}>
               {CONFIRM.cancel}
             </Button>
-            <Button variant="secondary" onPress={() => void choose('original')} isPending={isPending} isDisabled={!ok}>
+            <Button variant="secondary" onPress={() => void choose('original')} isPending={isPending}>
               {CONFIRM.original}
             </Button>
-            <Button variant="primary" onPress={() => void choose('this_game')} isPending={isPending} isDisabled={!ok}>
+            <Button variant="primary" onPress={() => void choose('this_game')} isPending={isPending}>
               {CONFIRM.thisGame}
             </Button>
           </Modal.Footer>

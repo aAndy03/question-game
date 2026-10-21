@@ -21,7 +21,8 @@
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Command } from '@questiongame/contract'
-import { useNoticeStore, type OpenNotice } from '@/chrome/notices'
+import { gameSectionOf, useNoticeStore, type OpenNotice } from '@/chrome/notices'
+import { useNavStore } from '@/chrome/nav'
 import { command, isHostError } from './host'
 import { invalidateSettings } from './queries'
 import type { RulesPreview } from './types'
@@ -36,6 +37,8 @@ export interface RunOptions {
    * it was made.
    */
   readonly openCollectorOnRefusal?: boolean
+  /** The notice code a refusal takes instead of the host's — a refused Load is not a refused write (beta.4). */
+  readonly code?: string
 }
 
 export interface Run {
@@ -88,12 +91,16 @@ export function useHostCommand(): Run {
         answerFromLibrary(name, args)
         return { ok: true, value }
       } catch (caught) {
-        if (isHostError(caught)) {
-          pushError(caught.code, caught.message, targetPathOf(caught.message) ?? options?.targetPath ?? null)
-        } else {
-          pushError('unknown', String(caught), options?.targetPath ?? null)
-        }
-        if (options?.openCollectorOnRefusal) setCollectorOpen(true)
+        const path = isHostError(caught) ? (targetPathOf(caught.message) ?? options?.targetPath ?? null) : (options?.targetPath ?? null)
+        if (isHostError(caught)) pushError(options?.code ?? caught.code, caught.message, path)
+        else pushError('unknown', String(caught), path)
+        // The collector is the way to a finding elsewhere; one on the Game
+        // section in view is already on screen (beta.4: a roster refusal from
+        // the Roster opened it to say "elsewhere").
+        const at = gameSectionOf(path)
+        const route = useNavStore.getState().route as { tab: string; id?: string; section?: string }
+        const inView = at !== null && route.tab === 'games' && route.id === at.recipeId && (route.section ?? 'roster') === at.section
+        if (options?.openCollectorOnRefusal && !inView) setCollectorOpen(true)
         return { ok: false, value: null }
       }
     },

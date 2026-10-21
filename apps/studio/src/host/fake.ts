@@ -1055,8 +1055,9 @@ export function createFakeHost(): FakeHost {
       const r = recipes.get(a.recipeId as string)
       if (!r) refuse('catalog', `recipe ${a.recipeId} not found`)
       for (const id of r.teams) {
-        if (library.get(key('team', id))?.item.archivedAt != null) {
-          refuse('catalog', `recipe.${r.id}.roster.team.${id}: the roster has an archived team; restore it or take it off the roster`)
+        const row = library.get(key('team', id))
+        if (row?.kind === 'team' && row.item.archivedAt != null) {
+          refuse('catalog', `recipe.${r.id}.roster.team.${id}: the roster has the archived team ${row.item.name}; restore it or take it off the roster`)
         }
       }
       checkBoard(r)

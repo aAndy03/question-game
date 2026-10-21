@@ -36,7 +36,9 @@ export function InlineNotice({ notice, frames = [], onAction, onDismiss, onCance
   if (notice.actions.length > 3) throw new Error(`notice ${notice.code}: ${notice.actions.length} actions, §14 allows 3`)
   const frame = frames[frames.length - 1]
   const title = frame ? frame.title : noticeTitle(notice.code, notice.detail)
-  const body = frame ? frame.body : notice.detail.message && notice.detail.message !== title ? notice.detail.message : null
+  // The host's `path: reason` — the path routes the notice here, it is not words (beta.4: ids on screen).
+  const message = notice.targetPath && notice.detail.message?.startsWith(`${notice.targetPath}: `) ? notice.detail.message.slice(notice.targetPath.length + 2) : notice.detail.message
+  const body = frame ? frame.body : message && message !== title ? message : null
   const actions = frame ? frame.actions : notice.actions
 
   return (

@@ -26,6 +26,8 @@ const SEEDS: Readonly<Record<string, readonly string[] | null>> = {
   'workspaces.e2e.ts': [],
   // P15: the Demo, as 1.x left it.
   'groups-tags.e2e.ts': [],
+  // beta.4: the Game page's pickers, its menu and the Games bulk bar.
+  'games.e2e.ts': [],
   // beta.2: a library beta.1 left, with shared rows; migration 6 makes them copies.
   'upgrade-shared.e2e.ts': ['--beta1-shared'],
   // questiongame Beta's first launch (P13.1): its own library starts empty.
