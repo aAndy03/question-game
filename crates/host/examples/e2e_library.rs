@@ -19,6 +19,11 @@
 //!   schema beside `<path>`, then written to `<path>` with the columns 1.x had
 //!   (`db::write_older_schema`). The first boot migrates it into one unnamed
 //!   workspace and asks for its name, as an upgrading operator sees it.
+//! - `--beta1-shared` writes what a **beta.1** library looked like instead
+//!   (schema 5): two named workspaces, *Quiz club* (the Demo) and *Second*,
+//!   with the Demo's Red team and its Geography domain and questions in the
+//!   shared library, as *Make shared* left them. The first boot of beta.2
+//!   turns them into linked copies in both workspaces (migration 6).
 
 use questiongame_host::catalog::{
     CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo, Operator, Question, QuestionOption, SeedMode,
@@ -33,6 +38,7 @@ fn main() {
     let path = args.next().expect("usage: e2e_library <path> [--broken-board]");
     let rest: Vec<String> = args.collect();
     let broken = rest.iter().any(|a| a == "--broken-board");
+    let beta1_shared = rest.iter().any(|a| a == "--beta1-shared");
     let more: usize = rest
         .iter()
         .position(|a| a == "--more-questions")
@@ -86,9 +92,36 @@ fn main() {
             .catalog_upsert(&CatalogItem::Question(Box::new(question)), NOW + 2 + i as u64)
             .expect("an extra question");
     }
+    if beta1_shared {
+        let first = catalog.current_workspace();
+        catalog.workspace_rename(&first, "Quiz club", NOW).expect("the first workspace's name");
+        catalog.workspace_create("Second", None, NOW).expect("a second workspace");
+        for (key, value) in [
+            (questiongame_host::catalog::META_LAST_OPENED, "2.0.0-beta.1"),
+            (questiongame_host::catalog::META_LAST_SEEN, "2.0.0-beta.1"),
+        ] {
+            catalog.meta_set(key, value).expect("as beta.1 left it");
+        }
+    }
     drop(catalog);
-    questiongame_host::catalog::db::write_older_schema(std::path::Path::new(&head), std::path::Path::new(&path), 3)
-        .expect("the library as 1.x left it");
+    if beta1_shared {
+        let (from, to) = (std::path::Path::new(&head), std::path::Path::new(&path));
+        questiongame_host::catalog::db::write_older_schema(from, to, 5).expect("the library as beta.1 left it");
+        let geography: Vec<String> = {
+            let conn = rusqlite::Connection::open(to).expect("the beta.1 file");
+            let mut stmt = conn.prepare("SELECT question_id FROM domain_questions WHERE domain_id = 'seed-dom-geo'").expect("a query");
+            stmt.query_map([], |row| row.get(0)).expect("members").map(|r| r.expect("a member")).collect()
+        };
+        let place = questiongame_host::catalog::db::place_for_test;
+        place(to, "teams", "seed-team-red", None).expect("Red, shared");
+        place(to, "domains", "seed-dom-geo", None).expect("Geography, shared");
+        for question in &geography {
+            place(to, "questions", question, None).expect("its questions, shared");
+        }
+    } else {
+        questiongame_host::catalog::db::write_older_schema(std::path::Path::new(&head), std::path::Path::new(&path), 3)
+            .expect("the library as 1.x left it");
+    }
     for suffix in ["", "-wal", "-shm"] {
         let _ = std::fs::remove_file(format!("{head}{suffix}"));
     }

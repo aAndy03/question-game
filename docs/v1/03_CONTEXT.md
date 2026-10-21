@@ -145,7 +145,7 @@ One Stage layout (Idle, TeamOrder, ChooseDomain, Question, Scoreboard, FinalLead
 _Avoid_: Slide, deck page
 
 **Workspace**:
-One library of teams, domains, questions and games in the file, named by the operator; the **shared library** is the rows every workspace sees (Beta 2.0).
+One library of teams, domains, questions and games in the file, named by the operator (Beta 2.0). A row lives in exactly one workspace; it reaches another only by *Copy to* or *Move to* (there is no shared library since beta.2).
 _Avoid_: project, space, profile
 
 **Domain group**:
@@ -155,3 +155,7 @@ _Avoid_: category, folder, section
 **Tag**:
 A word or phrase on a question, across domains, part of its body (P15).
 _Avoid_: label, keyword
+
+**Copy** (between workspaces):
+A new row in another workspace that remembers where it came from — a row and its copies are one **family** — so editing one offers *Also update {n} copies*; *Stop following its copies* leaves the family (Beta 2.0).
+_Avoid_: share, link, sync, mirror

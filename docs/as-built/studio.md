@@ -103,7 +103,8 @@ The design is `05_STUDIO_DESIGN.md` §21; the host half is `host.md` ▸ Workspa
 - **The name gate latches like first run** (`App`: `namedDone`) and sits between the welcome and first run; its mode (*create* / *name*) is "no operator and no active one", the same test first run uses.
 - **Operators are global** in the host and in the fake (`inView` lets every `operator:` key through) — a switch that hid them looked like the operator had been signed out.
 - **The fake keeps a home per row** (`homes`, `recipeHomes`; a row seeded without one is the first workspace's) and runs the workspace, transfer and propagation commands with the host's refusals, so a shell test never passes against a fake that cannot say no. `?fake&unnamed` (and `?fake&firstrun`) open on an unnamed workspace.
-- **Where is filtered in Studio, over the host's scope.** The design's builder ruling (F13) put `where` on the host; it stayed a client filter because the host already never returns another workspace's row — the filter only splits *this workspace* from *shared*, and the shared flag is on every row.
+- **No shared library since beta.2**: no *Where* filter or grouping, no Shared chip or globe, no shared counts; the transfer menu is *Copy or move…*. *Copy to…* of questions asks *Bring their domains* (on) and names, from the preview, the domains it joins (`joined`) or creates.
+- **A switch leaves nothing of the old workspace** (beta.2): Screens and Statistics (Live, All data) are keyed on `useCurrentWorkspaceId()` (a cache read — the Statistics window may not ask `workspace_list`), so the old game and filters go; `receiveWorkspaces` resets when it had no previous value (the Statistics window), and the bridge then clears Back/Forward and drops notices whose target is a row (`dropRowNotices`). The Statistics window's title names the workspace (`windows::stats_title`).
 
 ## Domain groups, tags, bulk edits in Studio (P15)
 

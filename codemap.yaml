@@ -2989,6 +2989,7 @@ e2e:
     library-views.e2e.ts: "['--more-questions', '120']"
     load-refusal.e2e.ts: "['--broken-board']"
     show.e2e.ts: "[]"
+    upgrade-shared.e2e.ts: "['--beta1-shared']"
     upgrade.e2e.ts: "[]"
     workspaces.e2e.ts: "[]"
   specs:
@@ -3002,8 +3003,9 @@ e2e:
     e2e/specs/library-views.e2e.ts: ["library views > pages, filters, groups and keeps the operator in place"]
     e2e/specs/load-refusal.e2e.ts: ["a refused Load > says why from the Roster and leads to the Board"]
     e2e/specs/show.e2e.ts: ["a show > loads a game, opens Stage, and puts the first question on air"]
+    e2e/specs/upgrade-shared.e2e.ts: ["an update from beta.1 > keeps what both workspaces saw, as their own rows"]
     e2e/specs/upgrade.e2e.ts: ["an update > backs the library up, keeps it, and shows what is new"]
-    e2e/specs/workspaces.e2e.ts: ["workspaces > names, creates, copies, shares, and an edit follows its copy"]
+    e2e/specs/workspaces.e2e.ts: ["workspaces > names, creates, copies, and an edit follows its copy"]
 fixtures:
   - choose-domain
   - current-team

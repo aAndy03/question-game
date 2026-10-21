@@ -1,5 +1,7 @@
 # Beta 2.x: groups inside domains, tags, bulk edits — design
 
+> **Superseded in part (2026-10-21):** the shared library was removed in beta.2 — see `2026-10-21-remove-shared-library-design.md`. Everything here about shared rows, *Make shared / Make local*, *Where* and shared counts no longer holds.
+
 *2026-10-21. Status: approved 2026-10-21. Release D of four (A channels ✓ → B stable 1.1 ✓ → C Beta 2.0 workspaces ✓ → **D groups, tags, bulk edits**). Beta only: built on `main`, never merged into `release/1.x`.*
 
 The maintainer's words: inside a domain, an operator can create **whatever groups they want**, beyond the groupings the list views already offer; groups are **for organising** — for now they do not touch boards or Plays. **Tags** are added when adding (or editing) a question and belong to the question **whatever its domain**. For bulk actions they had no list of their own and accepted the designer's proposal: *Tag…, Untag…, Group…, Add to domain…, Remove from domain, Set difficulty…*. Everything else below is the designer's call, marked *(call)*.

@@ -30,6 +30,39 @@ export interface WhatsNewRelease {
 
 export const WHATS_NEW: readonly WhatsNewRelease[] = [
   {
+    version: '2.0.0-beta.2',
+    notes: {
+      en: [
+        {
+          title: 'No more shared library',
+          body: 'A team, domain or question now lives in one workspace. What was shared is now a copy in each workspace that saw it, so nothing is missing, and the copies still know each other: change one and questiongame offers to update the others.',
+        },
+        {
+          title: 'Copying a question brings its domain',
+          body: 'Copy to… now puts a question in its domain in the other workspace: the copy already there, or a new one holding just the questions you copied. Turn off Bring their domains to copy the question alone.',
+        },
+        {
+          title: 'Switching workspace starts clean',
+          body: 'Screens, Statistics and the Back button no longer show anything from the workspace you left, and the Statistics window names the workspace it shows.',
+        },
+      ],
+      ro: [
+        {
+          title: 'Nu mai există bibliotecă partajată',
+          body: 'O echipă, un domeniu sau o întrebare stă acum într-un singur spațiu de lucru. Ce era partajat este acum o copie în fiecare spațiu care îl vedea, așa că nu lipsește nimic, iar copiile se știu între ele: schimbi una și questiongame se oferă să le actualizeze pe celelalte.',
+        },
+        {
+          title: 'O întrebare copiată își aduce domeniul',
+          body: 'Copy to… pune acum întrebarea în domeniul ei din celălalt spațiu de lucru: copia care e deja acolo sau una nouă, doar cu întrebările copiate. Oprește Bring their domains ca să copiezi doar întrebarea.',
+        },
+        {
+          title: 'Schimbarea spațiului de lucru pornește curat',
+          body: 'Screens, Statistics și butonul Înapoi nu mai arată nimic din spațiul de lucru pe care l-ai părăsit, iar fereastra Statistics spune ce spațiu de lucru arată.',
+        },
+      ],
+    },
+  },
+  {
     version: '2.0.0-beta.1',
     notes: {
       en: [

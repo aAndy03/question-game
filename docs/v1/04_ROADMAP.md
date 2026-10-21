@@ -1813,6 +1813,25 @@ Design: `docs/superpowers/specs/2026-10-21-groups-tags-bulk-design.md`; plan and
 - ☑ **P15.1** — Studio: Groups…, Domain groups grouping (the default) and filter, Tag filter and grouping, tag chips, Manage tags…, the editor's TagField and group pickers, the bulk *Edit…* menu.
 - ☑ **P15.2** — `groups-tags.e2e.ts` on the real app, docs, *What's new*.
 
+### P16 — Beta: the shared library removed (beta.2)  ☑
+
+Design: `docs/superpowers/specs/2026-10-21-remove-shared-library-design.md` (it carries the roadmap below); plan and Sonnet's test list in `docs/superpowers/plans/`. On `main` only.
+
+- ☑ **P16.0** — migration 6: shared rows become linked copies in every workspace, references re-pointed, triggers; the host has one scope; copy brings a question's domains; the Demo in every workspace; switch rollback; the welcome's empty check reads every workspace.
+- ☑ **P16.1** — Studio and the contract drop sharing; *Bring their domains*; a switch leaves nothing of the old workspace (Screens, Statistics both windows, Back/Forward, notices).
+- ☑ **P16.2** — `upgrade-shared.e2e.ts` (a beta.1 library with shared rows on the real app), the workspaces spec on copy and move, docs, *What's new* 2.0.0-beta.2.
+
+### Beta parity (from the 2026-10-21 audits)
+
+| Version | Focus |
+| --- | --- |
+| **beta.3** | Copy, import, the editor: archived rows keep their state on copy; a reused copy that would break a game is copied fresh or named; import resolves domains in this workspace, shows tags and new domains, refuses inside the dialog; the question editor saves question and memberships in one write; readable refusals (names, not ids) and notice codes; archive confirms name the games that use the row; a soft warning for twin names. |
+| **beta.4** | Games parity: Board and Roster pickers on the list-view model (search, difficulty and tag filters, domain-group headers, select all in group, paging); an archived team on a roster refused at Load; a Rules warning for an archived row on the board; *Apply to original* through *Also update copies*; Game page Copy/Move/Duplicate; a Games bulk bar; Plays by name; the difficulty prompt as a dialog. |
+| **beta.5** | The rest: detail panels (tags, groups, copies, *Stop following*); Statistics by workspace; Settings copy "in this workspace"; Manage workspaces as a list view; vocabulary; a library health check; strings to copy; *Duplicate* within a workspace; the disabled switcher's reason by keyboard. |
+| **stable 1.1.1** | Studio below 1280 px; the board difficulty prompt; the other 1.1 bugs the audits named — on `release/1.x`, merged forward. |
+
+After beta.5: interface passes, the Board first.
+
 ### Next
 
 - ☐ Finish **P14**; `npm run version:beta -- --start 2.0.0` when the maintainer says.

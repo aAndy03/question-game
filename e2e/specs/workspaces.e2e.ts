@@ -3,9 +3,9 @@ import { closeWhatsNew, named, onStudio, press, sees } from '../support/app'
 
 /**
  * Beta 2.0 on the real app: a 1.x library moves into a workspace the operator
- * names; a second workspace is made by name; a team is copied into it and
- * another made shared; and an edit in the first follows its copy into the
- * second.
+ * names; a second workspace is made by name; a team is copied into it, and a
+ * question with its domain (beta.2: no shared library); and an edit in the
+ * first follows its copy into the second.
  */
 const body = async () => $('body').getText()
 
@@ -58,7 +58,7 @@ async function teamMenu(title: string): Promise<void> {
 }
 
 describe('workspaces', () => {
-  it('names, creates, copies, shares, and an edit follows its copy', async () => {
+  it('names, creates, copies, and an edit follows its copy', async () => {
     await onStudio()
     // The library moved into one workspace; `closeWhatsNew` names it as the operator would.
     await closeWhatsNew()
@@ -76,23 +76,34 @@ describe('workspaces', () => {
     await pick('E2E library')
     await sees('Red')
     await select('Red')
-    await press('Copy, move or share…')
+    await press('Copy or move…')
     await pick('Copy to…')
     await sees('1 picked')
     await press('Copy')
     await browser.waitUntil(async () => !(await body()).includes('1 picked'), { timeoutMsg: 'the copy dialog did not close' })
 
-    // Blue goes to the shared library.
-    await select('Red')
-    await select('Blue')
-    await press('Copy, move or share…')
-    await pick('Make shared')
-    await sees('Every workspace will see these rows.')
-    await press('Make shared')
-    await sees('Shared')
+    // Nothing is shared any more: the menu offers copy and move only (Red is still selected).
+    await press('Copy or move…')
+    // The menu draws its items a moment after it opens: read them once they are there.
+    await browser.waitUntil(async () => JSON.stringify(await $$('[role="menuitem"]').map((i) => i.getText())) === JSON.stringify(['Copy to…', 'Move to…']), {
+      timeoutMsg: 'the menu is not exactly Copy to… and Move to…',
+    })
+    await browser.keys('Escape')
+    await press('Clear')
+
+    // A question copied alone brings its domain (beta.2).
+    await press('Domains & Questions')
+    await select('What is the capital of Australia?')
+    await press('Copy or move…')
+    await pick('Copy to…')
+    await sees('Bring their domains')
+    await sees('New there: Geography, with only these questions')
+    await press('Copy')
+    await browser.waitUntil(async () => !(await body()).includes('Bring their domains'), { timeoutMsg: 'the copy dialog did not close' })
+    await press('Clear')
 
     // Edit Red here, and let the edit follow its copy.
-    await press('Clear')
+    await press('Teams')
     await teamMenu('Red')
     await pick('Edit')
     const name = await named('Name')
@@ -104,12 +115,13 @@ describe('workspaces', () => {
     await sees('Copies live in Second.')
     await press('Also update 1 copy')
 
-    // In Second: the copy is renamed, and the shared team is there too.
+    // In Second: the copy is renamed, and Geography holds the one question.
     await switcher('E2E library')
     await pick('Second')
     await press('Teams')
     await sees('Red Lions')
-    await sees('Blue')
-    await sees('Shared')
+    await press('Domains & Questions')
+    await sees('Geography')
+    await sees('What is the capital of Australia?')
   })
 })
