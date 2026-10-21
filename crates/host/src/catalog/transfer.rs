@@ -349,6 +349,32 @@ fn copy(
             report.reused.push(Touched { kind, id: existing, from: id, picked: false });
         }
     }
+    // A copied game's board must load as the original does: a reused question
+    // whose difficulty or completeness drifted since is copied fresh instead
+    // (beta.3; the audit: a reused, re-graded copy broke the new game).
+    for recipe in rows.recipes.values() {
+        for board in &recipe.board {
+            for q in &board.question_ids {
+                let key = (CatalogKind::Question, q.to_string());
+                let Some(existing) = ids.get(&key).cloned() else { continue };
+                let Some(source) = rows.questions.get(q.as_str()) else { continue };
+                db::bind_workspace(tx, target.as_str())?;
+                let there = store::question_get(tx, &QuestionId::new(existing.clone()));
+                db::bind_workspace(tx, current.as_str())?;
+                let drifted = match there {
+                    Ok(there) => {
+                        there.difficulty != source.difficulty
+                            || super::complete::effective_gaps(&there, None).is_empty() != super::complete::effective_gaps(source, None).is_empty()
+                    }
+                    Err(_) => true,
+                };
+                if drifted {
+                    ids.remove(&key);
+                    report.reused.retain(|t| !(t.kind == CatalogKind::Question && t.id == existing));
+                }
+            }
+        }
+    }
     // A reused domain must hold what the copied boards ask of it; if a board
     // would point at a question it lacks, copy the domain instead.
     for recipe in rows.recipes.values() {
@@ -524,7 +550,6 @@ fn copy(
         let mut row = recipe.clone();
         row.id = RecipeId::new(map(CatalogKind::Recipe, id));
         row.rev = 0;
-        row.stamps.archived_at = None;
         row.teams = recipe.teams.iter().map(|t| TeamId::new(map(CatalogKind::Team, t.as_str()))).collect();
         for board in &mut row.board {
             board.domain_id = DomainId::new(map(CatalogKind::Domain, board.domain_id.as_str()));
@@ -549,6 +574,22 @@ fn copy(
             .collect();
         store::recipe_upsert(tx, &row, now_ms)?;
         created(CatalogKind::Recipe, id, &mut report);
+    }
+    // A copy keeps each row's archive state, as Duplicate does (beta.3: a
+    // copied domain's archived questions had arrived active).
+    let archived: Vec<(CatalogKind, String, u64)> = rows
+        .assets
+        .iter()
+        .filter_map(|(id, r)| r.stamps.archived_at.map(|at| (CatalogKind::Asset, id.clone(), at)))
+        .chain(rows.questions.iter().filter_map(|(id, r)| r.stamps.archived_at.map(|at| (CatalogKind::Question, id.clone(), at))))
+        .chain(rows.teams.iter().filter_map(|(id, r)| r.stamps.archived_at.map(|at| (CatalogKind::Team, id.clone(), at))))
+        .chain(rows.domains.iter().filter_map(|(id, r)| r.stamps.archived_at.map(|at| (CatalogKind::Domain, id.clone(), at))))
+        .chain(rows.recipes.iter().filter_map(|(id, r)| r.stamps.archived_at.map(|at| (CatalogKind::Recipe, id.clone(), at))))
+        .collect();
+    for (kind, id, at) in archived {
+        if report.created.iter().any(|t| t.kind == kind && t.from == id) {
+            store::set_archived(tx, kind, &map(kind, &id), Some(at))?;
+        }
     }
     Ok(report)
 }

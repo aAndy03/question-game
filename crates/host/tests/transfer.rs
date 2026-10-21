@@ -355,3 +355,40 @@ fn a_home_domain_is_named_apart_from_a_domain_a_game_brings() {
     assert_eq!(homes, ["solo"], "d1 came whole with the game: {report:?}");
     assert!(report.created.iter().any(|t| t.kind == CatalogKind::Domain && t.from == "d1"));
 }
+
+// ----------------------------------------------------------- beta.3
+
+#[test]
+fn a_copied_domain_brings_its_archived_questions_archived() {
+    let (catalog, _a, b) = setup();
+    catalog.catalog_archive(CatalogKind::Question, "q2", NOW).unwrap();
+    let report = catalog.catalog_copy_to(&domains(&["d1"]), &b, CopyOptions::default(), NOW).unwrap();
+    let q2 = report.created.iter().find(|t| t.from == "q2").unwrap().id.clone();
+    catalog.workspace_switch(&b).unwrap();
+    assert!(get(&catalog, CatalogKind::Question, &q2).stamps().is_archived(), "archived stays archived, as Duplicate keeps it");
+    let q1 = report.created.iter().find(|t| t.from == "q1").unwrap().id.clone();
+    assert!(!get(&catalog, CatalogKind::Question, &q1).stamps().is_archived());
+}
+
+#[test]
+fn a_game_copy_copies_fresh_a_reused_question_that_drifted_so_the_game_loads() {
+    let (catalog, _a, b) = setup();
+    // q2's copy in B, re-graded to q1's difficulty: on a board beside q1's copy it would clash.
+    let first = catalog.catalog_copy_to(&domains(&["d1"]), &b, CopyOptions::default(), NOW).unwrap();
+    let q2_there = first.created.iter().find(|t| t.from == "q2").unwrap().id.clone();
+    catalog.workspace_switch(&b).unwrap();
+    let CatalogItem::Question(mut drifted) = get(&catalog, CatalogKind::Question, &q2_there) else { panic!() };
+    drifted.difficulty = Some(10);
+    catalog.catalog_upsert(&CatalogItem::Question(drifted), NOW).unwrap();
+    let a = first.created.iter().next().map(|_| ()).unwrap();
+    let _ = a;
+    catalog.workspace_switch(&WorkspaceId::from("ws-1")).unwrap();
+
+    let report = catalog.catalog_copy_to(&Selection { recipes: vec![RecipeId::from("g1")], ..Selection::default() }, &b, CopyOptions::default(), NOW).unwrap();
+    assert!(!report.reused.iter().any(|t| t.id == q2_there), "the drifted copy is not reused: {report:?}");
+    let game = report.created.iter().find(|t| t.kind == CatalogKind::Recipe).unwrap().id.clone();
+    catalog.workspace_switch(&b).unwrap();
+    let mut flags = FlagService::default();
+    flags.load_recipe(GameSettings::default()).unwrap();
+    catalog.build_snapshot(&RecipeId::from(game.as_str()), PlayId::from("p"), flags.freeze().unwrap()).expect("the copied game loads");
+}
