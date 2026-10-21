@@ -61,7 +61,7 @@ describe('groups, tags and bulk edits', () => {
 
     // A group in Geography, by name.
     await domain('Geography')
-    await press('Groups…')
+    await press('Domain groups…')
     await press('New group')
     await (await named('Group name')).setValue('Capitals')
     await press('Create')

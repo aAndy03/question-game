@@ -40,7 +40,10 @@ pub struct BulkReport {
     pub changed: Vec<QuestionId>,
     /// Selected, and already as asked (already tagged, not a member, …).
     pub unchanged: Vec<QuestionId>,
-    /// How many of the selected questions are shared: the change reaches every workspace.
+    /// How many changes reach every workspace: shared questions for a tag or a
+    /// difficulty; for a membership edit (Group, Add to / Remove from domain)
+    /// every change when the domain is shared and none when it is not — it is
+    /// the domain that changes, not the question.
     pub shared: usize,
 }
 
@@ -128,10 +131,10 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
             let lacking: Vec<&Question> = questions.iter().filter(|q| !q.tags.iter().any(|t| tag_key(t) == key)).collect();
             let full = lacking.iter().filter(|q| q.tags.len() >= TAGS_PER_QUESTION).count();
             if full > 0 {
-                return Err(CatalogError::invalid(
-                    "bulk.tag",
-                    if full == 1 { "a question would have more than 20 tags" } else { "some questions would have more than 20 tags" },
-                ));
+                return Err(CatalogError::ScopeRule {
+                    rule: "a question has at most 20 tags",
+                    detail: format!("{full} {} would have more than 20", if full == 1 { "question" } else { "questions" }),
+                });
             }
             for q in &questions {
                 if lacking.iter().any(|l| l.id == q.id) {
@@ -193,9 +196,7 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
                     _ => report.unchanged.push(q.id.clone()),
                 }
             }
-            if !report.changed.is_empty() {
-                store::domain_upsert(tx, &domain, now_ms)?;
-            }
+            membership(tx, &domain, &mut report, now_ms)?;
         }
         BulkEdit::AddToDomain { domain_id } => {
             let mut domain = store::domain_get(tx, domain_id)?;
@@ -218,9 +219,7 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
                     report.changed.push(q.id.clone());
                 }
             }
-            if !report.changed.is_empty() {
-                store::domain_upsert(tx, &domain, now_ms)?;
-            }
+            membership(tx, &domain, &mut report, now_ms)?;
         }
         BulkEdit::RemoveFromDomain { domain_id } => {
             let mut domain = store::domain_get(tx, domain_id)?;
@@ -231,11 +230,20 @@ fn apply(tx: &Transaction<'_>, ids: &[QuestionId], edit: &BulkEdit, now_ms: u64)
                     report.unchanged.push(q.id.clone());
                 }
             }
-            if !report.changed.is_empty() {
-                domain.questions.retain(|m| !report.changed.contains(&m.question_id));
-                store::domain_upsert(tx, &domain, now_ms)?;
-            }
+            domain.questions.retain(|m| !report.changed.contains(&m.question_id));
+            membership(tx, &domain, &mut report, now_ms)?;
         }
     }
     Ok(report)
+}
+
+/// The domain written once, its changed questions stamped as updated too (a
+/// *recently updated* sort moves them), and the reach counted as the domain's.
+fn membership(tx: &Transaction<'_>, domain: &super::model::Domain, report: &mut BulkReport, now_ms: u64) -> CatalogResult<()> {
+    report.shared = if domain.stamps.shared { report.changed.len() } else { 0 };
+    if report.changed.is_empty() {
+        return Ok(());
+    }
+    store::domain_upsert(tx, domain, now_ms)?;
+    store::questions_touch(tx, &report.changed, now_ms)
 }

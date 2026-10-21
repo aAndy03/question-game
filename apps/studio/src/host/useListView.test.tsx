@@ -291,3 +291,24 @@ describe('deferred fixes', () => {
     expect(result.current.selection.onPage).toBe(0)
   })
 })
+
+describe('a filter value that is no longer an option (P15 review)', () => {
+  it('goes when its option goes — a group deleted, a tag renamed — and the rest stay', () => {
+    const items = [item('x', { tags: ['b'] })]
+    const { result, rerender } = renderHook(({ spec }) => useListView(spec, items, null), { initialProps: { spec: SPEC } })
+    act(() => result.current.setFilter('tag', ['a', 'b']))
+    const onlyB: ListSpec<Thing> = { ...SPEC, filters: [{ ...SPEC.filters[0]!, options: [{ value: 'b', label: 'Beta' }] }] }
+    rerender({ spec: onlyB })
+    expect(useChromeStore.getState().listState['teams']?.filters['tag']).toEqual(['b'])
+    const none: ListSpec<Thing> = { ...SPEC, filters: [{ ...SPEC.filters[0]!, options: [{ value: 'c', label: 'Gamma' }] }] }
+    rerender({ spec: none })
+    expect(useChromeStore.getState().listState['teams']?.filters['tag']).toBeNull()
+  })
+
+  it('stays while the options are still loading', () => {
+    const { result, rerender } = renderHook(({ spec }) => useListView(spec, [item('x')], null), { initialProps: { spec: SPEC } })
+    act(() => result.current.setFilter('tag', ['a']))
+    rerender({ spec: { ...SPEC, filters: [{ ...SPEC.filters[0]!, options: [] }] } })
+    expect(useChromeStore.getState().listState['teams']?.filters['tag']).toEqual(['a'])
+  })
+})

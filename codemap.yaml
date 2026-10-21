@@ -226,13 +226,13 @@ commands:
     async: true
     callers: [main]
     file: crates/app/src/commands/groups.rs
-    params: ["id: DomainGroupId", "domain_id: DomainId"]
+    params: ["id: DomainGroupId"]
     returns: "AppResult<()>"
   domain_group_rename:
     async: true
     callers: [main]
     file: crates/app/src/commands/groups.rs
-    params: ["id: DomainGroupId", "domain_id: DomainId", "name: String"]
+    params: ["id: DomainGroupId", "name: String"]
     returns: "AppResult<()>"
   domain_group_reorder:
     async: true
@@ -1427,8 +1427,8 @@ host_api:
     "catalog::family::SkippedCopy": {kind: struct, sig: "struct SkippedCopy { copy: FamilyCopy, reason: String }"}
   crates/host/src/catalog/groups.rs:
     "catalog::groups::CatalogService::domain_group_create": {doc: "A group in a domain, named by the operator.", kind: method, sig: "fn domain_group_create(&self, domain: &DomainId, name: &str, now_ms: u64) -> CatalogResult<DomainGroup>"}
-    "catalog::groups::CatalogService::domain_group_delete": {doc: "The group goes; its questions stay in the domain, in no group.", kind: method, sig: "fn domain_group_delete(&self, group: &DomainGroupId) -> CatalogResult<()>"}
-    "catalog::groups::CatalogService::domain_group_rename": {kind: method, sig: "fn domain_group_rename(&self, group: &DomainGroupId, name: &str, now_ms: u64) -> CatalogResult<()>"}
+    "catalog::groups::CatalogService::domain_group_delete": {doc: "The group goes; its questions stay in the domain, in no group.", kind: method, sig: "fn domain_group_delete(&self, group: &DomainGroupId, now_ms: u64) -> CatalogResult<DomainId>"}
+    "catalog::groups::CatalogService::domain_group_rename": {doc: "Returns the group's domain — the stored one, never the caller's word for it.", kind: method, sig: "fn domain_group_rename(&self, group: &DomainGroupId, name: &str, now_ms: u64) -> CatalogResult<DomainId>"}
     "catalog::groups::CatalogService::domain_group_reorder": {doc: "The domain's groups in this order; one not named keeps its place after them.", kind: method, sig: "fn domain_group_reorder(&self, domain: &DomainId, order: &[DomainGroupId], now_ms: u64) -> CatalogResult<()>"}
     "catalog::groups::CatalogService::tag_list": {doc: "Every tag in view (this workspace and shared), with counts.", kind: method, sig: "fn tag_list(&self) -> CatalogResult<Vec<TagCount>>"}
     "catalog::groups::TAGS_PER_QUESTION": {doc: "The most tags one question carries; a write past it is refused whole.", kind: const, sig: "const TAGS_PER_QUESTION: usize = 20"}

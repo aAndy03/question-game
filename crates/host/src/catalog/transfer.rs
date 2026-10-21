@@ -530,6 +530,16 @@ fn relocate(
         store::set_workspace(tx, kind, &id, destination)?;
         report.moved.push(Touched { kind, id: id.clone(), from: id.clone(), picked: rows.picked.contains(&(kind, id)) });
     }
+    // A moved question takes the target's spelling of a tag both use (review).
+    if let Some(target) = target {
+        super::db::bind_workspace(tx, target.as_str())?;
+        for (kind, id) in rows.ids() {
+            if kind == CatalogKind::Question {
+                store::tags_respell(tx, &id)?;
+            }
+        }
+        super::db::bind_workspace(tx, current.as_str())?;
+    }
     // A row that goes shared has to pass the reference rules in its new place.
     for id in rows.domains.keys() {
         store::domain_rule(tx, id)?;

@@ -111,11 +111,11 @@ pub fn domain_group_rename(
     app: AppHandle,
     state: State<'_, AppState>,
     id: DomainGroupId,
-    domain_id: DomainId,
     name: String,
 ) -> AppResult<()> {
     guard::allow(window.label(), "domain_group_rename")?;
-    state.lock().catalog.domain_group_rename(&id, &name, now_ms())?;
+    // The group's stored domain is the one announced, not the caller's word for it.
+    let domain_id = state.lock().catalog.domain_group_rename(&id, &name, now_ms())?;
     changed(&app, CatalogKind::Domain, domain_id.as_str());
     Ok(())
 }
@@ -140,10 +140,9 @@ pub fn domain_group_delete(
     app: AppHandle,
     state: State<'_, AppState>,
     id: DomainGroupId,
-    domain_id: DomainId,
 ) -> AppResult<()> {
     guard::allow(window.label(), "domain_group_delete")?;
-    state.lock().catalog.domain_group_delete(&id)?;
+    let domain_id = state.lock().catalog.domain_group_delete(&id, now_ms())?;
     changed(&app, CatalogKind::Domain, domain_id.as_str());
     Ok(())
 }

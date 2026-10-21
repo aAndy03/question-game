@@ -7,7 +7,7 @@ import { CONFIRM } from '@/copy'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { useHostCommand } from '@/host/commands'
 import { command, type HostError } from '@/host/host'
-import { useCatalogList } from '@/host/queries'
+import { useCatalogList, useTags } from '@/host/queries'
 import type { BulkEdit, BulkReport, Domain, Question } from '@/host/types'
 
 type Op = BulkEdit['op']
@@ -47,13 +47,14 @@ const TITLE: Record<Op, string> = {
 export function useBulkEdit(): BulkEditController {
   const run = useHostCommand()
   const domains = useCatalogList('domain', 'active')
+  const tags = useTags()
   const [open, setOpen] = useState<Open | null>(null)
   const [ctx, setCtx] = useState<BulkEditContext>({ domain: null, questions: [] })
   const [tag, setTag] = useState('')
   const [choice, setChoice] = useState<string | null>(null)
   const [difficulty, setDifficulty] = useState<number | null>(50)
   const [unset, setUnset] = useState(false)
-  const [preview, setPreview] = useState<BulkReport | null>(null)
+  const [preview, setPreview] = useState<{ key: string; report: BulkReport } | null>(null)
   const [refusal, setRefusal] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -78,14 +79,19 @@ export function useBulkEdit(): BulkEditController {
   useEffect(() => {
     // The last answer stands while the next one is asked: a field that commits
     // its value on blur would otherwise disable Apply under the click (e2e).
+    // Apply checks the answer is current before it writes. A typed tag is
+    // asked once typing pauses.
     setRefusal(null)
     if (!open || !edit) return setPreview(null)
     let live = true
-    command<BulkReport>('catalog_bulk_edit', { ids: open.ids, edit, preview: true })
-      .then((r) => live && setPreview(r))
-      .catch((e: HostError) => live && setRefusal(e.message.replace(/^[^:]*:\s*/, '')))
+    const ask = () =>
+      command<BulkReport>('catalog_bulk_edit', { ids: open.ids, edit, preview: true })
+        .then((r) => live && setPreview({ key, report: r }))
+        .catch((e: HostError) => live && setRefusal(e.message.replace(/^[^:]*:\s*/, '')))
+    const timer = open.op === 'tag' ? setTimeout(() => void ask(), 200) : (void ask(), undefined)
     return () => {
       live = false
+      if (timer !== undefined) clearTimeout(timer)
     }
     // `key` stands for `edit`, which is rebuilt on every render.
   }, [open, key])
@@ -106,6 +112,16 @@ export function useBulkEdit(): BulkEditController {
   const apply = async () => {
     if (!open || !edit) return
     setPending(true)
+    // The value changed under the click (a field commits on blur): ask again
+    // first, and write only if it still changes something — the toast then
+    // says what was really written.
+    if (!current) {
+      const fresh = await run<BulkReport>('catalog_bulk_edit', { ids: open.ids, edit, preview: true })
+      if (fresh === null || fresh.changed.length === 0) {
+        if (fresh) setPreview({ key, report: fresh })
+        return setPending(false)
+      }
+    }
     const done = await run<BulkReport>('catalog_bulk_edit', { ids: open.ids, edit, preview: false })
     setPending(false)
     if (done === null) return
@@ -113,7 +129,14 @@ export function useBulkEdit(): BulkEditController {
     close()
   }
 
+  const fold = (t: string) => t.trim().toLowerCase()
+  const offered = tag.trim() ? (tags.data ?? []).map((t) => t.tag).filter((t) => fold(t).startsWith(fold(tag)) && fold(t) !== fold(tag)).slice(0, 8) : []
+  const report = preview?.report ?? null
+  const current = preview !== null && preview.key === key
   const carried = [...new Set(ctx.questions.flatMap((q) => q.tags ?? []))].sort()
+  const membership = open?.op === 'group' || open?.op === 'add_to_domain' || open?.op === 'remove_from_domain'
+  // Group…: an unchanged question is either in that group already or not in this domain at all.
+  const outside = open?.op === 'group' && report ? report.unchanged.filter((id) => !ctx.domain?.questions.some((m) => m.questionId === id)).length : 0
   const already = (n: number) => {
     if (!open || n === 0) return null
     const what = {
@@ -136,7 +159,26 @@ export function useBulkEdit(): BulkEditController {
           </AlertDialog.Header>
           <AlertDialog.Body>
             <div className="flex flex-col gap-3" data-bulk-edit={open?.op}>
-              {open?.op === 'tag' ? <TextField label={GROUPS_TAGS.pickTag} value={tag} onChange={setTag} autoFocus maxLength={40} /> : null}
+              {open?.op === 'tag' ? (
+                <>
+                  <TextField label={GROUPS_TAGS.pickTag} description={GROUPS_TAGS.pickTagHint} value={tag} onChange={setTag} autoFocus maxLength={40} />
+                  {offered.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5" role="group" aria-label={GROUPS_TAGS.tagsOffered}>
+                      {offered.map((k) => (
+                        <button
+                          key={k}
+                          type="button"
+                          className="rounded-full border border-[var(--border)] px-2 py-0.5 text-xs hover:bg-[var(--surface-secondary)] focus-visible:outline-2 focus-visible:outline-[var(--focus)]"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => setTag(k)}
+                        >
+                          <Text variant="studio-caption">{k}</Text>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
               {open?.op === 'untag' ? (
                 <SelectField label={GROUPS_TAGS.pickTag} value={choice} onChange={setChoice} options={carried.map((t) => ({ value: t, label: t }))} />
               ) : null}
@@ -171,24 +213,25 @@ export function useBulkEdit(): BulkEditController {
                 </>
               ) : null}
               <div role="status" aria-live="polite" className="flex flex-col gap-1">
-                {preview ? (
+                {report ? (
                   <>
                     <Text as="p" variant="studio-body">
-                      {GROUPS_TAGS.applyTo(preview.changed.length)}
+                      {GROUPS_TAGS.applyTo(report.changed.length)}
                     </Text>
-                    {already(preview.unchanged.length) ? (
+                    {already(report.unchanged.length - outside) ? (
                       <Text as="p" variant="studio-body" tone="muted">
-                        {already(preview.unchanged.length)}
+                        {already(report.unchanged.length - outside)}
                       </Text>
                     ) : null}
-                    {preview.shared > 0 ? (
-                      <Text as="p" variant="studio-body" tone="warning">
-                        {GROUPS_TAGS.sharedReach(preview.shared)}
+                    {outside > 0 ? (
+                      <Text as="p" variant="studio-body" tone="muted">
+                        {GROUPS_TAGS.notInDomain(outside)}
                       </Text>
                     ) : null}
-                    {(open?.op === 'remove_from_domain' || open?.op === 'group') && ctx.domain?.shared ? (
+                    {report.shared > 0 ? (
                       <Text as="p" variant="studio-body" tone="warning">
-                        {GROUPS_TAGS.sharedDomainReach}
+                        {/* A membership edit changes a domain: the host counts it shared only when the domain is. */}
+                        {membership ? GROUPS_TAGS.sharedDomainReach : GROUPS_TAGS.sharedReach(report.shared)}
                       </Text>
                     ) : null}
                   </>
@@ -205,7 +248,7 @@ export function useBulkEdit(): BulkEditController {
             <Button variant="tertiary" onPress={close} isDisabled={pending}>
               {CONFIRM.cancel}
             </Button>
-            <Button variant="primary" onPress={() => void apply()} isPending={pending} isDisabled={!preview || preview.changed.length === 0 || refusal !== null}>
+            <Button variant="primary" onPress={() => void apply()} isPending={pending} isDisabled={!report || report.changed.length === 0 || refusal !== null}>
               {GROUPS_TAGS.apply}
             </Button>
           </AlertDialog.Footer>

@@ -79,15 +79,19 @@ impl CatalogService {
             sort_key: existing.iter().map(|g| g.sort_key + 1).max().unwrap_or(0),
         };
         store::domain_group_put(&conn, &group, now_ms)?;
+        store::domain_touch(&conn, domain, now_ms)?;
         Ok(group)
     }
 
-    pub fn domain_group_rename(&self, group: &DomainGroupId, name: &str, now_ms: u64) -> CatalogResult<()> {
+    /// Returns the group's domain — the stored one, never the caller's word for it.
+    pub fn domain_group_rename(&self, group: &DomainGroupId, name: &str, now_ms: u64) -> CatalogResult<DomainId> {
         let conn = self.conn();
         let mut row = group_in_view(&conn, group)?;
         let siblings = store::domain_get(&conn, &row.domain_id)?.groups;
         row.name = free_group_name(&siblings, name, &row.domain_id, Some(group))?;
-        store::domain_group_put(&conn, &row, now_ms)
+        store::domain_group_put(&conn, &row, now_ms)?;
+        store::domain_touch(&conn, &row.domain_id, now_ms)?;
+        Ok(row.domain_id)
     }
 
     /// The domain's groups in this order; one not named keeps its place after them.
@@ -107,15 +111,19 @@ impl CatalogService {
             store::domain_group_put(&tx, &DomainGroup { sort_key: key, ..group.clone() }, now_ms)?;
             key += 1;
         }
+        store::domain_touch(&tx, domain, now_ms)?;
         tx.commit()?;
         Ok(())
     }
 
     /// The group goes; its questions stay in the domain, in no group.
-    pub fn domain_group_delete(&self, group: &DomainGroupId) -> CatalogResult<()> {
+    /// Returns the group's domain, as rename does.
+    pub fn domain_group_delete(&self, group: &DomainGroupId, now_ms: u64) -> CatalogResult<DomainId> {
         let conn = self.conn();
-        group_in_view(&conn, group)?;
-        store::domain_group_delete(&conn, group)
+        let row = group_in_view(&conn, group)?;
+        store::domain_group_delete(&conn, group)?;
+        store::domain_touch(&conn, &row.domain_id, now_ms)?;
+        Ok(row.domain_id)
     }
 
     /// Every tag in view (this workspace and shared), with counts.

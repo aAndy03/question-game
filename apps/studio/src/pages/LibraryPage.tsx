@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, MeaningChip, Text } from '@/atoms'
 import { ActionMenu, IncompleteMark, PageHeader } from '@/molecules'
-import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, useBulkEdit, GroupsDialog, ManageTagsDialog, type RecordView } from '@/organisms'
+import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, useBulkEdit, GroupsDialog, ManageTagsDialog, useGroupEditing, type RecordView } from '@/organisms'
 import { SplitLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
@@ -49,6 +49,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
   const tagList = useTags()
   const domains = useCatalogList('domain', 'all')
   const domain = domains.data?.find((d) => d.id === domainId) ?? null
+  const groupEditing = useGroupEditing(domain && domain.archivedAt === null ? domain : null)
   const memberIds = useMemo(() => (domain ? new Set(domain.questions.map((m) => m.questionId)) : null), [domain])
   const inActiveDomain = useMemo(() => activeMemberIds(domains.data ?? []), [domains.data])
   const activeDomains = useMemo(() => (domains.data ?? []).filter((d) => d.archivedAt === null), [domains.data])
@@ -136,6 +137,8 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
   }
 
   const archivedView = scope === 'archived'
+  // The Groups dialog belongs to the domain it opened on: it closes when that domain goes.
+  if (groupsOpen && !(domain && domain.archivedAt === null)) setGroupsOpen(false)
   const newRoute = { tab: 'library' as const, mode: 'new' as const, ...(domainId ? { domainId } : {}) }
 
   return (
@@ -247,7 +250,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                   const picked = (questions.data ?? []).filter((q) => ids.includes(q.id))
                   return (
                     <>
-                      {bulkEdit.menu(ids, { domain: domain && domain.archivedAt === null ? domain : null, questions: picked })}
+                      {archivedView ? null : bulkEdit.menu(ids, { domain: domain && domain.archivedAt === null ? domain : null, questions: picked })}
                       {transfer.menu({ questions: ids }, { shared: flags.size === 1 ? [...flags][0] : undefined })}
                     </>
                   )
@@ -255,6 +258,21 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                 isPending: archive.isPending,
               }}
               onRetry={() => void questions.refetch()}
+              headerActions={(key) => {
+                // A domain group's header: Rename and Delete, as in the Groups dialog.
+                const g = key.startsWith('g:') && domain && domain.archivedAt === null ? (domain.groups ?? []).find((x) => `g:${x.id}` === key) : undefined
+                if (!g) return null
+                return (
+                  <ActionMenu
+                    label={`${GROUPS_TAGS.group}: ${g.name}`}
+                    items={[
+                      { id: 'rename', label: GROUPS_TAGS.rename },
+                      { id: 'delete', label: GROUPS_TAGS.deleteGroup, isDanger: true },
+                    ]}
+                    onAction={(a) => (a === 'rename' ? groupEditing.rename(g) : groupEditing.remove(g))}
+                  />
+                )
+              }}
             />
           </div>
           {currentId ? (
@@ -266,6 +284,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
           {transfer.dialog}
           {bulkEdit.dialog}
           <GroupsDialog domain={groupsOpen ? domain : null} onClose={() => setGroupsOpen(false)} />
+          {groupEditing.dialogs}
           <ManageTagsDialog isOpen={tagsOpen} onClose={() => setTagsOpen(false)} />
           <ImportQuestionsDialog
             isOpen={importing}

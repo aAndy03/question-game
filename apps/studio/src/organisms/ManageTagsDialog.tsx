@@ -29,7 +29,7 @@ export function ManageTagsDialog({ isOpen, onClose }: ManageTagsDialogProps) {
 
   return (
     <>
-      <AlertDialog.Backdrop isOpen={isOpen && renaming === null && deleting === null} onOpenChange={(o) => (o ? undefined : onClose())} isDismissable isKeyboardDismissDisabled={false}>
+      <AlertDialog.Backdrop isOpen={isOpen} onOpenChange={(o) => (o ? undefined : onClose())} isDismissable isKeyboardDismissDisabled={false}>
         <AlertDialog.Container size="md">
           <AlertDialog.Dialog>
             <AlertDialog.Header>
@@ -74,7 +74,7 @@ export function ManageTagsDialog({ isOpen, onClose }: ManageTagsDialogProps) {
         isOpen={renaming !== null}
         onOpenChange={(o) => (o ? undefined : setRenaming(null))}
         title={renaming ? GROUPS_TAGS.renameTitle(renaming.tag) : ''}
-        body={renaming && renaming.shared > 0 ? GROUPS_TAGS.sharedReach(renaming.shared) : undefined}
+        body={renaming && renaming.shared > 0 ? `${GROUPS_TAGS.sharedReach(renaming.shared)} ${GROUPS_TAGS.renameElsewhere}` : undefined}
         label={GROUPS_TAGS.renameTo}
         initial={renaming?.tag ?? ''}
         confirmLabel={GROUPS_TAGS.save}
@@ -82,7 +82,7 @@ export function ManageTagsDialog({ isOpen, onClose }: ManageTagsDialogProps) {
           if (!renaming) return
           const done = await command<BulkReport>('tag_rename', { from: renaming.tag, to, preview: false })
           const into = list.find((t) => t.tag.toLowerCase() === to.trim().toLowerCase() && t.tag !== renaming.tag)
-          toast.success(into ? GROUPS_TAGS.mergeNote(into.tag) : GROUPS_TAGS.done(done.changed.length))
+          toast.success(into ? GROUPS_TAGS.mergeNote(into.tag, done.changed.length) : GROUPS_TAGS.done(done.changed.length))
         }}
       />
       <ConfirmDialog

@@ -107,7 +107,7 @@ fn g12_g15_g16_deleting_a_group_leaves_its_questions_ungrouped() {
     assert_eq!(group_of(&catalog, "d1", "q1"), Some(romans.id.clone()));
     put_in(&catalog, "d1", "q2", Some(&other.id));
     assert_eq!(group_of(&catalog, "d1", "q2"), Some(other.id.clone()), "one group per domain");
-    catalog.domain_group_delete(&romans.id).unwrap();
+    catalog.domain_group_delete(&romans.id, NOW).unwrap();
     assert_eq!(group_of(&catalog, "d1", "q1"), None);
     assert_eq!(domain(&catalog, "d1").questions.len(), 3, "the questions stay");
 }

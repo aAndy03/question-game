@@ -263,7 +263,8 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
         <DomainPicker
           domains={(domains.data ?? []).map((d) => ({ id: d.id, name: d.name, code: d.code, questionCount: d.questions.length }))}
           selectedIds={draft.value.domainIds}
-          onChange={(domainIds) => draft.set({ domainIds })}
+          // A domain taken off forgets its group: put back, the question starts in no group.
+          onChange={(domainIds) => draft.set({ domainIds, groupIds: Object.fromEntries(Object.entries(draft.value.groupIds).filter(([d]) => domainIds.includes(d))) })}
           onCreate={createDomain}
         />
         {(domains.data ?? [])

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { AlertDialog } from '@heroui/react'
 import { Button, Text } from '@/atoms'
 import { ActionMenu, ConfirmDialog, NameDialog } from '@/molecules'
@@ -12,6 +12,53 @@ export interface GroupsDialogProps {
   onClose: () => void
 }
 
+export interface GroupEditing {
+  rename(group: DomainGroup | null): void
+  remove(group: DomainGroup): void
+  /** The name and confirm dialogs, stacked over whatever opened them. */
+  dialogs: ReactNode
+}
+
+/**
+ * Rename · New group · Delete group for one domain — the Groups dialog's and
+ * a group header's menu share them, so the two say the same thing.
+ */
+export function useGroupEditing(domain: Domain | null): GroupEditing {
+  const run = useHostCommand()
+  const [naming, setNaming] = useState<{ group: DomainGroup | null } | null>(null)
+  const [deleting, setDeleting] = useState<DomainGroup | null>(null)
+  const members = (g: DomainGroup) => domain?.questions.filter((m) => m.groupId === g.id).length ?? 0
+  const dialogs = (
+    <>
+      <NameDialog
+        isOpen={naming !== null}
+        onOpenChange={(o) => (o ? undefined : setNaming(null))}
+        title={naming?.group ? GROUPS_TAGS.rename : GROUPS_TAGS.newGroup}
+        label={GROUPS_TAGS.groupName}
+        initial={naming?.group?.name ?? ''}
+        confirmLabel={naming?.group ? GROUPS_TAGS.save : GROUPS_TAGS.create}
+        onSubmit={async (name) => {
+          if (!domain) return
+          if (naming?.group) await command('domain_group_rename', { id: naming.group.id, name })
+          else await command('domain_group_create', { domainId: domain.id, name })
+        }}
+      />
+      <ConfirmDialog
+        isOpen={deleting !== null}
+        onOpenChange={(o) => (o ? undefined : setDeleting(null))}
+        title={deleting ? GROUPS_TAGS.deleteGroupTitle(deleting.name) : ''}
+        body={deleting ? GROUPS_TAGS.deleteGroupBody(members(deleting)) : undefined}
+        confirmLabel={GROUPS_TAGS.deleteGroup}
+        onConfirm={async () => {
+          if (!deleting || !domain) return true
+          return run.ok('domain_group_delete', { id: deleting.id })
+        }}
+      />
+    </>
+  )
+  return { rename: (group) => setNaming({ group }), remove: setDeleting, dialogs }
+}
+
 /**
  * A domain's groups (P15): in order, with New group · Rename · Move up / Move
  * down · Delete. Organising only — the dialog says so. Every name is typed;
@@ -19,8 +66,7 @@ export interface GroupsDialogProps {
  */
 export function GroupsDialog({ domain, onClose }: GroupsDialogProps) {
   const run = useHostCommand()
-  const [naming, setNaming] = useState<{ group: DomainGroup | null } | null>(null)
-  const [deleting, setDeleting] = useState<DomainGroup | null>(null)
+  const editing = useGroupEditing(domain)
   const groups = domain?.groups ?? []
   const members = (g: DomainGroup) => domain?.questions.filter((m) => m.groupId === g.id).length ?? 0
 
@@ -36,7 +82,7 @@ export function GroupsDialog({ domain, onClose }: GroupsDialogProps) {
 
   return (
     <>
-      <AlertDialog.Backdrop isOpen={domain !== null && naming === null && deleting === null} onOpenChange={(o) => (o ? undefined : onClose())} isDismissable isKeyboardDismissDisabled={false}>
+      <AlertDialog.Backdrop isOpen={domain !== null} onOpenChange={(o) => (o ? undefined : onClose())} isDismissable isKeyboardDismissDisabled={false}>
         <AlertDialog.Container size="sm">
           <AlertDialog.Dialog>
             <AlertDialog.Header>
@@ -59,10 +105,10 @@ export function GroupsDialog({ domain, onClose }: GroupsDialogProps) {
                           {g.name}
                         </Text>
                         <Text variant="studio-caption" tone="muted">
-                          {members(g)}
+                          {GROUPS_TAGS.memberCount(members(g))}
                         </Text>
                         <ActionMenu
-                          label={`${GROUPS_TAGS.groups}: ${g.name}`}
+                          label={`${GROUPS_TAGS.group}: ${g.name}`}
                           items={[
                             { id: 'rename', label: GROUPS_TAGS.rename },
                             { id: 'up', label: GROUPS_TAGS.moveUp, isDisabled: i === 0 },
@@ -70,8 +116,8 @@ export function GroupsDialog({ domain, onClose }: GroupsDialogProps) {
                             { id: 'delete', label: GROUPS_TAGS.deleteGroup, isDanger: true },
                           ]}
                           onAction={(a) => {
-                            if (a === 'rename') setNaming({ group: g })
-                            else if (a === 'delete') setDeleting(g)
+                            if (a === 'rename') editing.rename(g)
+                            else if (a === 'delete') editing.remove(g)
                             else move(g, a === 'up' ? -1 : 1)
                           }}
                         />
@@ -85,37 +131,14 @@ export function GroupsDialog({ domain, onClose }: GroupsDialogProps) {
               <Button variant="tertiary" onPress={onClose}>
                 {GROUPS_TAGS.close}
               </Button>
-              <Button variant="primary" icon="add" onPress={() => setNaming({ group: null })}>
+              <Button variant="primary" icon="add" onPress={() => editing.rename(null)}>
                 {GROUPS_TAGS.newGroup}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>
         </AlertDialog.Container>
       </AlertDialog.Backdrop>
-      <NameDialog
-        isOpen={naming !== null}
-        onOpenChange={(o) => (o ? undefined : setNaming(null))}
-        title={naming?.group ? GROUPS_TAGS.rename : GROUPS_TAGS.newGroup}
-        label={GROUPS_TAGS.groupName}
-        initial={naming?.group?.name ?? ''}
-        confirmLabel={naming?.group ? GROUPS_TAGS.save : GROUPS_TAGS.create}
-        onSubmit={async (name) => {
-          if (!domain) return
-          if (naming?.group) await command('domain_group_rename', { id: naming.group.id, domainId: domain.id, name })
-          else await command('domain_group_create', { domainId: domain.id, name })
-        }}
-      />
-      <ConfirmDialog
-        isOpen={deleting !== null}
-        onOpenChange={(o) => (o ? undefined : setDeleting(null))}
-        title={deleting ? GROUPS_TAGS.deleteGroupTitle(deleting.name) : ''}
-        body={deleting ? GROUPS_TAGS.deleteGroupBody(members(deleting)) : undefined}
-        confirmLabel={GROUPS_TAGS.deleteGroup}
-        onConfirm={async () => {
-          if (!deleting || !domain) return true
-          return run.ok('domain_group_delete', { id: deleting.id, domainId: domain.id })
-        }}
-      />
+      {editing.dialogs}
     </>
   )
 }

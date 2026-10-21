@@ -306,6 +306,39 @@ pub(super) fn domain_group_put(conn: &Connection, group: &super::model::DomainGr
 
 /// The group goes; its questions stay in the domain, in no group
 /// (`ON DELETE SET NULL`).
+/// A domain's `updated_at`, moved by a change to its groups.
+pub(super) fn domain_touch(conn: &Connection, id: &DomainId, now_ms: u64) -> CatalogResult<()> {
+    conn.execute("UPDATE domains SET updated_at = ?1 WHERE id = ?2", params![ms(now_ms), id.as_str()])?;
+    Ok(())
+}
+
+/// Questions' `updated_at`, moved by a change to their membership.
+pub(super) fn questions_touch(conn: &Connection, ids: &[QuestionId], now_ms: u64) -> CatalogResult<()> {
+    for id in ids {
+        conn.execute("UPDATE questions SET updated_at = ?1 WHERE id = ?2", params![ms(now_ms), id.as_str()])?;
+    }
+    Ok(())
+}
+
+/// Every domain's groups in one read, for a list (review: not one query a row).
+fn all_domain_groups(conn: &Connection) -> CatalogResult<std::collections::HashMap<String, Vec<super::model::DomainGroup>>> {
+    let mut stmt = conn.prepare("SELECT id, domain_id, name, sort_key FROM domain_groups ORDER BY sort_key, created_at, id")?;
+    let rows = stmt.query_map([], |row| {
+        Ok(super::model::DomainGroup {
+            id: crate::ids::DomainGroupId::new(row.get::<_, String>(0)?),
+            domain_id: DomainId::new(row.get::<_, String>(1)?),
+            name: row.get(2)?,
+            sort_key: row.get(3)?,
+        })
+    })?;
+    let mut by: std::collections::HashMap<String, Vec<super::model::DomainGroup>> = std::collections::HashMap::new();
+    for group in rows {
+        let group = group?;
+        by.entry(group.domain_id.as_str().to_owned()).or_default().push(group);
+    }
+    Ok(by)
+}
+
 pub(super) fn domain_group_delete(conn: &Connection, id: &crate::ids::DomainGroupId) -> CatalogResult<()> {
     conn.execute("DELETE FROM domain_groups WHERE id = ?1", params![id.as_str()])?;
     Ok(())
@@ -334,9 +367,10 @@ pub(super) fn domain_list(conn: &Connection, scope: ArchiveScope) -> CatalogResu
     let mut domains = stmt
         .query_map([], domain_row)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut groups = all_domain_groups(conn)?;
     for domain in &mut domains {
         domain.questions = domain_members(conn, &domain.id)?;
-        domain.groups = domain_groups(conn, &domain.id)?;
+        domain.groups = groups.remove(domain.id.as_str()).unwrap_or_default();
     }
     Ok(domains)
 }
@@ -371,6 +405,28 @@ pub(super) fn domain_upsert(
             domain.stamps.shared,
         ],
     )?;
+    // Every group a member names is one of this domain's, checked before the
+    // write so a stale pick is a readable refusal, not a foreign-key failure.
+    for group in domain.questions.iter().filter_map(|m| m.group_id.as_ref()) {
+        let owner: Option<String> = tx
+            .query_row("SELECT domain_id FROM domain_groups WHERE id = ?1", params![group.as_str()], |row| row.get(0))
+            .optional()?;
+        match owner {
+            Some(owner) if owner == domain.id.as_str() => {}
+            Some(_) => {
+                return Err(CatalogError::invalid(
+                    format!("domain.{}.group.{group}", domain.id),
+                    "that group belongs to another domain",
+                ))
+            }
+            None => {
+                return Err(CatalogError::invalid(
+                    format!("domain.{}.group.{group}", domain.id),
+                    "that group no longer exists",
+                ))
+            }
+        }
+    }
     tx.execute(
         "DELETE FROM domain_questions WHERE domain_id = ?1",
         params![domain.id.as_str()],
@@ -385,20 +441,6 @@ pub(super) fn domain_upsert(
                 member.group_id.as_ref().map(|g| g.as_str()),
             ],
         )?;
-    }
-    let foreign: Option<String> = tx
-        .query_row(
-            "SELECT dq.group_id FROM domain_questions dq JOIN domain_groups g ON g.id = dq.group_id
-             WHERE dq.domain_id = ?1 AND g.domain_id <> ?1 LIMIT 1",
-            params![domain.id.as_str()],
-            |row| row.get(0),
-        )
-        .optional()?;
-    if let Some(group) = foreign {
-        return Err(CatalogError::invalid(
-            format!("domain.{}.group.{group}", domain.id),
-            "that group belongs to another domain",
-        ));
     }
     domain_rule(tx, domain.id.as_str())?;
     Ok(())
@@ -520,9 +562,10 @@ pub(super) fn question_list(
     let mut questions = stmt
         .query_map([], question_row)?
         .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut tags = all_question_tags(conn)?;
     for question in &mut questions {
         question.options = question_options(conn, &question.id)?;
-        question.tags = question_tags(conn, &question.id)?;
+        question.tags = tags.remove(question.id.as_str()).unwrap_or_default();
     }
     Ok(questions)
 }
@@ -1824,6 +1867,37 @@ fn question_tags(conn: &Connection, id: &QuestionId) -> CatalogResult<Vec<String
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
+/// Every question's tags in one read, for a list.
+fn all_question_tags(conn: &Connection) -> CatalogResult<std::collections::HashMap<String, Vec<String>>> {
+    let mut stmt = conn.prepare("SELECT question_id, tag FROM question_tags ORDER BY question_id, position")?;
+    let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+    let mut by: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for row in rows {
+        let (id, tag) = row?;
+        by.entry(id).or_default().push(tag);
+    }
+    Ok(by)
+}
+
+/// A moved question's tags take the spelling its new workspace already uses
+/// (bound by the caller), as a question written there would.
+pub(super) fn tags_respell(tx: &Transaction<'_>, id: &str) -> CatalogResult<()> {
+    let keys: Vec<String> = {
+        let mut stmt = tx.prepare("SELECT tag_key FROM question_tags WHERE question_id = ?1")?;
+        let rows = stmt.query_map(params![id], |row| row.get(0))?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()?
+    };
+    for key in keys {
+        if let Some(spelling) = tag_spelling(tx, &key, id)? {
+            tx.execute(
+                "UPDATE question_tags SET tag = ?1 WHERE question_id = ?2 AND tag_key = ?3",
+                params![spelling, id, key],
+            )?;
+        }
+    }
+    Ok(())
+}
+
 /// The spelling a tag already has in view, if any: typing *christmas* where
 /// *Christmas* exists keeps *Christmas*.
 pub(super) fn tag_spelling(conn: &Connection, key: &str, except: &str) -> CatalogResult<Option<String>> {
@@ -1877,12 +1951,17 @@ pub(super) fn tag_counts(conn: &Connection) -> CatalogResult<Vec<super::groups::
 
 /// The questions in view carrying `key`, with whether each is shared.
 fn tagged_in_view(conn: &Connection, key: &str) -> CatalogResult<Vec<(String, bool)>> {
+    Ok(spelled_in_view(conn, key)?.into_iter().map(|(id, shared, _)| (id, shared)).collect())
+}
+
+/// The same, with each one's spelling of it.
+fn spelled_in_view(conn: &Connection, key: &str) -> CatalogResult<Vec<(String, bool, String)>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT q.id, q.workspace_id IS NULL FROM question_tags qt JOIN questions q ON q.id = qt.question_id
+        "SELECT q.id, q.workspace_id IS NULL, qt.tag FROM question_tags qt JOIN questions q ON q.id = qt.question_id
           WHERE qt.tag_key = ?1 AND {} ORDER BY q.id",
         in_view("q")
     ))?;
-    let rows = stmt.query_map(params![key], |row| Ok((row.get(0)?, row.get(1)?)))?;
+    let rows = stmt.query_map(params![key], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
     Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
@@ -1907,14 +1986,29 @@ pub(super) fn tag_rename(
     to_key: &str,
     now_ms: u64,
 ) -> CatalogResult<super::bulk::BulkReport> {
-    let carriers = tagged_in_view(tx, from_key)?;
+    let carriers = spelled_in_view(tx, from_key)?;
     // Merging into a tag that exists keeps the spelling it already has.
     let spelling = if to_key == from_key {
         to.to_owned()
     } else {
         tagged_spelling(tx, to_key)?.unwrap_or_else(|| to.to_owned())
     };
-    for (id, _) in &carriers {
+    // What changes: a carrier spelled otherwise (all of them, for a merge or a
+    // new name), and on a merge each question that had the target spelled
+    // otherwise. A rename to the spelling it has touches nothing (review).
+    let mut changed: Vec<(String, bool)> = carriers
+        .iter()
+        .filter(|(_, _, tag)| to_key != from_key || tag != &spelling)
+        .map(|(id, shared, _)| (id.clone(), *shared))
+        .collect();
+    if to_key != from_key {
+        for (id, shared, tag) in spelled_in_view(tx, to_key)? {
+            if tag != spelling && !changed.iter().any(|(c, _)| c == &id) {
+                changed.push((id, shared));
+            }
+        }
+    }
+    for (id, _, _) in &carriers {
         let has_target: bool = to_key != from_key
             && tx
                 .query_row(
@@ -1944,7 +2038,7 @@ pub(super) fn tag_rename(
             params![spelling, to_key],
         )?;
     }
-    touched(tx, &carriers, now_ms)
+    touched(tx, &changed, now_ms)
 }
 
 fn tagged_spelling(conn: &Connection, key: &str) -> CatalogResult<Option<String>> {

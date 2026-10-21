@@ -128,6 +128,23 @@ export function useListView<T, V>(
     },
     [narrow, session.filters, spec.filters],
   )
+  // A value that is no longer an option — a group deleted, a tag renamed, the
+  // groups of the domain left behind — goes, rather than empty the list behind
+  // a chip that names nothing (review). Options still loading prune nothing.
+  useEffect(() => {
+    let changed = false
+    const next: Record<string, FilterValue | null> = { ...session.filters }
+    for (const f of spec.filters) {
+      const v = session.filters[f.id]
+      if (f.kind !== 'multi' || !f.options || f.options.length === 0 || !Array.isArray(v)) continue
+      const known = new Set(f.options.map((o) => o.value))
+      const kept = v.filter((x) => known.has(x))
+      if (kept.length === v.length) continue
+      next[f.id] = kept.length > 0 ? kept : null
+      changed = true
+    }
+    if (changed) setListState(tab, { filters: next, page: 1 })
+  }, [spec.filters, session.filters, setListState, tab])
   const setChanged = useCallback((changed: Changed) => narrow({ changed }), [narrow])
   const clearFilters = useCallback(() => narrow({ filters: {}, changed: 'any' }), [narrow])
   // One function for the life of the list: the search field re-reports its

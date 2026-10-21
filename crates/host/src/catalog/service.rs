@@ -278,14 +278,14 @@ impl CatalogService {
             CatalogItem::Operator(operator) => store::operator_upsert(&tx, operator, now_ms)?,
             CatalogItem::Asset(asset) => store::asset_upsert(&tx, asset, now_ms)?,
         }
+        // A question's tags are cleaned and re-spelled on the way in: index those.
+        let text = match item {
+            CatalogItem::Question(question) => CatalogItem::Question(Box::new(store::question_get(&tx, &question.id)?)).search_text(),
+            _ => item.search_text(),
+        };
         tx.commit()?;
         drop(guard);
-        self.search.put(
-            item.kind(),
-            &item.id(),
-            item.is_archived(),
-            &item.search_text(),
-        )?;
+        self.search.put(item.kind(), &item.id(), item.is_archived(), &text)?;
         Ok(CatalogChange {
             kind: item.kind(),
             id: item.id(),

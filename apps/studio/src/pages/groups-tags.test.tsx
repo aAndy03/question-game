@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { App } from '@/App'
 import { HOME, useNavStore, type Route } from '@/chrome/nav'
@@ -10,6 +10,7 @@ import { receivePlayState } from '@/host/playState'
 import { resetUpdateCheck } from '@/host/updates'
 import { resetWhatsNew } from '@/host/whatsNew'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
+import { toast } from '@/chrome/toast'
 import type { BulkEdit, CatalogItem, Domain, Question } from '@/host/types'
 
 /** Beta P15 in Studio: groups, tags, Manage tags and the bulk Edit menu. */
@@ -44,10 +45,11 @@ async function open(route: Route) {
   render(<App />)
 }
 
-const select = async (stem: string) => fireEvent.click(await screen.findByRole('checkbox', { name: `Select ${stem}` }))
+// A generous wait: under the full suite's load the list can take a while to draw.
+const select = async (stem: string) => fireEvent.click(await screen.findByRole('checkbox', { name: `Select ${stem}` }, { timeout: 5000 }))
 async function editMenu(item: string) {
-  fireEvent.click(await screen.findByRole('button', { name: GROUPS_TAGS.edit }))
-  fireEvent.click(await screen.findByRole('menuitem', { name: item }))
+  fireEvent.click(await screen.findByRole('button', { name: GROUPS_TAGS.edit }, { timeout: 5000 }))
+  fireEvent.click(await screen.findByRole('menuitem', { name: item }, { timeout: 5000 }))
   return screen.findByRole('alertdialog')
 }
 
@@ -157,5 +159,114 @@ describe('the question editor', () => {
         expect(d1.questions.find((m) => m.questionId === 'q2')?.groupId).toBe(g.id)
       })
     }
+  })
+})
+
+const disabled = (el: HTMLElement) => el.hasAttribute('disabled') || el.getAttribute('data-disabled') === 'true'
+
+describe('the P15 review', () => {
+  it('Apply on a value changed under the click asks again, then writes it and says what changed', async () => {
+    const spy = vi.spyOn(toast, 'success')
+    await open({ tab: 'library' })
+    await select('Question q2')
+    const dialog = await editMenu(GROUPS_TAGS.bulkTag)
+    const field = within(dialog).getByRole('textbox', { name: new RegExp(GROUPS_TAGS.pickTag) })
+    fireEvent.change(field, { target: { value: 'A' } })
+    expect(await within(dialog).findByText(GROUPS_TAGS.applyTo(1))).toBeTruthy()
+    const apply = within(dialog).getByRole('button', { name: GROUPS_TAGS.apply })
+    fireEvent.change(field, { target: { value: 'B' } })
+    // B's preview is not in yet: Apply stays on and asks for it before the write.
+    expect(disabled(apply)).toBe(false)
+    fake.calls.length = 0
+    fireEvent.click(apply)
+    await waitFor(() => expect((fake.library.get('question:q2')?.item as Question).tags).toEqual(['B']))
+    const asked = calls('catalog_bulk_edit').map((c) => [c.args?.['preview'], (c.args?.['edit'] as { tag: string }).tag])
+    expect(asked.slice(0, 2)).toEqual([[true, 'B'], [false, 'B']])
+    await waitFor(() => expect(spy).toHaveBeenCalledWith(GROUPS_TAGS.done(1)))
+    spy.mockRestore()
+  })
+
+  it('bulk Tag… offers the tags already used, and asks once typing pauses', async () => {
+    await open({ tab: 'library' })
+    await select('Question q2')
+    const dialog = await editMenu(GROUPS_TAGS.bulkTag)
+    const field = within(dialog).getByRole('textbox', { name: new RegExp(GROUPS_TAGS.pickTag) })
+    await waitFor(() => expect(calls('tag_list').length).toBeGreaterThan(0))
+    fake.calls.length = 0
+    for (const v of ['c', 'ch', 'chr']) fireEvent.change(field, { target: { value: v } })
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Christmas' }))
+    expect((field as HTMLInputElement).value).toBe('Christmas')
+    await waitFor(() => expect(calls('catalog_bulk_edit').length).toBeGreaterThan(0))
+    expect(calls('catalog_bulk_edit').map((c) => (c.args?.['edit'] as { tag: string }).tag)).toEqual(['Christmas'])
+  })
+
+  it('Group… says apart which are in that group and which are not in this domain', async () => {
+    await open({ tab: 'library', domainId: 'd1' })
+    await select('Question q1')
+    await select('Question q2')
+    const dialog = await editMenu(GROUPS_TAGS.bulkGroup)
+    // Both are in History and in no group already: two unchanged, none outside.
+    expect(await within(dialog).findByText(GROUPS_TAGS.already(2, GROUPS_TAGS.alreadyGrouped))).toBeTruthy()
+    expect(within(dialog).queryByText(GROUPS_TAGS.notInDomain(2))).toBeNull()
+  })
+
+  it('a domain group header offers Rename and Delete', async () => {
+    await open({ tab: 'library', domainId: 'd1' })
+    const g = await fake.invoke<{ id: string }>('domain_group_create', { domainId: 'd1', name: 'Wars' })
+    const d1 = fake.library.get('domain:d1')?.item as Domain
+    await fake.invoke('catalog_upsert', { item: { kind: 'domain', item: { ...d1, questions: d1.questions.map((m) => (m.questionId === 'q1' ? { ...m, groupId: g.id } : m)) } } })
+    fireEvent.click(await screen.findByRole('button', { name: `${GROUPS_TAGS.group}: Wars` }, { timeout: 5000 }))
+    fireEvent.click(await screen.findByText(GROUPS_TAGS.rename))
+    const field = await screen.findByRole('textbox', { name: new RegExp(GROUPS_TAGS.groupName) })
+    fireEvent.change(field, { target: { value: 'Battles' } })
+    fireEvent.click(screen.getByRole('button', { name: GROUPS_TAGS.save }))
+    await waitFor(() => expect(fake.domainGroups.get('d1')?.map((x) => x.name)).toEqual(['Battles']))
+  })
+
+  it('the Groups dialog stays open under its New group', async () => {
+    await open({ tab: 'library', domainId: 'd1' })
+    fireEvent.click(await screen.findByRole('button', { name: GROUPS_TAGS.groupsButton }))
+    fireEvent.click(await screen.findByRole('button', { name: GROUPS_TAGS.newGroup }))
+    await screen.findByRole('textbox', { name: new RegExp(GROUPS_TAGS.groupName) })
+    expect(document.querySelector('[data-groups-dialog]')).not.toBeNull()
+  })
+
+  it('a merge says what it merged into and how many changed', async () => {
+    const spy = vi.spyOn(toast, 'success')
+    fake.seed([question('q4', ['Xmas'])])
+    await open({ tab: 'library' })
+    fireEvent.click(await screen.findByRole('button', { name: GROUPS_TAGS.manageButton }))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.click(await within(dialog).findByRole('button', { name: `${GROUPS_TAGS.tag}: Xmas` }))
+    fireEvent.click(await screen.findByText(GROUPS_TAGS.rename))
+    const field = await screen.findByRole('textbox', { name: new RegExp(GROUPS_TAGS.renameTo) })
+    fireEvent.change(field, { target: { value: 'christmas' } })
+    fireEvent.click(screen.getByRole('button', { name: GROUPS_TAGS.save }))
+    await waitFor(() => expect(spy).toHaveBeenCalledWith(GROUPS_TAGS.mergeNote('Christmas', 1)))
+    spy.mockRestore()
+  })
+
+  it('the archived scope offers no Edit…', async () => {
+    const qa = question('qa')
+    fake.seed([{ ...qa, item: { ...(qa.item as Question), archivedAt: 1 } } as CatalogItem])
+    await open({ tab: 'library' })
+    useChromeStore.setState({ archiveScope: { library: 'archived' } })
+    await select('Question qa')
+    expect(screen.queryByRole('button', { name: GROUPS_TAGS.edit })).toBeNull()
+  })
+
+  it('a domain taken off in the editor forgets its group', async () => {
+    await open({ tab: 'library', domainId: 'd1' })
+    const g = await fake.invoke<{ id: string }>('domain_group_create', { domainId: 'd1', name: 'Wars' })
+    useNavStore.setState({ route: { tab: 'library', questionId: 'q2', mode: 'edit', domainId: 'd1' } })
+    await screen.findByText(GROUPS_TAGS.groupIn('History'))
+    const native = () => document.querySelector('[data-group-picker="d1"] select') as HTMLSelectElement | null
+    fireEvent.change(native() as HTMLSelectElement, { target: { value: g.id } })
+    await waitFor(() => expect(native()?.value).toBe(g.id))
+    fireEvent.click(screen.getByRole('checkbox', { name: /History/ }))
+    await waitFor(() => expect(native()).toBeNull())
+    fireEvent.click(screen.getByRole('checkbox', { name: /History/ }))
+    await waitFor(() => expect(native()).not.toBeNull())
+    expect(native()?.value).not.toBe(g.id)
   })
 })

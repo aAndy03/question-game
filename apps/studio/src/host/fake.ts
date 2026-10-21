@@ -1271,11 +1271,16 @@ export function createFakeHost(): FakeHost {
     }
     return [...by.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([, v]) => v)
   }
+  /** A group's own domain, as the host reads it — never the caller's word for it. */
+  const groupHome = (id: string): string => {
+    for (const [domainId, groups] of domainGroups) if (groups.some((g) => g.id === id)) return domainId
+    return refuse('catalog', `domain-group/${id}: no such group`)
+  }
   const bulk = (ids: readonly string[], edit: BulkEdit, write: boolean): BulkReport => {
     const unique = [...new Set(ids)]
     if (unique.length === 0) refuse('catalog', 'bulk: nothing is selected')
     const questions = unique.map(questionInView)
-    const shared = unique.filter((id) => homeOf(key('question', id)) === null).length
+    let shared = unique.filter((id) => homeOf(key('question', id)) === null).length
     const changed: string[] = []
     const unchanged: string[] = []
     const writes: Array<() => void> = []
@@ -1285,7 +1290,8 @@ export function createFakeHost(): FakeHost {
         const tag = edit.tag.trim()
         if (!tag) refuse('catalog', 'tag.name: a tag needs a name')
         const lacking = questions.filter((q) => !(q.tags ?? []).some((t) => fold(t) === fold(tag)))
-        if (lacking.some((q) => (q.tags ?? []).length >= 20)) refuse('catalog', 'bulk.tag: a question would have more than 20 tags')
+        const full = lacking.filter((q) => (q.tags ?? []).length >= 20).length
+        if (full > 0) refuse('catalog', `a question has at most 20 tags: ${full} ${full === 1 ? 'question' : 'questions'} would have more than 20`)
         for (const q of questions) {
           if (lacking.includes(q)) {
             changed.push(q.id)
@@ -1343,6 +1349,8 @@ export function createFakeHost(): FakeHost {
           for (const id of unique) (members.some((m) => m.questionId === id) ? changed : unchanged).push(id)
           members = members.filter((m) => !changed.includes(m.questionId))
         }
+        // A membership edit changes the domain: it reaches every workspace only when the domain is shared.
+        shared = homeOf(key('domain', d.id)) === null ? changed.length : 0
         if (changed.length > 0) writes.push(() => void upsert({ kind: 'domain', item: { ...d, questions: members } }))
         break
       }
@@ -1388,7 +1396,7 @@ export function createFakeHost(): FakeHost {
       return group
     },
     domain_group_rename: (a: Record<string, unknown>) => {
-      const domainId = a.domainId as string
+      const domainId = groupHome(a.id as string)
       const name = groupName(domainId, a.name as string, a.id as string)
       putGroups(domainId, (domainGroups.get(domainId) ?? []).map((g) => (g.id === a.id ? { ...g, name } : g)))
       return null
@@ -1403,7 +1411,7 @@ export function createFakeHost(): FakeHost {
       return null
     },
     domain_group_delete: (a: Record<string, unknown>) => {
-      const domainId = a.domainId as string
+      const domainId = groupHome(a.id as string)
       putGroups(domainId, (domainGroups.get(domainId) ?? []).filter((g) => g.id !== a.id))
       const row = library.get(key('domain', domainId))
       if (row?.kind === 'domain') {

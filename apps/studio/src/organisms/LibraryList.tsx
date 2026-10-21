@@ -61,6 +61,8 @@ export interface LibraryListProps {
       }
     | undefined
   onRetry?: (() => void) | undefined
+  /** A group header's menu, by the group's key; nothing for a header without one. */
+  headerActions?: ((key: string, label: string) => ReactNode) | undefined
 }
 
 const VIRTUAL_ABOVE = 200
@@ -92,6 +94,7 @@ export function LibraryList({
   actions,
   bulk,
   onRetry,
+  headerActions,
 }: LibraryListProps) {
   const { page, selection, state } = view
   const where = `${what} rows=${total ?? 'none'} layout=${layout}`
@@ -127,7 +130,7 @@ export function LibraryList({
   const draw = (entry: ListEntry<unknown, RecordView>) => {
     if (entry.kind === 'header') {
       const g = entry.group
-      return <GroupHeader key={`#${g.key}`} label={g.label} count={g.count} continued={g.continued} collapsed={g.collapsed} onToggle={() => view.toggleCollapsed(g.key)} />
+      return <GroupHeader key={`#${g.key}`} label={g.label} count={g.count} continued={g.continued} collapsed={g.collapsed} onToggle={() => view.toggleCollapsed(g.key)} actions={headerActions?.(g.key, g.label)} />
     }
     const { row } = entry
     const record = row.item.view

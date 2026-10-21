@@ -394,7 +394,8 @@ fn build(doc: &Document, settings: GameSettings, scope: &str) -> (Vec<CatalogIte
 
 /// Whether a stored row still carries the shipped body. Stamps, counters, `rev`
 /// and `origin` are host-owned or bookkeeping — an operator cannot edit them —
-/// so they are levelled before the comparison.
+/// so they are levelled before the comparison. A domain's groups organise only
+/// (P15): grouping a demo question is not an edit of the game.
 fn same_body(shipped: &CatalogItem, stored: &CatalogItem) -> bool {
     let mut stored = stored.clone();
     match &mut stored {
@@ -407,6 +408,10 @@ fn same_body(shipped: &CatalogItem, stored: &CatalogItem) -> bool {
         CatalogItem::Domain(domain) => {
             domain.stamps = Stamps::default();
             domain.origin = Origin::Seed;
+            domain.groups.clear();
+            for member in &mut domain.questions {
+                member.group_id = None;
+            }
         }
         CatalogItem::Question(question) => {
             question.stamps = Stamps::default();
@@ -415,6 +420,23 @@ fn same_body(shipped: &CatalogItem, stored: &CatalogItem) -> bool {
         CatalogItem::Operator(_) | CatalogItem::Asset(_) => {}
     }
     *shipped == stored
+}
+
+/// The shipped item, with the operator's domain groups kept: Restore puts the
+/// game back, and a group is not part of the game (P15).
+fn keep_groups(shipped: &CatalogItem, stored: &CatalogItem) -> CatalogItem {
+    let (CatalogItem::Domain(shipped), CatalogItem::Domain(stored)) = (shipped, stored) else {
+        return shipped.clone();
+    };
+    let mut domain = shipped.clone();
+    for member in &mut domain.questions {
+        member.group_id = stored
+            .questions
+            .iter()
+            .find(|m| m.question_id == member.question_id)
+            .and_then(|m| m.group_id.clone());
+    }
+    CatalogItem::Domain(domain)
 }
 
 fn same_recipe(shipped: &Recipe, stored: &Recipe) -> bool {
@@ -506,13 +528,13 @@ impl CatalogService {
                     to_write.push(item.clone());
                     inserted += 1;
                 }
-                Stored::Present { archived, .. } => {
+                Stored::Present { archived, row } => {
                     if archived {
                         to_restore.push((item.kind(), item.id()));
                     }
                     match mode {
                         SeedMode::Overwrite => {
-                            to_write.push(item.clone());
+                            to_write.push(keep_groups(item, &row));
                             overwritten += 1;
                         }
                         SeedMode::Missing if archived => inserted += 1,

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Dropdown, Header, Label, Pagination, Popover } from '@heroui/react'
 import { Button, CheckboxField, IconButton, NumberField, SegmentedField, SwitchField, Text } from '@/atoms'
 import { LIST } from '@/copy'
@@ -295,10 +296,12 @@ export interface GroupHeaderProps {
   continued: boolean
   collapsed: boolean
   onToggle(): void
+  /** A menu at the header's end — a domain group's Rename and Delete (P15). */
+  actions?: ReactNode
 }
 
 /** A full-width header row: "History · 48", "(continued)" on a later page, a toggle. */
-export function GroupHeader({ label, count, continued, collapsed, onToggle }: GroupHeaderProps) {
+export function GroupHeader({ label, count, continued, collapsed, onToggle, actions }: GroupHeaderProps) {
   return (
     <div role="heading" aria-level={3} className="flex h-10 items-center gap-2 border-b border-[var(--separator)] px-2" data-group-header>
       <IconButton icon={collapsed ? 'chevronRight' : 'chevronDown'} size="sm" label={collapsed ? LIST.showGroup(label) : LIST.hideGroup(label)} hideTooltip onPress={onToggle} />
@@ -310,6 +313,7 @@ export function GroupHeader({ label, count, continued, collapsed, onToggle }: Gr
           {LIST.continued}
         </Text>
       ) : null}
+      {actions ? <span className="ml-auto">{actions}</span> : null}
     </div>
   )
 }
