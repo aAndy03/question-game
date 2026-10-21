@@ -109,11 +109,29 @@ describe('workspaces', () => {
     await pick('Edit')
     const name = await named('Name')
     await name.waitForExist()
-    await name.clearValue()
-    await name.setValue('Red Lions')
+    // clearValue leaves a React field's value in place: select it and type over it.
+    await name.click()
+    await browser.keys(['Control', 'a'])
+    await browser.keys('Red Lions')
+    expect(await name.getValue()).toBe('Red Lions')
     await press('Save')
     await sees('This row has copies')
     await sees('Copies live in Second.')
+    // Every action sits inside the dialog's frame (beta.3: Cancel had spilled out to the left).
+    const outside = await browser.execute(() => {
+      const dialog = document.querySelector('[role="alertdialog"]')
+      if (!dialog) return ['no dialog']
+      const frame = dialog.getBoundingClientRect()
+      return [...dialog.querySelectorAll('button')]
+        .filter((b) => b.offsetParent !== null)
+        .filter((b) => {
+          const r = b.getBoundingClientRect()
+          return r.left < frame.left - 0.5 || r.right > frame.right + 0.5
+        })
+        .map((b) => b.textContent ?? '')
+    })
+    expect(outside).toEqual([])
+    await browser.saveScreenshot('e2e/.artifacts/look-propagate.png')
     await press('Also update 1 copy')
 
     // In Second: the copy is renamed, and Geography holds the one question.
@@ -121,6 +139,7 @@ describe('workspaces', () => {
     await pick('Second')
     await press('Teams')
     await sees('Red Lions')
+    expect(await $('body').getText()).not.toContain('RedRed')
     await press('Domains & Questions')
     await sees('Geography')
     await sees('What is the capital of Australia?')

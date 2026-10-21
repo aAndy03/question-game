@@ -63,7 +63,7 @@ export function usePropagatingSave(): PropagatingSave {
   const names = preview ? [...new Set([...preview.update.map(where), ...preview.skipped.map((s) => where(s.copy))])].join(', ') : ''
   const dialog = (
     <AlertDialog.Backdrop isOpen={preview !== null} onOpenChange={(o) => (o ? undefined : choose('cancel'))} isDismissable={false} isKeyboardDismissDisabled={false}>
-      <AlertDialog.Container size="sm">
+      <AlertDialog.Container size="md">
         <AlertDialog.Dialog>
           <AlertDialog.Header>
             <AlertDialog.Heading>{PROPAGATE.title}</AlertDialog.Heading>

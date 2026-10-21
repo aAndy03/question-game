@@ -111,3 +111,11 @@ body {
 [role='tab'] {
   white-space: nowrap;
 }
+
+/* A dialog's actions never leave its frame (beta.3): three buttons — Cancel ·
+ * Save here only · Also update 2 copies — overflowed a small dialog to the
+ * left. They wrap onto a second row, still right-aligned, instead. */
+.alert-dialog__footer,
+.modal__footer {
+  flex-wrap: wrap;
+}
