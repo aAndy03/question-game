@@ -45,6 +45,10 @@ use crate::rules::{Verdict, judge};
 pub struct TurnFact {
     pub play_id: PlayId,
     pub recipe_id: RecipeId,
+    /// The workspace of the game, filled in by the catalog (the log does not
+    /// carry it); empty until then.
+    #[serde(default)]
+    pub workspace_id: String,
     /// When the turn *resolved* — the moment it counted.
     pub at_ms: u64,
     pub team_id: TeamId,
@@ -224,6 +228,7 @@ pub fn awards(events: &[Event]) -> Vec<TurnAward> {
                 let fact = TurnFact {
                     play_id: snapshot.play_id.clone(),
                     recipe_id: snapshot.recipe_id.clone(),
+                    workspace_id: String::new(),
                     at_ms: event.at_ms,
                     team_name: snapshot
                         .team(&turn.team)
@@ -373,6 +378,8 @@ pub enum StatsDimension {
     Play,
     /// UTC day, `YYYY-MM-DD`, for the time series.
     Day,
+    /// The workspace the turn's game lives in (beta.5) — with *All workspaces*.
+    Workspace,
 }
 
 /// A number a row carries. The unit is the metric's, not the caller's, so a
@@ -572,6 +579,7 @@ fn group_of(fact: &TurnFact, by: StatsDimension) -> (String, String) {
         },
         StatsDimension::Recipe => (fact.recipe_id.to_string(), fact.recipe_id.to_string()),
         StatsDimension::Play => (fact.play_id.to_string(), fact.play_id.to_string()),
+        StatsDimension::Workspace => (fact.workspace_id.clone(), fact.workspace_id.clone()),
         StatsDimension::Day => {
             let day = day_of(fact.at_ms);
             (day.clone(), day)

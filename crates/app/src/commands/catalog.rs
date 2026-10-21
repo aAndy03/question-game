@@ -495,6 +495,26 @@ pub fn catalog_rebuild_search(
     Ok(serde_json::json!({ "indexed": indexed }))
 }
 
+/// *Repair* (beta.5): remove the library's references that point at nothing
+/// or at another workspace — the action behind `health.library_refs`.
+#[tauri::command(async)]
+pub fn library_repair(window: WebviewWindow, app: AppHandle, state: State<'_, AppState>) -> AppResult<u32> {
+    guard::allow(window.label(), "library_repair")?;
+    let removed = {
+        let host = state.lock();
+        let (removed, recipes) = host.catalog.library_repair(crate::state::now_ms())?;
+        for change in &recipes {
+            emit::recipe_changed(&app, change);
+        }
+        removed
+    };
+    for kind in [CatalogKind::Team, CatalogKind::Domain, CatalogKind::Question] {
+        emit::catalog_changed(&app, &CatalogChange { kind, id: String::new(), op: ChangeOp::Upserted });
+    }
+    crate::tick::health_once(&app);
+    Ok(removed)
+}
+
 /// Delete every closed Play and its events (§2.15, §12.3). Refused while a
 /// Play is loaded or open — before any pin is looked at, because the pin is
 /// not what protects the show — and pin-gated when the active operator has one.

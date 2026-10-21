@@ -214,6 +214,12 @@ export const COMMAND_GROUPS = {
     'catalog_upsert_propagating',
     /** *Stop following its copies*: the row leaves its family. */
     'catalog_unfollow',
+    /** The other members of a row's family, wherever they live (beta.5). */
+    'catalog_family',
+    /** *Duplicate* within this workspace: new rows, no family, "(copy)" names (beta.5). */
+    'catalog_duplicate',
+    /** *Repair*: remove references that point at nothing or at another workspace (beta.5). */
+    'library_repair',
   ],
   /** The app itself (P12): the close guard's answers and the uninstaller. */
   app: [

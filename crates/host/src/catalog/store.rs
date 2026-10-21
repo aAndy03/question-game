@@ -126,6 +126,9 @@ fn carried_created_at(
 /// itself rebuilt from the log at every open, so they cannot drift from what
 /// happened. The same fix `operators.plays_run` got in P11.1, one entity over.
 ///
+/// Only the Plays of games in the team's own workspace count (beta.5): a team
+/// moved here does not bring another workspace's season with it.
+///
 /// A Play's roster is the key set of its `scores_json` — `record_of` maps over
 /// the snapshot's teams, so a team that scored nothing is still in there. A
 /// Play that was loaded and never started is not one anybody played.
@@ -133,10 +136,12 @@ const TEAM_COLUMNS: &str = "t.id, t.name, t.short_code, t.color, t.logo_asset_id
      t.origin, t.created_at, t.updated_at, t.archived_at, t.workspace_id, t.family_id,
      (SELECT COUNT(*) FROM plays p
        WHERE p.started_at_ms IS NOT NULL
+         AND p.recipe_id IN (SELECT r.id FROM recipes r WHERE r.workspace_id = t.workspace_id)
          AND EXISTS (SELECT 1 FROM json_each(p.scores_json) j WHERE j.key = t.id))
        AS play_count,
      (SELECT MAX(p.started_at_ms) FROM plays p
        WHERE p.started_at_ms IS NOT NULL
+         AND p.recipe_id IN (SELECT r.id FROM recipes r WHERE r.workspace_id = t.workspace_id)
          AND EXISTS (SELECT 1 FROM json_each(p.scores_json) j WHERE j.key = t.id))
        AS last_play_at";
 

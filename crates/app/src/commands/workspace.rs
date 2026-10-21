@@ -9,7 +9,7 @@
 //! document, which `FlagService` holds in memory.
 
 use questiongame_host::catalog::{
-    CatalogChange, CatalogItem, CatalogKind, ChangeOp, CopyOptions, PropagationPreview, DeleteReport, OpenOptions, Selection, TransferOp, TransferReport, Workspace,
+    CatalogChange, CatalogItem, CatalogKind, ChangeOp, CopyOptions, FamilyCopy, PropagationPreview, DeleteReport, OpenOptions, Selection, TransferOp, TransferReport, Workspace,
     WorkspaceGroup,
 };
 use questiongame_host::{WorkspaceGroupId, WorkspaceId};
@@ -410,6 +410,31 @@ pub fn catalog_upsert_propagating(
         emit::catalog_changed(&app, &CatalogChange { kind: change.kind, id: copy.id.clone(), op: ChangeOp::Upserted });
     }
     Ok(done)
+}
+
+/// The other members of a row's family (beta.5: the detail panels' *Copies*).
+#[tauri::command(async)]
+pub fn catalog_family(window: WebviewWindow, state: State<'_, AppState>, kind: CatalogKind, id: String) -> AppResult<Vec<FamilyCopy>> {
+    guard::allow(window.label(), "catalog_family")?;
+    Ok(state.lock().catalog.catalog_family(kind, &id)?)
+}
+
+/// *Duplicate* within this workspace (beta.5): teams, domains, questions.
+#[tauri::command(async)]
+pub fn catalog_duplicate(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    kind: CatalogKind,
+    ids: Vec<String>,
+) -> AppResult<Vec<String>> {
+    guard::allow(window.label(), "catalog_duplicate")?;
+    let host = state.lock();
+    let (made, changes) = host.catalog.catalog_duplicate(kind, &ids, now_ms())?;
+    for change in &changes {
+        emit::catalog_changed(&app, change);
+    }
+    Ok(made)
 }
 
 /// *Stop following its copies*.

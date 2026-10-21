@@ -275,6 +275,9 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::workspace::catalog_propagation_preview,
         commands::workspace::catalog_upsert_propagating,
         commands::workspace::catalog_unfollow,
+        commands::workspace::catalog_family,
+        commands::workspace::catalog_duplicate,
+        commands::catalog::library_repair,
         // CatalogService
         commands::catalog::catalog_list,
         commands::catalog::catalog_get,

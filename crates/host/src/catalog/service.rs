@@ -982,6 +982,31 @@ impl CatalogService {
         snapshot::build(&recipe, &bodies, play_id, settings)
     }
 
+    /// How many references in the library point at nothing or at another
+    /// workspace (beta.5, `health.library_refs`). Every workspace's.
+    pub fn library_check(&self) -> CatalogResult<u32> {
+        super::integrity::count(&self.conn())
+    }
+
+    /// Remove those references and nothing else (beta.5, *Repair*), in one
+    /// transaction. Returns how many, and the games whose `rev` moved.
+    pub fn library_repair(&self, now_ms: u64) -> CatalogResult<(u32, Vec<RecipeChange>)> {
+        let (removed, recipes) = {
+            let mut conn = self.conn();
+            let tx = conn.transaction()?;
+            let done = super::integrity::repair(&tx)?;
+            tx.commit()?;
+            done
+        };
+        let mut changes = Vec::new();
+        for id in recipes {
+            let id = RecipeId::new(id);
+            let rev = self.bump_rev(&id, now_ms)?;
+            changes.push(RecipeChange { id, rev });
+        }
+        Ok((removed, changes))
+    }
+
     /// The archived rows a game still names (beta.4), by name, each once —
     /// values for Studio to say, as every preview code is. A row it cannot
     /// read is left out: the preview describes, Load refuses.
@@ -1163,8 +1188,20 @@ impl CatalogService {
                 .collect(),
         };
         let mut awards: Vec<TurnAward> = Vec::new();
+        let mut homes: std::collections::BTreeMap<String, String> =
+            std::collections::BTreeMap::new();
         for id in &ids {
-            awards.extend(stats::awards(&store::events_read(&guard, id)?));
+            for mut award in stats::awards(&store::events_read(&guard, id)?) {
+                // The log does not say where its game lives; the catalog does (beta.5).
+                let recipe = award.fact.recipe_id.to_string();
+                if !homes.contains_key(&recipe) {
+                    let home =
+                        store::home_of(&guard, CatalogKind::Recipe, &recipe)?.unwrap_or_default();
+                    homes.insert(recipe.clone(), home);
+                }
+                award.fact.workspace_id = homes.get(&recipe).cloned().unwrap_or_default();
+                awards.push(award);
+            }
         }
         let mut result = stats::aggregate_awards(&awards, query);
         relabel(&guard, &mut result);
@@ -1328,6 +1365,13 @@ fn relabel(conn: &Connection, result: &mut StatsResult) {
             StatsDimension::Recipe => store::recipe_get(conn, &RecipeId::from(row.key.as_str()))
                 .ok()
                 .map(|item| item.name),
+            // A deleted workspace keeps its id as the label.
+            StatsDimension::Workspace => {
+                store::workspace_get(conn, &crate::ids::WorkspaceId::new(row.key.clone()))
+                    .ok()
+                    .flatten()
+                    .and_then(|w| w.name)
+            }
             // A difficulty band, a day and a Play id label themselves.
             _ => None,
         };

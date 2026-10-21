@@ -54,6 +54,8 @@ pub fn health_once(app: &AppHandle) {
     let stage_exists = tauri::Manager::get_webview_window(app, crate::guard::STAGE).is_some();
     crate::perf::set_current("health");
     let mut host = state.lock();
+    // beta.5: the library check is counts in SQL, cheap at this pace.
+    host.health.inputs.library_refs = host.catalog.library_check().unwrap_or(0);
     let (report, changed) = host.health.report(stage_exists, free);
     if changed {
         emit::health(app, &report);

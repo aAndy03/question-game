@@ -105,6 +105,26 @@ impl CatalogService {
         ))
     }
 
+    /// The other members of a row's family, wherever they live (beta.5: the
+    /// detail panels' *Copies*). Empty for a row never copied.
+    pub fn catalog_family(&self, kind: CatalogKind, id: &str) -> CatalogResult<Vec<FamilyCopy>> {
+        let conn = self.conn();
+        get(&conn, kind, id)?;
+        let Some(family) = store::family_of(&conn, kind, id)? else {
+            return Ok(Vec::new());
+        };
+        Ok(store::family_members(&conn, kind, family)?
+            .into_iter()
+            .filter(|(member, ..)| member != id)
+            .map(|(id, workspace, workspace_name, archived)| FamilyCopy {
+                id,
+                workspace: WorkspaceId::new(workspace),
+                workspace_name,
+                archived,
+            })
+            .collect())
+    }
+
     /// *Stop following its copies*: the row leaves its family; the copies
     /// stay one family without it.
     pub fn catalog_unfollow(&self, kind: CatalogKind, id: &str) -> CatalogResult<()> {

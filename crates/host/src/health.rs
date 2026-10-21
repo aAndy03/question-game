@@ -51,6 +51,9 @@ pub struct HealthInputs {
     /// it is (an Atomos recorder arriving this way looked like the app
     /// ignoring it, 2026-09-11). Friendly names.
     pub unused_displays: Vec<String>,
+    /// References in the library that point at nothing or at another
+    /// workspace (beta.5): `CatalogService::library_check`.
+    pub library_refs: u32,
 }
 
 /// The worst severity among the items. `Ok` is an empty report.
@@ -100,6 +103,13 @@ pub fn check(inputs: &HealthInputs) -> HealthReport {
                 &["open_data_folder"],
             )
             .with("message", message.clone()),
+        );
+    }
+
+    if inputs.library_refs > 0 {
+        items.push(
+            Notice::new("health.library_refs", Severity::Warn, &["repair_library"])
+                .with("count", inputs.library_refs.to_string()),
         );
     }
 
@@ -208,9 +218,16 @@ mod tests {
             missing_cues: vec![(CueKey::Lock, "lock.wav".to_owned())],
             failed_cues: vec![(CueKey::Correct, "correct.wav".to_owned())],
             unused_displays: vec!["Atomos Ninja V".to_owned()],
+            library_refs: 3,
         };
         let report = check(&loud);
-        assert_eq!(report.items.len(), 8, "one item per finding");
+        assert_eq!(report.items.len(), 9, "one item per finding");
+        let refs = report
+            .items
+            .iter()
+            .find(|i| i.code == "health.library_refs")
+            .expect("the library check");
+        assert_eq!(refs.actions, ["repair_library"]);
         for item in &report.items {
             assert!(!item.actions.is_empty(), "{} has no suggestion", item.code);
             assert!(item.actions.len() <= crate::notice::MAX_ACTIONS);
