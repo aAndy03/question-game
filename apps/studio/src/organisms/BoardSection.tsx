@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button, CheckboxField, IconButton, MeaningChip, Panel, SelectField, SwitchField, Text } from '@/atoms'
-import { BoardBalance, EmptyState, IncompleteMark, InlineNotice, ScopeConfirm } from '@/molecules'
+import { BoardBalance, DifficultyDialog, EmptyState, IncompleteMark, InlineNotice } from '@/molecules'
 import { DOMAIN, GAME, QUESTION } from '@/copy'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { blockedMembers, everyQuestion, oneQuestionPerDifficulty } from '@/host/board'
@@ -16,7 +16,7 @@ export interface BoardSectionProps {
 
 /**
  * Pick domains for this show, then the questions from each (spec §12).
- * Difficulty overrides are inline edits with `ScopeConfirm` (§2.17); the
+ * Difficulty overrides go through `DifficultyDialog` (§2.17, 1.1.1: a `window.prompt` before); the
  * snapshot re-sorts by difficulty at Play start, so the authored order shown
  * here is for the operator's eye only.
  *
@@ -47,7 +47,7 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
   const run = useHostCommand()
   const [adding, setAdding] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
-  const [scopeFor, setScopeFor] = useState<{ questionId: string; difficulty: number } | null>(null)
+  const [difficultyFor, setDifficultyFor] = useState<{ questionId: string; current: number | null } | null>(null)
   const notices = useNoticeStore((s) => s.notices)
   const dismiss = useNoticeStore((s) => s.dismiss)
 
@@ -95,13 +95,14 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
       ),
     )
 
-  const applyDifficulty = async (scope: EditScope) => {
-    if (!scopeFor) return
-    await run('recipe_set_overlay', {
-      id: recipe.id,
-      target: { target: 'question', id: scopeFor.questionId, patch: { difficulty: scopeFor.difficulty } },
-      scope,
-    })
+  const applyDifficulty = async (scope: EditScope, difficulty: number): Promise<boolean> => {
+    if (!difficultyFor) return false
+    const done = await run(
+      'recipe_set_overlay',
+      { id: recipe.id, target: { target: 'question', id: difficultyFor.questionId, patch: { difficulty } }, scope },
+      { targetPath: `recipe.${recipe.id}.board` },
+    )
+    return done !== null
   }
 
   const total = recipe.board.reduce((n, b) => n + b.questionIds.length, 0)
@@ -227,11 +228,8 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
                         className="rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
                         title={QUESTION.difficulty}
                         disabled={frozenReason !== null}
-                        onClick={() => {
-                          const next = window.prompt(`${QUESTION.difficulty} (1–100)`, difficulty === null ? '' : String(difficulty))
-                          const n = next === null ? Number.NaN : Number(next)
-                          if (Number.isInteger(n) && n >= 1 && n <= 100 && n !== difficulty) setScopeFor({ questionId: qid, difficulty: n })
-                        }}
+                        aria-label={GAME.editDifficulty(stem || QUESTION.noStem, band ? `${QUESTION.band[band]} · ${difficulty}` : QUESTION.difficultyUnset)}
+                        onClick={() => setDifficultyFor({ questionId: qid, current: difficulty })}
                       >
                         {band ? (
                           <MeaningChip meaning={band}>{`${QUESTION.band[band]} · ${difficulty}`}</MeaningChip>
@@ -288,7 +286,12 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
       <Text variant="studio-caption" tone="muted">
         {GAME.shapeHint}
       </Text>
-      <ScopeConfirm isOpen={scopeFor !== null} onOpenChange={(open) => !open && setScopeFor(null)} subject={QUESTION.difficulty} onChoose={applyDifficulty} />
+      <DifficultyDialog
+        isOpen={difficultyFor !== null}
+        onOpenChange={(open) => !open && setDifficultyFor(null)}
+        current={difficultyFor?.current ?? null}
+        onChoose={applyDifficulty}
+      />
     </Panel>
   )
 }

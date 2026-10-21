@@ -158,7 +158,10 @@ describe('the question editor saves once and leaves', () => {
     expect(screen.queryByText('Unsaved changes')).toBeNull()
     // One write, not two: the dialog's own Save used to run the whole body a
     // second time, against a draft that had already been reset.
-    expect(fake.calls.filter((c) => c.name === 'catalog_upsert').length).toBe(1)
+    // 1.1.1: the question and its memberships are one batch write.
+    const writes = fake.calls.filter((c) => c.name === 'catalog_upsert' || c.name === 'catalog_upsert_many')
+    expect(writes.length).toBe(1)
+    expect((writes[0]?.args?.['items'] as { kind: string }[] | undefined)?.[0]?.kind).toBe('question')
   })
 
   it('keeps what was typed when a catalog refresh arrives under the editor', async () => {
@@ -199,7 +202,7 @@ describe('the question editor saves once and leaves', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
-    await waitFor(() => expect(fake.calls.some((c) => c.name === 'catalog_upsert')).toBe(true))
+    await waitFor(() => expect(fake.calls.some((c) => c.name === 'catalog_upsert_many')).toBe(true))
     const saved = [...fake.library.values()].find((row) => row.kind === 'question' && row.item.stem === 'Only the question so far?')
     expect(saved?.kind === 'question' ? saved.item.options : null).toEqual([])
   })

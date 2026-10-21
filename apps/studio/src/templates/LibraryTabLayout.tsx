@@ -1,16 +1,19 @@
 import type { ReactNode } from 'react'
 import { motion } from 'motion/react'
+import { DetailAside } from './DetailAside'
 
 export interface LibraryTabLayoutProps {
   header: ReactNode
   /** The list, filling the remaining height. */
   children: ReactNode
-  /** The detail aside, shown beside the list at wide widths. */
+  /** The detail aside: beside the list at wide widths, over it below 1280 px (1.1.1). */
   aside?: ReactNode
+  /** Back to the list, from the narrow window's Close. */
+  onCloseAside?: () => void
 }
 
 /** Header · list · optional aside. Page padding is 24px (05_STUDIO_DESIGN.md §2.4). */
-export function LibraryTabLayout({ header, children, aside }: LibraryTabLayoutProps) {
+export function LibraryTabLayout({ header, children, aside, onCloseAside }: LibraryTabLayoutProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
@@ -19,9 +22,9 @@ export function LibraryTabLayout({ header, children, aside }: LibraryTabLayoutPr
       className="flex h-full min-h-0 flex-col gap-6 p-6"
     >
       {header}
-      <div className="flex min-h-0 flex-1 gap-6">
+      <div className="relative flex min-h-0 flex-1 gap-6">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
-        {aside ? <aside className="hidden w-[22rem] shrink-0 overflow-y-auto xl:block">{aside}</aside> : null}
+        {aside ? <DetailAside onClose={() => onCloseAside?.()}>{aside}</DetailAside> : null}
       </div>
     </motion.div>
   )

@@ -111,3 +111,9 @@ body {
 [role='tab'] {
   white-space: nowrap;
 }
+
+/* Dialog actions wrap rather than leave the frame (1.1.1). */
+.alert-dialog__footer,
+.modal__footer {
+  flex-wrap: wrap;
+}

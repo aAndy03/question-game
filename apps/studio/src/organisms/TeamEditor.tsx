@@ -49,6 +49,8 @@ export function TeamEditor({ id }: TeamEditorProps) {
   const inline = noticesAt(notices, path)
   const fieldError = (field: string) => inline.find((n) => n.targetPath === `${path}.${field}`)?.detail.message ?? null
   const canSave = draft.value.name.trim().length > 0 && draft.isDirty
+  // A theme token, not something typed: a typed value stays in the field (1.1.1).
+  const themeColour = draft.value.color.trim().startsWith('var(')
 
   const save = async (): Promise<boolean> => {
     setSaving(true)
@@ -113,6 +115,12 @@ export function TeamEditor({ id }: TeamEditorProps) {
           <div className="flex flex-col gap-2">
             <Text variant="studio-label">{TEAM.color}</Text>
             <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label={TEAM.color}>
+              {/* A theme colour (the Demo's teams) is a swatch, never raw text in the field (1.1.1). */}
+              {themeColour ? (
+                <button type="button" role="radio" aria-checked aria-label={TEAM.themeColour} className="rounded-full p-0.5 ring-2 ring-[var(--accent)]">
+                  <Swatch color={draft.value.color} size="lg" className="rounded-full" />
+                </button>
+              ) : null}
               {TEAM_PALETTE.map((color) => (
                 <button
                   key={color}
@@ -130,10 +138,11 @@ export function TeamEditor({ id }: TeamEditorProps) {
                 </button>
               ))}
               <TextField
-                label={TEAM.color}
+                label={TEAM.colorCode}
                 hideLabel
-                value={draft.value.color}
+                value={themeColour ? '' : draft.value.color}
                 onChange={(color) => draft.set({ color })}
+                placeholder={TEAM.colorPlaceholder}
                 font="mono"
                 className="w-36"
               />

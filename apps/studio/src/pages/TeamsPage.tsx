@@ -66,6 +66,7 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
         />
       }
       aside={currentId ? <TeamDetail id={currentId} compact /> : null}
+      onCloseAside={() => void go({ tab: 'teams' })}
     >
       <LibraryList
         view={lv}

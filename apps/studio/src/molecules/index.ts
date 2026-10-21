@@ -13,6 +13,7 @@ export { InlineNotice, type InlineNoticeProps, type ConfirmFrameView } from './I
 export { ConfirmDialog, CONFIRM_MAX_DEPTH, type ConfirmDialogProps, type ConfirmFrame } from './ConfirmDialog'
 export { DirtyGuard, type DirtyGuardProps } from './DirtyGuard'
 export { ScopeConfirm, type ScopeConfirmProps } from './ScopeConfirm'
+export { DifficultyDialog, acceptsDifficulty, type DifficultyDialogProps } from './DifficultyDialog'
 export { SidebarItem, type SidebarItemProps } from './SidebarItem'
 export { NavCrumbs, type NavCrumbsProps, type Crumb } from './NavCrumbs'
 export { MetaList, type MetaListProps, type MetaItem } from './MetaList'

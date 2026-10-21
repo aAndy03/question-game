@@ -1,4 +1,4 @@
-import { Avatar, Button, MeaningChip, Panel, Skeleton, Text } from '@/atoms'
+import { Avatar, Button, MeaningChip, Panel, Skeleton, Swatch, Text } from '@/atoms'
 import { EmptyState, MetaList, NavCrumbs, PageHeader, StatCard } from '@/molecules'
 import { useNavStore } from '@/chrome/nav'
 import { fmt, LIST, TABS, TEAM } from '@/copy'
@@ -21,6 +21,16 @@ export function TeamDetail({ id, compact }: TeamDetailProps) {
   if (team.isLoading) return <Skeleton shape="card" count={2} />
   if (!team.data) return <EmptyState kind="error" what={TEAM.many} detail={team.error?.message} compact />
   const t = team.data
+  // A theme token is a swatch and its name, never the raw var() text (1.1.1, found on the real app).
+  const theme = t.color.trim().startsWith('var(')
+  const colour = theme ? (
+    <span className="inline-flex items-center gap-2">
+      <Swatch color={t.color} size="sm" className="rounded-full" />
+      {TEAM.themeColour}
+    </span>
+  ) : (
+    t.color
+  )
   const archived = isArchived(t)
 
   const actions = (
@@ -75,7 +85,7 @@ export function TeamDetail({ id, compact }: TeamDetailProps) {
         <div className="flex items-center gap-4">
           <Avatar mark={{ color: t.color, shortCode: t.shortCode, name: t.name }} size="lg" />
           <Text variant="studio-mono" tone="muted">
-            {t.color}
+            {colour}
           </Text>
         </div>
       )}
@@ -88,7 +98,7 @@ export function TeamDetail({ id, compact }: TeamDetailProps) {
           columns={compact ? 1 : 2}
           items={[
             { label: TEAM.shortCode, value: t.shortCode, mono: true },
-            { label: TEAM.color, value: t.color, mono: true },
+            { label: TEAM.color, value: colour, mono: !theme },
             { label: TEAM.notes, value: t.notes ?? '—' },
             { label: LIST.updated, value: fmt.date(t.updatedAt) },
             { label: LIST.created, value: fmt.date(t.createdAt) },

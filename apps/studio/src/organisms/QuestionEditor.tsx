@@ -121,11 +121,6 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
       explanation: q.explanation?.trim() ? q.explanation : null,
       options: filled.map((o) => ({ ...o, text: o.text.trim() })),
     }
-    const result = await run('catalog_upsert', { item: { kind: 'question', item } }, { targetPath: path })
-    if (result === null) {
-      setSaving(false)
-      return false
-    }
     // Membership: add to chosen domains, drop from the rest (§4.1: sort_key
     // belongs to the membership; appending keeps the authored order).
     const before = new Set((domains.data ?? []).filter((d) => d.questions.some((m) => m.questionId === item.id)).map((d) => d.id))
@@ -139,10 +134,11 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
         changed.push({ ...d, questions: d.questions.filter((m) => m.questionId !== item.id) })
       }
     }
-    if (changed.length > 0) {
-      await run('catalog_upsert_many', { items: changed.map((d) => ({ kind: 'domain', item: d })) })
-    }
+    // One write (1.1.1): the question and the memberships it changes, so a
+    // refused membership never leaves a saved question behind it.
+    const ok = await run('catalog_upsert_many', { items: [{ kind: 'question', item }, ...changed.map((d) => ({ kind: 'domain', item: d }))] }, { targetPath: path })
     setSaving(false)
+    if (ok === null) return false
     draft.adopt({ question: item, domainIds: draft.value.domainIds })
     toast.success('Question saved')
     return true

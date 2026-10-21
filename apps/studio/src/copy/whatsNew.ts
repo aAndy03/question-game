@@ -30,6 +30,39 @@ export interface WhatsNewRelease {
 
 export const WHATS_NEW: readonly WhatsNewRelease[] = [
   {
+    version: '1.1.1',
+    notes: {
+      en: [
+        {
+          title: 'Works in a smaller window',
+          body: 'Below a window width of 1280 pixels, opening a team, question or operator now shows it over the list, with a Close to go back. Before, nothing appeared.',
+        },
+        {
+          title: 'Difficulty in a dialog',
+          body: 'Changing a question’s difficulty on the Board opens a small dialog with This game only and Apply to original, instead of a browser prompt.',
+        },
+        {
+          title: 'Small fixes',
+          body: 'Plays are numbered Play 1, Play 2 and so on. A theme colour shows as its swatch, not as code. Saving a question saves its domains in the same step. Messages read cleanly, and dialog buttons stay inside the dialog.',
+        },
+      ],
+      ro: [
+        {
+          title: 'Merge și într-o fereastră mai mică',
+          body: 'Sub o lățime de 1280 de pixeli, deschiderea unei echipe, întrebări sau a unui operator o arată acum peste listă, cu un Close pentru întoarcere. Înainte nu apărea nimic.',
+        },
+        {
+          title: 'Dificultatea într-o fereastră',
+          body: 'Schimbarea dificultății unei întrebări din Board deschide o fereastră mică, cu This game only și Apply to original, în locul unei casete a browserului.',
+        },
+        {
+          title: 'Mici reparații',
+          body: 'Jocurile rulate sunt numerotate Play 1, Play 2 și așa mai departe. O culoare din temă apare ca mostră, nu ca cod. Salvarea unei întrebări îi salvează și domeniile în același pas. Mesajele se citesc curat, iar butoanele rămân în fereastră.',
+        },
+      ],
+    },
+  },
+  {
     version: '1.1.0',
     notes: {
       en: [

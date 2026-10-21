@@ -78,6 +78,7 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
         />
       }
       aside={currentId ? <OperatorDetail id={currentId} compact /> : null}
+      onCloseAside={() => void go({ tab: 'operators' })}
     >
       <LibraryList
         view={lv}

@@ -102,6 +102,8 @@ export const LIST = {
   open: 'Open',
   edit: 'Edit',
   duplicate: 'Duplicate',
+  /** The opened row's Close below 1280 px (1.1.1). */
+  closeDetail: 'Close',
   new: (what: string) => `New ${what}`,
   selected: (n: number) => (n === 1 ? '1 selected' : `${n} selected`),
   clearSelection: 'Clear',
@@ -208,7 +210,7 @@ export const CONFIRM = {
   archiveMany: (n: number, what: string) => `Archive ${n} ${what}?`,
   restoreMany: (n: number, what: string) => `Restore ${n} ${what}?`,
   archiveBody: 'Archived rows leave the active lists and stay restorable. Nothing is deleted.',
-  referencedBy: (by: string) => `Still used by a ${by}. It stays in that ${by}; only the library row is archived.`,
+  referencedBy: (by: string) => `Still used by ${by}. It stays there; only the library row is archived.`,
   arm: 'Archive',
   armed: 'Confirm archive',
   dirtyTitle: 'Unsaved changes',
@@ -219,6 +221,7 @@ export const CONFIRM = {
   scopeTitle: 'Apply where?',
   scopeBody: 'This edit can stay on this game only, or change the library original.',
   thisGame: 'This game only',
+  scopeDifficulty: 'Change it for this game only, or in the library itself.',
   original: 'Apply to original',
 } as const
 
@@ -231,6 +234,9 @@ export const FIELD = {
 } as const
 
 export const TEAM = {
+  themeColour: 'Theme colour',
+  colorCode: 'Colour code',
+  colorPlaceholder: '#RRGGBB',
   one: 'team',
   many: 'teams',
   name: 'Name',
@@ -276,6 +282,7 @@ const QUESTION_GAP = {
 } as const satisfies Record<QuestionGap, string>
 
 export const QUESTION = {
+  difficultyRange: 'A whole number from 1 to 100',
   one: 'question',
   many: 'questions',
   stem: 'Question',
@@ -400,6 +407,8 @@ export const GAME = {
     'Several questions at one difficulty in a domain, asked one after the other. They pay the same, and teams cannot tell them apart when they choose.',
   boardEmpty: 'No domains on the board yet.',
   addDomain: 'Add domain',
+  editDifficulty: (stem: string, now: string) => `Difficulty of ${stem}: ${now}`,
+  play: (n: number) => `Play ${n}`,
   removeDomain: 'Remove from board',
   questionsOn: (n: number, of: number) => `${n} of ${of} questions`,
   shape: 'Shape',

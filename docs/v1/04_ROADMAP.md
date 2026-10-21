@@ -1787,6 +1787,16 @@ Design: `docs/superpowers/specs/2026-10-20-stable-1.1-library-views-design.md`; 
 - ☑ *What's new* 1.1.0 in English and Romanian; an e2e spec on the real app.
 - ☐ `npm run version:stable -- minor` and the `v1.1.0` tag, when the maintainer says.
 
+### Stable 1.1.1 — the narrow window and the 1.1 bugs  ☑
+
+Design: `docs/superpowers/specs/2026-10-21-stable-1.1.1-design.md`. Built on `release/1.x`, merged forward into `main`.
+
+- ☑ An opened row below 1280 px opens over the list with a Close (`DetailAside`); `narrow.e2e.ts` at 1100 px on the real app.
+- ☑ The board's difficulty edit is `DifficultyDialog`, not a `window.prompt`.
+- ☑ The 1.1 bugs beta.3–beta.4 fixed on `main`: "used by a a recipe board"; a theme colour as a swatch (editor and detail); dialog footers that wrap; Plays numbered; the question editor's one write; a refusal's text without its routing path.
+- ☑ *What's new* 1.1.1 in English and Romanian.
+- ☐ `npm run version:stable -- patch` and the `v1.1.1` tag, when the maintainer says.
+
 ### Next
 
 - ☐ **Beta 2.0 — workspaces** (release C).

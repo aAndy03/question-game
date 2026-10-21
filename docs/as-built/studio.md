@@ -88,6 +88,16 @@ The design is `docs/v1/05_STUDIO_DESIGN.md` §13. Statistics is a **projector**,
 - **Never touch a window or the display list while the host lock is held**, and the rule is now enforced: `AppState::lock` hands back a `HostGuard` that counts itself, and `state::assert_unlocked` — called by `windows::ensure_stage` / `open_stats` / `close_stats` / `open_studio` / `apply` / `place` and by `monitors::list` / `physical_origin` — is a `debug_assert!`, so a violation is a panic naming the call site instead of a hang. Every one of those pumps the OS message loop, and pumping it dispatches whatever IPC the webview has queued; if that is one of the **synchronous** commands (`get_state`, `settings_get`, `health_get`, `monitors_list`, `catalog_seed_status`) it runs on the *same* thread and calls `lock()`, which is a plain non-reentrant `Mutex`. The app then waits for a guard only that thread can release: no repaint, no input, not even a reload, and no second thread to blame in a dump. `windows::refresh` therefore takes `&AppState` rather than a guard — read the OS, decide under one short lock, then act (2026-09-08; it had been violated by `monitors_list`, `stage_set_monitor`, `play_load` and the monitor watch).
 - **ECharts is imported in exactly one file** (`molecules/StatsChart.tsx`), themed from the Studio CSS variables; a test pins that. EvilCharts is not installed.
 
+## Stable 1.1.1 in Studio
+
+The design is `docs/superpowers/specs/2026-10-21-stable-1.1.1-design.md`.
+
+- **`DetailAside`** (`templates/`) is every library tab's opened row: beside the list at `xl`, over its right edge below (a surface with a shadow, `w-[min(22rem,100%)]`) with a Close the page wires to its list route (`LibraryTabLayout.onCloseAside`). Its parent row is `relative`. Below 1280 px it used to be `hidden`, so at 1100 px an opened row showed nothing.
+- **`DifficultyDialog`** (`molecules/`) replaced the board's `window.prompt`: its buttons judge the value when pressed, because HeroUI's `NumberField` commits on blur and a button disabled until then ate the press that caused it. `ScopeConfirm` stays for the other scope edits.
+- **A theme colour** (`var(…)`, the Demo's teams) is a swatch and *Theme colour* in the team editor and the team detail; only a `var(` value is one, so what is typed stays typed.
+- **The question editor** writes the question and its changed domains in one `catalog_upsert_many`.
+- **`InlineNotice`** drops the `path: ` the host's message starts with; **`playNumbers`** numbers a game's Plays by start time.
+
 ## Library views as built (stable 1.1, P13.2–P13.4)
 
 The design is `05_STUDIO_DESIGN.md` §20. What a later change must not undo:
