@@ -252,6 +252,10 @@ export const TEAM = {
   color: 'Colour',
   themeColour: 'Theme colour',
   colorHint: 'The team mark on Stage.',
+  /** The editor's side column (P20). */
+  preview: 'Preview',
+  inStudio: 'In Studio',
+  onStage: 'On Stage',
   notes: 'Notes',
   playCount: 'Plays',
   playOne: 'play',
@@ -290,6 +294,8 @@ const QUESTION_GAP = {
 } as const satisfies Record<QuestionGap, string>
 
 export const QUESTION = {
+  /** The editor's side column (P20): domains, domain groups, question tags. */
+  filing: 'Where it is filed',
   saved: 'Question saved',
   difficultyRange: 'A whole number from 1 to 100',
   one: 'question',
@@ -421,6 +427,8 @@ export const IMPORT = {
 } as const
 
 export const OPERATOR = {
+  /** The editor's side column (P20): the PIN panel, which saves on its own. */
+  pinSide: 'Pin',
   one: 'operator',
   many: 'operators',
   displayName: 'Display name',

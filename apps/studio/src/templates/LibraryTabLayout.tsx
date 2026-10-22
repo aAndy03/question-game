@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
 import { motion } from 'motion/react'
-import { DetailAside } from './DetailAside'
+import { ListArea } from './ListArea'
 
 export interface LibraryTabLayoutProps {
   header: ReactNode
+  /** `ListToolbar`, on its own row above the list and the aside (P20). */
+  toolbar?: ReactNode
   /** The list, filling the remaining height. */
   children: ReactNode
   /** The detail aside: beside the list at wide widths, over it below 1280 px (1.1.1). */
@@ -12,8 +14,8 @@ export interface LibraryTabLayoutProps {
   onCloseAside?: () => void
 }
 
-/** Header · list · optional aside. Page padding is 24px (05_STUDIO_DESIGN.md §2.4). */
-export function LibraryTabLayout({ header, children, aside, onCloseAside }: LibraryTabLayoutProps) {
+/** Header · toolbar · list · optional aside. Page padding is 24px (05_STUDIO_DESIGN.md §2.4). */
+export function LibraryTabLayout({ header, toolbar, children, aside, onCloseAside }: LibraryTabLayoutProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 4 }}
@@ -22,10 +24,9 @@ export function LibraryTabLayout({ header, children, aside, onCloseAside }: Libr
       className="flex h-full min-h-0 flex-col gap-6 p-6"
     >
       {header}
-      <div className="relative flex min-h-0 flex-1 gap-6">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
-        {aside ? <DetailAside onClose={() => onCloseAside?.()}>{aside}</DetailAside> : null}
-      </div>
+      <ListArea toolbar={toolbar} aside={aside} onCloseAside={onCloseAside}>
+        {children}
+      </ListArea>
     </motion.div>
   )
 }

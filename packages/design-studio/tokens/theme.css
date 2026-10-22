@@ -68,12 +68,29 @@
 
 /* Tailwind's type scale is already variable-driven and already correct for
  * Studio; naming the roles keeps components off raw t-shirt sizes. Add a role
- * here rather than reaching for `text-[13px]`. */
-@theme inline {
+ * here rather than reaching for `text-[13px]`.
+ *
+ * `static`, never `inline` (P20): Tailwind v4 emits a theme variable only
+ * when a utility uses it, and `Text` reads these from an inline style it
+ * cannot see. Declared `inline`, every role but one resolved to nothing and
+ * fell back to the inherited 16px — titles, captions and body one size from
+ * P7 to P20. The weights and tracking `Text` reads are restated here for the
+ * same reason, at Tailwind's own values. `tokens.test.ts` compiles this file
+ * and fails on any variable a `studio-*` variant reads that is not emitted. */
+@theme static {
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0em;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --text-studio-title: var(--text-xl);
   --text-studio-title--line-height: var(--leading-snug);
   --text-studio-heading: var(--text-lg);
   --text-studio-heading--line-height: var(--leading-snug);
+  /* A name inside a section (P20): a setting, a sub-section, a domain on the Board. */
+  --text-studio-subheading: var(--text-sm);
+  --text-studio-subheading--line-height: var(--leading-snug);
   --text-studio-body: var(--text-sm);
   --text-studio-body--line-height: var(--leading-normal);
   --text-studio-label: var(--text-xs);

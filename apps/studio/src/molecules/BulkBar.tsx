@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Button, Text } from '@/atoms'
+import { Button, CheckboxField, Text } from '@/atoms'
 import { LIST, SHELL } from '@/copy'
 
 export interface BulkAction {
@@ -22,47 +22,70 @@ export interface BulkBarProps {
   isPending?: boolean | undefined
   /** More actions on the selection, after Archive and Restore (Beta 2.0). */
   extra?: ReactNode
+  /**
+   * The page's *Select all* checkbox, drawn first (P20) — for grid view, which
+   * has no header row to hold it. Table view passes nothing: its header has one.
+   */
+  page?: { readonly all: boolean; readonly some: boolean; onChange(on: boolean): void } | undefined
 }
 
 /**
- * Appears when a selection exists; one confirm per batch (spec §2.19). Under
- * Status *All* a selection mixes active and archived rows, so both actions are
- * offered, each with the count it applies to and touching only those rows
- * (stable 1.1).
+ * The selection strip (P20): **always there** on a list with bulk actions, so
+ * nothing moves when the first row is ticked, on *Clear*, or when a filter
+ * clears the selection — the list used to jump 56px each time, and a second
+ * click in the same place ticked the page. Quiet at 0 (no fill, a dashed
+ * hairline, "0 selected", nothing to press); one confirm per batch when
+ * something is selected (spec §2.19). Under Status *All* a selection mixes
+ * active and archived rows, so both actions are offered, each with the count
+ * it applies to (stable 1.1). The actions scroll inside the strip rather than
+ * run under an opened row's panel; the count and *Clear* never shrink.
  */
-export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, isPending, extra }: BulkBarProps) {
-  if (count === 0) return null
+export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, isPending, extra, page }: BulkBarProps) {
+  const idle = count === 0
   return (
     <div
-      role="toolbar"
-      aria-label={SHELL.bulkActions}
-      className="flex h-11 items-center gap-3 rounded-[var(--radius)] border border-[var(--border)] px-3"
-      style={{ background: 'var(--surface-secondary)' }}
+      {...(idle ? {} : { role: 'toolbar', 'aria-label': SHELL.bulkActions })}
+      className={[
+        'flex h-11 shrink-0 items-center gap-3 rounded-[var(--radius)] border px-3',
+        idle ? 'border-dashed border-[var(--separator)]' : 'border-[var(--border)]',
+      ].join(' ')}
+      style={idle ? undefined : { background: 'var(--surface-secondary)' }}
+      data-bulk-strip
+      data-bulk-idle={idle ? '' : undefined}
     >
-      <Text variant="studio-label" tone="default">
-        {onPage < count ? LIST.selectedOnPage(count, onPage) : LIST.selected(count)}
-      </Text>
-      <div className="flex flex-1 items-center gap-2">
-        {archive && archive.count > 0 ? (
-          <Button size="sm" variant="danger" icon="archive" onPress={archive.run} isPending={isPending} isDisabled={isPending}>
-            {LIST.archiveN(archive.count)}
+      {page ? (
+        <CheckboxField label={LIST.selectAll} hideLabel isSelected={page.all} isIndeterminate={!page.all && page.some} onChange={page.onChange} />
+      ) : null}
+      <span aria-live="polite" className="shrink-0 whitespace-nowrap">
+        <Text variant="studio-label" tone={idle ? 'muted' : 'default'}>
+          {onPage < count ? LIST.selectedOnPage(count, onPage) : LIST.selected(count)}
+        </Text>
+      </span>
+      {idle ? null : (
+        <>
+          <div className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+            {archive && archive.count > 0 ? (
+              <Button size="sm" variant="danger" icon="archive" onPress={archive.run} isPending={isPending} isDisabled={isPending}>
+                {LIST.archiveN(archive.count)}
+              </Button>
+            ) : null}
+            {restore && restore.count > 0 ? (
+              <Button size="sm" variant="primary" icon="restore" onPress={restore.run} isPending={isPending} isDisabled={isPending}>
+                {LIST.restoreN(restore.count)}
+              </Button>
+            ) : null}
+            {extra}
+            {selectAll && selectAll.count > count ? (
+              <Button size="sm" variant="tertiary" onPress={selectAll.run}>
+                {LIST.selectAllN(selectAll.count)}
+              </Button>
+            ) : null}
+          </div>
+          <Button size="sm" variant="tertiary" onPress={onClear} className="shrink-0">
+            {LIST.clearSelection}
           </Button>
-        ) : null}
-        {restore && restore.count > 0 ? (
-          <Button size="sm" variant="primary" icon="restore" onPress={restore.run} isPending={isPending} isDisabled={isPending}>
-            {LIST.restoreN(restore.count)}
-          </Button>
-        ) : null}
-        {extra}
-        {selectAll && selectAll.count > count ? (
-          <Button size="sm" variant="tertiary" onPress={selectAll.run}>
-            {LIST.selectAllN(selectAll.count)}
-          </Button>
-        ) : null}
-      </div>
-      <Button size="sm" variant="tertiary" onPress={onClear}>
-        {LIST.clearSelection}
-      </Button>
+        </>
+      )}
     </div>
   )
 }

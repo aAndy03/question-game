@@ -83,6 +83,7 @@ export type TextVariant =
   | 'studio-display'
   | 'studio-title'
   | 'studio-heading'
+  | 'studio-subheading'
   | 'studio-body'
   | 'studio-label'
   | 'studio-caption'
@@ -211,6 +212,7 @@ const VARIANT_TOKENS: Record<TextVariant, VariantTokens> = {
   'studio-display': studio('var(--text-studio-display)', 'var(--font-weight-semibold)', 'var(--font-sans)', 'var(--tracking-tight)'),
   'studio-title': studio('var(--text-studio-title)', 'var(--font-weight-semibold)', 'var(--font-sans)', 'var(--tracking-tight)'),
   'studio-heading': studio('var(--text-studio-heading)', 'var(--font-weight-medium)'),
+  'studio-subheading': studio('var(--text-studio-subheading)', 'var(--font-weight-medium)'),
   'studio-body': studio('var(--text-studio-body)'),
   'studio-label': studio('var(--text-studio-label)', 'var(--font-weight-medium)'),
   'studio-caption': studio('var(--text-studio-caption)'),

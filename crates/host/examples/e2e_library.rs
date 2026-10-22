@@ -24,6 +24,10 @@
 //!   with the Demo's Red team and its Geography domain and questions in the
 //!   shared library, as *Make shared* left them. The first boot of beta.2
 //!   turns them into linked copies in both workspaces (migration 6).
+//! - `--copy-from <file>` writes nothing of its own: it snapshots another
+//!   library into `<path>` (`VACUUM INTO`, the source opened read-only), so
+//!   `look.e2e.ts` can photograph Studio over a real, large library — the
+//!   maintainer's Beta test library (P20). Only ever read from.
 
 use questiongame_host::OperatorId;
 use questiongame_host::catalog::{
@@ -54,6 +58,21 @@ fn main() {
         for suffix in ["", "-wal", "-shm"] {
             let _ = std::fs::remove_file(format!("{file}{suffix}"));
         }
+    }
+    if let Some(source) = rest
+        .iter()
+        .position(|a| a == "--copy-from")
+        .and_then(|i| rest.get(i + 1))
+    {
+        let conn = rusqlite::Connection::open_with_flags(
+            source,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .expect("the library to copy, read-only");
+        conn.execute("VACUUM INTO ?1", [&path])
+            .expect("a snapshot of the library");
+        println!("{path}");
+        return;
     }
     let catalog = CatalogService::open(CatalogLocation::file(&head)).expect("a library");
     catalog

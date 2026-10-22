@@ -1,20 +1,17 @@
-import { QuestionDetail, QuestionEditor } from '@/organisms'
+import { QuestionEditor } from '@/organisms'
 import { RecordPageLayout } from '@/templates'
 
 export interface QuestionPageProps {
   id: string | null
-  mode: 'view' | 'edit' | 'new'
+  mode: 'edit' | 'new'
   domainId?: string | undefined
 }
 
+/** A question's editor. Viewing one is the Questions list's aside (1.1.1). */
 export function QuestionPage({ id, mode, domainId }: QuestionPageProps) {
   return (
     <RecordPageLayout>
-      {mode === 'view' && id ? (
-        <QuestionDetail id={id} domainId={domainId} />
-      ) : (
-        <QuestionEditor id={mode === 'edit' ? id : null} domainId={domainId} />
-      )}
+      <QuestionEditor id={mode === 'edit' ? id : null} domainId={domainId} />
     </RecordPageLayout>
   )
 }

@@ -1,15 +1,16 @@
-import { OperatorDetail, OperatorEditor } from '@/organisms'
+import { OperatorEditor } from '@/organisms'
 import { RecordPageLayout } from '@/templates'
 
 export interface OperatorPageProps {
   id: string | null
-  mode: 'view' | 'edit' | 'new'
+  mode: 'edit' | 'new'
 }
 
+/** An operator's editor. Viewing one is the Operators list's aside (1.1.1). */
 export function OperatorPage({ id, mode }: OperatorPageProps) {
   return (
     <RecordPageLayout>
-      {mode === 'view' && id ? <OperatorDetail id={id} /> : <OperatorEditor id={mode === 'edit' ? id : null} />}
+      <OperatorEditor id={mode === 'edit' ? id : null} />
     </RecordPageLayout>
   )
 }

@@ -61,63 +61,66 @@ export function OperatorPinPanel({ operator }: OperatorPinPanelProps) {
   }
 
   return (
-    <Panel className="flex flex-col gap-4" data-operator-pin>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <Text variant="studio-heading">{SETTINGS.pin.label}</Text>
-          <Text variant="studio-caption" tone="muted">
-            {SETTINGS.pin.optional}
-          </Text>
-        </div>
-        {pinned ? <MeaningChip meaning="pinned">{SETTINGS.pin.isSet}</MeaningChip> : <MeaningChip meaning="seed">{SETTINGS.pin.none}</MeaningChip>}
-      </div>
-      {mode === 'idle' ? (
-        <div className="flex flex-wrap gap-2">
-          {pinned ? (
-            <>
-              <Button variant="secondary" icon="pin" onPress={() => setMode('change')}>
-                {SETTINGS.pin.change}
-              </Button>
-              <Button variant="ghost" icon="pinOff" onPress={() => setMode('remove')}>
-                {SETTINGS.pin.remove}
-              </Button>
-            </>
-          ) : (
-            <Button variant="secondary" icon="pin" onPress={() => setMode('set')}>
-              {SETTINGS.pin.set}
-            </Button>
-          )}
-        </div>
-      ) : (
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (canSave) void save()
-          }}
-        >
-          {inline
-            .filter((n) => n.targetPath !== path)
-            .map((n) => (
-              <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} compact />
-            ))}
-          {needsCurrent ? <PinField label={SETTINGS.pin.current} value={current} onChange={setCurrent} error={hostError} autoFocus isRequired /> : null}
-          {needsNew ? (
-            <>
-              <PinField label={SETTINGS.pin.label} value={pin} onChange={setPin} description={SETTINGS.pin.hint} error={pin.length > 0 && !shapeOk ? SETTINGS.pin.invalid : needsCurrent ? null : hostError} autoFocus={!needsCurrent} isRequired />
-              <PinField label={SETTINGS.pin.confirm} value={confirm} onChange={setConfirm} error={confirm.length > 0 && !matchOk ? SETTINGS.pin.mismatch : null} isRequired />
-            </>
-          ) : null}
-          <div className="flex justify-end gap-2">
-            <Button variant="tertiary" onPress={reset} isDisabled={saving}>
-              {SETTINGS.shortcuts.none === 'None' ? 'Cancel' : 'Cancel'}
-            </Button>
-            <Button variant={mode === 'remove' ? 'danger' : 'primary'} type="submit" isDisabled={!canSave} isPending={saving}>
-              {mode === 'remove' ? SETTINGS.pin.remove : mode === 'change' ? SETTINGS.pin.change : SETTINGS.pin.set}
-            </Button>
+    // data- hooks do not survive Panel (§14.6): the wrapper carries it.
+    <div data-operator-pin>
+      <Panel className="flex flex-col gap-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-0.5">
+            <Text variant="studio-heading">{SETTINGS.pin.label}</Text>
+            <Text variant="studio-caption" tone="muted">
+              {SETTINGS.pin.optional}
+            </Text>
           </div>
-        </form>
-      )}
-    </Panel>
+          {pinned ? <MeaningChip meaning="pinned">{SETTINGS.pin.isSet}</MeaningChip> : <MeaningChip meaning="seed">{SETTINGS.pin.none}</MeaningChip>}
+        </div>
+        {mode === 'idle' ? (
+          <div className="flex flex-wrap gap-2">
+            {pinned ? (
+              <>
+                <Button variant="secondary" icon="pin" onPress={() => setMode('change')}>
+                  {SETTINGS.pin.change}
+                </Button>
+                <Button variant="ghost" icon="pinOff" onPress={() => setMode('remove')}>
+                  {SETTINGS.pin.remove}
+                </Button>
+              </>
+            ) : (
+              <Button variant="secondary" icon="pin" onPress={() => setMode('set')}>
+                {SETTINGS.pin.set}
+              </Button>
+            )}
+          </div>
+        ) : (
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (canSave) void save()
+            }}
+          >
+            {inline
+              .filter((n) => n.targetPath !== path)
+              .map((n) => (
+                <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} compact />
+              ))}
+            {needsCurrent ? <PinField label={SETTINGS.pin.current} value={current} onChange={setCurrent} error={hostError} autoFocus isRequired /> : null}
+            {needsNew ? (
+              <>
+                <PinField label={SETTINGS.pin.label} value={pin} onChange={setPin} description={SETTINGS.pin.hint} error={pin.length > 0 && !shapeOk ? SETTINGS.pin.invalid : needsCurrent ? null : hostError} autoFocus={!needsCurrent} isRequired />
+                <PinField label={SETTINGS.pin.confirm} value={confirm} onChange={setConfirm} error={confirm.length > 0 && !matchOk ? SETTINGS.pin.mismatch : null} isRequired />
+              </>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button variant="tertiary" onPress={reset} isDisabled={saving}>
+                {SETTINGS.shortcuts.none === 'None' ? 'Cancel' : 'Cancel'}
+              </Button>
+              <Button variant={mode === 'remove' ? 'danger' : 'primary'} type="submit" isDisabled={!canSave} isPending={saving}>
+                {mode === 'remove' ? SETTINGS.pin.remove : mode === 'change' ? SETTINGS.pin.change : SETTINGS.pin.set}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Panel>
+    </div>
   )
 }

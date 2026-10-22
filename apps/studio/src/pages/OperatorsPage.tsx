@@ -73,10 +73,19 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
               {LIST.new(OPERATOR.one)}
             </Button>
           }
-          toolbar={<ListToolbar view={lv} what={OPERATOR.many} layout={view.operators} onLayout={(v) => setView('operators', v)} status={scope} onStatus={(v) => {
-                setScope('operators', v)
-                lv.resetPage()
-              }} />}
+        />
+      }
+      toolbar={
+        <ListToolbar
+          view={lv}
+          what={OPERATOR.many}
+          layout={view.operators}
+          onLayout={(v) => setView('operators', v)}
+          status={scope}
+          onStatus={(v) => {
+            setScope('operators', v)
+            lv.resetPage()
+          }}
         />
       }
       aside={currentId ? <OperatorDetail id={currentId} compact /> : null}

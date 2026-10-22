@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Panel, Swatch, Text, TextAreaField, TextField } from '@/atoms'
-import { DirtyGuard, EditorFooter, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
+import { DirtyGuard, EditorColumns, EditorFooter, InlineNotice, NavCrumbs, PageHeader, TeamPreview } from '@/molecules'
 import { noticesAt, useNoticeStore, noticeText } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
 import { CONFIRM, LIST, SHELL, TABS, TEAM } from '@/copy'
@@ -10,6 +10,7 @@ import { isTwin } from '@/host/twins'
 import type { Team } from '@/host/types'
 import { useDirtyGuard, useDraft } from './useDraft'
 import { usePropagatingSave } from './usePropagatingSave'
+import { CopiesBlock } from './CopiesBlock'
 
 export interface TeamEditorProps {
   /** Null for a new team. */
@@ -35,7 +36,11 @@ function emptyTeam(): Team {
   }
 }
 
-/** Name · short code · colour · notes. Writes `catalog_upsert`; refusals land inline. */
+/**
+ * Name · short code · colour · notes, with the team as it will look beside
+ * them (P20) — and, editing, its copies. Writes `catalog_upsert`; refusals
+ * land inline.
+ */
 export function TeamEditor({ id }: TeamEditorProps) {
   const source = useCatalogItem('team', id)
   const teams = useCatalogList('team', 'active')
@@ -95,84 +100,94 @@ export function TeamEditor({ id }: TeamEditorProps) {
           />
         }
       />
-      {inline
-        .filter((n) => !n.targetPath?.startsWith(`${path}.`))
-        .map((n) => (
-          <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} />
-        ))}
-      <Panel className="flex flex-col gap-5">
-        <TextField
-          label={TEAM.name}
-          value={draft.value.name}
-          onChange={(name) => draft.set({ name })}
-          isRequired
-          autoFocus={!id}
-          description={isTwin(draft.value.name, (teams.data ?? []).filter((t) => t.id !== draft.value.id)) ? CONFIRM.twinTeam(draft.value.name) : undefined}
-          error={fieldError('name')}
-        />
-        <div className="grid grid-cols-[12rem_1fr] gap-5">
+      <EditorColumns
+        sideLabel={TEAM.preview}
+        side={
+          <>
+            <TeamPreview name={draft.value.name} shortCode={draft.value.shortCode.trim() || draft.value.name.trim().slice(0, 5).toUpperCase()} color={draft.value.color} />
+            {id ? <CopiesBlock kind="team" id={id} /> : null}
+          </>
+        }
+      >
+        {inline
+          .filter((n) => !n.targetPath?.startsWith(`${path}.`))
+          .map((n) => (
+            <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} />
+          ))}
+        <Panel className="flex flex-col gap-5">
           <TextField
-            label={TEAM.shortCode}
-            value={draft.value.shortCode}
-            onChange={(shortCode) => draft.set({ shortCode: shortCode.toUpperCase().slice(0, 8) })}
-            font="mono"
-            description={TEAM.shortCodeHint}
-            error={fieldError('short_code')}
-            placeholder="ALPHA"
+            label={TEAM.name}
+            value={draft.value.name}
+            onChange={(name) => draft.set({ name })}
+            isRequired
+            autoFocus={!id}
+            description={isTwin(draft.value.name, (teams.data ?? []).filter((t) => t.id !== draft.value.id)) ? CONFIRM.twinTeam(draft.value.name) : undefined}
+            error={fieldError('name')}
           />
-          <div className="flex flex-col gap-2">
-            <Text variant="studio-label">{TEAM.color}</Text>
-            <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label={TEAM.color}>
-              {/* A theme colour (the Demo's teams) is a swatch, never raw text in the field (beta.3). */}
-              {theme ? (
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={themeColour}
-                  aria-label={TEAM.themeColour}
-                  onClick={() => draft.set({ color: theme })}
-                  className={[
-                    'rounded-full p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]',
-                    themeColour ? 'ring-2 ring-[var(--accent)]' : '',
-                  ].join(' ')}
-                >
-                  <Swatch color={theme} size="lg" className="rounded-full" />
-                </button>
-              ) : null}
-              {TEAM_PALETTE.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  role="radio"
-                  aria-checked={draft.value.color === color}
-                  aria-label={color}
-                  onClick={() => draft.set({ color })}
-                  className={[
-                    'rounded-full p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]',
-                    draft.value.color === color ? 'ring-2 ring-[var(--accent)]' : '',
-                  ].join(' ')}
-                >
-                  <Swatch color={color} size="lg" className="rounded-full" />
-                </button>
-              ))}
-              <TextField
-                label={TEAM.colorCode}
-                hideLabel
-                value={themeColour ? '' : draft.value.color}
-                onChange={(color) => draft.set({ color })}
-                placeholder={TEAM.colorPlaceholder}
-                font="mono"
-                className="w-36"
-              />
+          <div className="grid grid-cols-[12rem_1fr] gap-5">
+            <TextField
+              label={TEAM.shortCode}
+              value={draft.value.shortCode}
+              onChange={(shortCode) => draft.set({ shortCode: shortCode.toUpperCase().slice(0, 8) })}
+              font="mono"
+              description={TEAM.shortCodeHint}
+              error={fieldError('short_code')}
+              placeholder="ALPHA"
+            />
+            <div className="flex flex-col gap-2">
+              <Text variant="studio-label">{TEAM.color}</Text>
+              <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label={TEAM.color}>
+                {/* A theme colour (the Demo's teams) is a swatch, never raw text in the field (beta.3). */}
+                {theme ? (
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={themeColour}
+                    aria-label={TEAM.themeColour}
+                    onClick={() => draft.set({ color: theme })}
+                    className={[
+                      'rounded-full p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]',
+                      themeColour ? 'ring-2 ring-[var(--accent)]' : '',
+                    ].join(' ')}
+                  >
+                    <Swatch color={theme} size="lg" className="rounded-full" />
+                  </button>
+                ) : null}
+                {TEAM_PALETTE.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    role="radio"
+                    aria-checked={draft.value.color === color}
+                    aria-label={color}
+                    onClick={() => draft.set({ color })}
+                    className={[
+                      'rounded-full p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]',
+                      draft.value.color === color ? 'ring-2 ring-[var(--accent)]' : '',
+                    ].join(' ')}
+                  >
+                    <Swatch color={color} size="lg" className="rounded-full" />
+                  </button>
+                ))}
+                <TextField
+                  label={TEAM.colorCode}
+                  hideLabel
+                  value={themeColour ? '' : draft.value.color}
+                  onChange={(color) => draft.set({ color })}
+                  placeholder={TEAM.colorPlaceholder}
+                  font="mono"
+                  className="w-36"
+                />
+              </div>
+              <Text variant="studio-caption" tone="muted">
+                {TEAM.colorHint}
+              </Text>
             </div>
-            <Text variant="studio-caption" tone="muted">
-              {TEAM.colorHint}
-            </Text>
           </div>
-        </div>
-        <TextAreaField label={TEAM.notes} value={draft.value.notes ?? ''} onChange={(notes) => draft.set({ notes })} rows={3} />
-      </Panel>
-      <EditorFooter canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={cancel} />
+          <TextAreaField label={TEAM.notes} value={draft.value.notes ?? ''} onChange={(notes) => draft.set({ notes })} rows={3} />
+        </Panel>
+      </EditorColumns>
+      <EditorFooter canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={cancel} withSide />
       <DirtyGuard
         isOpen={guard.isOpen}
         isSaving={saving}

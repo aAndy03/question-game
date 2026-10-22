@@ -81,7 +81,7 @@ export const metaFits = (i: number): string => (i === 0 ? 'hidden @xl/list:block
 /**
  * Every record list (05_STUDIO_DESIGN.md §4.3, §20): the list view's page —
  * group headers, rows in grid or table layout, a sortable header row in
- * table view — the page footer, the bulk bar, `Skeleton` while loading, the
+ * table view — the page footer, the selection strip (always there, P20), `Skeleton` while loading, the
  * empty states. Filtering, sorting, grouping, paging and selection are the
  * list view's (`useListView`); this only draws them, so there is no second
  * copy of any of them here — which is also why TanStack Table is gone: its
@@ -190,10 +190,11 @@ export function LibraryList({
     )
   }
 
+  // The page's tick state: the table header's checkbox, or the strip's in grid view (P20).
+  const pageAll = page.pageIds.length > 0 && page.pageIds.every((id) => selection.ids.has(id))
+  const pageSome = page.pageIds.some((id) => selection.ids.has(id))
   const header = () => {
     if (layout !== 'table' || columns === undefined) return null
-    const pageAll = page.pageIds.length > 0 && page.pageIds.every((id) => selection.ids.has(id))
-    const pageSome = page.pageIds.some((id) => selection.ids.has(id))
     return (
       <div className="sticky top-0 z-10 flex h-9 items-center gap-3 border-b border-[var(--border)] px-3 text-xs" style={{ background: 'var(--surface)' }} data-list-header>
         {bulk ? (
@@ -288,6 +289,7 @@ export function LibraryList({
           extra={bulk.extra ? bulk.extra([...selection.ids]) : undefined}
           onClear={selection.clear}
           isPending={bulk.isPending}
+          page={layout === 'grid' && page.pageIds.length > 0 ? { all: pageAll, some: pageSome, onChange: (on) => (on ? selection.selectPage() : selection.deselectPage()) } : undefined}
         />
       ) : null}
       {/* No table role: rows open records and groups have headings, which a table could not hold. */}

@@ -60,29 +60,32 @@ export function DomainPicker({ domains, selectedIds, onChange, onCreate, isDisab
           {DOMAIN.many}: 0
         </Text>
       ) : null}
-      <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-        {domains.map((d) => (
-          <CheckboxField
-            key={d.id}
-            label={d.name}
-            isSelected={selectedIds.includes(d.id)}
-            onChange={(on) => toggle(d.id, on)}
-            isDisabled={isDisabled}
-            disabledReason={disabledReason}
-          >
-            <span className="flex min-w-0 items-center gap-2">
-              <Text variant="studio-body" tone="default" truncate>
-                {d.name}
-              </Text>
-              <Text variant="studio-mono" tone="muted">
-                {d.code}
-              </Text>
-              <Text variant="studio-caption" tone="muted">
-                {DOMAIN.questionCount(d.questionCount)}
-              </Text>
-            </span>
-          </CheckboxField>
-        ))}
+      {/* One column in the editor's side, two where there is room (P20). */}
+      <div className="@container/domain-picker">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-1 @[30rem]/domain-picker:grid-cols-2">
+          {domains.map((d) => (
+            <CheckboxField
+              key={d.id}
+              label={d.name}
+              isSelected={selectedIds.includes(d.id)}
+              onChange={(on) => toggle(d.id, on)}
+              isDisabled={isDisabled}
+              disabledReason={disabledReason}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <Text variant="studio-body" tone="default" truncate>
+                  {d.name}
+                </Text>
+                <Text variant="studio-mono" tone="muted">
+                  {d.code}
+                </Text>
+                <Text variant="studio-caption" tone="muted">
+                  {DOMAIN.questionCount(d.questionCount)}
+                </Text>
+              </span>
+            </CheckboxField>
+          ))}
+        </div>
       </div>
       {onCreate ? (
         creating ? (

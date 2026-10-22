@@ -198,3 +198,28 @@ describe('deferred fixes', () => {
     expect(screen.getByRole('button', { name: 'Sort by Plays, ascending' }).getAttribute('aria-pressed')).toBe('true')
   })
 })
+
+describe('the selection strip does not move the list (P20)', () => {
+  it('is there before anything is ticked, and the same element after — the rows never jump', () => {
+    render(<Harness items={many(5)} onArchive={vi.fn()} />)
+    const strip = document.querySelector('[data-bulk-strip]')
+    expect(strip).not.toBeNull()
+    expect(strip?.textContent).toContain('0 selected')
+    expect(document.querySelector('[data-list-body]')?.previousElementSibling).toBe(strip)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select t0000' }))
+    expect(document.querySelector('[data-bulk-strip]')).toBe(strip)
+    expect(strip?.textContent).toContain('1 selected')
+    expect(screen.getByRole('button', { name: 'Archive 1' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(document.querySelector('[data-bulk-strip]')).toBe(strip)
+  })
+
+  it('gives grid view a Select all for the page, and table view still has exactly one', () => {
+    const { unmount } = render(<Harness items={many(5)} layout="grid" onArchive={vi.fn()} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    expect(screen.getByText('5 selected')).toBeTruthy()
+    unmount()
+    render(<Harness items={many(5)} onArchive={vi.fn()} />)
+    expect(screen.getAllByRole('checkbox', { name: 'Select all' })).toHaveLength(1)
+  })
+})

@@ -28,8 +28,9 @@ export interface DomainFormProps {
 export function DomainForm({ value, onChange, errors, isDisabled, disabledReason, compact, autoFocus, others }: DomainFormProps) {
   const set = (patch: Partial<DomainFormValue>) => onChange({ ...value, ...patch })
   return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-[1fr_10rem] gap-4">
+    <div className="@container/domain-form flex flex-col gap-4">
+      {/* Name over code in a narrow box (the Domains pane, an editor's side); side by side from 24rem (P20). */}
+      <div className="grid grid-cols-1 gap-4 @[24rem]/domain-form:grid-cols-[1fr_10rem]">
         <TextField
           label={DOMAIN.name}
           value={value.name}

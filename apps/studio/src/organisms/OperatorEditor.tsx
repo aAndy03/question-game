@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Panel, Text, TextField } from '@/atoms'
-import { DirtyGuard, EditorFooter, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
+import { DirtyGuard, EditorColumns, EditorFooter, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
 import { noticesAt, useNoticeStore, noticeText } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
 import { LIST, OPERATOR, SHELL, TABS } from '@/copy'
@@ -72,28 +72,30 @@ export function OperatorEditor({ id }: OperatorEditorProps) {
           />
         }
       />
-      {inline
-        .filter((n) => !n.targetPath?.startsWith(`${path}.`))
-        .map((n) => (
-          <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} />
-        ))}
-      <Panel className="flex flex-col gap-5">
-        <TextField
-          label={OPERATOR.displayName}
-          value={draft.value.displayName}
-          onChange={(displayName) => draft.set({ displayName })}
-          isRequired
-          autoFocus={!id}
-          error={noticeText(inline.find((n) => n.targetPath === `${path}.name`))}
-        />
-        {id ? null : (
-          <Text variant="studio-caption" tone="muted">
-            {OPERATOR.pinHint}
-          </Text>
-        )}
-      </Panel>
-      {id && source.data ? <OperatorPinPanel operator={source.data} /> : null}
-      <EditorFooter canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={cancel} />
+      {/* The PIN saves on its own: beside the form, not above Save (P20). */}
+      <EditorColumns sideLabel={OPERATOR.pinSide} side={id && source.data ? <OperatorPinPanel operator={source.data} /> : undefined}>
+        {inline
+          .filter((n) => !n.targetPath?.startsWith(`${path}.`))
+          .map((n) => (
+            <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} />
+          ))}
+        <Panel className="flex flex-col gap-5">
+          <TextField
+            label={OPERATOR.displayName}
+            value={draft.value.displayName}
+            onChange={(displayName) => draft.set({ displayName })}
+            isRequired
+            autoFocus={!id}
+            error={noticeText(inline.find((n) => n.targetPath === `${path}.name`))}
+          />
+          {id ? null : (
+            <Text variant="studio-caption" tone="muted">
+              {OPERATOR.pinHint}
+            </Text>
+          )}
+        </Panel>
+      </EditorColumns>
+      <EditorFooter canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={cancel} withSide={id !== null} />
       <DirtyGuard
         isOpen={guard.isOpen}
         isSaving={saving}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button, MeaningChip, Text } from '@/atoms'
 import { ActionMenu, IncompleteMark, PageHeader } from '@/molecules'
 import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, useBulkEdit, GroupsDialog, ManageTagsDialog, useGroupEditing, type RecordView } from '@/organisms'
-import { DetailAside, SplitLayout } from '@/templates'
+import { ListArea, SplitLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { toast } from '@/chrome/toast'
@@ -174,25 +174,31 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
       }
       primary={<DomainPane selectedId={domainId} onSelect={(id) => replace({ tab: 'library', ...(id ? { domainId: id } : {}) })} />}
       secondary={
-        <div className="relative flex min-h-0 flex-1 gap-6">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-            <ListToolbar
-              view={lv}
-              what={QUESTION.many}
-              layout={view.library}
-              onLayout={(v) => setView('library', v)}
-              status={scope}
-              onStatus={(v) => {
-                setScope('library', v)
-                lv.resetPage()
-              }}
-              filterHint={incompleteCount > 0 ? VIEWS.incompleteHint(incompleteCount) : undefined}
-              lead={
-                <Text variant="studio-heading" className="mr-2">
-                  {domain ? domain.name : DOMAIN.all}
-                </Text>
-              }
-            />
+        <>
+          <ListArea
+            aside={currentId ? <QuestionDetail id={currentId} domainId={domainId ?? undefined} compact /> : null}
+            onCloseAside={() => replace({ tab: 'library', ...(domainId ? { domainId } : {}) })}
+            toolbar={
+              <ListToolbar
+                view={lv}
+                what={QUESTION.many}
+                layout={view.library}
+                onLayout={(v) => setView('library', v)}
+                status={scope}
+                onStatus={(v) => {
+                  setScope('library', v)
+                  lv.resetPage()
+                }}
+                filterHint={incompleteCount > 0 ? VIEWS.incompleteHint(incompleteCount) : undefined}
+                lead={
+                  // A long domain name never pushes the toolbar onto a second line (P20).
+                  <Text variant="studio-heading" className="mr-2 max-w-[14rem]" truncate title={domain ? domain.name : DOMAIN.all}>
+                    {domain ? domain.name : DOMAIN.all}
+                  </Text>
+                }
+              />
+            }
+          >
             <LibraryList
               view={lv}
               total={scoped?.length}
@@ -285,12 +291,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                 )
               }}
             />
-          </div>
-          {currentId ? (
-            <DetailAside onClose={() => replace({ tab: 'library', ...(domainId ? { domainId } : {}) })}>
-              <QuestionDetail id={currentId} domainId={domainId ?? undefined} compact />
-            </DetailAside>
-          ) : null}
+          </ListArea>
           {archive.dialog}
           {transfer.dialog}
           {bulkEdit.dialog}
@@ -302,7 +303,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
             onOpenChange={setImporting}
             defaultDomainId={domain && domain.archivedAt === null ? domain.id : null}
           />
-        </div>
+        </>
       }
     />
   )

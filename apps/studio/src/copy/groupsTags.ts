@@ -32,7 +32,7 @@ export const GROUPS_TAGS = {
   close: 'Close',
 
   // the editor
-  tagsLabel: 'Tags',
+  tagsLabel: 'Question tags',
   tagsHint: 'Type a tag and press Enter. Tags you have used are offered as you type.',
   tagRemove: (tag: string) => `Remove the tag ${tag}`,
   tagRemoved: (tag: string) => `Removed the tag ${tag}.`,
@@ -41,7 +41,7 @@ export const GROUPS_TAGS = {
   offeredCount: (n: number) => `${n} ${n === 1 ? 'tag' : 'tags'} already used match.`,
   tagsFull: 'A question has at most 20 tags.',
   tagTooLong: 'A tag is at most 40 characters.',
-  groupIn: (domain: string) => `Group in ${domain}`,
+  groupIn: (domain: string) => `Domain group in ${domain}`,
 
   // Manage tags
   manageButton: 'Manage tags…',

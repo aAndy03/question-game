@@ -159,6 +159,20 @@ describe('BulkBar (B-02, B-07–B-10, B-16)', () => {
     expect(screen.getByRole('button', { name: 'Select all 250' })).toBeTruthy()
   })
 
+  it('is a quiet strip at 0: it says so, offers nothing to press, and is no toolbar (P20)', () => {
+    render(<BulkBar count={0} onPage={0} archive={{ count: 0, run: vi.fn() }} onClear={vi.fn()} />)
+    expect(screen.getByText('0 selected')).toBeTruthy()
+    expect(screen.queryByRole('toolbar')).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('draws the page checkbox it is given, mixed when part of the page is ticked (P20)', () => {
+    const onChange = vi.fn()
+    render(<BulkBar count={2} onPage={2} page={{ all: false, some: true, onChange }} onClear={vi.fn()} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    expect(onChange).toHaveBeenCalledWith(true)
+  })
+
   it('disables both while a batch is running', () => {
     render(<BulkBar count={2} onPage={2} archive={{ count: 1, run: vi.fn() }} restore={{ count: 1, run: vi.fn() }} onClear={vi.fn()} isPending />)
     for (const b of screen.getAllByRole('button').filter((x) => /Archive|Restore/.test(x.textContent ?? ''))) {

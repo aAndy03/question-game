@@ -4,6 +4,7 @@ import {
   DifficultyField,
   DirtyGuard,
   DomainPicker,
+  EditorColumns,
   EditorFooter,
   TagField,
   GapNotice,
@@ -24,6 +25,7 @@ import { useCatalogItem, useCatalogList, useTags } from '@/host/queries'
 import { answerMode, type Domain, type Question, type QuestionOption } from '@/host/types'
 import { useDirtyGuard, useDraft } from './useDraft'
 import { usePropagatingSave } from './usePropagatingSave'
+import { CopiesBlock } from './CopiesBlock'
 
 export interface QuestionEditorProps {
   /** Null for a new question. */
@@ -220,86 +222,97 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
           />
         }
       />
-      <GapNotice gaps={gaps} />
-      {inline
-        .filter((n) => !n.targetPath?.startsWith(`${path}.`))
-        .map((n) => (
-          <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} />
-        ))}
-      <Panel className="flex flex-col gap-5">
-        <TextAreaField
-          label={QUESTION.stem}
-          value={q.stem}
-          onChange={(stem) => setQ({ stem })}
-          rows={3}
-          autoFocus={!id}
-          description={QUESTION.stemHint}
-          error={fieldError('stem')}
-        />
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-0.5">
-            <Text variant="studio-label">{QUESTION.options}</Text>
-            <Text variant="studio-caption" tone="muted">
-              {QUESTION.optionsHint}
-            </Text>
-            {fieldError('options') ? (
-              <Text variant="studio-caption" tone="danger">
-                {fieldError('options')}
-              </Text>
-            ) : null}
-          </div>
-          {q.options.map((o, i) => (
-            <OptionRow
-              key={o.id}
-              index={i}
-              text={o.text}
-              correct={o.correct}
-              onTextChange={(text) => setOption(i, { text })}
-              onCorrectChange={(correct) => setOption(i, { correct })}
-              onRemove={() => setQ({ options: q.options.filter((_, j) => j !== i) })}
-              isLastCorrect={o.correct && correctCount === 1}
-              isRequired={q.options.length <= 2}
-              autoFocus={i === q.options.length - 1 && i > 1 && o.text === ''}
-            />
-          ))}
-          <div>
-            <Button size="sm" variant="ghost" icon="add" onPress={() => setQ({ options: [...q.options, { ...newOption(q.options.length), correct: false }] })}>
-              {QUESTION.addOption}
-            </Button>
-          </div>
-        </div>
-        <DifficultyField value={q.difficulty} onChange={(difficulty) => setQ({ difficulty })} error={fieldError('difficulty')} />
-        <TagField value={q.tags ?? []} onChange={(tags) => setQ({ tags })} known={(tags.data ?? []).map((t) => t.tag)} error={fieldError('tags')} />
-        <TextAreaField
-          label={QUESTION.explanation}
-          value={q.explanation ?? ''}
-          onChange={(explanation) => setQ({ explanation })}
-          rows={2}
-          description={QUESTION.explanationHint}
-        />
-      </Panel>
-      <Panel>
-        <DomainPicker
-          domains={(domains.data ?? []).map((d) => ({ id: d.id, name: d.name, code: d.code, questionCount: d.questions.length }))}
-          selectedIds={draft.value.domainIds}
-          // A domain taken off forgets its group: put back, the question starts in no group.
-          onChange={(domainIds) => draft.set({ domainIds, groupIds: Object.fromEntries(Object.entries(draft.value.groupIds).filter(([d]) => domainIds.includes(d))) })}
-          onCreate={createDomain}
-        />
-        {(domains.data ?? [])
-          .filter((d) => draft.value.domainIds.includes(d.id) && (d.groups?.length ?? 0) > 0)
-          .map((d) => (
-            <div key={d.id} className="pt-3" data-group-picker={d.id}>
-              <SelectField
-                label={GROUPS_TAGS.groupIn(d.name)}
-                value={draft.value.groupIds[d.id] ?? '~none'}
-                onChange={(v) => draft.set({ groupIds: { ...draft.value.groupIds, [d.id]: v === '~none' ? null : v } })}
-                options={[{ value: '~none', label: GROUPS_TAGS.noGroup }, ...(d.groups ?? []).map((g) => ({ value: g.id, label: g.name }))]}
+      <EditorColumns
+        sideLabel={QUESTION.filing}
+        side={
+          <>
+            <Panel>
+              <DomainPicker
+                domains={(domains.data ?? []).map((d) => ({ id: d.id, name: d.name, code: d.code, questionCount: d.questions.length }))}
+                selectedIds={draft.value.domainIds}
+                // A domain taken off forgets its group: put back, the question starts in no group.
+                onChange={(domainIds) => draft.set({ domainIds, groupIds: Object.fromEntries(Object.entries(draft.value.groupIds).filter(([d]) => domainIds.includes(d))) })}
+                onCreate={createDomain}
               />
-            </div>
+              {(domains.data ?? [])
+                .filter((d) => draft.value.domainIds.includes(d.id) && (d.groups?.length ?? 0) > 0)
+                .map((d) => (
+                  <div key={d.id} className="pt-3" data-group-picker={d.id}>
+                    <SelectField
+                      label={GROUPS_TAGS.groupIn(d.name)}
+                      value={draft.value.groupIds[d.id] ?? '~none'}
+                      onChange={(v) => draft.set({ groupIds: { ...draft.value.groupIds, [d.id]: v === '~none' ? null : v } })}
+                      options={[{ value: '~none', label: GROUPS_TAGS.noGroup }, ...(d.groups ?? []).map((g) => ({ value: g.id, label: g.name }))]}
+                    />
+                  </div>
+                ))}
+            </Panel>
+            <Panel>
+              <TagField value={q.tags ?? []} onChange={(tags) => setQ({ tags })} known={(tags.data ?? []).map((t) => t.tag)} error={fieldError('tags')} />
+            </Panel>
+            {id ? <CopiesBlock kind="question" id={q.id} /> : null}
+          </>
+        }
+      >
+        <GapNotice gaps={gaps} />
+        {inline
+          .filter((n) => !n.targetPath?.startsWith(`${path}.`))
+          .map((n) => (
+            <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} />
           ))}
-      </Panel>
-      <EditorFooter canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={() => void go(id ? { tab: 'library', questionId: id, mode: 'view', ...(domainId ? { domainId } : {}) } : back)} />
+        <Panel className="flex flex-col gap-5">
+          <TextAreaField
+            label={QUESTION.stem}
+            value={q.stem}
+            onChange={(stem) => setQ({ stem })}
+            rows={3}
+            autoFocus={!id}
+            description={QUESTION.stemHint}
+            error={fieldError('stem')}
+          />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-0.5">
+              <Text variant="studio-label">{QUESTION.options}</Text>
+              <Text variant="studio-caption" tone="muted">
+                {QUESTION.optionsHint}
+              </Text>
+              {fieldError('options') ? (
+                <Text variant="studio-caption" tone="danger">
+                  {fieldError('options')}
+                </Text>
+              ) : null}
+            </div>
+            {q.options.map((o, i) => (
+              <OptionRow
+                key={o.id}
+                index={i}
+                text={o.text}
+                correct={o.correct}
+                onTextChange={(text) => setOption(i, { text })}
+                onCorrectChange={(correct) => setOption(i, { correct })}
+                onRemove={() => setQ({ options: q.options.filter((_, j) => j !== i) })}
+                isLastCorrect={o.correct && correctCount === 1}
+                isRequired={q.options.length <= 2}
+                autoFocus={i === q.options.length - 1 && i > 1 && o.text === ''}
+              />
+            ))}
+            <div>
+              <Button size="sm" variant="ghost" icon="add" onPress={() => setQ({ options: [...q.options, { ...newOption(q.options.length), correct: false }] })}>
+                {QUESTION.addOption}
+              </Button>
+            </div>
+          </div>
+          <DifficultyField value={q.difficulty} onChange={(difficulty) => setQ({ difficulty })} error={fieldError('difficulty')} />
+          <TextAreaField
+            label={QUESTION.explanation}
+            value={q.explanation ?? ''}
+            onChange={(explanation) => setQ({ explanation })}
+            rows={2}
+            description={QUESTION.explanationHint}
+          />
+        </Panel>
+      </EditorColumns>
+      <EditorFooter canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={() => void go(id ? { tab: 'library', questionId: id, mode: 'view', ...(domainId ? { domainId } : {}) } : back)} withSide />
       <DirtyGuard
         isOpen={guard.isOpen}
         isSaving={saving}
