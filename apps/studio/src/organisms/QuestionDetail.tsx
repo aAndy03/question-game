@@ -1,10 +1,10 @@
 import { Button, Icon, MeaningChip, Panel, Skeleton, Text } from '@/atoms'
-import { EmptyState, GapNotice, IncompleteMark, MetaList, NavCrumbs, PageHeader } from '@/molecules'
+import { DifficultyChip, EmptyState, GapNotice, IncompleteMark, MetaList, NavCrumbs, PageHeader } from '@/molecules'
 import { useNavStore } from '@/chrome/nav'
 import { DOMAIN, LIST, QUESTION, SHELL, TABS, fmt } from '@/copy'
 import { questionGaps } from '@/host/question'
 import { useCatalogItem, useCatalogList } from '@/host/queries'
-import { answerMode, difficultyBand, isArchived } from '@/host/types'
+import { answerMode, isArchived } from '@/host/types'
 import { useArchive } from './useArchive'
 import { CopiesBlock } from './CopiesBlock'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
@@ -30,7 +30,6 @@ export function QuestionDetail({ id, domainId, compact }: QuestionDetailProps) {
   const q = question.data
   const archived = isArchived(q)
   const mode = answerMode(q)
-  const band = q.difficulty === null ? null : difficultyBand(q.difficulty)
   const inDomains = (domains.data ?? []).filter((d) => d.questions.some((m) => m.questionId === q.id))
   const gaps = questionGaps(q, inDomains.length > 0)
   const title = q.stem || QUESTION.noStem
@@ -41,11 +40,7 @@ export function QuestionDetail({ id, domainId, compact }: QuestionDetailProps) {
     <span className="flex items-center gap-1.5">
       <IncompleteMark gaps={gaps} />
       <MeaningChip meaning={mode}>{mode === 'single' ? QUESTION.single : QUESTION.multiple}</MeaningChip>
-      {band ? (
-        <MeaningChip meaning={band}>{`${QUESTION.band[band]} · ${q.difficulty}`}</MeaningChip>
-      ) : (
-        <MeaningChip meaning="unset">{`${QUESTION.difficulty} · ${QUESTION.difficultyUnset}`}</MeaningChip>
-      )}
+      <DifficultyChip difficulty={q.difficulty} unset={`${QUESTION.difficulty} · ${QUESTION.difficultyUnset}`} />
       {archived ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null}
     </span>
   )

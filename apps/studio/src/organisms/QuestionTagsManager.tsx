@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Button, MeaningChip, SegmentedField, SelectField, Text } from '@/atoms'
-import { ConfirmDialog, EmptyState, ManagerDialog, MemberList, NameDialog, PaneList } from '@/molecules'
+import { Button, SegmentedField, SelectField, Text } from '@/atoms'
+import { ConfirmDialog, DifficultyChip, EmptyState, ManagerDialog, MemberList, NameDialog, PaneList } from '@/molecules'
 import { toast } from '@/chrome/toast'
 import { useNavStore } from '@/chrome/nav'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
@@ -9,7 +9,7 @@ import { useHostCommand } from '@/host/commands'
 import { command } from '@/host/host'
 import { foldTag } from '@/host/listSpecs'
 import { useCatalogList, useTags } from '@/host/queries'
-import { difficultyBand, type BulkReport, type Question } from '@/host/types'
+import { type BulkReport, type Question } from '@/host/types'
 
 export interface QuestionTagsManagerProps {
   isOpen: boolean
@@ -55,10 +55,7 @@ export function QuestionTagsManager({ isOpen, onClose, onShowInList }: QuestionT
     return [...ways]
   }, [carriers, current])
 
-  const chip = (q: Question) => {
-    const band = q.difficulty === null ? null : difficultyBand(q.difficulty)
-    return band ? <MeaningChip meaning={band}>{`${QUESTION.band[band]} · ${q.difficulty}`}</MeaningChip> : <MeaningChip meaning="unset">{QUESTION.difficultyUnset}</MeaningChip>
-  }
+  const chip = (q: Question) => <DifficultyChip difficulty={q.difficulty} />
 
   const detail = !current ? (
     <EmptyState kind="empty" what={GROUPS_TAGS.questionTagsWhat} detail={GROUPS_TAGS.noTagsYet} compact />

@@ -17,6 +17,8 @@ export interface RecordView {
   readonly title: string
   readonly subtitle?: string | undefined
   readonly leading?: ReactNode
+  /** Always shown: in a table after the title, on a card the first chip (P20). */
+  readonly badge?: ReactNode
   readonly chips?: ReactNode
   readonly meta?: readonly ReactNode[] | undefined
   readonly isArchived?: boolean | undefined
@@ -46,7 +48,8 @@ export interface LibraryListProps {
   /** The filter (and its value) whose empty result is `allComplete`, not `noResults`. */
   allCompleteWhen?: { readonly id: string; readonly value: string } | undefined
   /** Table header row: the title column and one per meta cell, `null` where a cell does not sort. */
-  columns?: { readonly title: ListColumn; readonly meta: readonly (ListColumn | null)[]; readonly lead?: string | undefined } | undefined
+  /** `lead`: the header's spacer over the rows' leading mark (`w-6` by default); `null` when the rows have none. */
+  columns?: { readonly title: ListColumn; readonly meta: readonly (ListColumn | null)[]; readonly lead?: string | null | undefined } | undefined
   currentId?: string | null | undefined
   onOpen?: ((id: string) => void) | undefined
   /** A click on the list's empty space: the page closes its opened row (1.1.1). */
@@ -156,6 +159,7 @@ export function LibraryList({
         title={record.title}
         subtitle={record.subtitle}
         note={row.alsoIn.length > 0 ? LIST.alsoIn(row.alsoIn) : undefined}
+        badge={record.badge}
         chips={record.chips}
         meta={record.meta}
         actions={actions ? actions(record) : null}
@@ -208,7 +212,7 @@ export function LibraryList({
         ) : null}
         <span className="w-7 shrink-0" />
         {/* The rows' leading mark (an avatar, a difficulty) sits before the title. */}
-        <span data-lead className={`${columns.lead ?? 'w-6'} shrink-0`} />
+        {columns.lead === null ? null : <span data-lead className={`${columns.lead ?? 'w-6'} shrink-0`} />}
         <div className="min-w-0 flex-1">
           <SortHeader column={columns.title} view={view} align="left" />
         </div>

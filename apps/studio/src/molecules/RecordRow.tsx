@@ -11,6 +11,12 @@ export interface RecordRowProps {
   subtitle?: string | undefined
   /** A muted note after the title — "also in History, Science" (stable 1.1). */
   note?: string | undefined
+  /**
+   * A short mark that always shows — a question's difficulty (P20). In a table
+   * it ends the title area at one width, a column down the list, and stays when
+   * a narrow list hides the chips; on a card it is the first chip.
+   */
+  badge?: ReactNode
   /** Chips after the title. */
   chips?: ReactNode
   /** Right-aligned metadata (dates, counts). In table layout these are the cells. */
@@ -43,6 +49,7 @@ export function RecordRow({
   title,
   subtitle,
   note,
+  badge,
   chips,
   meta = [],
   actions,
@@ -118,9 +125,12 @@ export function RecordRow({
             </div>
           ) : null}
         </div>
-        {chips || meta.length > 0 ? (
+        {badge || chips || meta.length > 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">{chips}</div>
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              {badge}
+              {chips}
+            </div>
             {/* Each value on one line; the values wrap as wholes (1.1.1: "Oct 21," over "2026"). */}
             <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
               {meta.map((m, i) => (
@@ -166,17 +176,29 @@ export function RecordRow({
         <Text variant="studio-label" tone={tone} truncate className="min-w-[8rem] flex-1">
           {title}
         </Text>
+        {/*
+          The wrapper hides them, not the Text: a truncated Text sets an inline
+          `display: block`, which beats `hidden` — the options showed at every
+          width (P20). Both follow the list's width, not the window's, so beside
+          the domain pane the stem comes first.
+        */}
         {note ? (
-          <Text variant="studio-caption" tone="muted" truncate className="hidden max-w-[30%] shrink-0 @xl/list:block">
-            {note}
-          </Text>
+          <div className="hidden min-w-0 max-w-[30%] shrink-0 @xl/list:block">
+            <Text variant="studio-caption" tone="muted" truncate>
+              {note}
+            </Text>
+          </div>
         ) : null}
         {subtitle ? (
-          <Text variant="studio-caption" tone="muted" truncate className="hidden max-w-[30%] xl:block">
-            {subtitle}
-          </Text>
+          <div className="hidden min-w-0 max-w-[30%] @5xl/list:block">
+            <Text variant="studio-caption" tone="muted" truncate>
+              {subtitle}
+            </Text>
+          </div>
         ) : null}
         <div className="hidden min-w-0 shrink items-center gap-1.5 overflow-hidden @lg/list:flex">{chips}</div>
+        {/* Last in the title area at one width, so the badges read as a column down the list. */}
+        {badge ? <div className="flex min-w-28 shrink-0 items-center gap-1.5">{badge}</div> : null}
       </div>
       {meta.map((m, i) => (
         // As `LibraryList`'s `metaFits`: the first from 36rem, the rest from 48rem.

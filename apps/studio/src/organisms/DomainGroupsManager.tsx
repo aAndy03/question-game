@@ -1,13 +1,13 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Button, IconButton, MeaningChip, SelectField, Text } from '@/atoms'
-import { ConfirmDialog, EmptyState, ManagerDialog, MemberList, NameDialog, PaneList } from '@/molecules'
+import { ConfirmDialog, DifficultyChip, EmptyState, ManagerDialog, MemberList, NameDialog, PaneList } from '@/molecules'
 import { useNavStore } from '@/chrome/nav'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { LIST, QUESTION } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { command } from '@/host/host'
 import { useCatalogList } from '@/host/queries'
-import { difficultyBand, isArchived, type Domain, type DomainGroup, type Question } from '@/host/types'
+import { isArchived, type Domain, type DomainGroup, type Question } from '@/host/types'
 
 export interface GroupEditing {
   rename(group: DomainGroup | null): void
@@ -104,15 +104,12 @@ export function DomainGroupsManager({ domain, onClose, onShowInList }: DomainGro
     ;[order[at], order[to]] = [order[to] as string, order[at] as string]
     void run.ok('domain_group_reorder', { domainId: domain.id, order })
   }
-  const chips = (q: Question) => {
-    const band = q.difficulty === null ? null : difficultyBand(q.difficulty)
-    return (
-      <>
-        {isArchived(q) ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null}
-        {band ? <MeaningChip meaning={band}>{`${QUESTION.band[band]} · ${q.difficulty}`}</MeaningChip> : <MeaningChip meaning="unset">{QUESTION.difficultyUnset}</MeaningChip>}
-      </>
-    )
-  }
+  const chips = (q: Question) => (
+    <>
+      {isArchived(q) ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null}
+      <DifficultyChip difficulty={q.difficulty} />
+    </>
+  )
 
   const detail =
     groups.length === 0 && members.length === 0 ? (

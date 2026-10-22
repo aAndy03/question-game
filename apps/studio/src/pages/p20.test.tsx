@@ -1122,3 +1122,29 @@ describe('the Statistics window and tab (P20)', () => {
   })
 })
 
+describe('the Questions list says difficulty in one pill (P20)', () => {
+
+  it('in the table: the band and the number after the stem, and no number column before it', async () => {
+    await at({ tab: 'library' })
+    const stem = await screen.findByText('Which empire built the road network that reached Britain?')
+    const row = stem.closest('[role="button"], [role="row"]') as HTMLElement
+    expect(within(row).getByText('Easy · 20')).toBeTruthy()
+    expect(within(row).queryByText('Easy')).toBeNull()
+    expect(document.querySelector('[data-list-header] [data-lead]')).toBeNull()
+    // The chips hide on a narrow list (a row open beside it); the difficulty must not (class is the rule).
+    const chipBox = Array.from(row.querySelectorAll<HTMLElement>('div')).find((el) => el.className.includes('@lg/list:flex'))
+    expect(chipBox).toBeDefined()
+    expect(chipBox?.contains(within(row).getByText('Easy · 20')) ?? false).toBe(false)
+  })
+
+  it('on a card: the pill is the first chip', async () => {
+    useChromeStore.getState().setView('library', 'grid')
+    await at({ tab: 'library' })
+    const stem = await screen.findByText('Which empire built the road network that reached Britain?')
+    const card = stem.closest('[role="button"]') as HTMLElement
+    const chip = within(card).getByText('Easy · 20')
+    expect(chip).toBeTruthy()
+    const chips = chip.closest('.flex-wrap') as HTMLElement
+    expect(chips.textContent?.startsWith('Easy · 20')).toBe(true)
+  })
+})

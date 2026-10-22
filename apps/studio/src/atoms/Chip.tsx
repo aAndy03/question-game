@@ -14,10 +14,14 @@ export interface ChipProps {
   children: ReactNode
 }
 
-/** HeroUI `Chip`, `soft` and `sm` by default — a label, never a button. */
+/**
+ * HeroUI `Chip`, `soft` and `sm` by default — a label, never a button. It
+ * never wraps or shrinks (P20): a squeezed row clips its chips, it does not
+ * fold *Multiple answers* onto two lines.
+ */
 export function Chip({ tone = 'default', variant = 'soft', size = 'sm', className, children }: ChipProps) {
   return (
-    <HeroChip color={tone} variant={variant} size={size} {...defined({ className })}>
+    <HeroChip color={tone} variant={variant} size={size} className={["shrink-0 whitespace-nowrap", className ?? ""].join(" ").trim()}>
       {children}
     </HeroChip>
   )

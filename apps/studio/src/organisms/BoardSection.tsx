@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { Button, IconButton, MeaningChip, Panel, SwitchField, Text } from '@/atoms'
-import { BoardBalance, BoardDomainRow, DifficultyDialog, EmptyState, IncompleteMark, InlineNotice, SettingRow, SortableList } from '@/molecules'
+import { BoardBalance, BoardDomainRow, DifficultyChip, DifficultyDialog, difficultyLabel, EmptyState, IncompleteMark, InlineNotice, SettingRow, SortableList } from '@/molecules'
 import { DOMAIN, GAME, PICKER, QUESTION } from '@/copy'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { blockedMembers, everyQuestion, oneQuestionPerDifficulty } from '@/host/board'
@@ -8,7 +8,7 @@ import { useHostCommand } from '@/host/commands'
 import { pickDomainsSpec, pickQuestionsSpec, type QuestionItem } from '@/host/listSpecs'
 import { bodyGaps, effectiveBody } from '@/host/question'
 import { useCatalogList, useRulesPreview, useTags } from '@/host/queries'
-import { difficultyBand, type BoardDomain, type BoardSettings, type Domain, type EditScope, type QuestionGap, type Recipe } from '@/host/types'
+import { type BoardDomain, type BoardSettings, type Domain, type EditScope, type QuestionGap, type Recipe } from '@/host/types'
 import { PickerDialog, type PickerRow } from './PickerDialog'
 import { usePropagatingSave } from './usePropagatingSave'
 
@@ -141,13 +141,12 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
       const body = effectiveBody(q, recipe.overlays.questions[q.id])
       const group = m.groupId ? (choosing.groups ?? []).find((g) => g.id === m.groupId) : undefined
       const item: QuestionItem = { question: { ...q, ...body }, gaps: bodyGaps(body), domains: [], group: group ? { id: group.id, name: group.name } : null }
-      const band = body.difficulty === null ? null : difficultyBand(body.difficulty)
       const view: PickerRow = {
         title: body.stem || QUESTION.noStem,
         chips: (
           <>
             <IncompleteMark gaps={item.gaps} />
-            {band ? <MeaningChip meaning={band}>{`${QUESTION.band[band]} · ${body.difficulty}`}</MeaningChip> : <MeaningChip meaning="unset">{QUESTION.difficultyUnset}</MeaningChip>}
+            <DifficultyChip difficulty={body.difficulty} />
           </>
         ),
       }
@@ -374,8 +373,7 @@ function BoardQuestion(props: {
   onRemove: () => void
 }) {
   const { stem, missing, difficulty, gaps, overridden, frozenReason, pending } = props
-  const band = difficulty === null ? null : difficultyBand(difficulty)
-  const label = band ? `${QUESTION.band[band]} · ${difficulty}` : QUESTION.difficultyUnset
+  const label = difficultyLabel(difficulty)
   return (
     <li className="group/q flex h-9 min-w-0 items-center gap-2 rounded px-1.5 hover:bg-[var(--surface-secondary)]" data-board-question>
       <button
@@ -387,7 +385,7 @@ function BoardQuestion(props: {
         disabled={frozenReason !== null || missing}
         onClick={props.onDifficulty}
       >
-        <MeaningChip meaning={band ?? 'unset'}>{label}</MeaningChip>
+        <DifficultyChip difficulty={difficulty} />
       </button>
       <Text variant="studio-body" truncate className="min-w-0 flex-1">
         {missing ? GAME.missingQuestion : stem || QUESTION.noStem}

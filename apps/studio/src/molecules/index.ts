@@ -83,4 +83,5 @@ export { AwardMatrix, BandLadder, workingOf, type AwardMatrixProps } from './Awa
 export { RuleEffects, type RuleEffectsProps } from './RuleEffects'
 export { BoardBalance, type BoardBalanceProps } from './BoardBalance'
 export { BoardDomainRow, type BoardDomainRowProps } from './BoardDomainRow'
+export { DifficultyChip, difficultyLabel, type DifficultyChipProps } from './DifficultyChip'
 export { SpeedWindowField, type SpeedWindowFieldProps } from './SpeedWindowField'

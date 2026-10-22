@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, MeaningChip, Text } from '@/atoms'
-import { ActionMenu, IncompleteMark, PageHeader } from '@/molecules'
+import { ActionMenu, DifficultyChip, IncompleteMark, PageHeader } from '@/molecules'
 import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, useBulkEdit, DomainGroupsManager, QuestionTagsManager, useGroupEditing, type RecordView } from '@/organisms'
 import { ListArea, SplitLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
@@ -13,7 +13,7 @@ import { activeMemberIds, questionGaps } from '@/host/question'
 import { questionsSpec, type QuestionItem } from '@/host/listSpecs'
 import type { ListItem } from '@/host/listView'
 import { useCatalogList, useListHits, useTags } from '@/host/queries'
-import { answerMode, difficultyBand, isArchived } from '@/host/types'
+import { answerMode, isArchived } from '@/host/types'
 import { useListView } from '@/host/useListView'
 import { useHostCommand } from '@/host/commands'
 
@@ -77,7 +77,6 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
     () =>
       scoped?.map((q) => {
           const gaps = questionGaps(q, inActiveDomain.has(q.id))
-          const band = q.difficulty === null ? null : difficultyBand(q.difficulty)
           const mode = answerMode(q)
           // Active domains, as the list groups and sorts them — and one lookup, not a scan per question.
           const inDomains = domainsOf.get(q.id)?.length ?? 0
@@ -85,17 +84,15 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
             id: q.id,
             title: q.stem || QUESTION.noStem,
             subtitle: q.options.map((o) => o.text).join(' · '),
-            leading: (
-              <span className="flex w-14 items-center justify-end gap-1.5">
+            // The difficulty is one pill after the stem, as on the Board (P20): no number column before it.
+            badge: (
+              <>
+                <DifficultyChip difficulty={q.difficulty} />
                 <IncompleteMark gaps={gaps} />
-                <Text variant="studio-mono" tone="muted" tabular>
-                  {q.difficulty ?? '—'}
-                </Text>
-              </span>
+              </>
             ),
             chips: (
               <>
-                {band ? <MeaningChip meaning={band}>{QUESTION.band[band]}</MeaningChip> : null}
                 {mode === 'multiple' ? <MeaningChip meaning="multiple">{QUESTION.multiple}</MeaningChip> : null}
                 {(q.tags ?? []).slice(0, 3).map((t) => (
                   <MeaningChip key={t} meaning="tag">{t}</MeaningChip>
@@ -210,7 +207,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
               allCompleteWhen={{ id: 'completeness', value: 'incomplete' }}
               columns={{
                 title: { sortId: 'text', label: VIEWS.text },
-                lead: 'w-14',
+                lead: null,
                 meta: domain ? [{ sortId: 'changed', label: VIEWS.changed }] : [{ sortId: 'domains', label: VIEWS.domains }, { sortId: 'changed', label: VIEWS.changed }],
               }}
               emptyAction={

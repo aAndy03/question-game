@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Modal } from '@heroui/react'
 import { useDebouncedValue } from '@tanstack/react-pacer'
 import { Button, IconButton, MeaningChip, SelectField, Text, TextAreaField } from '@/atoms'
-import { GapNotice, ImportRowForm, IncompleteMark, InlineNotice, optionKey, type ImportDraft } from '@/molecules'
+import { DifficultyChip, GapNotice, ImportRowForm, IncompleteMark, InlineNotice, optionKey, type ImportDraft } from '@/molecules'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { toast } from '@/chrome/toast'
 import { useChromeStore, EMPTY_LIST_STATE } from '@/chrome/chrome'
@@ -12,7 +12,7 @@ import { isHostError } from '@/host/host'
 import { importSpec, type ImportItem } from '@/host/listSpecs'
 import type { ListItem } from '@/host/listView'
 import { useCatalogList, useImportPreview, useTags } from '@/host/queries'
-import { difficultyBand, type ImportOverrides, type ImportReport, type ImportRow, type ImportRowBody } from '@/host/types'
+import { type ImportOverrides, type ImportReport, type ImportRow, type ImportRowBody } from '@/host/types'
 import { PickList, type PickerRow } from './PickList'
 
 export interface ImportQuestionsDialogProps {
@@ -105,7 +105,6 @@ export function ImportQuestionsDialog({ isOpen, onOpenChange, defaultDomainId }:
     if (!report) return NO_ROWS
     return report.rows.map((row) => {
       const difficulty = row.body?.difficulty ?? null
-      const band = difficulty === null ? null : difficultyBand(difficulty)
       const subtitle =
         row.status === 'duplicate'
           ? row.duplicateRow !== null
@@ -136,7 +135,7 @@ export function ImportQuestionsDialog({ isOpen, onOpenChange, defaultDomainId }:
               </MeaningChip>
             ))}
             <IncompleteMark gaps={row.gaps} />
-            {importable(row) ? band ? <MeaningChip meaning={band}>{`${QUESTION.band[band]} · ${difficulty}`}</MeaningChip> : <MeaningChip meaning="unset">{QUESTION.difficultyUnset}</MeaningChip> : null}
+            {importable(row) ? <DifficultyChip difficulty={difficulty} /> : null}
           </>
         ),
       }
