@@ -142,8 +142,31 @@ export function libraryFile(env: Env = process.env): string {
 }
 
 /** The `e2e_library` flags a spec's library is written with, or `null` for none. */
-export function seedFor(spec: string): readonly string[] | null {
+export function seedFor(spec: string, env: Env = process.env): readonly string[] | null {
   const name = path.basename(spec.replace(/^file:\/\//, ''))
+  if (name === LOOK_SPEC) return lookSeed(env)
   if (!(name in SEEDS)) throw new Error(`${name}: add it to SEEDS in e2e/support/folders.ts`)
   return SEEDS[name] ?? null
+}
+
+/** P20's photographs of Studio over a real library; it runs only when told where one is. */
+export const LOOK_SPEC = 'look.e2e.ts'
+
+/** The installed app's and the dev build's libraries: shows live there. */
+const LIVE_FOLDERS = ['org.questiongame.desktop', 'org.questiongame.app']
+
+/**
+ * The look spec's library: a snapshot of `E2E_LOOK_LIBRARY` (read-only,
+ * `VACUUM INTO`) with `E2E_LOOK_PLAYS` Plays (default 6) simulated on the
+ * copy, so Statistics has something to draw — or `null` when the variable is
+ * unset, and the spec skips. A file inside a live data folder is refused:
+ * copy it out first (CLAUDE.md: read them on a copy).
+ */
+export function lookSeed(env: Env = process.env): readonly string[] | null {
+  const source = env.E2E_LOOK_LIBRARY
+  if (!source) return null
+  const parts = path.normalize(source).split(/[\\/]/)
+  const live = LIVE_FOLDERS.find((id) => parts.includes(id))
+  if (live) throw new Error(`refusing to read ${source} in place: ${live} holds a live library — copy it somewhere else first`)
+  return ['--copy-from', `"${source}"`, '--simulate-plays', env.E2E_LOOK_PLAYS ?? '6']
 }

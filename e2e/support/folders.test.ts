@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import path from 'node:path'
-import { E2E_IDENTIFIER, STABLE_FIXTURE, assertE2eFolder, assertStableFixture, channelFor, e2eFolders, launchEnv, seedFor, stableFixtureDir } from './folders'
+import { E2E_IDENTIFIER, STABLE_FIXTURE, assertE2eFolder, assertStableFixture, channelFor, e2eFolders, launchEnv, lookSeed, seedFor, stableFixtureDir } from './folders'
 
 /**
  * P12.14. The suite deletes and rewrites an app's data folder before every
@@ -80,5 +80,28 @@ describe('the stable fixture', () => {
     expect(env.PATH).toBe('p')
     const beta = launchEnv({ channel: 'beta', stable: 'demo' }, 'C:\\Temp\\fixture', { PATH: 'p' })
     expect(beta).toMatchObject({ QUESTIONGAME_E2E_CHANNEL: 'beta', QUESTIONGAME_E2E_STABLE_DIR: 'C:\\Temp\\fixture', PATH: 'p' })
+  })
+})
+
+describe('the look spec’s library (P20)', () => {
+  it('is nothing until it is told where a library is, and the spec skips', () => {
+    expect(seedFor('/x/e2e/specs/look.e2e.ts', {})).toBeNull()
+    expect(lookSeed({})).toBeNull()
+  })
+
+  it('is a snapshot of that library with Plays simulated on the copy', () => {
+    const source = 'C:\\Users\\me\\AppData\\Roaming\\org.questiongame.beta\\questiongame.sqlite3'
+    expect(seedFor('/x/e2e/specs/look.e2e.ts', { E2E_LOOK_LIBRARY: source })).toEqual(['--copy-from', `"${source}"`, '--simulate-plays', '6'])
+    expect(lookSeed({ E2E_LOOK_LIBRARY: source, E2E_LOOK_PLAYS: '2' })?.at(-1)).toBe('2')
+  })
+
+  it('refuses a library inside a live data folder: it reads a copy', () => {
+    for (const source of [
+      'C:\\Roaming\\org.questiongame.desktop\\questiongame.sqlite3',
+      'C:\\Roaming\\org.questiongame.app\\questiongame.sqlite3',
+      'C:\\Roaming\\org.questiongame.e2e\\..\\org.questiongame.desktop\\questiongame.sqlite3',
+    ]) {
+      expect(() => lookSeed({ E2E_LOOK_LIBRARY: source }), source).toThrow(/live library/)
+    }
   })
 })

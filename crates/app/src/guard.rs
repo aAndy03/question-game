@@ -164,6 +164,10 @@ mod tests {
             // has no overlay queue to acknowledge.
             "overlay_ack_complete",
             "stage_ready",
+            // The workspace reads are Studio's, not this window's (P20): the
+            // Statistics page must draw without asking for them.
+            "workspace_list",
+            "workspace_counts",
         ] {
             assert!(
                 allow(STATS, command).is_err(),

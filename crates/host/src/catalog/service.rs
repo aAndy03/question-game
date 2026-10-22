@@ -1397,7 +1397,8 @@ fn record_of(play: &Play) -> PlayRecord {
 /// §12: a renamed team is renamed *everywhere*, Statistics included. The fold
 /// labels a row as the Play knew it (a Play is self-contained), so this is the
 /// one place the current catalog name wins. A row whose subject was archived
-/// or is gone keeps the Play's label — the number still happened.
+/// or is gone keeps the Play's label — the number still happened. It renames
+/// and never reorders: the fold has already put days and bands in order.
 fn relabel(conn: &Connection, result: &mut StatsResult) {
     for row in result.rows.iter_mut() {
         let current = match result.group_by {
@@ -1412,6 +1413,8 @@ fn relabel(conn: &Connection, result: &mut StatsResult) {
                     .ok()
                     .map(|item| item.stem)
             }
+            // "No operator" is not an id, and no operator row may rename it.
+            StatsDimension::Operator if row.key.is_empty() => None,
             StatsDimension::Operator => {
                 store::operator_get(conn, &OperatorId::from(row.key.as_str()))
                     .ok()
@@ -1420,6 +1423,16 @@ fn relabel(conn: &Connection, result: &mut StatsResult) {
             StatsDimension::Recipe => store::recipe_get(conn, &RecipeId::from(row.key.as_str()))
                 .ok()
                 .map(|item| item.name),
+            // A Play is its game and the day it started (P20); the game's name
+            // is only here, so a Play whose game this workspace cannot see
+            // keeps its id.
+            StatsDimension::Play => store::play_get(conn, &PlayId::from(row.key.as_str()))
+                .ok()
+                .flatten()
+                .and_then(|play| {
+                    let game = store::recipe_get(conn, &play.recipe_id).ok()?;
+                    Some(stats::play_label(&game.name, play.started_at_ms))
+                }),
             // A deleted workspace keeps its id as the label.
             StatsDimension::Workspace => {
                 store::workspace_get(conn, &crate::ids::WorkspaceId::new(row.key.clone()))
@@ -1428,7 +1441,7 @@ fn relabel(conn: &Connection, result: &mut StatsResult) {
                     // Unnamed: an empty label, which Studio says as its unnamed workspace.
                     .map(|w| w.name.unwrap_or_default())
             }
-            // A difficulty band, a day and a Play id label themselves.
+            // A difficulty band and a day label themselves.
             _ => None,
         };
         if let Some(name) = current {

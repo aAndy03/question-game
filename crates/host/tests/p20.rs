@@ -313,3 +313,105 @@ mod import {
         assert!(stems(&c).is_empty());
     }
 }
+
+// ------------------------------------------------------------- statistics
+
+mod statistics {
+    use super::NOW;
+    use questiongame_host::catalog::{CatalogLocation, CatalogService, Demo, Operator, SeedMode};
+    use questiongame_host::flags::{FlagService, GameSettings};
+    use questiongame_host::stats::{StatsDimension, StatsQuery, StatsResult};
+    use questiongame_host::{DomainId, MatchService, OperatorId, OptionId, PlayId, RecipeId};
+
+    /// 2025-09-06T12:00Z, and a day of milliseconds.
+    const T: u64 = 1_757_160_000_000;
+    const DAY: u64 = 86_400_000;
+    const DEMO: &str = "seed-recipe-demo";
+
+    fn demo() -> CatalogService {
+        let catalog = CatalogService::open(CatalogLocation::Memory).unwrap();
+        catalog.seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW).unwrap();
+        catalog
+    }
+
+    /// One Play of the Demo, loaded at `at` with `operator` at the desk: Red
+    /// answers Geography from the easiest question up, `turns` right answers
+    /// in a row (10, 20, 30), then the Play is put down so the next may open.
+    fn played(catalog: &CatalogService, id: &str, at: u64, operator: Option<&str>, turns: u64) {
+        let mut flags = FlagService::default();
+        flags.load_recipe(GameSettings::default()).unwrap();
+        let snapshot = catalog
+            .build_snapshot(&RecipeId::from(DEMO), PlayId::from(id), flags.freeze().unwrap())
+            .unwrap();
+        let mut play = MatchService::new();
+        play.play_load(snapshot, at).unwrap();
+        if let Some(operator) = operator {
+            play.operator_switched(OperatorId::from(operator), at).unwrap();
+        }
+        play.play_start(at + 1_000).unwrap();
+        for n in 1..=turns {
+            let now = at + n * 10_000;
+            play.choose_domain(&DomainId::from("seed-dom-geo"), now).unwrap();
+            play.set_selection(&[OptionId::new(format!("seed-q-geo-{n}-a"))], now + 100).unwrap();
+            play.lock_selection(now + 200).unwrap();
+            play.reveal_outcome(now + 300).unwrap();
+        }
+        play.abandon(at + 100_000).unwrap();
+        catalog.play_persist(play.get_state().unwrap()).unwrap();
+    }
+
+    fn grouped(by: StatsDimension) -> StatsQuery {
+        StatsQuery { group_by: by, ..StatsQuery::default() }
+    }
+    fn keys(result: &StatsResult) -> Vec<&str> {
+        result.rows.iter().map(|row| row.key.as_str()).collect()
+    }
+    fn labels(result: &StatsResult) -> Vec<&str> {
+        result.rows.iter().map(|row| row.label.as_str()).collect()
+    }
+    fn label<'a>(result: &'a StatsResult, key: &str) -> &'a str {
+        &result.rows.iter().find(|row| row.key == key).unwrap_or_else(|| panic!("no row {key:?}")).label
+    }
+
+    #[test]
+    fn the_catalog_leaves_no_operator_alone_and_names_a_real_one() {
+        let catalog = demo();
+        catalog.catalog_upsert(&Operator::new("op-andy", "Andy").into(), NOW).unwrap();
+        played(&catalog, "play-a", T, None, 1);
+        played(&catalog, "play-b", T + DAY, Some("op-andy"), 1);
+        let result = catalog.stats_query(&grouped(StatsDimension::Operator)).unwrap();
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(label(&result, ""), "No operator");
+        assert_eq!(label(&result, "op-andy"), "Andy", "the operator's display name");
+    }
+
+    #[test]
+    fn a_play_row_is_labelled_with_its_game_and_date() {
+        let catalog = demo();
+        played(&catalog, "play-a", T, None, 1);
+        let by_play = grouped(StatsDimension::Play);
+        let result = catalog.stats_query(&by_play).unwrap();
+        assert_eq!(keys(&result), ["play-a"]);
+        assert_eq!(labels(&result), ["Demo · 2025-09-06"]);
+
+        // The catalog's name wins, as it does for a team.
+        let mut game = catalog.recipe_get(&RecipeId::from(DEMO)).unwrap();
+        game.name = "Quiz Night".to_owned();
+        catalog.recipe_upsert(&game, NOW + 1).unwrap();
+        assert_eq!(labels(&catalog.stats_query(&by_play).unwrap()), ["Quiz Night · 2025-09-06"]);
+    }
+
+    #[test]
+    fn ordering_survives_the_service() {
+        let catalog = demo();
+        // The earlier day has fewer turns and the two easy bands tie on turns,
+        // so an order by the first column would read both of these backwards.
+        played(&catalog, "play-a", T - DAY, None, 2);
+        played(&catalog, "play-b", T, None, 3);
+        let by_day = catalog.stats_query(&grouped(StatsDimension::Day)).unwrap();
+        assert_eq!(keys(&by_day), ["2025-09-05", "2025-09-06"]);
+        let by_band = catalog.stats_query(&grouped(StatsDimension::Difficulty)).unwrap();
+        assert_eq!(keys(&by_band), ["10", "20", "30"]);
+        assert_eq!(labels(&by_band), ["1–10", "11–20", "21–30"]);
+    }
+}

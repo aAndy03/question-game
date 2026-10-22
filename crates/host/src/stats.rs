@@ -460,7 +460,8 @@ pub struct StatsRow {
 pub struct StatsResult {
     pub group_by: StatsDimension,
     pub metrics: Vec<StatsMetric>,
-    /// Ordered by the first metric, descending, then by label.
+    /// Days in date order and difficulty bands easy to hard; every other
+    /// dimension by the first metric, descending, then by label.
     pub rows: Vec<StatsRow>,
     /// The same metrics over every kept fact, ungrouped.
     pub totals: StatsRow,
@@ -514,17 +515,25 @@ fn fold(facts: &[&TurnFact], query: &StatsQuery, awards: &[TurnAward]) -> StatsR
         .into_iter()
         .map(|(key, group)| group.row(key, &metrics))
         .collect();
-    // The first column is what the eye reads first, so it is what orders the
-    // table; the label breaks ties so a redraw never shuffles equal rows.
-    rows.sort_by(|a, b| {
-        b.values
-            .first()
-            .copied()
-            .flatten()
-            .unwrap_or(f64::MIN)
-            .total_cmp(&a.values.first().copied().flatten().unwrap_or(f64::MIN))
-            .then_with(|| a.label.cmp(&b.label))
-    });
+    match query.group_by {
+        // A day and a band are scales, not rankings: a time series reads left
+        // to right and the bands read easy to hard, whatever they counted.
+        // `YYYY-MM-DD` sorts as a date; a band key is a number, and as a
+        // string `100` would come second.
+        StatsDimension::Day => rows.sort_by(|a, b| a.key.cmp(&b.key)),
+        StatsDimension::Difficulty => rows.sort_by_key(|row| row.key.parse::<u32>().unwrap_or(0)),
+        // The first column is what the eye reads first, so it is what orders
+        // the table; the label breaks ties so a redraw never shuffles equal rows.
+        _ => rows.sort_by(|a, b| {
+            b.values
+                .first()
+                .copied()
+                .flatten()
+                .unwrap_or(f64::MIN)
+                .total_cmp(&a.values.first().copied().flatten().unwrap_or(f64::MIN))
+                .then_with(|| a.label.cmp(&b.label))
+        }),
+    }
     if let Some(limit) = query.limit {
         rows.truncate(limit as usize);
     }
@@ -575,9 +584,13 @@ fn group_of(fact: &TurnFact, by: StatsDimension) -> (String, String) {
         }
         StatsDimension::Operator => match &fact.operator_id {
             Some(id) => (id.to_string(), id.to_string()),
-            None => (String::new(), String::new()),
+            // Nobody was at the desk — a row of its own, never the name of
+            // whichever team happened to answer first.
+            None => (String::new(), "No operator".to_owned()),
         },
         StatsDimension::Recipe => (fact.recipe_id.to_string(), fact.recipe_id.to_string()),
+        // The snapshot carries no game name, so the catalog names a Play
+        // ([`play_label`]); until then it is its id.
         StatsDimension::Play => (fact.play_id.to_string(), fact.play_id.to_string()),
         StatsDimension::Workspace => (fact.workspace_id.clone(), fact.workspace_id.clone()),
         StatsDimension::Day => {
@@ -602,6 +615,17 @@ fn day_of(at_ms: u64) -> String {
     let days = (at_ms / 86_400_000) as i64;
     let (y, m, d) = civil_from_days(days);
     format!("{y:04}-{m:02}-{d:02}")
+}
+
+/// A Play row once the catalog can name its game: the game and the UTC day
+/// the Play **started** — its `PlayStarted`, the date the Plays list shows, not
+/// the day of its first turn — as `Quiz Night · 2025-09-06`.
+pub(crate) fn play_label(game: &str, started_at_ms: Option<u64>) -> String {
+    match started_at_ms {
+        Some(at_ms) => format!("{game} · {}", day_of(at_ms)),
+        // Never started, so it has no turn to be a row for; the game alone.
+        None => game.to_owned(),
+    }
 }
 
 /// Howard Hinnant's `civil_from_days`, for days since 1970-01-01.
@@ -987,6 +1011,115 @@ mod tests {
             assert!(!result.rows.is_empty(), "{by:?} grouped nothing");
             assert_eq!(result.turn_count, 2, "{by:?} lost a turn");
         }
+    }
+
+    /// 2025-09-04T00:00Z, and a day of milliseconds.
+    const BASE: u64 = 1_756_944_000_000;
+    const DAY: u64 = 86_400_000;
+
+    /// One correct Red turn per entry, moved to its instant and given its
+    /// difficulty — the log's own questions only have two.
+    fn placed(turns: &[(u64, u8)]) -> Vec<TurnFact> {
+        let spec: Vec<(u32, Verdict, u32, Option<u32>)> = turns
+            .iter()
+            .map(|_| (0, Verdict::Correct, 10, None))
+            .collect();
+        let mut facts = facts(&log(&spec));
+        for (fact, (at_ms, difficulty)) in facts.iter_mut().zip(turns) {
+            fact.at_ms = *at_ms;
+            fact.difficulty = *difficulty;
+        }
+        facts
+    }
+
+    fn keys(result: &StatsResult) -> Vec<&str> {
+        result.rows.iter().map(|row| row.key.as_str()).collect()
+    }
+
+    fn labels(result: &StatsResult) -> Vec<&str> {
+        result.rows.iter().map(|row| row.label.as_str()).collect()
+    }
+
+    fn grouped(by: StatsDimension) -> StatsQuery {
+        StatsQuery {
+            group_by: by,
+            ..StatsQuery::default()
+        }
+    }
+
+    #[test]
+    fn day_rows_are_chronological_not_ordered_by_the_first_metric() {
+        // Three turns on the 6th, two on the 5th, one on the 4th, interleaved.
+        let facts = placed(&[
+            (BASE + 2 * DAY, 10),
+            (BASE + DAY, 10),
+            (BASE + 2 * DAY + 1, 10),
+            (BASE, 10),
+            (BASE + 2 * DAY + 2, 10),
+            (BASE + DAY + 1, 10),
+        ]);
+        let result = aggregate(&facts, &grouped(StatsDimension::Day));
+        assert_eq!(keys(&result), ["2025-09-04", "2025-09-05", "2025-09-06"]);
+    }
+
+    #[test]
+    fn difficulty_rows_ascend_by_band_not_by_string_or_by_the_first_metric() {
+        let facts = placed(&[100, 10, 30, 20, 20].map(|difficulty| (BASE, difficulty)));
+        let result = aggregate(&facts, &grouped(StatsDimension::Difficulty));
+        assert_eq!(keys(&result), ["10", "20", "30", "100"]);
+        assert_eq!(labels(&result), ["1–10", "11–20", "21–30", "91–100"]);
+    }
+
+    #[test]
+    fn team_rows_keep_their_order_and_a_limit_keeps_the_top() {
+        // Red answers once, Blue twice: the first column (turns) leads.
+        let blue_leads = facts(&log(&[
+            (0, Verdict::Correct, 20, None),
+            (1, Verdict::Correct, 20, None),
+            (1, Verdict::Correct, 20, None),
+        ]));
+        assert_eq!(
+            labels(&aggregate(&blue_leads, &grouped(StatsDimension::Team))),
+            ["Blue", "Red"]
+        );
+        let top = StatsQuery {
+            limit: Some(1),
+            ..grouped(StatsDimension::Team)
+        };
+        assert_eq!(
+            labels(&aggregate(&blue_leads, &top)),
+            ["Blue"],
+            "the leader"
+        );
+
+        // A tie is broken by the label, not by who answered first.
+        let tied = facts(&log(&[
+            (0, Verdict::Correct, 20, None),
+            (1, Verdict::Correct, 20, None),
+        ]));
+        assert_eq!(
+            labels(&aggregate(&tied, &grouped(StatsDimension::Team))),
+            ["Blue", "Red"]
+        );
+    }
+
+    #[test]
+    fn a_turn_with_no_operator_is_no_operator_not_a_teams_name() {
+        let by_operator = grouped(StatsDimension::Operator);
+        let mut facts = facts(&log(&[
+            (0, Verdict::Correct, 20, None),
+            (1, Verdict::Incorrect, 0, None),
+        ]));
+        let result = aggregate(&facts, &by_operator);
+        assert_eq!(keys(&result), [""]);
+        assert_eq!(labels(&result), ["No operator"]);
+
+        facts[1].operator_id = Some(OperatorId::new("op-1"));
+        let result = aggregate(&facts, &by_operator);
+        assert_eq!(result.rows.len(), 2);
+        let none = result.rows.iter().find(|row| row.key.is_empty()).unwrap();
+        assert_eq!(none.label, "No operator");
+        assert!(result.rows.iter().any(|row| row.key == "op-1"));
     }
 
     #[test]

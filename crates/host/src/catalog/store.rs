@@ -1449,6 +1449,21 @@ fn play_record_row(row: &Row<'_>) -> CatalogResult<super::model::PlayRecord> {
     })
 }
 
+/// One Play's projection row, whatever workspace its game is in; `None` for an
+/// id the log never held.
+pub(super) fn play_get(
+    conn: &Connection,
+    play: &PlayId,
+) -> CatalogResult<Option<super::model::PlayRecord>> {
+    conn.query_row(
+        "SELECT * FROM plays WHERE id = ?1",
+        params![play.as_str()],
+        |row| Ok(play_record_row(row)),
+    )
+    .optional()?
+    .transpose()
+}
+
 /// The Plays of the current workspace's games — or of every workspace's, with
 /// `all_workspaces` (Statistics' *All workspaces*). A Play reaches its
 /// workspace through its game; the log itself carries no workspace.

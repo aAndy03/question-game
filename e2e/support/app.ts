@@ -103,6 +103,12 @@ export async function closeWhatsNew(): Promise<void> {
   })
 }
 
+/** Save what Studio shows now as `e2e/.artifacts/look-<name>.png`, once motion has settled. */
+export async function shot(name: string): Promise<void> {
+  await browser.pause(400)
+  await browser.saveScreenshot(`e2e/.artifacts/look-${name}.png`)
+}
+
 /** Open a game from the Games tab by its name, as its card shows it. */
 export async function openGame(name: string): Promise<void> {
   const card = await $(`span=${name}`)

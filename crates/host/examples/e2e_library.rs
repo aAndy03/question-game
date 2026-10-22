@@ -28,13 +28,21 @@
 //!   library into `<path>` (`VACUUM INTO`, the source opened read-only), so
 //!   `look.e2e.ts` can photograph Studio over a real, large library — the
 //!   maintainer's Beta test library (P20). Only ever read from.
+//! - `--simulate-plays <n>`, after `--copy-from`: plays up to `n` of the
+//!   copy's games through `MatchService`, one a day, a turn every 40 s, a
+//!   seeded mix of right and wrong answers, and persists each Play — so
+//!   Statistics has something to draw (P20). It writes to the copy only.
 
+use questiongame_host::MatchService;
 use questiongame_host::OperatorId;
+use questiongame_host::catalog::ArchiveScope;
 use questiongame_host::catalog::{
     CatalogItem, CatalogKind, CatalogLocation, CatalogService, Demo, Operator, Question,
     QuestionOption, SeedMode,
 };
-use questiongame_host::flags::{GameSettings, GlobalSettings};
+use questiongame_host::flags::{FlagService, GameSettings, GlobalSettings};
+use questiongame_host::ids::{OptionId, PlayId};
+use questiongame_host::play::PlayStatus;
 
 const NOW: u64 = 1_790_000_000_000;
 
@@ -71,6 +79,16 @@ fn main() {
         .expect("the library to copy, read-only");
         conn.execute("VACUUM INTO ?1", [&path])
             .expect("a snapshot of the library");
+        drop(conn);
+        let plays: usize = rest
+            .iter()
+            .position(|a| a == "--simulate-plays")
+            .and_then(|i| rest.get(i + 1))
+            .map(|n| n.parse().expect("--simulate-plays takes a number"))
+            .unwrap_or(0);
+        if plays > 0 {
+            simulate_plays(&path, plays);
+        }
         println!("{path}");
         return;
     }
@@ -174,4 +192,140 @@ fn main() {
         let _ = std::fs::remove_file(format!("{head}{suffix}"));
     }
     println!("{path}");
+}
+
+/// A day, and when the first simulated Play starts: 2026-09-01T18:00Z.
+const DAY: u64 = 86_400_000;
+const FIRST_PLAY: u64 = 1_788_285_600_000;
+
+/// Runs `count` Plays over the copy's active games, in id order, one a day.
+///
+/// The same three steps `play_load` takes (`commands/play.rs`): the game's
+/// settings into a `FlagService`, frozen, then the snapshot. Each turn is the
+/// operator's: give the token if nobody holds it, choose the next domain with
+/// a question left, reveal, start the clock, select, lock, reveal the outcome.
+/// Answers come from a small seeded generator, right more often on an easy
+/// question, so the numbers look like a show and are the same every run. A
+/// Play stops at 150 turns and is put down there. Games whose board does not
+/// build (one Load would refuse) are left out; the rest are played in turn
+/// until there are `count` Plays.
+fn simulate_plays(path: &str, count: usize) {
+    let catalog = CatalogService::open(CatalogLocation::file(path)).expect("the copy");
+    let globals = catalog
+        .settings_load()
+        .expect("the globals")
+        .unwrap_or_default();
+    let mut games = catalog
+        .recipe_list(ArchiveScope::Active)
+        .expect("the games");
+    games.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+    games.retain(|g| {
+        catalog
+            .build_snapshot(&g.id, PlayId::new("sim-probe"), probe_settings(&globals, g))
+            .is_ok()
+    });
+    if games.is_empty() {
+        eprintln!("no game here builds a board; nothing played");
+        return;
+    }
+    // Round the games until `count` Plays: a library of two still gets a week of shows.
+    for played in 0..count {
+        let recipe = games[played % games.len()].clone();
+        let id = PlayId::new(format!("sim-play-{played:02}"));
+        let snapshot = catalog
+            .build_snapshot(&recipe.id, id, probe_settings(&globals, &recipe))
+            .expect("a board that built a moment ago");
+        let mut now = FIRST_PLAY + played as u64 * DAY;
+        let mut seed = 0x9e37_79b9_u64 ^ (played as u64 + 1);
+        let mut random = move || {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            (seed >> 33) as u32
+        };
+        let mut play = MatchService::new();
+        play.play_load(snapshot, now).expect("loads");
+        if let Some(operator) = globals.active_operator_id.clone() {
+            let _ = play.operator_switched(operator, now);
+        }
+        play.play_start(now).expect("starts");
+        let domains: Vec<_> = play
+            .get_state()
+            .expect("a play")
+            .snapshot()
+            .domains
+            .iter()
+            .map(|d| d.id.clone())
+            .collect();
+        let mut turn = 0usize;
+        while turn < 150 && play.get_state().map(|p| p.status()) == Some(PlayStatus::Playing) {
+            now += 40_000;
+            let state = play.get_state().expect("a play");
+            if state.ring().current().is_none() {
+                let Some(next) = state.ring().legal_targets().first().cloned() else {
+                    break;
+                };
+                play.give_token(&next, now).expect("a legal target");
+            }
+            let state = play.get_state().expect("a play");
+            let Some(domain) = (0..domains.len())
+                .map(|i| &domains[(turn + i) % domains.len()])
+                .find(|d| state.next_question(d).is_some())
+                .cloned()
+            else {
+                break;
+            };
+            play.choose_domain(&domain, now)
+                .expect("a domain with a question left");
+            let question = play
+                .get_state()
+                .and_then(|p| p.session())
+                .expect("issued")
+                .question
+                .clone();
+            let _ = play.reveal_stem(now + 1_000);
+            for i in 0..question.options.len() {
+                let _ = play.reveal_next_option(now + 1_500 + i as u64 * 200);
+            }
+            let _ = play.start_timer(now + 3_000);
+            // Right three times in four on an easy question, one in three on the hardest.
+            let right = random() % 100 < 75 - u32::from(question.difficulty) * 42 / 100;
+            let wrong = question
+                .options
+                .iter()
+                .find(|o| !question.correct_option_ids.contains(&o.id))
+                .map(|o| o.id.clone());
+            let pick: Vec<OptionId> = match (right, wrong) {
+                (false, Some(w)) => vec![w],
+                _ => question.correct_option_ids.clone(),
+            };
+            let think = 3_000 + u64::from(random() % 14_000);
+            play.set_selection(&pick, now + think).expect("select");
+            play.lock_selection(now + think + 300).expect("lock");
+            play.reveal_outcome(now + think + 1_500).expect("reveal");
+            turn += 1;
+        }
+        if play.get_state().map(|p| p.status()) == Some(PlayStatus::Playing) {
+            play.abandon(now + 60_000).expect("put down");
+        }
+        catalog
+            .play_persist(play.get_state().expect("a play"))
+            .expect("the Play persists");
+        eprintln!("played {} — {turn} turns", recipe.name);
+    }
+}
+
+/// The game's settings frozen as `play_load` freezes them, or the globals'
+/// when the game's own do not load (the board check does not read them).
+fn probe_settings(
+    globals: &GlobalSettings,
+    recipe: &questiongame_host::catalog::Recipe,
+) -> questiongame_host::settings::FrozenSettings {
+    let mut flags = FlagService::new(globals.clone());
+    let _ = flags.load_recipe(recipe.settings.clone());
+    flags.freeze().unwrap_or_else(|_| {
+        FlagService::new(globals.clone())
+            .freeze()
+            .expect("the globals freeze")
+    })
 }

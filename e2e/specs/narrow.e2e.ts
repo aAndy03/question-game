@@ -1,5 +1,5 @@
 import { $, browser } from '@wdio/globals'
-import { closeWhatsNew, onStudio, openGame, press, sees } from '../support/app'
+import { closeWhatsNew, onStudio, openGame, press, sees, shot } from '../support/app'
 
 /**
  * Stable 1.1.1 on the real app: Studio at 1100 px wide. An opened team is
@@ -7,11 +7,6 @@ import { closeWhatsNew, onStudio, openGame, press, sees } from '../support/app'
  * board's difficulty edit is a dialog, not a `window.prompt` (which would
  * hang this driver). Screenshots in `e2e/.artifacts/look-*.png`.
  */
-const shot = async (name: string) => {
-  await browser.pause(400)
-  await browser.saveScreenshot(`e2e/.artifacts/look-${name}.png`)
-}
-
 describe('a narrow window', () => {
   it('shows an opened row, and edits a difficulty in a dialog', async () => {
     await onStudio()
