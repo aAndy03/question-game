@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { Button, MeaningChip, Panel, Skeleton, StatusDot, Text, TextField } from '@/atoms'
-import { ActionMenu, EmptyState, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
-import { BoardSection, PlaysSection, RosterSection, RulesPreviewPanel, RulesSection, useArchive, useTransfer } from '@/organisms'
+import { Button, ComboField, MeaningChip, Panel, Skeleton, StatusDot, Text, TextField } from '@/atoms'
+import { ActionMenu, EmptyState, InlineNotice, NavCrumbs, PageHeader, TagField } from '@/molecules'
+import { BoardSection, PlaysSection, RosterSection, RulesPreviewPanel, RulesSection, useArchive, useGameLabels, useTransfer } from '@/organisms'
 import { TRANSFER } from '@/copy/workspaces'
-import type { Recipe } from '@/host/types'
+import type { Recipe, RecipeEdit } from '@/host/types'
 import { RecordPageLayout } from '@/templates'
 import { useNavStore, type GameSection } from '@/chrome/nav'
 import { gameSectionOf, useNoticeStore } from '@/chrome/notices'
-import { CHROME, CONFIRM, GAME, LIST, MENU, SHELL, TABS } from '@/copy'
+import { CHROME, CONFIRM, GAME, GAME_TAG_WORDS, LIST, MENU, SHELL, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import { isPlayOpen, usePlayState } from '@/host/playState'
@@ -35,6 +35,7 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
   const run = useHostCommand()
   const archive = useArchive()
   const transfer = useTransfer()
+  const labels = useGameLabels()
   const [name, setName] = useState<string | null>(null)
   const games = useRecipeList('active')
   const [loading, setLoading] = useState(false)
@@ -190,7 +191,8 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
       ) : null}
       {section === 'roster' ? (
         <>
-          <Panel className="flex flex-col gap-4">
+          {/* The game's details (P20): its name, and how the Games list files it. */}
+          <Panel className="@container/details flex flex-col gap-4">
             <TextField
               label={GAME.name}
               value={name ?? r.name}
@@ -200,6 +202,28 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
               isRequired
               disabledReason={frozenReason}
             />
+            {/* Organisation, not the show: editable while the game plays. */}
+            <div className="grid grid-cols-1 gap-4 @[40rem]/details:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
+              <ComboField
+                label={GAME.folder}
+                description={GAME.folderHint}
+                value={r.folder}
+                options={labels.folders}
+                maxLength={60}
+                onCommit={(folder) => void labels.write([r.id], [{ op: 'set_folder', folder }])}
+              />
+              <TagField
+                words={GAME_TAG_WORDS}
+                value={r.tags}
+                known={labels.tags}
+                onChange={(next) => {
+                  const key = (t: string) => t.trim().toLowerCase()
+                  const removed = r.tags.filter((t) => !next.some((x) => key(x) === key(t))).map((t): RecipeEdit => ({ op: 'untag', tag: t }))
+                  const added = next.filter((t) => !r.tags.some((x) => key(x) === key(t))).map((t): RecipeEdit => ({ op: 'tag', tag: t }))
+                  void labels.write([r.id], [...removed, ...added])
+                }}
+              />
+            </div>
           </Panel>
           <RosterSection recipe={r} frozenReason={frozenReason} />
         </>
@@ -218,6 +242,7 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
       {section === 'plays' ? <PlaysSection recipe={r} /> : null}
       {archive.dialog}
       {transfer.dialog}
+      {labels.dialog}
     </RecordPageLayout>
   )
 }

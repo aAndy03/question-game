@@ -551,6 +551,8 @@ impl Recipe {
             ));
         }
         crate::flags::validate(&self.settings)?;
+        // Folder and game tags (P20): what the editor could have made, nothing else.
+        super::labels::check(self)?;
 
         let mut seen_teams: Vec<&TeamId> = Vec::new();
         for team in &self.teams {

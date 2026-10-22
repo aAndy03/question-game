@@ -1,6 +1,20 @@
 import { useState, type FocusEvent } from 'react'
 import { Chip, IconButton, Text, TextField } from '@/atoms'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
+import type { TagWords } from '@/copy'
+
+/** A question's tags, as the field has always said them (P15). */
+export const QUESTION_TAG_WORDS: TagWords = {
+  label: GROUPS_TAGS.tagsLabel,
+  hint: GROUPS_TAGS.tagsHint,
+  listLabel: GROUPS_TAGS.tagsOnQuestion,
+  offered: GROUPS_TAGS.tagsOffered,
+  offeredCount: GROUPS_TAGS.offeredCount,
+  remove: GROUPS_TAGS.tagRemove,
+  removed: GROUPS_TAGS.tagRemoved,
+  full: GROUPS_TAGS.tagsFull,
+  tooLong: GROUPS_TAGS.tagTooLong,
+}
 
 export interface TagFieldProps {
   value: readonly string[]
@@ -8,12 +22,14 @@ export interface TagFieldProps {
   /** Tags already used in view — the only ones ever offered. */
   known: readonly string[]
   error?: string | null | undefined
+  /** Whose tags (P20): a question's by default, or a game's (`GAME_TAG_WORDS`). */
+  words?: TagWords | undefined
 }
 
 const fold = (t: string) => t.trim().toLowerCase()
 
 /**
- * A question's tags (P15): chips, each with its remove button, and a field
+ * A question's tags (P15) — or a game's (P20, `words`): chips, each with its remove button, and a field
  * that adds what is typed on Enter or a comma. As the operator types, tags
  * they have already used are offered; nothing else is ever suggested, and a
  * new tag is simply what they type. A tag they have used under another case
@@ -22,7 +38,7 @@ const fold = (t: string) => t.trim().toLowerCase()
  * Leaving the field adds what is in it — unless focus goes to an offered tag
  * (which adds itself) or to a control marked `data-keep-draft` (Cancel).
  */
-export function TagField({ value, onChange, known, error }: TagFieldProps) {
+export function TagField({ value, onChange, known, error, words = QUESTION_TAG_WORDS }: TagFieldProps) {
   const [text, setText] = useState('')
   const [local, setLocal] = useState<string | null>(null)
   const [said, setSaid] = useState('')
@@ -35,13 +51,13 @@ export function TagField({ value, onChange, known, error }: TagFieldProps) {
       if (!tag) continue
       if ([...tag].length > 40) {
         if (next.length !== value.length) onChange(next)
-        setLocal(GROUPS_TAGS.tagTooLong)
+        setLocal(words.tooLong)
         return false
       }
       if (next.some((t) => fold(t) === fold(tag))) continue
       if (next.length >= 20) {
         if (next.length !== value.length) onChange(next)
-        setLocal(GROUPS_TAGS.tagsFull)
+        setLocal(words.full)
         return false
       }
       next = [...next, known.find((k) => fold(k) === fold(tag)) ?? tag]
@@ -55,7 +71,7 @@ export function TagField({ value, onChange, known, error }: TagFieldProps) {
   }
   const remove = (tag: string) => {
     onChange(value.filter((x) => x !== tag))
-    setSaid(GROUPS_TAGS.tagRemoved(tag))
+    setSaid(words.removed(tag))
   }
 
   const offered = text.trim()
@@ -70,18 +86,6 @@ export function TagField({ value, onChange, known, error }: TagFieldProps) {
 
   return (
     <div className="flex flex-col gap-2" data-tag-field>
-      {value.length > 0 ? (
-        <ul className="flex flex-wrap gap-1.5" aria-label={GROUPS_TAGS.tagsOnQuestion}>
-          {value.map((t) => (
-            <li key={t} className="flex items-center gap-0.5">
-              <Chip tone="default" size="sm">
-                {t}
-              </Chip>
-              <IconButton icon="close" label={GROUPS_TAGS.tagRemove(t)} size="sm" onPress={() => remove(t)} />
-            </li>
-          ))}
-        </ul>
-      ) : null}
       <div
         onBlur={leave}
         onKeyDown={(e) => {
@@ -94,8 +98,8 @@ export function TagField({ value, onChange, known, error }: TagFieldProps) {
         }}
       >
         <TextField
-          label={GROUPS_TAGS.tagsLabel}
-          description={GROUPS_TAGS.tagsHint}
+          label={words.label}
+          description={words.hint}
           value={text}
           onChange={(v) => {
             setLocal(null)
@@ -110,7 +114,7 @@ export function TagField({ value, onChange, known, error }: TagFieldProps) {
         />
       </div>
       {offered.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label={GROUPS_TAGS.tagsOffered}>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label={words.offered}>
           {offered.map((k) => (
             <button
               key={k}
@@ -125,8 +129,21 @@ export function TagField({ value, onChange, known, error }: TagFieldProps) {
           ))}
         </div>
       ) : null}
+      {/* The chips under the field (P20): the label reads first, as every field's does. */}
+      {value.length > 0 ? (
+        <ul className="flex flex-wrap gap-1.5" aria-label={words.listLabel}>
+          {value.map((t) => (
+            <li key={t} className="flex items-center gap-0.5">
+              <Chip tone="default" size="sm">
+                {t}
+              </Chip>
+              <IconButton icon="close" label={words.remove(t)} size="sm" onPress={() => remove(t)} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <span className="sr-only" role="status" aria-live="polite">
-        {offered.length > 0 ? GROUPS_TAGS.offeredCount(offered.length) : said}
+        {offered.length > 0 ? words.offeredCount(offered.length) : said}
       </span>
     </div>
   )

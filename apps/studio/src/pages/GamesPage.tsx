@@ -1,11 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Button, Icon, MeaningChip } from '@/atoms'
 import { ActionMenu, PageHeader } from '@/molecules'
-import { LibraryList, ListToolbar, useArchive, useTransfer, type RecordView } from '@/organisms'
+import { GameLabelsManager, LibraryList, ListToolbar, useArchive, useGameLabels, useTransfer, type RecordView } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
-import { CHROME, fmt, GAME, LIST, MENU, TABS, VIEWS } from '@/copy'
+import { CHROME, fmt, GAME, GAME_LABELS, LIST, MENU, TABS, VIEWS } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
 import type { SeedResult } from '@/host/types'
 import { useHostCommand } from '@/host/commands'
@@ -27,6 +27,8 @@ export function GamesPage() {
   const run = useHostCommand()
   const archive = useArchive()
   const transfer = useTransfer()
+  const labels = useGameLabels()
+  const [managing, setManaging] = useState(false)
   const play = usePlayState()
   const list = useRecipeList(scope)
   const session = useListState('games')
@@ -43,12 +45,19 @@ export function GamesPage() {
           view: {
             id: r.id,
             title: r.name,
-            subtitle: [r.folder, ...r.tags].filter(Boolean).join(' · ') || undefined,
+            // The folder under the name, the game tags as chips (P20) — as a question's tags are.
+            subtitle: r.folder ?? undefined,
             leading: <Icon name="games" size="md" className="opacity-60" />,
             chips: (
               <>
                 {playingId === r.id ? <MeaningChip meaning="playing">{GAME.loadedInControl}</MeaningChip> : null}
                 {isArchived(r) ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null}
+                {r.tags.slice(0, 3).map((t) => (
+                  <MeaningChip key={t} meaning="tag">
+                    {t}
+                  </MeaningChip>
+                ))}
+                {r.tags.length > 3 ? <MeaningChip meaning="tag">{`+${r.tags.length - 3}`}</MeaningChip> : null}
               </>
             ),
             meta: [GAME.teamsCount(r.teams.length), GAME.questionsCount(questions), fmt.dateShort(r.updatedAt)],
@@ -87,6 +96,11 @@ export function GamesPage() {
           primaryAction={
             <Button variant="primary" icon="add" onPress={() => void create()}>
               {LIST.new(GAME.one)}
+            </Button>
+          }
+          secondaryActions={
+            <Button variant="secondary" icon="folder" onPress={() => setManaging(true)}>
+              {GAME_LABELS.manage}
             </Button>
           }
         />
@@ -159,7 +173,13 @@ export function GamesPage() {
           onRestore: (ids) => void archive.restore({ kind: 'recipe', ids, what: ids.length === 1 ? GAME.one : GAME.many }),
           extra: (ids) => {
             const keep = ids.filter((id) => id !== playingId)
-            return transfer.menu({ recipes: ids }, { selection: { recipes: keep }, leftOut: keep.length < ids.length ? GAME.leftOutPlaying(nameOf(playingId)) : null })
+            // Labels are not the show: the game in Control is relabelled with the rest (P20).
+            return (
+              <>
+                {scope === 'archived' ? null : labels.menu(ids)}
+                {transfer.menu({ recipes: ids }, { selection: { recipes: keep }, leftOut: keep.length < ids.length ? GAME.leftOutPlaying(nameOf(playingId)) : null })}
+              </>
+            )
           },
           keep: playingId ? [playingId] : [],
           isPending: archive.isPending,
@@ -168,6 +188,14 @@ export function GamesPage() {
           <ActionMenu
             sections={[
               { id: 'row', title: MENU.game, items: [{ id: 'open', label: LIST.open, icon: 'open' }] },
+              {
+                id: 'organise',
+                title: MENU.organise,
+                items: [
+                  { id: 'folder', label: GAME_LABELS.folderAction, icon: 'folder', disabledReason: row.isArchived ? LIST.editArchived : null },
+                  { id: 'tags', label: GAME_LABELS.tagsAction, icon: 'tag', disabledReason: row.isArchived ? LIST.editArchived : null },
+                ],
+              },
               {
                 id: 'copy',
                 title: MENU.copyMove,
@@ -189,6 +217,8 @@ export function GamesPage() {
             ]}
             onAction={(a) => {
               if (a === 'open') void go({ tab: 'games', id: row.id })
+              if (a === 'folder') labels.open('set_folder', [row.id])
+              if (a === 'tags') labels.open('tags', [row.id])
               if (a === 'duplicate') void duplicate(row.id)
               if (a === 'copy' || a === 'move') transfer.open(a, { recipes: [row.id] })
               if (a === 'archive') archive.archive({ kind: 'recipe', ids: [row.id], what: GAME.one })
@@ -200,6 +230,15 @@ export function GamesPage() {
       />
       {archive.dialog}
       {transfer.dialog}
+      {labels.dialog}
+      <GameLabelsManager
+        isOpen={managing}
+        onClose={() => setManaging(false)}
+        onShowInList={(filter, value) => {
+          lv.setFilter(filter, [value])
+          setManaging(false)
+        }}
+      />
     </LibraryTabLayout>
   )
 }

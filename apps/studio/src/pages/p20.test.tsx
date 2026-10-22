@@ -5,7 +5,7 @@ import { useChromeStore } from '@/chrome/chrome'
 import { HOME, useNavStore, type Route } from '@/chrome/nav'
 import { useNoticeStore } from '@/chrome/notices'
 import { createFakeHost, type FakeHost } from '@/host/fake'
-import { demoLibrary, demoRecipe } from '@/host/devFake'
+import { demoLibrary, demoPlay, demoRecipe } from '@/host/devFake'
 import { setHostTransport } from '@/host/host'
 import { receivePlayState } from '@/host/playState'
 
@@ -181,5 +181,100 @@ describe('managers for question tags and domain groups (P20)', () => {
     fireEvent.click(within(merge).getByRole('button', { name: 'Merge' }))
     await waitFor(() => expect(fake.domainGroups.get('dom-history')?.map((g) => g.id)).toEqual(['g2']))
     expect(fake.calls.filter((c) => c.name === 'domain_group_delete').map((c) => c.args)).toEqual([{ id: 'g1', into: 'g2' }])
+  })
+})
+
+describe('game tags and folders (P20)', () => {
+  const second = (over: Partial<import('@/host/types').Recipe> = {}) => {
+    fake.seed([], [{ ...demoRecipe(), id: 'recipe-two', name: 'Finals night', folder: 'Finals', tags: ['demo'], ...over }])
+  }
+  const labelWrites = () => fake.calls.filter((c) => c.name === 'recipe_bulk_edit' && c.args?.['preview'] === false).map((c) => c.args)
+
+  it('the Game page’s first panel is Name · Folder · Game tags, each with its value', async () => {
+    await at({ tab: 'games', id: 'recipe-demo', section: 'roster' })
+    const name = await screen.findByRole('textbox', { name: /^Name/ })
+    const folder = screen.getByRole('combobox', { name: /^Folder/ })
+    expect((folder as HTMLInputElement).value).toBe('Season 3')
+    expect(screen.getByRole('list', { name: 'Game tags on this game' }).textContent).toContain('four teams')
+    expect(name.compareDocumentPosition(folder) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText(/Question tag/)).toBeNull()
+  })
+
+  it('a new folder typed and entered is one label write — no recipe_upsert', async () => {
+    await at({ tab: 'games', id: 'recipe-demo', section: 'roster' })
+    const folder = await screen.findByRole('combobox', { name: /^Folder/ })
+    fireEvent.change(folder, { target: { value: 'Semis' } })
+    fireEvent.keyDown(folder, { key: 'Enter' })
+    await waitFor(() => expect(labelWrites()).toEqual([{ ids: ['recipe-demo'], edits: [{ op: 'set_folder', folder: 'Semis' }], preview: false }]))
+    expect(fake.calls.filter((c) => c.name === 'recipe_upsert')).toHaveLength(0)
+    await waitFor(() => expect(fake.recipes.get('recipe-demo')?.folder).toBe('Semis'))
+  })
+
+  it('a game tag added on the page is a tag edit, and removing one is an untag', async () => {
+    await at({ tab: 'games', id: 'recipe-demo', section: 'roster' })
+    const field = await screen.findByRole('textbox', { name: /^Game tags/ })
+    fireEvent.change(field, { target: { value: 'Juniors' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await waitFor(() => expect(labelWrites().at(-1)).toEqual({ ids: ['recipe-demo'], edits: [{ op: 'tag', tag: 'Juniors' }], preview: false }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove the game tag demo' }))
+    await waitFor(() => expect(labelWrites().at(-1)?.['edits']).toEqual([{ op: 'untag', tag: 'demo' }]))
+  })
+
+  it('labels stay editable while the game plays; the name does not', async () => {
+    await at({ tab: 'games', id: 'recipe-demo', section: 'roster' })
+    act(() => receivePlayState({ ...demoPlay('question-issued'), status: 'playing' }))
+    const name = await screen.findByRole('textbox', { name: /^Name/ })
+    expect(name.hasAttribute('disabled') || name.getAttribute('aria-disabled') === 'true').toBe(true)
+    const folder = screen.getByRole('combobox', { name: /^Folder/ })
+    expect(folder.hasAttribute('disabled')).toBe(false)
+  })
+
+  it('the Games bulk Edit… is sectioned Folder and Game tags, and Set folder… applies without a blur', async () => {
+    second()
+    await at({ tab: 'games' })
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select Season opener' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Finals night' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit…' }))
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).getByText('Folder')).toBeTruthy()
+    expect(within(menu).getByText('Game tags')).toBeTruthy()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Set folder…' }))
+    const dialog = await screen.findByRole('alertdialog')
+    fireEvent.change(within(dialog).getByRole('combobox', { name: /^Folder/ }), { target: { value: 'Grand final' } })
+    expect(within(dialog).getByText('Applies to 2 games.')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
+    await waitFor(() => expect(labelWrites()).toEqual([{ ids: ['recipe-demo', 'recipe-two'], edits: [{ op: 'set_folder', folder: 'Grand final' }], preview: false }]))
+  })
+
+  it('a game’s row menu has Organise between Game and Copy and move', async () => {
+    await at({ tab: 'games' })
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Open' }))[0]!)
+    const menu = await screen.findByRole('menu')
+    const text = menu.textContent ?? ''
+    expect(text.indexOf('Organise')).toBeGreaterThan(text.indexOf('Game'))
+    expect(text.indexOf('Organise')).toBeLessThan(text.indexOf('Copy and move'))
+    expect(within(menu).getByRole('menuitem', { name: 'Folder…' })).toBeTruthy()
+    expect(within(menu).getByRole('menuitem', { name: 'Game tags…' })).toBeTruthy()
+  })
+
+  it('the manager lists folders and game tags with counts, and renaming a folder moves its games', async () => {
+    second()
+    await at({ tab: 'games' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Folders and game tags…' }))
+    const dialog = await screen.findByRole('dialog')
+    const demo = within(dialog).getByRole('option', { name: /demo/ })
+    expect(demo.textContent).toContain('2')
+    fireEvent.click(within(dialog).getByRole('option', { name: /Season 3/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Rename' }))
+    const field = await screen.findByRole('textbox', { name: /New name/ })
+    fireEvent.change(field, { target: { value: 'Season 4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(labelWrites().at(-1)).toEqual({ ids: ['recipe-demo'], edits: [{ op: 'set_folder', folder: 'Season 4' }], preview: false }))
+  })
+
+  it('the fake refuses a 21st game tag whole, as the host does', async () => {
+    second({ tags: Array.from({ length: 20 }, (_, i) => `t${i}`) })
+    await expect(fake.invoke('recipe_bulk_edit', { ids: ['recipe-demo', 'recipe-two'], edits: [{ op: 'tag', tag: 'new' }], preview: false })).rejects.toBeTruthy()
+    expect(fake.recipes.get('recipe-demo')?.tags).toEqual(['demo', 'four teams'])
   })
 })

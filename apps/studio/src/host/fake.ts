@@ -42,6 +42,7 @@ import type {
   Operator,
   PlayRecord,
   Question,
+  RecipeEdit,
   QuestionOverlay,
   Recipe,
   SeedDemo,
@@ -644,6 +645,55 @@ export function createFakeHost(): FakeHost {
       const change = { kind: 'recipe', id: r.id, op: 'restored' as const }
       emit('catalog-changed', change)
       return change
+    },
+    // Folders and game tags (P20), the host's `labels.rs` case for case: one
+    // batch, refused whole, the preview the same plan unwritten, a tag written
+    // as another game of this workspace already spells it.
+    recipe_bulk_edit: (a) => {
+      const ids = [...new Set(a.ids as string[])]
+      const edits = a.edits as RecipeEdit[]
+      if (ids.length === 0) refuse('catalog', 'recipes: nothing is selected')
+      const key = (t: string) => t.trim().toLowerCase()
+      const folderOf = (f: string) => {
+        const t = f.trim()
+        if (!t) refuse('catalog', 'recipes.folder: a folder needs a name')
+        if ([...t].length > 60) refuse('catalog', 'recipes.folder: a folder name is at most 60 characters')
+        return t
+      }
+      const tagOf = (t: string) => {
+        const s = t.trim()
+        if (!s) refuse('catalog', 'recipes.tags: a game tag needs a name')
+        if ([...s].length > 40) refuse('catalog', 'recipes.tags: a game tag is at most 40 characters')
+        return s
+      }
+      const clean = edits.map((e) =>
+        e.op === 'set_folder' ? { op: 'set_folder' as const, folder: e.folder === null ? null : folderOf(e.folder) } : e.op === 'tag' ? { op: 'tag' as const, tag: tagOf(e.tag) } : { op: 'untag' as const, tag: e.tag.trim() },
+      )
+      const inView = [...recipes.values()].filter((r) => recipeHomeOf(r.id) === fake.currentWorkspace).flatMap((r) => r.tags)
+      const spelled = (t: string) => inView.find((x) => key(x) === key(t)) ?? t
+      const report: { changed: string[]; unchanged: string[] } = { changed: [], unchanged: [] }
+      const next: Recipe[] = []
+      for (const id of ids) {
+        const r = recipes.get(id)
+        if (!r || recipeHomeOf(id) !== fake.currentWorkspace) refuse('catalog', `recipe ${id} not found`)
+        let folder = r.folder
+        let tags = [...r.tags]
+        for (const e of clean) {
+          if (e.op === 'set_folder') folder = e.folder
+          else if (e.op === 'tag') {
+            if (!tags.some((t) => key(t) === key(e.tag))) tags = [...tags, spelled(e.tag)]
+          } else tags = tags.filter((t) => key(t) !== key(e.tag))
+        }
+        if (folder === r.folder && JSON.stringify(tags) === JSON.stringify(r.tags)) {
+          report.unchanged.push(id)
+          continue
+        }
+        if (tags.length > 20) refuse('catalog', `recipe.${id}.tags: a game has at most 20 game tags`)
+        report.changed.push(id)
+        next.push({ ...r, folder, tags })
+      }
+      if (a.preview !== true) next.forEach(bumpRecipe)
+      return report
     },
     recipe_set_membership: (a) => {
       const r = recipes.get(a.id as string)

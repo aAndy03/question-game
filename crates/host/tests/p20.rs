@@ -3,9 +3,11 @@
 //! `docs/superpowers/specs/2026-10-22-p20-interface-pass-design.md`.
 
 use questiongame_host::catalog::{
-    CatalogItem, CatalogKind, CatalogLocation, CatalogService, Domain, DomainMember, Question,
-    QuestionOption,
+    ArchiveScope, CatalogItem, CatalogKind, CatalogLocation, CatalogService, Domain, DomainMember,
+    Question, QuestionOption, Recipe, RecipeEdit, SearchQuery,
 };
+use questiongame_host::flags::GameSettings;
+use questiongame_host::ids::RecipeId;
 use questiongame_host::{DomainGroupId, DomainId, QuestionId};
 
 const NOW: u64 = 1_790_000_000_000;
@@ -100,4 +102,130 @@ fn deleting_without_a_target_still_leaves_the_questions_ungrouped() {
     catalog.domain_group_delete_into(&a, None, NOW + 1).unwrap();
     assert_eq!(group_of(&catalog, "d1", "q1"), None);
     assert_eq!(domain(&catalog, "d1").questions.len(), 3);
+}
+
+// ------------------------------------------------------------- game labels
+
+fn game(c: &CatalogService, id: &str, folder: Option<&str>, tags: &[&str]) {
+    let mut r = Recipe::new(id, format!("Game {id}"), GameSettings::default());
+    r.folder = folder.map(str::to_owned);
+    r.tags = tags.iter().map(|t| t.to_string()).collect();
+    c.recipe_upsert(&r, NOW).unwrap();
+}
+fn get(c: &CatalogService, id: &str) -> Recipe {
+    c.recipe_get(&RecipeId::from(id)).unwrap()
+}
+fn ids(list: &[&str]) -> Vec<RecipeId> {
+    list.iter().map(|i| RecipeId::from(*i)).collect()
+}
+fn folder(f: Option<&str>) -> RecipeEdit {
+    RecipeEdit::SetFolder { folder: f.map(str::to_owned) }
+}
+fn tag(t: &str) -> RecipeEdit {
+    RecipeEdit::Tag { tag: t.to_owned() }
+}
+fn untag(t: &str) -> RecipeEdit {
+    RecipeEdit::Untag { tag: t.to_owned() }
+}
+
+#[test]
+fn set_folder_sets_it_on_every_selected_game_and_reports_who_changed() {
+    let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+    game(&c, "g1", None, &[]);
+    game(&c, "g2", Some("Finals"), &[]);
+    game(&c, "g3", None, &[]);
+    let r = c.recipe_bulk_edit(&ids(&["g1", "g2", "g3"]), &[folder(Some("Finals"))], true, NOW + 1).unwrap();
+    assert_eq!(r.changed, ids(&["g1", "g3"]));
+    assert_eq!(r.unchanged, ids(&["g2"]));
+    for g in ["g1", "g2", "g3"] {
+        assert_eq!(get(&c, g).folder.as_deref(), Some("Finals"));
+    }
+    let r = c.recipe_bulk_edit(&ids(&["g1", "g2"]), &[folder(None)], true, NOW + 2).unwrap();
+    assert_eq!(r.changed.len(), 2);
+    assert_eq!(get(&c, "g1").folder, None);
+}
+
+#[test]
+fn a_folder_is_trimmed_not_empty_and_at_most_sixty() {
+    let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+    game(&c, "g1", None, &[]);
+    c.recipe_bulk_edit(&ids(&["g1"]), &[folder(Some("  Finals "))], true, NOW).unwrap();
+    assert_eq!(get(&c, "g1").folder.as_deref(), Some("Finals"));
+    assert!(c.recipe_bulk_edit(&ids(&["g1"]), &[folder(Some("   "))], true, NOW).is_err());
+    assert!(c.recipe_bulk_edit(&ids(&["g1"]), &[folder(Some(&"x".repeat(61)))], true, NOW).is_err());
+    assert!(c.recipe_bulk_edit(&ids(&["g1"]), &[folder(Some(&"x".repeat(60)))], true, NOW).is_ok());
+}
+
+#[test]
+fn tag_adds_once_ignoring_case_in_the_spelling_in_view_and_untag_ignores_case() {
+    let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+    game(&c, "g1", None, &["Finals", "Kids"]);
+    game(&c, "g2", None, &[]);
+    let r = c.recipe_bulk_edit(&ids(&["g1", "g2"]), &[tag("finals")], true, NOW).unwrap();
+    assert_eq!(r.unchanged, ids(&["g1"]));
+    assert_eq!(get(&c, "g2").tags, ["Finals"]);
+    c.recipe_bulk_edit(&ids(&["g1", "g2"]), &[untag("FINALS")], true, NOW).unwrap();
+    assert_eq!(get(&c, "g1").tags, ["Kids"]);
+    assert!(get(&c, "g2").tags.is_empty());
+}
+
+#[test]
+fn a_full_game_refuses_the_batch_whole() {
+    let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+    let twenty: Vec<String> = (0..20).map(|i| format!("t{i}")).collect();
+    let refs: Vec<&str> = twenty.iter().map(String::as_str).collect();
+    game(&c, "full", None, &refs);
+    game(&c, "ok", None, &[]);
+    assert!(c.recipe_bulk_edit(&ids(&["ok", "full"]), &[tag("new")], true, NOW).is_err());
+    assert!(get(&c, "ok").tags.is_empty(), "refused whole");
+    assert!(c.recipe_bulk_edit(&ids(&["ok"]), &[tag(" ")], true, NOW).is_err());
+    assert!(c.recipe_bulk_edit(&ids(&["ok"]), &[tag(&"y".repeat(41))], true, NOW).is_err());
+}
+
+#[test]
+fn a_rename_is_untag_then_tag_in_one_call_and_a_game_with_both_keeps_one() {
+    let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+    game(&c, "a", None, &["demo"]);
+    game(&c, "b", None, &["demo", "showcase"]);
+    c.recipe_bulk_edit(&ids(&["a", "b"]), &[untag("demo"), tag("Showcase")], true, NOW).unwrap();
+    assert_eq!(get(&c, "a").tags, ["showcase"], "the spelling in view");
+    assert_eq!(get(&c, "b").tags, ["showcase"]);
+}
+
+#[test]
+fn a_preview_writes_nothing_a_missing_game_refuses_whole_and_nothing_selected_is_refused() {
+    let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+    game(&c, "g1", None, &[]);
+    let rev = get(&c, "g1").rev;
+    let preview = c.recipe_bulk_edit(&ids(&["g1", "g1"]), &[folder(Some("F"))], false, NOW).unwrap();
+    assert_eq!(preview.changed, ids(&["g1"]), "a repeated id counts once");
+    assert_eq!(get(&c, "g1").folder, None);
+    assert_eq!(get(&c, "g1").rev, rev);
+    assert!(c.recipe_bulk_edit(&ids(&["g1", "missing"]), &[folder(Some("F"))], true, NOW).is_err());
+    assert_eq!(get(&c, "g1").folder, None);
+    assert!(c.recipe_bulk_edit(&[], &[folder(Some("F"))], true, NOW).is_err());
+}
+
+#[test]
+fn search_finds_a_game_by_its_new_folder_and_tag() {
+    let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+    game(&c, "g1", None, &[]);
+    c.recipe_bulk_edit(&ids(&["g1"]), &[folder(Some("Semifinals")), tag("Juniors")], true, NOW).unwrap();
+    for text in ["Semifinals", "Juniors"] {
+        let hits = c
+            .catalog_search(&SearchQuery { text: text.into(), kinds: vec![CatalogKind::Recipe], scope: ArchiveScope::Active, limit: 10 })
+            .unwrap();
+        assert!(hits.iter().any(|h| h.id == "g1"), "{text}");
+    }
+}
+
+#[test]
+fn a_recipe_write_refuses_labels_the_editor_could_not_have_made() {
+    let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+    let mut r = Recipe::new("g", "Game", GameSettings::default());
+    r.tags = vec!["a".into(), "A".into()];
+    assert!(c.recipe_upsert(&r, NOW).is_err());
+    r.tags = vec![];
+    r.folder = Some("  ".into());
+    assert!(c.recipe_upsert(&r, NOW).is_err());
 }

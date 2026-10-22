@@ -39,6 +39,8 @@ export const COMMAND_GROUPS = {
     'recipe_restore',
     'recipe_duplicate',
     'recipe_set_membership',
+    /** Folders and game tags on a selection of games (P20): `{ ids, edits, preview }`, one transaction. */
+    'recipe_bulk_edit',
     'recipe_set_settings',
     'recipe_set_layout',
     'recipe_set_overlay',

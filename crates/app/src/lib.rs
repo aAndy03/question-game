@@ -300,6 +300,7 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::catalog::recipe_restore,
         commands::catalog::recipe_duplicate,
         commands::catalog::recipe_set_membership,
+        commands::catalog::recipe_bulk_edit,
         commands::catalog::recipe_set_settings,
         commands::catalog::recipe_set_layout,
         commands::catalog::recipe_set_overlay,

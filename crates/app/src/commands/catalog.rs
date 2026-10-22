@@ -12,7 +12,8 @@
 
 use questiongame_host::catalog::{
     ArchiveScope, Asset, BoardDomain, CatalogChange, CatalogItem, CatalogKind, ChangeOp, Demo,
-    DomainOverlay, EditScope, ImportReport, OverlayTarget, QuestionOverlay, Recipe, RecipeChange,
+    DomainOverlay, EditScope, ImportReport, LabelReport, OverlayTarget, QuestionOverlay, Recipe,
+    RecipeChange, RecipeEdit,
     SearchHit, SearchQuery, SeedMode, SeedResult, SeedStatus, TeamOverlay,
 };
 use questiongame_host::flags::{GameSetting, GameSettings};
@@ -321,6 +322,29 @@ pub fn recipe_set_membership(
     })?;
     emit::recipe_changed(&app, &change);
     Ok(change)
+}
+
+/// Folders and game tags on a selection of games (P20): one transaction, `preview`
+/// writes nothing. Each changed game is announced with its new `rev`.
+#[tauri::command(async)]
+pub fn recipe_bulk_edit(
+    window: WebviewWindow,
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ids: Vec<RecipeId>,
+    edits: Vec<RecipeEdit>,
+    preview: bool,
+) -> AppResult<LabelReport> {
+    guard::allow(window.label(), "recipe_bulk_edit")?;
+    let host = state.lock();
+    let report = host.catalog.recipe_bulk_edit(&ids, &edits, !preview, crate::state::now_ms())?;
+    if !preview {
+        for id in &report.changed {
+            let rev = host.catalog.recipe_get(id)?.rev;
+            emit::recipe_changed(&app, &RecipeChange { id: id.clone(), rev });
+        }
+    }
+    Ok(report)
 }
 
 /// The Game tab's B5 document. A catalog write — an open Play's snapshot does

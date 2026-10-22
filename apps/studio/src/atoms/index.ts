@@ -22,6 +22,7 @@ export { TextField, type TextFieldProps, type FieldFrameProps } from './TextFiel
 export { TextAreaField, type TextAreaFieldProps } from './TextAreaField'
 export { NumberField, type NumberFieldProps } from './NumberField'
 export { SelectField, type SelectFieldProps, type SelectOption } from './SelectField'
+export { ComboField, type ComboFieldProps } from './ComboField'
 export { SwitchField, type SwitchFieldProps } from './SwitchField'
 export { CheckboxField, type CheckboxFieldProps } from './CheckboxField'
 export { SliderField, type SliderFieldProps } from './SliderField'

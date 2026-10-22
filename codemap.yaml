@@ -227,8 +227,9 @@ commands:
   domain_group_delete:
     async: true
     callers: [main]
+    doc: "With `into`, a merge: its questions join that group first, in one write (P20)."
     file: crates/app/src/commands/groups.rs
-    params: ["id: DomainGroupId"]
+    params: ["id: DomainGroupId", "into: Option<DomainGroupId>"]
     returns: "AppResult<()>"
   domain_group_rename:
     async: true
@@ -376,6 +377,13 @@ commands:
     file: crates/app/src/commands/catalog.rs
     params: ["id: RecipeId"]
     returns: "AppResult<CatalogChange>"
+  recipe_bulk_edit:
+    async: true
+    callers: [main]
+    doc: "Folders and game tags on a selection of games (P20): one transaction, `preview` writes nothing."
+    file: crates/app/src/commands/catalog.rs
+    params: ["ids: Vec<RecipeId>", "edits: Vec<RecipeEdit>", "preview: bool"]
+    returns: "AppResult<LabelReport>"
   recipe_duplicate:
     async: true
     callers: [main]
@@ -892,6 +900,7 @@ contract:
       - recipe_restore
       - recipe_duplicate
       - recipe_set_membership
+      - recipe_bulk_edit
       - recipe_set_settings
       - recipe_set_layout
       - recipe_set_overlay
@@ -999,7 +1008,7 @@ contract:
   files:
     packages/contract/src/commands.ts:
       COMMANDS: {kind: const, sig: "#e3696517"}
-      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, organise, workspace, app } #b29d9950"}
+      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, organise, workspace, app } #a71a6b34"}
       CatalogChange: {doc: "`catalog-changed`.", kind: interface, sig: "{ kind, id, op }"}
       Command: {kind: type, sig: "(typeof COMMAND_GROUPS)[CommandGroup][number]"}
       CommandGroup: {kind: type, sig: "keyof typeof COMMAND_GROUPS"}
@@ -1465,6 +1474,7 @@ host_api:
   crates/host/src/catalog/groups.rs:
     "catalog::groups::CatalogService::domain_group_create": {doc: "A group in a domain, named by the operator.", kind: method, sig: "fn domain_group_create(&self, domain: &DomainId, name: &str, now_ms: u64) -> CatalogResult<DomainGroup>"}
     "catalog::groups::CatalogService::domain_group_delete": {doc: "The group goes; its questions stay in the domain, in no group.", kind: method, sig: "fn domain_group_delete(&self, group: &DomainGroupId, now_ms: u64) -> CatalogResult<DomainId>"}
+    "catalog::groups::CatalogService::domain_group_delete_into": {doc: "The group goes; with `into`, its questions join that group of the same domain first — a merge, in **one transaction** (P20), so a refused merge never leaves the questions moved and the group still ...", kind: method, sig: "fn domain_group_delete_into(&self, group: &DomainGroupId, into: Option<&DomainGroupId>, now_ms: u64) -> CatalogResult<DomainId>"}
     "catalog::groups::CatalogService::domain_group_rename": {doc: "Returns the group's domain — the stored one, never the caller's word for it.", kind: method, sig: "fn domain_group_rename(&self, group: &DomainGroupId, name: &str, now_ms: u64) -> CatalogResult<DomainId>"}
     "catalog::groups::CatalogService::domain_group_reorder": {doc: "The domain's groups in this order; one not named keeps its place after them.", kind: method, sig: "fn domain_group_reorder(&self, domain: &DomainId, order: &[DomainGroupId], now_ms: u64) -> CatalogResult<()>"}
     "catalog::groups::CatalogService::tag_list": {doc: "Every tag in this workspace, with counts.", kind: method, sig: "fn tag_list(&self) -> CatalogResult<Vec<TagCount>>"}
@@ -1489,6 +1499,12 @@ host_api:
     "catalog::import::VERSION": {kind: const, sig: "const VERSION: u64 = 1"}
     "catalog::import::plan": {doc: "Read one question file and say what importing it would do.", kind: fn, sig: "fn plan(text: &str, library: &Library<'_>, default_domain: Option<&DomainId>, mint: &mut dyn FnMut() -> String) -> CatalogResult<ImportPlan>"}
     "catalog::import::suggest_code": {doc: "The code a new domain gets — the rule the Domain form applies (`apps/studio/src/host/domain.ts`), so an imported domain looks like one typed in by hand: three ASCII capitals, padded with `X`, and a...", kind: fn, sig: "fn suggest_code(name: &str) -> String"}
+  crates/host/src/catalog/labels.rs:
+    "catalog::labels::CatalogService::recipe_bulk_edit": {doc: "Apply `edits`, in order, to every game in `ids`; `write: false` is the preview.", kind: method, sig: "fn recipe_bulk_edit(&self, ids: &[RecipeId], edits: &[RecipeEdit], write: bool, now_ms: u64) -> CatalogResult<LabelReport>"}
+    "catalog::labels::FOLDER_MAX": {doc: "A folder name's longest spelling, in characters.", kind: const, sig: "const FOLDER_MAX: usize = 60"}
+    "catalog::labels::LabelReport": {doc: "What a label edit did — or, previewed, would do.", kind: struct, sig: "struct LabelReport { changed: Vec<RecipeId>, unchanged: Vec<RecipeId> }"}
+    "catalog::labels::RecipeEdit": {doc: "One change to the labels of every selected game.", kind: enum, sig: "enum RecipeEdit { SetFolder { folder: Option<String> } | Tag { tag: String } | Untag { tag: String } }"}
+    "catalog::labels::TAGS_PER_GAME": {doc: "A game's most game tags.", kind: const, sig: "const TAGS_PER_GAME: usize = 20"}
   crates/host/src/catalog/mod.rs:
     "catalog::backup": {kind: mod, sig: "mod backup"}
     "catalog::bulk": {kind: mod, sig: "mod bulk"}
@@ -1499,6 +1515,7 @@ host_api:
     "catalog::family": {kind: mod, sig: "mod family"}
     "catalog::groups": {kind: mod, sig: "mod groups"}
     "catalog::import": {kind: mod, sig: "mod import"}
+    "catalog::labels": {kind: mod, sig: "mod labels"}
     "catalog::model": {kind: mod, sig: "mod model"}
     "catalog::search": {kind: mod, sig: "mod search"}
     "catalog::seed": {kind: mod, sig: "mod seed"}
@@ -2145,10 +2162,10 @@ studio_calls:
     catalog_upsert_many: [apps/studio/src/organisms/QuestionEditor.tsx]
     catalog_upsert_propagating: [apps/studio/src/organisms/QuestionEditor.tsx, apps/studio/src/organisms/usePropagatingSave.tsx]
     choose_domain: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useControlHotkeys.ts]
-    domain_group_create: [apps/studio/src/organisms/GroupsDialog.tsx]
-    domain_group_delete: [apps/studio/src/organisms/GroupsDialog.tsx]
-    domain_group_rename: [apps/studio/src/organisms/GroupsDialog.tsx]
-    domain_group_reorder: [apps/studio/src/organisms/GroupsDialog.tsx]
+    domain_group_create: [apps/studio/src/organisms/DomainGroupsManager.tsx]
+    domain_group_delete: [apps/studio/src/organisms/DomainGroupsManager.tsx]
+    domain_group_rename: [apps/studio/src/organisms/DomainGroupsManager.tsx]
+    domain_group_reorder: [apps/studio/src/organisms/DomainGroupsManager.tsx]
     get_state: [apps/studio/src/host/bridge.tsx]
     give_token: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useControlHotkeys.ts]
     health_get: [apps/studio/src/host/bridge.tsx]
@@ -2170,6 +2187,7 @@ studio_calls:
     play_start: [apps/studio/src/organisms/ActionPanel.tsx]
     play_unload: [apps/studio/src/organisms/ControlTopBar.tsx]
     recipe_archive: [apps/studio/src/organisms/useArchive.tsx]
+    recipe_bulk_edit: [apps/studio/src/organisms/GameLabelsManager.tsx, apps/studio/src/organisms/useGameLabels.tsx]
     recipe_duplicate: [apps/studio/src/pages/GamePage.tsx, apps/studio/src/pages/GamesPage.tsx]
     recipe_get: [apps/studio/src/host/queries.ts]
     recipe_list: [apps/studio/src/host/queries.ts]
@@ -2221,9 +2239,9 @@ studio_calls:
     start_timer: [apps/studio/src/organisms/ActionPanel.tsx]
     stats_query: [apps/studio/src/host/queries.ts]
     stats_window: [apps/studio/src/organisms/ControlTopBar.tsx, apps/studio/src/organisms/MonitorsSettings.tsx]
-    tag_delete: [apps/studio/src/organisms/ManageTagsDialog.tsx]
+    tag_delete: [apps/studio/src/organisms/QuestionTagsManager.tsx]
     tag_list: [apps/studio/src/host/queries.ts]
-    tag_rename: [apps/studio/src/organisms/ManageTagsDialog.tsx]
+    tag_rename: [apps/studio/src/organisms/QuestionTagsManager.tsx]
     tags_unify: [apps/studio/src/organisms/NoticeCollector.tsx]
     transfer_preview: [apps/studio/src/organisms/useTransfer.tsx]
     undo_turn:
@@ -2786,6 +2804,10 @@ packages:
         "--ease-standard": "4e0e8ab1"
         "--field-border-width": "6107ce08"
         "--field-radius": b58cfade
+        "--font-mono": "79f27c09"
+        "--font-weight-medium": f83a383c
+        "--font-weight-normal": ab7f7b95
+        "--font-weight-semibold": "15aa0c7e"
         "--panel-gap-comfortable": "96f49cd4"
         "--panel-gap-compact": cbe0aa5e
         "--panel-gap-dense": "8e212147"
@@ -2808,22 +2830,34 @@ packages:
         "--text-studio-label--line-height": f652aba7
         "--text-studio-mono": "89a92516"
         "--text-studio-mono--line-height": f652aba7
+        "--text-studio-subheading": "5cce30aa"
+        "--text-studio-subheading--line-height": "8b6ec5fd"
         "--text-studio-title": cd45e4b0
         "--text-studio-title--line-height": "8b6ec5fd"
+        "--tracking-normal": e1b9f0d9
+        "--tracking-tight": "8b899f0f"
     exports:
       ".": "./src/index.ts"
       "./globals.css": "./globals.css"
       "./mosaic.css": "./mosaic.css"
       "./studio.css": "./studio.css"
       "./tokens/*": "./tokens/*"
-    files: [globals.css, mosaic.css, package.json, src/index.ts, studio.css, tokens/theme.css, tsconfig.json]
+    files:
+      - globals.css
+      - mosaic.css
+      - package.json
+      - src/index.ts
+      - src/tokens.test.ts
+      - studio.css
+      - tokens/theme.css
+      - tsconfig.json
   text:
     api:
       packages/text/src/index.ts:
         TEXT_VARIANTS: {kind: const, sig: "#2ab06e01"}
         TextProps: {kind: interface, sig: "{ variant, transition?, as?, children? }"}
         TextTransition: {doc: "The Text module — optimized_first_spec.md §2.29.", kind: type, sig: "'none' | 'swap' | 'count'"}
-        TextVariant: {doc: "Stage variants map to the questiongame type scale; Studio variants to HeroUI.", kind: type, sig: "| 'stage-mega' | 'stage-display' | 'stage-number' | 'stage-question' | 'stage-name' | 'stage-heading' | 'stage-hud' | 'stage-code' | 'stage-caption' | 'stage-eyebrow' | 'stage-tagline' | 'stage-bra... #db52adab"}
+        TextVariant: {doc: "Stage variants map to the questiongame type scale; Studio variants to HeroUI.", kind: type, sig: "| 'stage-mega' | 'stage-display' | 'stage-number' | 'stage-question' | 'stage-name' | 'stage-heading' | 'stage-hud' | 'stage-code' | 'stage-caption' | 'stage-eyebrow' | 'stage-tagline' | 'stage-bra... #bf4492a3"}
         VariantTokens: {doc: "Everything a variant resolves to.", kind: interface, sig: "{ size, family, weight, tracking, leading, casing }"}
         variantTokens: {doc: "Resolve a variant to its tokens.", kind: function, sig: "(variant: TextVariant): VariantTokens"}
       packages/text/src/studio.tsx:
@@ -2870,6 +2904,7 @@ packages:
       - studio-heading
       - studio-label
       - studio-mono
+      - studio-subheading
       - studio-title
 windows_and_permissions:
   capabilities:

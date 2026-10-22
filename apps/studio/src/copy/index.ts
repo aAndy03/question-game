@@ -94,6 +94,69 @@ export const CHROME = {
  * a title never repeats an item's text, and "delete" words appear only under
  * *Danger zone* (Archive is not a delete).
  */
+/** A tag field's words (P20): the same field carries question tags and game tags. */
+export interface TagWords {
+  readonly label: string
+  readonly hint: string
+  readonly listLabel: string
+  readonly offered: string
+  readonly offeredCount: (n: number) => string
+  readonly remove: (tag: string) => string
+  readonly removed: (tag: string) => string
+  readonly full: string
+  readonly tooLong: string
+}
+
+export const GAME_TAG_WORDS: TagWords = {
+  label: 'Game tags',
+  hint: 'Type a game tag and press Enter. Game tags you have used are offered as you type.',
+  listLabel: 'Game tags on this game',
+  offered: 'Game tags already used',
+  offeredCount: (n) => `${n} ${n === 1 ? 'game tag' : 'game tags'} already used match.`,
+  remove: (tag) => `Remove the game tag ${tag}`,
+  removed: (tag) => `Removed the game tag ${tag}.`,
+  full: 'A game has at most 20 game tags.',
+  tooLong: 'A game tag is at most 40 characters.',
+}
+
+/** Folders and game tags on games (P20): the bulk *Edit…*, the row's *Organise*, the manager. */
+export const GAME_LABELS = {
+  edit: 'Edit…',
+  apply: 'Apply',
+  done: (n: number) => (n === 1 ? '1 game changed' : `${n} games changed`),
+  setFolder: 'Set folder…',
+  clearFolder: 'Clear folder',
+  addTag: 'Add game tag…',
+  removeTag: 'Remove game tag…',
+  folderAction: 'Folder…',
+  tagsAction: 'Game tags…',
+  tagField: 'Game tag',
+  appliesTo: (n: number, of: number) => (n === of ? `Applies to ${of === 1 ? '1 game' : `${of} games`}.` : `Changes ${n} of ${of} games; the rest already are.`),
+  selected: (n: number) => (n === 1 ? '1 game selected.' : `${n} games selected.`),
+  noFolderHere: 'None of them is in a folder',
+  noTagHere: 'None of them has a game tag',
+  manage: 'Folders and game tags…',
+  manageTitle: 'Folders and game tags',
+  manageBody: 'How the Games list is organised. Neither is part of a show.',
+  folders: 'Folders',
+  gameTags: 'Game tags',
+  foldersWhat: 'folders',
+  tagsWhat: 'game tags',
+  renameFolder: (f: string) => `Rename the folder ${f}`,
+  renameTag: (t: string) => `Rename the game tag ${t}`,
+  newName: 'New name',
+  emptyFolder: 'Empty folder',
+  emptyFolderTitle: (f: string) => `Empty the folder ${f}?`,
+  emptyFolderBody: (n: number) => `${n === 1 ? 'Its game stays' : `Its ${n} games stay`} in the library, in no folder.`,
+  deleteTag: 'Delete game tag',
+  deleteTagTitle: (t: string) => `Delete the game tag ${t}?`,
+  deleteTagBody: (n: number) => `It comes off ${n === 1 ? '1 game' : `${n} games`}.`,
+  mergeTitle: (t: string) => `Merge ${t} into another game tag`,
+  mergeBody: (n: number) => `${n === 1 ? '1 game carries' : `${n} games carry`} it; they will carry the one you pick instead. A game with both keeps one.`,
+  games: (n: number) => (n === 1 ? '1 game' : `${n} games`),
+  none: 'No folders and no game tags yet. Give a game a folder or a game tag on its page, or to many at once from the selection’s Edit menu.',
+} as const
+
 export const MENU = {
   team: 'Team',
   question: 'Question',
@@ -241,6 +304,7 @@ export const EMPTY = {
 export const CONFIRM = {
   cancel: 'Cancel',
   confirm: 'Confirm',
+  done: 'Done',
   areYouSure: 'Are you sure?',
   archiveOne: (what: string) => `Archive this ${what}?`,
   archiveMany: (n: number, what: string) => `Archive ${n} ${what}?`,
@@ -483,8 +547,10 @@ export const GAME = {
   many: 'games',
   name: 'Name',
   folder: 'Folder',
-  tags: 'Tags',
-  tagsHint: 'Comma-separated.',
+  folderHint: 'Games in one folder sit together in the Games list. Type a new one or pick one.',
+  noFolder: 'No folder',
+  /** The game's labels (P20): organisation only, editable while the game plays. */
+  labelsHint: 'Folder and game tags organise the Games list. They are not part of the show.',
   sections: { roster: 'Roster', board: 'Board', rules: 'Rules', plays: 'Plays' },
   roster: 'Roster',
   rosterHint: 'Play order is the opening ring. Every active team gets one token per round.',

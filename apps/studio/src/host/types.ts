@@ -122,6 +122,12 @@ export type BulkEdit =
   | { readonly op: 'remove_from_domain'; readonly domainId: string }
   | { readonly op: 'set_difficulty'; readonly difficulty: number | null }
 
+/** One change to the labels of every selected game (P20): `recipe_bulk_edit`. */
+export type RecipeEdit =
+  | { readonly op: 'set_folder'; readonly folder: string | null }
+  | { readonly op: 'tag'; readonly tag: string }
+  | { readonly op: 'untag'; readonly tag: string }
+
 /** What a bulk edit or a tag rename/delete did — or, previewed, would do. */
 export interface BulkReport {
   readonly changed: readonly string[]
