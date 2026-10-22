@@ -66,6 +66,9 @@ export const STATS = {
     clear: 'Clear filters',
     groupBy: 'Group by',
     columns: 'Columns',
+    /** P20: Columns, rehearsals and every workspace wait behind one button; it counts what is set inside. */
+    moreOptions: 'More options',
+    moreOptionsSet: (n: number) => `More options · ${n}`,
   },
 
   verdicts: {
@@ -82,6 +85,9 @@ export const STATS = {
     plays: (n: number) => `${n} ${n === 1 ? 'Play' : 'Plays'}`,
     /** A metric with nothing to average — never rendered as a zero. */
     none: '—',
+    /** P20: a long answer shows 50 rows first. */
+    showAll: (n: number) => `Show all ${n}`,
+    andMore: (n: number) => `and ${n} more`,
   },
 
   live: {
@@ -96,11 +102,36 @@ export const STATS = {
     leaderboard: 'By team',
     byDomain: 'By domain',
     rehearsal: 'Rehearsal: one team',
+    /** P20's tiles: what each number means, said on the tile. */
+    leading: 'Leading',
+    questions: 'Questions',
+    questionsAsked: (asked: number, total: number) => `${asked} / ${total}`,
+    questionsLeftDetail: (left: number) => `${left} left`,
+    fastestLock: 'Fastest lock',
+    holder: (team: string) => `${team} holds the token`,
+    tied: (n: number) => `${n} teams tied`,
+    rank: 'Rank',
+    race: 'Score over turns',
+    byDifficulty: 'By difficulty',
   },
 
   chart: {
     label: 'Statistics chart',
     none: 'Nothing to chart yet.',
+    /** The picker over All data's chart: which column it draws. */
+    metric: 'Chart',
+    /** A ranking draws the top rows; the table has every one. */
+    topOf: (n: number, of: number) => `Top ${n} of ${of} — every row is in the table.`,
+    /** The race when the ledger holds only the last turns of a long Play. */
+    lastTurns: (n: number) => `The last ${n} turns`,
+  },
+
+  /** All data's strip above the chart (P20). */
+  summary: {
+    plays: 'Plays',
+    turns: 'Turns',
+    accuracy: 'Accuracy',
+    points: 'Points',
   },
 
   empty: {

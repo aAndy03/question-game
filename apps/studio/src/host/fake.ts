@@ -51,8 +51,11 @@ import type {
   SeedResult,
   SeedStatus,
   SettingsView,
+  StatsDimension,
+  StatsMetric,
   StatsQuery,
   StatsResult,
+  StatsRow,
   DeletePreview,
   DeleteReport,
   FamilyCopy,
@@ -106,8 +109,19 @@ export interface FakeHost extends HostTransport {
    * the arithmetic is the host's and is tested there, so what a Studio test
    * needs from the fake is *an* answer plus the query that asked for it —
    * which `calls` already records.
+   *
+   * It is read the way the host writes one, by metric name: a query that asks
+   * for other columns, or the same ones in another order, gets each row's
+   * values for exactly those names, and `null` for one the answer lacks.
    */
   stats: StatsResult
+  /**
+   * P20: a canned answer per dimension. A query whose `groupBy` has one here
+   * gets it; any other gets `stats`. Statistics asks several dimensions at
+   * once — Live alone asks team, domain and difficulty — and one answer
+   * relabelled for all of them is a table of teams under a Domain heading.
+   */
+  statsBy: Partial<Record<StatsDimension, StatsResult>>
   /** Set by `uninstall_data` — the fake cannot quit, so it leaves a flag. */
   uninstalled: boolean
   /** The Statistics window: the fake has no desktop, so it has a boolean. */
@@ -207,6 +221,19 @@ const EMPTY_STATS: StatsResult = {
   playCount: 0,
   turnCount: 0,
   turns: [],
+}
+
+/**
+ * A canned answer with the columns a query asked for, in its order. A value
+ * belongs to its metric's name, never to its position: `StatsRow.values` is
+ * "one per requested metric, same order" on the host, so a fake that kept the
+ * old order under new names would put points under Turns. A metric the canned
+ * answer does not carry is `null` — nothing to report, not a zero.
+ */
+function byMetric(result: StatsResult, metrics: readonly StatsMetric[]): StatsResult {
+  const at = metrics.map((metric) => result.metrics.indexOf(metric))
+  const pick = (row: StatsRow): StatsRow => ({ ...row, values: at.map((i) => (i < 0 ? null : (row.values[i] ?? null))) })
+  return { ...result, metrics, rows: result.rows.map(pick), totals: pick(result.totals) }
 }
 
 /**
@@ -946,13 +973,13 @@ export function createFakeHost(): FakeHost {
     stats_query: (a) => {
       const query = (a.query ?? {}) as StatsQuery
       const detail = query.detail ?? 0
+      const canned = (query.groupBy ? fake.statsBy[query.groupBy] : undefined) ?? fake.stats
       return {
-        ...fake.stats,
-        groupBy: query.groupBy ?? fake.stats.groupBy,
-        metrics: query.metrics?.length ? query.metrics : fake.stats.metrics,
+        ...byMetric(canned, query.metrics?.length ? query.metrics : canned.metrics),
+        groupBy: query.groupBy ?? canned.groupBy,
         // The ledger is opt-in on the real host too, so a view that does not
         // ask must not receive one — that is the thing worth reproducing.
-        turns: detail > 0 ? (fake.stats.turns?.length ? fake.stats.turns : FAKE_LEDGER).slice(0, detail) : [],
+        turns: detail > 0 ? (canned.turns?.length ? canned.turns : FAKE_LEDGER).slice(0, detail) : [],
       }
     },
     settings_get: () => settingsView(),
@@ -1859,6 +1886,7 @@ export function createFakeHost(): FakeHost {
     playState: null,
     health: { status: 'ok', items: [] },
     stats: EMPTY_STATS,
+    statsBy: {},
     uninstalled: false,
     quits: 0,
     closeCancels: 0,

@@ -29,8 +29,10 @@ export interface AwardLedgerProps {
  */
 export function AwardLedger({ turns }: AwardLedgerProps) {
   // Component state, like Control's armed buttons: a scan preference is not
-  // worth a store, and it resets when the operator leaves the view.
-  const [working, setWorking] = useState(true)
+  // worth a store, and it resets when the operator leaves the view. Closed by
+  // default (P20): the ledger is last on Live, and the total is what most
+  // readers came for — the working is there when asked.
+  const [working, setWorking] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
 
   if (turns.length === 0) {

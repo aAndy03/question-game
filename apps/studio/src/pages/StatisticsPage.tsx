@@ -6,7 +6,7 @@ import { useChromeStore, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { TABS } from '@/copy'
 import { STATS } from '@/copy/stats'
-import { useWorkspaceGeneration, useWorkspaces } from '@/host/queries'
+import { useKnownWorkspaces, useWorkspaceGeneration } from '@/host/queries'
 import { WORKSPACE } from '@/copy/workspaces'
 
 export type StatsView = 'live' | 'all'
@@ -19,7 +19,10 @@ export interface StatisticsPageProps {
    * window (§13.3) keeps it in its own state, because it has no route stack.
    */
   onView?: ((view: StatsView) => void) | undefined
-  /** `window`: no sidebar behind it, so the empty state offers no way out. */
+  /**
+   * `window`: no sidebar behind it, so the empty state offers no way out, and
+   * the column takes the whole display (P20) — it is there to be read across a room.
+   */
   surface?: 'tab' | 'window' | undefined
 }
 
@@ -33,6 +36,10 @@ const VIEWS: readonly StatsView[] = ['live', 'all']
  * is the Settings one — header, inner tabs, one scrolling column — since the
  * shape is the same and a second template would be a second thing to keep in
  * step.
+ *
+ * The line under the title names the workspace from the cache only (P20):
+ * the sidebar's read fills it in the main window, `workspace-changed` in the
+ * Statistics window, which may not ask `workspace_list` at all.
  */
 export function StatisticsPage({ view, onView, surface = 'tab' }: StatisticsPageProps) {
   const go = useNavStore((s) => s.go)
@@ -43,13 +50,13 @@ export function StatisticsPage({ view, onView, surface = 'tab' }: StatisticsPage
   const selected: StatsView = view ?? 'live'
   const generation = useWorkspaceGeneration()
   // Which workspace these numbers are (beta.5); with All workspaces the filter bar says so.
-  const workspaces = useWorkspaces()
-  const current = workspaces.data?.workspaces.find((w) => w.id === workspaces.data?.current)
+  const workspaces = useKnownWorkspaces()
+  const current = workspaces?.workspaces.find((w) => w.id === workspaces.current)
   const here = current ? (current.name ?? WORKSPACE.unnamed) : null
 
   return (
     <SettingsLayout
-      width="wide"
+      width={surface === 'window' ? 'full' : 'wide'}
       header={<PageHeader title={TABS.statistics.label} description={here ? STATS.inWorkspace(here) : TABS.statistics.hint} />}
       tabs={
         <div className="flex items-end justify-between gap-4">

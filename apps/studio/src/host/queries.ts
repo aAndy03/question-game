@@ -344,13 +344,19 @@ export function useTags() {
 }
 
 /**
- * The workspace Studio works in, as the last `workspace_list` or
- * `workspace-changed` said — read, never asked for: the Statistics window
- * may not call `workspace_list`, and hears the event (beta.2).
+ * The workspaces as the last `workspace_list` or `workspace-changed` left
+ * them in the cache — read, never asked for: the Statistics window may not
+ * call `workspace_list` (the host refuses it there), and hears the event
+ * (beta.2). `undefined` until one of the two has said. Reactive, so a rename
+ * made anywhere shows wherever this is read (P20).
  */
+export function useKnownWorkspaces(): Workspaces | undefined {
+  return useQuery({ queryKey: keys.workspaces, queryFn: () => command<Workspaces>('workspace_list'), enabled: false, staleTime: Infinity }).data
+}
+
+/** The workspace Studio works in, from the cache alone (see `useKnownWorkspaces`). */
 export function useCurrentWorkspaceId(): string | null {
-  const known = useQuery({ queryKey: keys.workspaces, queryFn: () => command<Workspaces>('workspace_list'), enabled: false, staleTime: Infinity })
-  return known.data?.current ?? null
+  return useKnownWorkspaces()?.current ?? null
 }
 
 /**

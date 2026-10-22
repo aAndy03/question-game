@@ -77,6 +77,14 @@ function mount(play: ReturnType<typeof openPlay> | null = null): FakeHost {
 const statsCalls = (fake: FakeHost) =>
   fake.calls.filter((c) => c.name === 'stats_query').map((c) => (c.args?.['query'] ?? {}) as StatsQuery)
 
+/** P20: Columns, rehearsals and every workspace wait behind one button; closed, with nothing set inside, it carries no count. */
+async function openMoreOptions() {
+  const more = await screen.findByRole('button', { name: STATS.filters.moreOptions })
+  await act(async () => {
+    fireEvent.click(more)
+  })
+}
+
 async function goToStatistics(view: 'live' | 'all') {
   await act(async () => {
     await useNavStore.getState().go({ tab: 'statistics', view })
@@ -111,7 +119,8 @@ describe('Statistics', () => {
       // A rehearsal is what the operator is watching; Live keeps it.
       expect(query.filter?.includeRehearsal).toBe(true)
     }
-    expect(statsCalls(fake).map((q) => q.groupBy).sort()).toEqual(['domain', 'team'])
+    // P20: by difficulty too, for Live's third chart.
+    expect(statsCalls(fake).map((q) => q.groupBy).sort()).toEqual(['difficulty', 'domain', 'team'])
     // The row the host labelled, in the table it grouped.
     expect((await screen.findAllByText('Alpha')).length).toBeGreaterThan(0)
     expect(document.querySelector('[data-stats-row="team-alpha"]')).not.toBeNull()
@@ -136,7 +145,7 @@ describe('Statistics', () => {
     await waitFor(() => expect(statsCalls(fake).length).toBeGreaterThan(afterMount))
   })
 
-  it('asks All data for the dimension the operator picked', async () => {
+  it('asks All data for the dimension the operator picked (T10-A7)', async () => {
     const fake = mount()
     render(<App />)
     await goToStatistics('all')
@@ -144,6 +153,7 @@ describe('Statistics', () => {
     expect(statsCalls(fake)[0]?.groupBy).toBe('team')
     expect(await screen.findByLabelText(STATS.table.label)).toBeTruthy()
 
+    await openMoreOptions()
     const rehearsals = await screen.findByRole('checkbox', { name: STATS.filters.rehearsals })
     await act(async () => {
       fireEvent.click(rehearsals)
@@ -151,11 +161,12 @@ describe('Statistics', () => {
     await waitFor(() => expect(statsCalls(fake).some((q) => q.filter?.includeRehearsal === true)).toBe(true))
   })
 
-  it('drops its filters when the workspace changes (beta.2)', async () => {
+  it('drops its filters when the workspace changes (beta.2, T10-A7)', async () => {
     const fake = mount()
     const other = await fake.invoke<{ id: string }>('workspace_create', { name: 'Club' })
     render(<App />)
     await goToStatistics('all')
+    await openMoreOptions()
     const rehearsals = await screen.findByRole('checkbox', { name: STATS.filters.rehearsals })
     await act(async () => {
       fireEvent.click(rehearsals)
@@ -165,6 +176,8 @@ describe('Statistics', () => {
       await fake.invoke('workspace_switch', { id: other.id })
     })
     await waitFor(() => expect(statsCalls(fake).at(-1)?.filter?.includeRehearsal ?? false).toBe(false))
+    // All data started over with the workspace, so More options is closed again, and counts nothing.
+    await openMoreOptions()
     expect((screen.getByRole('checkbox', { name: STATS.filters.rehearsals }) as HTMLInputElement).checked).toBe(false)
   })
 

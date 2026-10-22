@@ -175,11 +175,13 @@ describe('an edit that can follow its copies', () => {
 })
 
 describe('Statistics across workspaces', () => {
-  it('asks for every workspace’s Plays only when told to', async () => {
+  it('asks for every workspace’s Plays only when told to (T10-A7)', async () => {
     await library({ tab: 'statistics', view: 'all' })
     await waitFor(() => expect(calls('stats_query').length).toBeGreaterThan(0))
     const last = () => (calls('stats_query').at(-1)?.args?.['query'] ?? {}) as StatsQuery
     expect(last().filter?.allWorkspaces ?? false).toBe(false)
+    // P20: every workspace waits behind More options.
+    fireEvent.click(await screen.findByRole('button', { name: STATS.filters.moreOptions }))
     fireEvent.click(await screen.findByRole('checkbox', { name: STATS.filters.allWorkspaces }))
     await waitFor(() => expect(last().filter?.allWorkspaces).toBe(true))
   })

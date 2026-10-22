@@ -17,7 +17,7 @@
 import { FIXTURES, type Command, type FixtureName, type PlayStateForMain } from '@questiongame/contract'
 import { createFakeHost, DEFAULT_GAME_SETTINGS, type FakeHost } from './fake'
 import { hasTauri, setHostTransport, type HostTransport } from './host'
-import type { CatalogItem, Recipe, StatsResult } from './types'
+import type { CatalogItem, Recipe, StatsDimension, StatsMetric, StatsResult, StatsRow } from './types'
 
 export function installDevFakeIfAsked(): FakeHost | null {
   if (!import.meta.env.DEV || hasTauri()) return null
@@ -44,7 +44,10 @@ export function installDevFakeIfAsked(): FakeHost | null {
   if (fixture && fixture in FIXTURES) fake.playState = demoPlay(fixture as FixtureName)
   // Statistics reads a fold the fake does not do (§13.1); a canned answer is
   // what lets the tab be worked on in a browser, the way `play=` does Control.
+  // One per dimension (P20), since Live alone asks three at once; the team
+  // answer stands in for the dimensions the demo does not cut.
   fake.stats = demoStats()
+  fake.statsBy = Object.fromEntries(DEMO_STATS_DIMENSIONS.map((by) => [by, demoStats(by)]))
   // `&slow=<ms>` answers every command a task later, the way the real IPC
   // does — a round trip through Rust is never a microtask. A page that only
   // stays healthy because the fake answers before the next render can be
@@ -150,20 +153,118 @@ export function demoRecipe(): Recipe {
   }
 }
 
-/** A plausible `stats_query` answer for `?fake`: four teams, one season. */
-export function demoStats(): StatsResult {
-  const rows = [
-    { key: 'team-alpha', label: 'Alpha Squad', values: [24, 18, 0.75, 620], turns: 24, plays: 4 },
-    { key: 'team-bravo', label: 'Bravo Company', values: [23, 14, 0.61, 480], turns: 23, plays: 4 },
-    { key: 'team-charlie', label: 'Charlie Crew', values: [22, 11, 0.5, 390], turns: 22, plays: 4 },
-    { key: 'team-delta', label: 'Delta Force', values: [21, 7, 0.33, 240], turns: 21, plays: 3 },
-  ]
-  return {
-    groupBy: 'team',
-    metrics: ['turns', 'correct', 'accuracy', 'points'],
-    rows,
-    totals: { key: '', label: '', values: [90, 50, 0.556, 1730], turns: 90, plays: 4 },
-    playCount: 4,
-    turnCount: 90,
+/**
+ * The dimensions the demo cuts its season by (P20). Question and workspace
+ * are not among them: they read the team answer, as every dimension did
+ * before.
+ */
+export const DEMO_STATS_DIMENSIONS = ['team', 'domain', 'difficulty', 'day', 'operator', 'recipe', 'play'] as const satisfies readonly StatsDimension[]
+
+/**
+ * Every column, in the host's order. The fake reads a query's own list out of
+ * these by name, so Live and All data each get the columns they ask for.
+ */
+const DEMO_METRICS: readonly StatsMetric[] = ['turns', 'correct', 'incorrect', 'partial', 'accuracy', 'points', 'bonus', 'avg_points', 'avg_lock_ms', 'fastest_lock_ms', 'plays']
+
+/**
+ * One row's tallies. Every column follows from them the way the host's
+ * `Group::row` derives it; every turn in the demo was locked on a clock, so
+ * the mean lock is `lockMs / turns`.
+ */
+type Tally = readonly [turns: number, correct: number, partial: number, points: number, bonus: number, lockMs: number, fastestLockMs: number, plays: number]
+
+/** The first Play of the season, run before any operator was set up: its turns are *No operator*'s. */
+const BEFORE_OPERATORS: Tally = [21, 11, 2, 380, 10, 226_800, 3_300, 1]
+
+/** The season: four Plays of Season opener, each on its own UTC day — the host's `day_of`. */
+const seasonPlay = (n: number, days: number, tally: Tally) => ({ id: `play-demo-${n}`, day: new Date(t0 + days * 86_400_000).toISOString().slice(0, 10), tally })
+const DEMO_PLAYS = [
+  seasonPlay(1, 3, BEFORE_OPERATORS),
+  seasonPlay(2, 6, [23, 13, 2, 430, 20, 234_600, 2_800, 1]),
+  seasonPlay(3, 9, [22, 12, 1, 420, 20, 213_400, 4_100, 1]),
+  seasonPlay(4, 11, [24, 14, 3, 500, 20, 225_000, 2_100, 1]),
+]
+
+/**
+ * A plausible `stats_query` answer for `?fake`: four teams, one season, cut
+ * by `by`. Every cut adds up to the same 90 turns and 1730 points, so a
+ * number read on one table agrees with the next.
+ *
+ * The rows are in the host's order (`crates/host/src/stats.rs`): days run
+ * chronologically and difficulty bands ascend (`"20"` is 11–20); every other
+ * dimension is the first column descending, the label breaking ties. Labels
+ * are what the host's `relabel` leaves: a team, domain, game or operator by
+ * its catalog name, a turn with no operator as `""` *No operator*, a Play as
+ * `{game} · {date}`.
+ */
+export function demoStats(by: (typeof DEMO_STATS_DIMENSIONS)[number] = 'team'): StatsResult {
+  const game = demoRecipe().name
+  const rows = (): Array<[key: string, label: string, tally: Tally]> => {
+    switch (by) {
+      case 'team':
+        return [
+          ['team-alpha', 'Alpha', [24, 18, 2, 620, 40, 196_800, 2_100, 4]],
+          ['team-bravo', 'Bravo', [23, 14, 2, 480, 20, 216_200, 3_300, 4]],
+          ['team-charlie', 'Charlie', [22, 11, 3, 390, 10, 222_200, 2_800, 4]],
+          ['team-delta', 'Delta', [21, 7, 1, 240, 0, 264_600, 4_100, 3]],
+        ]
+      case 'domain':
+        return [
+          ['dom-history', 'History', [40, 24, 4, 820, 30, 360_000, 2_100, 4]],
+          ['dom-tech', 'Technology', [30, 17, 3, 600, 30, 330_000, 2_800, 4]],
+          ['dom-sport', 'Sport', [20, 9, 1, 310, 10, 209_800, 3_300, 2]],
+        ]
+      case 'difficulty':
+        return [
+          ['20', '11–20', [30, 22, 1, 400, 20, 210_000, 2_100, 4]],
+          ['40', '31–40', [12, 7, 1, 230, 10, 114_000, 3_300, 2]],
+          ['50', '41–50', [18, 10, 2, 430, 20, 189_000, 2_800, 4]],
+          ['60', '51–60', [16, 7, 1, 400, 10, 192_000, 4_100, 4]],
+          ['70', '61–70', [14, 4, 3, 270, 10, 194_800, 5_200, 4]],
+        ]
+      case 'day':
+        return DEMO_PLAYS.map((play) => [play.day, play.day, play.tally])
+      case 'play':
+        return DEMO_PLAYS.map((play) => [play.id, `${game} · ${play.day}`, play.tally])
+      case 'operator':
+        return [
+          ['op-andy', 'Andy M.', [69, 39, 6, 1_350, 60, 673_000, 2_100, 3]],
+          ['', 'No operator', BEFORE_OPERATORS],
+        ]
+      case 'recipe':
+        return [['recipe-demo', game, [90, 50, 8, 1_730, 70, 899_800, 2_100, 4]]]
+    }
   }
+  const tallies = rows()
+  const ordinal = by === 'day' || by === 'difficulty'
+  const ordered = ordinal ? tallies : [...tallies].sort(([, a, x], [, b, y]) => y[0] - x[0] || (a < b ? -1 : a > b ? 1 : 0))
+  // The totals are the rows added up, so the two cannot disagree; the Plays
+  // behind them are distinct Plays, not a sum of each row's.
+  const sum = (i: number) => tallies.reduce((n, [, , tally]) => n + (tally[i] ?? 0), 0)
+  const total: Tally = [sum(0), sum(1), sum(2), sum(3), sum(4), sum(5), Math.min(...tallies.map(([, , tally]) => tally[6])), DEMO_PLAYS.length]
+  return {
+    groupBy: by,
+    metrics: DEMO_METRICS,
+    rows: ordered.map(([key, label, tally]) => demoRow(key, label, tally)),
+    totals: demoRow('', '', total),
+    playCount: DEMO_PLAYS.length,
+    turnCount: total[0],
+  }
+}
+
+function demoRow(key: string, label: string, [turns, correct, partial, points, bonus, lockMs, fastestLockMs, plays]: Tally): StatsRow {
+  const value: Record<StatsMetric, number | null> = {
+    turns,
+    correct,
+    incorrect: turns - correct - partial,
+    partial,
+    accuracy: turns > 0 ? correct / turns : null,
+    points,
+    bonus,
+    avg_points: turns > 0 ? points / turns : null,
+    avg_lock_ms: turns > 0 ? lockMs / turns : null,
+    fastest_lock_ms: turns > 0 ? fastestLockMs : null,
+    plays,
+  }
+  return { key, label, values: DEMO_METRICS.map((metric) => value[metric]), turns, plays }
 }
