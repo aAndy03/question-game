@@ -40,7 +40,7 @@ export function ListToolbar({ view, what, layout, onLayout, status, onStatus, fi
           <FilterMenu
             filters={spec.filters}
             values={state.filters}
-            changed={state.changed}
+            changed={spec.changedAt ? state.changed : undefined}
             onChange={view.setFilter}
             onChanged={view.setChanged}
             activeCount={view.activeFilters.length}

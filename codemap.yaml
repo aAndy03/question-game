@@ -117,7 +117,7 @@ commands:
     callers: [main]
     doc: "`catalog_import_questions` (§2.32)."
     file: crates/app/src/commands/catalog.rs
-    params: ["text: String", "commit: bool", "default_domain_id: Option<DomainId>"]
+    params: ["text: String", "commit: bool", "default_domain_id: Option<DomainId>", "overrides: Option<ImportChanges>"]
     returns: "AppResult<ImportReport>"
   catalog_list:
     async: true
@@ -1484,13 +1484,17 @@ host_api:
     "catalog::groups::tag_key": {doc: "The fold a tag is compared by.", kind: fn, sig: "fn tag_key(tag: &str) -> String"}
   crates/host/src/catalog/import.rs:
     "catalog::import::CatalogService::import_questions": {doc: "`catalog_import_questions` (§2.32).", kind: method, sig: "fn import_questions(&self, text: &str, commit: bool, default_domain: Option<&DomainId>, now_ms: u64) -> CatalogResult<(ImportReport, Vec<CatalogChange>)>"}
+    "catalog::import::CatalogService::import_questions_with": {doc: "[`Self::import_questions`] with the dialog's edits and skips (P20).", kind: method, sig: "fn import_questions_with(&self, text: &str, commit: bool, default_domain: Option<&DomainId>, overrides: &ImportOverrides, now_ms: u64) -> CatalogResult<(ImportReport, Vec<CatalogChange>)>"}
     "catalog::import::FORMAT": {doc: "The one document shape this build reads.", kind: const, sig: "const FORMAT: &str = \"questiongame.questions\""}
     "catalog::import::Ignored": {doc: "A value the row carried and the import dropped — said, never swallowed.", kind: struct, sig: "struct Ignored { field: String, why: IgnoredWhy }"}
     "catalog::import::IgnoredWhy": {kind: enum, sig: "enum IgnoredWhy { Unknown | WrongType | OutOfRange | Empty }"}
-    "catalog::import::ImportCounts": {kind: struct, sig: "struct ImportCounts { complete: usize, incomplete: usize, duplicate: usize, rejected: usize }"}
+    "catalog::import::ImportCounts": {kind: struct, sig: "struct ImportCounts { complete: usize, incomplete: usize, duplicate: usize, rejected: usize, skipped: usize }"}
+    "catalog::import::ImportOption": {kind: struct, sig: "struct ImportOption { text: String, correct: bool }"}
+    "catalog::import::ImportOverrides": {doc: "The operator's changes to a file (P20): rows replaced by edited ones (each an object in the file's own format, read by the same reader), and rows left out.", kind: struct, sig: "struct ImportOverrides { edits: BTreeMap<usize, Value>, skip: BTreeSet<usize> }"}
     "catalog::import::ImportPlan": {doc: "The rows to write and the report that describes them.", kind: struct, sig: "struct ImportPlan { report: ImportReport, questions: Vec<Question>, domains: Vec<Domain> }"}
     "catalog::import::ImportReport": {doc: "`catalog_import_questions`' answer, preview and commit alike.", kind: struct, sig: "struct ImportReport { committed: bool, rows: Vec<ImportRow>, new_domains: Vec<NewDomain>, counts: ImportCounts }"}
-    "catalog::import::ImportRow": {kind: struct, sig: "struct ImportRow { index: usize, status: RowStatus, stem: String, domains: Vec<String>, landing: Vec<String>, tags: Vec<String>, duplicate_of: Option<String>, duplicate_row: Option<usize>, gaps: Vec<QuestionGap>, ignored: Vec<Ignored>, reason: Option<RejectReason> }"}
+    "catalog::import::ImportRow": {kind: struct, sig: "struct ImportRow { index: usize, status: RowStatus, stem: String, domains: Vec<String>, landing: Vec<String>, tags: Vec<String>, duplicate_of: Option<String>, duplicate_row: Option<usize>, gaps: Vec<QuestionGap>, ignored: Vec<Ignored>, reason: Option<RejectReason>, body: Option<ImportRowBody>, skipped: bool, edited: bool }"}
+    "catalog::import::ImportRowBody": {doc: "A row as the reader understood it (P20), in the file's own terms: handed back to the dialog to edit, and sent back as a row of the file.", kind: struct, sig: "struct ImportRowBody { question: String, options: Vec<ImportOption>, difficulty: Option<u8>, domains: Vec<String>, explanation: Option<String>, tags: Vec<String> }"}
     "catalog::import::Library": {doc: "What the import needs to know about the library: the **active** questions, for duplicates, and the **active** domains, to match names against.", kind: struct, sig: "struct Library<'a> { questions: &'a [Question], domains: &'a [Domain] }"}
     "catalog::import::MAX_ROWS": {doc: "Past this the file is refused whole: one transaction, and a preview the operator can still read.", kind: const, sig: "const MAX_ROWS: usize = 2_000"}
     "catalog::import::NewDomain": {kind: struct, sig: "struct NewDomain { name: String, code: String }"}
@@ -1498,6 +1502,7 @@ host_api:
     "catalog::import::RowStatus": {kind: enum, sig: "enum RowStatus { Complete | Incomplete | Duplicate | Rejected }"}
     "catalog::import::VERSION": {kind: const, sig: "const VERSION: u64 = 1"}
     "catalog::import::plan": {doc: "Read one question file and say what importing it would do.", kind: fn, sig: "fn plan(text: &str, library: &Library<'_>, default_domain: Option<&DomainId>, mint: &mut dyn FnMut() -> String) -> CatalogResult<ImportPlan>"}
+    "catalog::import::plan_with": {doc: "[`plan`], with the operator's edits and skips (P20).", kind: fn, sig: "fn plan_with(text: &str, library: &Library<'_>, default_domain: Option<&DomainId>, overrides: &ImportOverrides, mint: &mut dyn FnMut() -> String) -> CatalogResult<ImportPlan>"}
     "catalog::import::suggest_code": {doc: "The code a new domain gets — the rule the Domain form applies (`apps/studio/src/host/domain.ts`), so an imported domain looks like one typed in by hand: three ASCII capitals, padded with `X`, and a...", kind: fn, sig: "fn suggest_code(name: &str) -> String"}
   crates/host/src/catalog/labels.rs:
     "catalog::labels::CatalogService::recipe_bulk_edit": {doc: "Apply `edits`, in order, to every game in `ids`; `write: false` is the preview.", kind: method, sig: "fn recipe_bulk_edit(&self, ids: &[RecipeId], edits: &[RecipeEdit], write: bool, now_ms: u64) -> CatalogResult<LabelReport>"}

@@ -1228,7 +1228,8 @@ fn an_import_preview_writes_nothing_and_the_commit_writes_what_it_showed() {
                 complete: 1,
                 incomplete: 2,
                 duplicate: 0,
-                rejected: 1
+                rejected: 1,
+                skipped: 0,
             }
         );
         assert_eq!(active(service), before + 3);

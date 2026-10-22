@@ -36,6 +36,7 @@ import type {
   GameSettings,
   GlobalSetting,
   HealthReport,
+  ImportOverrides,
   ImportReport,
   ItemOf,
   LibraryKind,
@@ -831,6 +832,7 @@ export function createFakeHost(): FakeHost {
           { questions: active('question'), domains: active('domain') },
           (a.defaultDomainId as string | null | undefined) ?? null,
           () => crypto.randomUUID().replace(/-/g, '').slice(0, 8),
+          { edits: (a.overrides as ImportOverrides | undefined)?.edits ?? [], skip: (a.overrides as ImportOverrides | undefined)?.skip ?? [] },
         )
       } catch (e) {
         if (e instanceof ImportRefused) refuse('catalog', e.message)

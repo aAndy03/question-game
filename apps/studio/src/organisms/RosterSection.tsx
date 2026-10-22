@@ -122,6 +122,7 @@ export function RosterSection({ recipe, frozenReason }: RosterSectionProps) {
         initial={recipe.teams}
         onApply={write}
         isPending={pending}
+        columns={2}
       />
     </Panel>
   )

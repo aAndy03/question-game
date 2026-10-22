@@ -97,3 +97,40 @@ describe('the fake import mirrors the host (§2.32)', () => {
     expect(() => run('[{ "question": "Q?" }]', [], [], 'dom-gone')).toThrow(/^import: /)
   })
 })
+
+/** P20: the dialog's edits and skips, as `crates/host/tests/p20.rs` ▸ import has them. */
+describe('the fake import mirrors the host’s overrides (P20)', () => {
+  const FILE = JSON.stringify([
+    { question: 'Australia?', options: [{ text: 'Canberra', correct: true }, 'Sydney'], difficulty: 40, tags: ['Capitals'], domains: ['Geografie'] },
+    { question: 'France?', options: [{ text: 'Paris', correct: true }, 'Lyon'] },
+    { question: 'France?', options: [{ text: 'Paris', correct: true }, 'Lyon'] },
+  ])
+  const plan = (edits: { index: number; row: unknown }[] = [], skip: number[] = []) => planImport(FILE, { questions: [], domains: [geo] }, null, counter(), { edits, skip })
+
+  it('a row carries its body as read, and a duplicate keeps its tags and domains', () => {
+    const p = plan()
+    expect(p.report.rows[0]?.body).toEqual({ question: 'Australia?', options: [{ text: 'Canberra', correct: true }, { text: 'Sydney', correct: false }], difficulty: 40, domains: ['Geografie'], explanation: null, tags: ['Capitals'] })
+    expect(p.report.rows[2]?.status).toBe('duplicate')
+    expect(p.report.rows[2]?.body).not.toBeNull()
+  })
+
+  it('an edit replaces the row before it is read', () => {
+    const p = plan([{ index: 2, row: { question: 'Germany?', options: [{ text: 'Berlin', correct: true }, 'Bonn'], difficulty: 30 } }])
+    expect(p.report.rows[1]?.stem).toBe('Germany?')
+    expect(p.report.rows[1]?.edited).toBe(true)
+    expect(p.report.rows[2]?.status).toBe('incomplete')
+  })
+
+  it('a skipped row is reported, not written, and never a duplicate’s original', () => {
+    const p = plan([], [2])
+    expect(p.report.rows[1]?.skipped).toBe(true)
+    expect(p.report.rows[2]?.status).toBe('incomplete')
+    expect(p.report.counts.skipped).toBe(1)
+    expect(p.questions.map((q) => q.stem)).toEqual(['Australia?', 'France?'])
+  })
+
+  it('an override for a row that is not in the file refuses it whole', () => {
+    expect(() => plan([], [4])).toThrow(ImportRefused)
+    expect(() => plan([{ index: 0, row: {} }])).toThrow(ImportRefused)
+  })
+})

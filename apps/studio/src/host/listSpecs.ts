@@ -4,11 +4,11 @@
  * model runs them all the same way.
  */
 
-import { QUESTION, VIEWS } from '@/copy'
+import { IMPORT, QUESTION, VIEWS } from '@/copy'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { WORKSPACE } from '@/copy/workspaces'
 import { compareText, type FilterDef, type ListSpec } from './listView'
-import { answerMode, difficultyBand, isArchived, type Domain, type Operator, type Question, type QuestionGap, type Recipe, type Team, type Workspace, type WorkspaceGroup } from './types'
+import { answerMode, difficultyBand, isArchived, type Domain, type ImportRow, type Operator, type Question, type QuestionGap, type Recipe, type Team, type Workspace, type WorkspaceGroup } from './types'
 
 const byNumber = (a: number, b: number) => a - b
 const choice = (value: unknown): string => (typeof value === 'string' ? value : '')
@@ -386,5 +386,116 @@ export function workspacesSpec(groups: readonly WorkspaceGroup[]): ListSpec<Work
     tiebreak: name,
     changedAt: (w) => w.updatedAt,
     isArchived: (w) => w.archivedAt !== null,
+  }
+}
+
+// ---- Import (P20) ------------------------------------------------------------
+
+/** One row of a file being imported, with what the dialog knows about it. */
+export interface ImportItem {
+  readonly row: ImportRow
+  /** The names the file would create as new domains. */
+  readonly creates: boolean
+}
+
+const STATUS_ORDER: Record<ImportRow['status'], number> = { duplicate: 0, rejected: 1, incomplete: 2, complete: 3 }
+const NOT_IMPORTED = '~not'
+
+/**
+ * The import dialog's rows on the list-view model (P20): what is wrong first
+ * — grouped by status by default, duplicates and rejected rows on top — then
+ * search, filters, sorts and pages like any library list. No dates, so no
+ * *Changed* filter. A row that will not be imported (a duplicate, a rejected
+ * row) sits under *Not imported* when grouped by domain or tag, not under
+ * "none".
+ */
+export function importSpec(opts: { tags: readonly string[]; domains: readonly string[] }): ListSpec<ImportItem> {
+  const out = (r: ImportRow) => r.status === 'duplicate' || r.status === 'rejected'
+  return {
+    tab: 'importQuestions',
+    noun: { one: 'row', many: 'rows' },
+    filters: [
+      {
+        id: 'status',
+        label: VIEWS.status,
+        kind: 'multi',
+        options: (['complete', 'incomplete', 'duplicate', 'rejected'] as const).map((s) => ({ value: s, label: IMPORT.status[s] })),
+        test: (i, v) => multi(v).includes(i.row.status),
+      },
+      {
+        id: 'missing',
+        label: IMPORT.missing,
+        kind: 'multi',
+        options: (['stem', 'options', 'correct', 'difficulty', 'domain'] as const).map((g) => ({ value: g, label: QUESTION.gap[g] })),
+        test: (i, v) => i.row.gaps.some((g) => multi(v).includes(g)),
+      },
+      ...(opts.domains.length > 0
+        ? [
+            {
+              id: 'domain',
+              label: VIEWS.domain,
+              kind: 'multi' as const,
+              options: [...opts.domains.map((d) => ({ value: d, label: d })), { value: '~none', label: VIEWS.noDomain }],
+              test: (i: ImportItem, v: unknown) => (i.row.domains.length === 0 ? multi(v).includes('~none') : i.row.domains.some((d) => multi(v).includes(d))),
+            },
+          ]
+        : []),
+      ...(opts.tags.length > 0
+        ? [
+            {
+              id: 'tag',
+              label: GROUPS_TAGS.tag,
+              kind: 'multi' as const,
+              options: opts.tags.map((t) => ({ value: foldTag(t), label: t })),
+              test: (i: ImportItem, v: unknown) => i.row.tags.some((t) => multi(v).includes(foldTag(t))),
+            },
+          ]
+        : []),
+      { id: 'creates', label: IMPORT.createsDomain, kind: 'toggle', test: (i) => i.creates },
+      { id: 'ignored', label: IMPORT.hasIgnored, kind: 'toggle', test: (i) => i.row.ignored.length > 0 },
+      { id: 'skipped', label: IMPORT.skippedFilter, kind: 'toggle', test: (i) => i.row.skipped },
+    ],
+    sorts: [
+      { id: 'row', label: IMPORT.rowSort, compare: (a, b) => a.row.index - b.row.index },
+      { id: 'text', label: VIEWS.text, compare: (a, b) => compareText(a.row.stem, b.row.stem) },
+      {
+        id: 'difficulty',
+        label: VIEWS.difficulty,
+        compare: (a, b) => byNumber(a.row.body?.difficulty as number, b.row.body?.difficulty as number),
+        nullable: (i) => (i.row.body?.difficulty ?? null) === null,
+      },
+      { id: 'status', label: VIEWS.status, compare: (a, b) => STATUS_ORDER[a.row.status] - STATUS_ORDER[b.row.status] },
+    ],
+    groups: [
+      { id: 'status', label: VIEWS.status, groupsOf: (i) => [{ key: `s:${i.row.status}`, label: IMPORT.status[i.row.status], order: STATUS_ORDER[i.row.status] }] },
+      {
+        id: 'domain',
+        label: VIEWS.domain,
+        groupsOf: (i) =>
+          out(i.row)
+            ? [{ key: NOT_IMPORTED, label: IMPORT.notImported, order: 0, last: true }]
+            : i.row.domains.length === 0
+              ? [{ key: '~none', label: VIEWS.noDomain, order: 0, last: true }]
+              : i.row.domains.map((d) => ({ key: `d:${d}`, label: d, order: d })),
+      },
+      {
+        id: 'missing',
+        label: IMPORT.missing,
+        groupsOf: (i) =>
+          i.row.gaps.length === 0
+            ? [{ key: '~complete', label: IMPORT.status.complete, order: 0, last: true }]
+            : i.row.gaps.map((g) => ({ key: `g:${g}`, label: QUESTION.gap[g], order: g })),
+      },
+      {
+        id: 'tag',
+        label: GROUPS_TAGS.tag,
+        groupsOf: (i) =>
+          i.row.tags.length === 0
+            ? [{ key: '~none', label: GROUPS_TAGS.noTag, order: 0, last: true }]
+            : i.row.tags.map((t) => ({ key: `t:${foldTag(t)}`, label: t, order: foldTag(t) })),
+      },
+    ],
+    defaults: { sort: { id: 'row', desc: false }, group: 'status', pageSize: 100 },
+    tiebreak: (i) => String(i.row.index).padStart(5, '0'),
   }
 }

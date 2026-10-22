@@ -48,6 +48,9 @@ export const CHIP_TONES = {
   unset: 'default',
   // P15: an operator's tag on a question
   tag: 'default',
+  // P20: an import row changed in the dialog, or left out of the import
+  edited: 'accent',
+  leftOut: 'default',
 } as const satisfies Record<string, ChipTone>
 
 export type ChipMeaning = keyof typeof CHIP_TONES

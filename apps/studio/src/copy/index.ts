@@ -391,6 +391,13 @@ const QUESTION_GAP = {
 } as const satisfies Record<QuestionGap, string>
 
 export const QUESTION = {
+  /** An import row's domains field (P20). */
+  domainsOffered: 'Domains already in the library',
+  domainsOfferedCount: (n: number) => `${n} ${n === 1 ? 'domain matches' : 'domains match'}.`,
+  removeDomain: (d: string) => `Take ${d} off`,
+  removedDomain: (d: string) => `Took ${d} off.`,
+  domainsFull: 'A row names at most 50 domains.',
+  domainTooLong: 'A domain name is at most 120 characters.',
   /** The editor's side column (P20): domains, domain groups, question tags. */
   filing: 'Where it is filed',
   saved: 'Question saved',
@@ -462,15 +469,26 @@ export const PICKER = {
   selectGroup: (group: string) => `Select all in ${group}`,
   apply: 'Apply',
   cancel: 'Cancel',
+  /** The Chosen pane (P20). */
+  chosenTitle: 'Chosen',
+  noneChosen: 'Nothing chosen yet. Tick a row on the left.',
+  unchoose: (what: string) => `Take off ${what}`,
+  moreChosen: (n: number) => `and ${n} more`,
 } as const
 
 export const IMPORT = {
   open: 'Import',
   title: 'Import questions',
-  hint: 'A JSON file in the editor’s shape. Every question with text or at least one option comes in; anything missing is marked incomplete and can be finished in the editor.',
+  hint: 'A JSON file in the editor’s shape. Every question with text or at least one option comes in; anything missing is marked incomplete and can be finished here or in the editor.',
+  /** What a file can carry, and what it cannot (P20). */
+  fields: 'A row can carry: question · options · difficulty · domains (names or codes) · question tags · explanation. Media and domain groups are not read from a file.',
   choose: 'Choose a .json file',
+  changeFile: 'Choose another file',
   paste: 'Or paste the file',
   pasteHint: 'The preview follows what is in the box.',
+  editText: 'Edit the text',
+  hideText: 'Hide the text',
+  fileRows: (name: string | null, n: number) => `${name ?? 'Pasted text'} · ${n === 1 ? '1 row' : `${n.toLocaleString('en-US')} rows`}`,
   copyTemplate: 'Copy template',
   templateCopied: 'Template copied',
   defaultDomain: 'Questions without a domain go to',
@@ -482,25 +500,56 @@ export const IMPORT = {
       c.incomplete ? `${c.incomplete} incomplete` : null,
       c.duplicate ? `${c.duplicate} ${c.duplicate === 1 ? 'duplicate' : 'duplicates'}` : null,
       c.rejected ? `${c.rejected} rejected` : null,
+      c.skipped ? `${c.skipped} left out` : null,
       newDomains ? `${newDomains} new ${newDomains === 1 ? 'domain' : 'domains'}` : null,
     ]
       .filter(Boolean)
       .join(' · '),
+  /** One count, as a button that filters the list to it (P20). */
+  count: (n: number, status: 'complete' | 'incomplete' | 'duplicate' | 'rejected') =>
+    `${n.toLocaleString('en-US')} ${{ complete: 'complete', incomplete: 'incomplete', duplicate: n === 1 ? 'duplicate' : 'duplicates', rejected: 'rejected' }[status]}`,
   status: { complete: 'Complete', incomplete: 'Incomplete', duplicate: 'Duplicate', rejected: 'Rejected' },
   reason: { not_an_object: 'Rejected: not a question', no_content: 'Rejected: no question and no options' },
   ignored: (i: ImportIgnored): string =>
-    `${i.field}: ${{ unknown: 'unknown field, ignored', wrong_type: 'wrong type, ignored', out_of_range: 'outside 1–100, ignored', empty: 'empty, ignored' }[i.why]}`,
+    `${i.field}: ${
+      i.why === 'out_of_range' && i.field === 'tags'
+        ? 'more than 20 question tags, or one over 40 characters, ignored'
+        : { unknown: 'unknown field, ignored', wrong_type: 'wrong type, ignored', out_of_range: 'outside 1–100, ignored', empty: 'empty, ignored' }[i.why]
+    }`,
   newDomains: (names: readonly string[]) => `New domains: ${names.join(', ')}`,
   landsIn: (landing: readonly string[]) => `In ${landing.join(' · ')}`,
-  tags: (tags: readonly string[]) => `Tags: ${tags.join(', ')}`,
+  tags: (tags: readonly string[]) => `Question tags: ${tags.join(', ')}`,
   /** What a duplicate repeats: a question here, or an earlier row of the same file. */
   duplicateOf: (of: string) => (of.trim() ? `Repeats “${of}”` : 'Repeats a question with no text'),
   duplicateRow: (row: number) => `Repeats row ${row} of this file`,
-  submit: (n: number) => (n === 1 ? 'Import 1 question' : `Import ${n} questions`),
+  submit: (n: number) => (n === 1 ? 'Import 1 question' : `Import ${n.toLocaleString('en-US')} questions`),
+  toImport: (n: number, of: number) => `${n.toLocaleString('en-US')} of ${of.toLocaleString('en-US')} rows will be imported`,
   done: (c: ImportCounts) => {
     const n = c.complete + c.incomplete
     return `Imported ${n} ${n === 1 ? 'question' : 'questions'}${c.incomplete ? ` · ${c.incomplete} incomplete` : ''}`
   },
+  // the list (P20)
+  rows: 'rows',
+  missing: 'Missing',
+  createsDomain: 'Creates a domain',
+  hasIgnored: 'Has ignored fields',
+  skippedFilter: 'Left out',
+  rowSort: 'Row',
+  notImported: 'Not imported',
+  include: (n: number) => `Import row ${n}`,
+  edited: 'Edited',
+  leftOut: 'Left out',
+  // the row (P20)
+  rowTitle: (n: number) => `Row ${n}`,
+  apply: 'Apply',
+  applyNext: 'Apply and next',
+  revert: 'Back to the file’s version',
+  skipRow: 'Leave this row out',
+  includeRow: 'Import this row',
+  closeRow: 'Close the row',
+  rowDomains: 'Domains',
+  rowDomainsHint: 'Names or codes, as in a file. A name no domain has becomes a new domain.',
+  ignoredTitle: 'Ignored in the file',
   /** The document 05_STUDIO_DESIGN.md §17.2 describes, ready to fill in. */
   template: `{
   "format": "questiongame.questions",
@@ -516,7 +565,22 @@ export const IMPORT = {
       ],
       "difficulty": 50,
       "domains": ["Geografie"],
+      "tags": ["Capitale", "Oceania"],
       "explanation": "Optional."
+    },
+    {
+      "question": "Which two of these are primes?",
+      "options": [
+        { "text": "2", "correct": true },
+        { "text": "3", "correct": true },
+        "4"
+      ],
+      "difficulty": 30,
+      "domains": ["MAT_086"]
+    },
+    {
+      "question": "A row with only text and options comes in incomplete.",
+      "options": ["Yes", "No"]
     }
   ]
 }

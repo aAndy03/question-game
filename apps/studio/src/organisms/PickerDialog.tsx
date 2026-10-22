@@ -1,19 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Modal } from '@heroui/react'
-import { Button, CheckboxField, Text } from '@/atoms'
-import { EmptyState, GroupHeader, PageFooter } from '@/molecules'
-import { LIST, PICKER } from '@/copy'
-import { useChromeStore, EMPTY_LIST_STATE, useListState } from '@/chrome/chrome'
-import { footerText, listView, type ListItem, type ListSpec } from '@/host/listView'
-import { useListView, type ListViewApi } from '@/host/useListView'
-import { ListToolbar } from './ListToolbar'
+import { Button, IconButton, Text } from '@/atoms'
+import { PICKER } from '@/copy'
+import { useChromeStore, EMPTY_LIST_STATE } from '@/chrome/chrome'
+import type { ListItem, ListSpec } from '@/host/listView'
+import { PickList, type PickerRow } from './PickList'
 
-/** What a picker row shows. */
-export interface PickerRow {
-  readonly title: string
-  readonly subtitle?: string | undefined
-  readonly chips?: ReactNode
-}
+export type { PickerRow } from './PickList'
 
 export interface PickerDialogProps<T> {
   isOpen: boolean
@@ -32,26 +25,32 @@ export interface PickerDialogProps<T> {
   /** `false`: the host refused; the dialog stays open with the ticks. */
   onApply(chosen: readonly string[]): Promise<boolean>
   isPending?: boolean | undefined
+  /**
+   * How the Chosen pane orders what is ticked (P20): as ticked by default —
+   * the roster's play order; questions pass their easy→hard walk.
+   */
+  chosenOrder?: ((ids: readonly string[]) => readonly string[]) | undefined
+  /** Short rows (teams, domains) run in two columns where there is room. */
+  columns?: 1 | 2 | undefined
 }
 
-const fold = (s: string) => s.trim().toLowerCase()
+const CHOSEN_SHOWN = 100
 
 /**
- * A choice of rows on the list-view model (beta.4: *Add teams…*, *Add
- * domains…*, *Choose questions…*): the library toolbar's search, filters,
- * sort and grouping, pages of 100, a checkbox per row, per group and per
- * page. What is ticked is the dialog's own — it starts as the game's
- * membership and survives every filter, search and page, unlike a library
- * selection, which a filter clears; *Apply* writes it once.
+ * A choice of rows (beta.4: *Add teams…*, *Add domains…*, *Choose
+ * questions…*), the window's width (P20): `PickList` — search, filters, sort,
+ * groups, a checkbox per row, per group and per page — beside a **Chosen**
+ * pane that lists what is ticked in its order, each with a remove button. What
+ * is ticked is the dialog's own — it starts as the game's membership and
+ * survives every filter, search and page; *Apply* writes it once.
  *
  * Order: the rows already chosen keep their place, new ones follow in the
  * order they were ticked — the roster's play order is that list.
  */
-export function PickerDialog<T>({ isOpen, onClose, title, spec, items, initial, disabledReason, onApply, isPending }: PickerDialogProps<T>) {
+export function PickerDialog<T>({ isOpen, onClose, title, spec, items, initial, disabledReason, onApply, isPending, chosenOrder, columns }: PickerDialogProps<T>) {
   const [chosen, setChosen] = useState<readonly string[]>(initial)
   const [wasOpen, setWasOpen] = useState(isOpen)
   const setListState = useChromeStore((s) => s.setListState)
-  const session = useListState(spec.tab)
 
   // Each opening starts from the game, set while rendering the opening so
   // the last opening's ticks never show for a frame (review). `initial` is
@@ -65,67 +64,8 @@ export function PickerDialog<T>({ isOpen, onClose, title, spec, items, initial, 
     if (isOpen) setListState(spec.tab, EMPTY_LIST_STATE)
   }, [isOpen, spec.tab, setListState])
 
-  // Search here is the row's own words, folded — the catalog's index is not
-  // asked about a list the dialog already holds.
-  const hits = useMemo(() => {
-    const needle = fold(session.search)
-    if (!needle) return null
-    return new Map(items.filter((i) => fold(`${i.view.title} ${i.view.subtitle ?? ''}`).includes(needle)).map((i) => [i.id, 1]))
-  }, [items, session.search])
-  const view = useListView(spec, items, hits)
-  const { page } = view
-
-  const set = useMemo(() => new Set(chosen), [chosen])
-  const reason = (id: string, within: ReadonlySet<string> = set) => (within.has(id) ? null : (disabledReason?.(id, within) ?? null))
-
-  // Every row of every group, on every page: *select all in this group* means the whole group.
-  const groupIds = useMemo(() => {
-    const all = listView(items, spec, { ...view.state, page: 1, pageSize: 'all', collapsed: new Set() })
-    const out = new Map<string, string[]>()
-    for (const e of all.entries) if (e.kind === 'row') out.set(e.row.groupKey ?? '', [...(out.get(e.row.groupKey ?? '') ?? []), e.row.item.id])
-    return out
-  }, [items, spec, view.state])
-
-  const toggle = (id: string, on: boolean) => setChosen((now) => (on ? (now.includes(id) ? now : [...now, id]) : now.filter((x) => x !== id)))
-  /** Tick what can be ticked, in list order — each pick may close a difficulty for the next. */
-  const tickAll = (ids: readonly string[]) =>
-    setChosen((now) => {
-      const next = [...now]
-      const within = new Set(now)
-      for (const id of ids) {
-        if (within.has(id) || reason(id, within) !== null) continue
-        next.push(id)
-        within.add(id)
-      }
-      return next
-    })
-  /** Off, except what could not be ticked again — a chosen incomplete question stays (review). */
-  const untickAll = (ids: readonly string[]) =>
-    setChosen((now) => {
-      const without = new Set(now.filter((x) => !ids.includes(x)))
-      return now.filter((x) => !ids.includes(x) || disabledReason?.(x, without) != null)
-    })
-  /** Checked when nothing more in it can be ticked; mixed when some is. */
-  const stateOf = (ids: readonly string[]) => {
-    const some = ids.some((id) => set.has(id))
-    const full = some && ids.every((id) => set.has(id) || reason(id) !== null)
-    return { some, full }
-  }
-  const groupCheckbox = (ids: readonly string[], label: string) => {
-    const { some, full } = stateOf(ids)
-    const nothing = !some && ids.every((id) => reason(id) !== null)
-    return (
-      <CheckboxField
-        label={label}
-        hideLabel
-        isSelected={full}
-        isIndeterminate={some && !full}
-        onChange={(on) => (on ? tickAll(ids) : untickAll(ids))}
-        isDisabled={ids.length === 0 || nothing}
-      />
-    )
-  }
-
+  const byId = useMemo(() => new Map(items.map((i) => [i.id, i.view])), [items])
+  const ordered = chosenOrder ? chosenOrder(chosen) : chosen
   const changed = chosen.length !== initial.length || chosen.some((id, i) => initial[i] !== id)
   const apply = async () => {
     if (await onApply(chosen)) onClose()
@@ -135,75 +75,51 @@ export function PickerDialog<T>({ isOpen, onClose, title, spec, items, initial, 
     // Ticks are not lost to a stray click outside or Esc: only Cancel drops them (review).
     <Modal.Backdrop isOpen={isOpen} onOpenChange={(open) => !open && onClose()} isDismissable={!changed} isKeyboardDismissDisabled={changed}>
       <Modal.Container size="lg">
-        <Modal.Dialog>
+        {/* The window's width and a fixed height (P20): filtering never makes the frame jump. */}
+        <Modal.Dialog className="h-[min(52rem,calc(100vh-4rem))] w-full max-w-[min(72rem,calc(100vw-4rem))]">
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Heading>{title}</Modal.Heading>
           </Modal.Header>
-          <Modal.Body className="flex flex-col gap-3">
-            <ListToolbar view={view as ListViewApi<unknown, unknown>} what={spec.noun.many} />
-            <div className="flex items-center gap-2 px-2">
-              {groupCheckbox(page.pageIds, LIST.selectAll)}
-              <Text variant="studio-caption" tone="muted">
-                {PICKER.chosen(chosen.length)}
-              </Text>
-            </div>
-            {page.entries.length === 0 ? (
-              <EmptyState kind={items.length === 0 ? 'empty' : 'noResults'} what={spec.noun.many} compact />
-            ) : (
-              <ul className="flex flex-col">
-                {page.entries.map((e) =>
-                  e.kind === 'header' ? (
-                    <li key={`h:${e.group.key}`} className="flex items-center gap-1">
-                      <span className="pl-2">{groupCheckbox(groupIds.get(e.group.key) ?? [], PICKER.selectGroup(e.group.label))}</span>
-                      <div className="min-w-0 flex-1">
-                        <GroupHeader
-                          label={e.group.label}
-                          count={e.group.count}
-                          continued={e.group.continued}
-                          collapsed={e.group.collapsed}
-                          onToggle={() => view.toggleCollapsed(e.group.key)}
-                        />
-                      </div>
-                    </li>
-                  ) : (
-                    <li key={e.row.key} className="flex min-h-10 items-center gap-3 rounded px-2 hover:bg-[var(--surface-secondary)]" data-blocked={reason(e.row.item.id) ? '' : undefined}>
-                      <CheckboxField
-                        label={e.row.item.view.title}
-                        hideLabel
-                        isSelected={set.has(e.row.item.id)}
-                        onChange={(on) => toggle(e.row.item.id, on)}
-                        disabledReason={reason(e.row.item.id)}
-                      />
-                      <div className="flex min-w-0 flex-1 flex-col">
-                        <Text variant="studio-body" truncate>
-                          {e.row.item.view.title}
+          <Modal.Body className="@container/pickdialog flex min-h-0 flex-1 overflow-hidden">
+            <div className="grid min-h-0 w-full flex-1 grid-cols-1 gap-4 @[52rem]/pickdialog:grid-cols-[minmax(0,1fr)_18rem]">
+              <PickList spec={spec} items={items} chosen={chosen} onChosen={setChosen} disabledReason={disabledReason} count={PICKER.chosen(chosen.length)} columns={columns} />
+              <aside aria-label={PICKER.chosenTitle} className="hidden min-h-0 flex-col gap-2 border-l border-[var(--separator)] pl-4 @[52rem]/pickdialog:flex" data-chosen-pane>
+                <Text as="h3" variant="studio-subheading">
+                  {`${PICKER.chosenTitle} · ${chosen.length}`}
+                </Text>
+                {chosen.length === 0 ? (
+                  <Text variant="studio-caption" tone="muted">
+                    {PICKER.noneChosen}
+                  </Text>
+                ) : (
+                  <ol className="flex min-h-0 flex-col gap-0.5 overflow-y-auto">
+                    {ordered.slice(0, CHOSEN_SHOWN).map((id, i) => {
+                      const row = byId.get(id)
+                      return (
+                        <li key={id} className="flex min-h-9 items-center gap-2 rounded px-1.5 hover:bg-[var(--surface-secondary)]">
+                          <Text variant="studio-mono" tone="muted" className="w-6 shrink-0 text-right" tabular>
+                            {i + 1}
+                          </Text>
+                          <Text variant="studio-body" truncate className="min-w-0 flex-1" title={row?.title ?? id}>
+                            {row?.title ?? id}
+                          </Text>
+                          {row?.chips}
+                          <IconButton icon="close" size="sm" label={PICKER.unchoose(row?.title ?? id)} onPress={() => setChosen((now) => now.filter((x) => x !== id))} />
+                        </li>
+                      )
+                    })}
+                    {ordered.length > CHOSEN_SHOWN ? (
+                      <li className="px-1.5 py-1">
+                        <Text variant="studio-caption" tone="muted">
+                          {PICKER.moreChosen(ordered.length - CHOSEN_SHOWN)}
                         </Text>
-                        {e.row.item.view.subtitle ? (
-                          <Text variant="studio-caption" tone="muted" truncate>
-                            {e.row.item.view.subtitle}
-                          </Text>
-                        ) : null}
-                        {reason(e.row.item.id) ? (
-                          <Text variant="studio-caption" tone="muted">
-                            {reason(e.row.item.id)}
-                          </Text>
-                        ) : null}
-                      </div>
-                      {e.row.item.view.chips}
-                    </li>
-                  ),
+                      </li>
+                    ) : null}
+                  </ol>
                 )}
-              </ul>
-            )}
-            <PageFooter
-              page={page.page}
-              pageCount={page.pageCount}
-              text={footerText(page, spec.noun)}
-              pageSize={view.state.pageSize}
-              onPage={view.setPage}
-              onPageSize={view.setPageSize}
-            />
+              </aside>
+            </div>
           </Modal.Body>
           <Modal.Footer>
             <Button variant="tertiary" onPress={onClose} isDisabled={isPending}>

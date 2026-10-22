@@ -13,9 +13,9 @@
 //! imported. The fake host's mirror is `apps/studio/src/host/fake/import.ts`;
 //! change both in one commit.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use crate::ids::{DomainId, QuestionId};
@@ -108,6 +108,43 @@ pub struct ImportRow {
     pub gaps: Vec<QuestionGap>,
     pub ignored: Vec<Ignored>,
     pub reason: Option<RejectReason>,
+    /// The row as it was read (P20) — what the dialog edits. None when it was
+    /// not an object.
+    pub body: Option<ImportRowBody>,
+    /// Left out by the operator (P20): planned and reported, never written.
+    pub skipped: bool,
+    /// Replaced by an edit made in the dialog (P20).
+    pub edited: bool,
+}
+
+/// A row as the reader understood it (P20), in the file's own terms:
+/// handed back to the dialog to edit, and sent back as a row of the file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportRowBody {
+    pub question: String,
+    pub options: Vec<ImportOption>,
+    pub difficulty: Option<u8>,
+    /// As written: names or codes.
+    pub domains: Vec<String>,
+    pub explanation: Option<String>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ImportOption {
+    pub text: String,
+    pub correct: bool,
+}
+
+/// The operator's changes to a file (P20): rows replaced by edited ones (each
+/// an object in the file's own format, read by the same reader), and rows
+/// left out. Indexes are 1-based, as the report numbers rows; one that is not
+/// a row of the file refuses the import whole.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct ImportOverrides {
+    pub edits: BTreeMap<usize, Value>,
+    pub skip: BTreeSet<usize>,
 }
 
 impl ImportRow {
@@ -124,6 +161,9 @@ impl ImportRow {
             gaps: Vec::new(),
             ignored,
             reason: Some(reason),
+            body: None,
+            skipped: false,
+            edited: false,
         }
     }
 }
@@ -142,6 +182,8 @@ pub struct ImportCounts {
     pub incomplete: usize,
     pub duplicate: usize,
     pub rejected: usize,
+    /// Complete or incomplete rows the operator left out (P20); not in those counts.
+    pub skipped: usize,
 }
 
 /// `catalog_import_questions`' answer, preview and commit alike.
@@ -180,7 +222,29 @@ pub fn plan(
     default_domain: Option<&DomainId>,
     mint: &mut dyn FnMut() -> String,
 ) -> CatalogResult<ImportPlan> {
+    plan_with(text, library, default_domain, &ImportOverrides::default(), mint)
+}
+
+/// [`plan`], with the operator's edits and skips (P20). An edited row is read
+/// by the same reader as the file's own, so preview and import still run one
+/// plan; a skipped row is planned and reported, never written, and never the
+/// original a later row is a duplicate of.
+pub fn plan_with(
+    text: &str,
+    library: &Library<'_>,
+    default_domain: Option<&DomainId>,
+    overrides: &ImportOverrides,
+    mint: &mut dyn FnMut() -> String,
+) -> CatalogResult<ImportPlan> {
     let rows = rows_of(text)?;
+    if let Some(&index) = overrides
+        .edits
+        .keys()
+        .chain(overrides.skip.iter())
+        .find(|&&i| i == 0 || i > rows.len())
+    {
+        return Err(refused(format!("row {index} is not in this file")));
+    }
     if let Some(id) = default_domain
         && !library.domains.iter().any(|d| &d.id == id)
     {
@@ -210,25 +274,25 @@ pub fn plan(
 
     for (i, raw) in rows.into_iter().enumerate() {
         let index = i + 1;
+        let edited = overrides.edits.contains_key(&index);
+        let raw = overrides.edits.get(&index).cloned().unwrap_or(raw);
         let Value::Object(fields) = raw else {
             counts.rejected += 1;
-            report_rows.push(ImportRow::rejected(
-                index,
-                String::new(),
-                Vec::new(),
-                RejectReason::NotAnObject,
-            ));
+            report_rows.push(ImportRow {
+                edited,
+                ..ImportRow::rejected(index, String::new(), Vec::new(), RejectReason::NotAnObject)
+            });
             continue;
         };
         let read = read_row(&fields);
+        let body = Some(read.body());
         if read.stem.is_empty() && read.options.is_empty() {
             counts.rejected += 1;
-            report_rows.push(ImportRow::rejected(
-                index,
-                read.stem,
-                read.ignored,
-                RejectReason::NoContent,
-            ));
+            report_rows.push(ImportRow {
+                body,
+                edited,
+                ..ImportRow::rejected(index, read.stem, read.ignored, RejectReason::NoContent)
+            });
             continue;
         }
         let print = fingerprint(
@@ -239,22 +303,31 @@ pub fn plan(
         );
         if let Some(of) = seen.get(&print) {
             counts.duplicate += 1;
+            // Its tags and domains as written (P20): grouped by tag or domain,
+            // a duplicate sits with the rows it resembles, not under "none".
             report_rows.push(ImportRow {
                 index,
                 status: RowStatus::Duplicate,
-                stem: read.stem,
-                domains: Vec::new(),
+                stem: read.stem.clone(),
+                domains: read.domains.clone(),
                 landing: Vec::new(),
-                tags: Vec::new(),
+                tags: clean_or_empty(&read.tags),
                 duplicate_of: of.0.clone(),
                 duplicate_row: of.1,
                 gaps: Vec::new(),
                 ignored: read.ignored,
                 reason: None,
+                body,
+                skipped: false,
+                edited,
             });
             continue;
         }
-        seen.insert(print, (None, Some(index)));
+        // Left out: planned and said, never the original of a later duplicate.
+        let skipped = overrides.skip.contains(&index);
+        if !skipped {
+            seen.insert(print, (None, Some(index)));
+        }
 
         let mut domain_ids: Vec<DomainId> = Vec::new();
         for name in &read.domains {
@@ -274,9 +347,7 @@ pub fn plan(
         question.difficulty = read.difficulty;
         question.explanation = read.explanation;
         question.tags = read.tags;
-        let tags = super::groups::clean_tags(&question.tags, question.id.as_str())
-            .map(|clean| clean.into_iter().map(|(tag, _)| tag).collect())
-            .unwrap_or_default();
+        let tags = clean_or_empty(&question.tags);
         question.options = read
             .options
             .iter()
@@ -288,14 +359,21 @@ pub fn plan(
 
         let gaps = complete::gaps(&question, !domain_ids.is_empty());
         let status = if gaps.is_empty() {
-            counts.complete += 1;
             RowStatus::Complete
         } else {
-            counts.incomplete += 1;
             RowStatus::Incomplete
         };
-        for domain in &domain_ids {
-            resolver.add_member(domain, &id);
+        if skipped {
+            counts.skipped += 1;
+        } else {
+            if gaps.is_empty() {
+                counts.complete += 1;
+            } else {
+                counts.incomplete += 1;
+            }
+            for domain in &domain_ids {
+                resolver.add_member(domain, &id);
+            }
         }
         report_rows.push(ImportRow {
             index,
@@ -309,8 +387,13 @@ pub fn plan(
             gaps,
             ignored: read.ignored,
             reason: None,
+            body,
+            skipped,
+            edited,
         });
-        questions.push(question);
+        if !skipped {
+            questions.push(question);
+        }
     }
 
     let (domains, new_domains) = resolver.finish();
@@ -391,6 +474,13 @@ fn rows_of(text: &str) -> CatalogResult<Vec<Value>> {
     Ok(rows)
 }
 
+/// Tags as a save would write them, or none when a save would refuse the list.
+fn clean_or_empty(tags: &[String]) -> Vec<String> {
+    super::groups::clean_tags(tags, "import")
+        .map(|clean| clean.into_iter().map(|(tag, _)| tag).collect())
+        .unwrap_or_default()
+}
+
 /// One row, read as far as it can be.
 struct Read {
     stem: String,
@@ -402,6 +492,27 @@ struct Read {
     /// 40 characters, more than 20) is dropped whole and said, never trimmed.
     tags: Vec<String>,
     ignored: Vec<Ignored>,
+}
+
+impl Read {
+    /// The row in the file's own terms (P20), for the dialog to show and edit.
+    fn body(&self) -> ImportRowBody {
+        ImportRowBody {
+            question: self.stem.clone(),
+            options: self
+                .options
+                .iter()
+                .map(|(text, correct)| ImportOption {
+                    text: text.clone(),
+                    correct: *correct,
+                })
+                .collect(),
+            difficulty: self.difficulty,
+            domains: self.domains.clone(),
+            explanation: self.explanation.clone(),
+            tags: self.tags.clone(),
+        }
+    }
 }
 
 fn read_row(fields: &Map<String, Value>) -> Read {
@@ -745,6 +856,18 @@ impl CatalogService {
         default_domain: Option<&DomainId>,
         now_ms: u64,
     ) -> CatalogResult<(ImportReport, Vec<CatalogChange>)> {
+        self.import_questions_with(text, commit, default_domain, &ImportOverrides::default(), now_ms)
+    }
+
+    /// [`Self::import_questions`] with the dialog's edits and skips (P20).
+    pub fn import_questions_with(
+        &self,
+        text: &str,
+        commit: bool,
+        default_domain: Option<&DomainId>,
+        overrides: &ImportOverrides,
+        now_ms: u64,
+    ) -> CatalogResult<(ImportReport, Vec<CatalogChange>)> {
         let questions: Vec<Question> = self
             .catalog_list(CatalogKind::Question, ArchiveScope::Active)?
             .into_iter()
@@ -760,7 +883,7 @@ impl CatalogService {
             domains: &domains,
         };
         let mut mint = || uuid::Uuid::new_v4().simple().to_string()[..8].to_owned();
-        let plan = plan(text, &library, default_domain, &mut mint)?;
+        let plan = plan_with(text, &library, default_domain, overrides, &mut mint)?;
         if !commit {
             return Ok((plan.report, Vec::new()));
         }

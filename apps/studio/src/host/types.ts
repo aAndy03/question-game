@@ -477,6 +477,29 @@ export interface ImportRow {
   readonly gaps: readonly QuestionGap[]
   readonly ignored: readonly ImportIgnored[]
   readonly reason: 'not_an_object' | 'no_content' | null
+  /** The row as it was read (P20): what the dialog edits. Null when it was not an object. */
+  readonly body: ImportRowBody | null
+  /** Left out by the operator (P20): planned and said, never written. */
+  readonly skipped: boolean
+  /** Replaced by an edit made in the dialog (P20). */
+  readonly edited: boolean
+}
+
+/** A row in the file's own terms (P20). */
+export interface ImportRowBody {
+  readonly question: string
+  readonly options: readonly { readonly text: string; readonly correct: boolean }[]
+  readonly difficulty: number | null
+  /** As written: names or codes. */
+  readonly domains: readonly string[]
+  readonly explanation: string | null
+  readonly tags: readonly string[]
+}
+
+/** The dialog's changes to a file (P20): rows replaced by edited ones, rows left out. 1-based. */
+export interface ImportOverrides {
+  readonly edits: readonly { readonly index: number; readonly row: unknown }[]
+  readonly skip: readonly number[]
 }
 
 export interface ImportCounts {
@@ -484,6 +507,8 @@ export interface ImportCounts {
   readonly incomplete: number
   readonly duplicate: number
   readonly rejected: number
+  /** Complete or incomplete rows left out (P20); not in those counts. */
+  readonly skipped: number
 }
 
 /** `catalog_import_questions`' answer — the preview and the commit alike. */

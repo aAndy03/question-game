@@ -229,3 +229,87 @@ fn a_recipe_write_refuses_labels_the_editor_could_not_have_made() {
     r.folder = Some("  ".into());
     assert!(c.recipe_upsert(&r, NOW).is_err());
 }
+
+// ------------------------------------------------------------ import overrides
+
+mod import {
+    use super::NOW;
+    use questiongame_host::catalog::{
+        ArchiveScope, CatalogKind, CatalogLocation, CatalogService, ImportOverrides, RowStatus,
+    };
+    use serde_json::json;
+
+    const FILE: &str = r#"{ "format": "questiongame.questions", "version": 1, "questions": [
+        { "question": "Capital of Australia?", "options": [ { "text": "Canberra", "correct": true }, "Sydney" ], "difficulty": 40, "tags": ["Capitals"], "domains": ["Geography"] },
+        { "question": "Capital of France?", "options": [ { "text": "Paris", "correct": true }, "Lyon" ] },
+        { "question": "Capital of France?", "options": [ { "text": "Paris", "correct": true }, "Lyon" ] }
+    ] }"#;
+
+    fn stems(c: &CatalogService) -> Vec<String> {
+        let mut out: Vec<String> = c
+            .catalog_list(CatalogKind::Question, ArchiveScope::Active)
+            .unwrap()
+            .into_iter()
+            .filter_map(|i| i.as_question().map(|q| q.stem.clone()))
+            .collect();
+        out.sort();
+        out
+    }
+
+    #[test]
+    fn a_row_carries_its_body_as_read_and_a_duplicate_keeps_its_tags_and_domains() {
+        let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+        let (report, _) = c.import_questions(FILE, false, None, NOW).unwrap();
+        let body = report.rows[0].body.as_ref().unwrap();
+        assert_eq!(body.question, "Capital of Australia?");
+        assert_eq!(body.options.len(), 2);
+        assert!(body.options[0].correct);
+        assert_eq!(body.difficulty, Some(40));
+        assert_eq!(body.domains, ["Geography"]);
+        assert_eq!(body.tags, ["Capitals"]);
+        assert_eq!(report.rows[2].status, RowStatus::Duplicate);
+        assert!(report.rows[2].body.is_some());
+    }
+
+    #[test]
+    fn an_edit_replaces_the_row_before_it_is_read_and_the_import_writes_the_edit() {
+        let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+        let mut overrides = ImportOverrides::default();
+        overrides.edits.insert(
+            2,
+            json!({ "question": "Capital of Germany?", "options": [ { "text": "Berlin", "correct": true }, "Bonn" ], "difficulty": 30 }),
+        );
+        let (preview, _) = c.import_questions_with(FILE, false, None, &overrides, NOW).unwrap();
+        assert_eq!(preview.rows[1].stem, "Capital of Germany?");
+        assert!(preview.rows[1].edited);
+        assert_eq!(preview.rows[2].status, RowStatus::Incomplete, "row 3 no longer repeats row 2");
+        c.import_questions_with(FILE, true, None, &overrides, NOW).unwrap();
+        assert_eq!(stems(&c), ["Capital of Australia?", "Capital of France?", "Capital of Germany?"]);
+    }
+
+    #[test]
+    fn a_skipped_row_is_reported_never_written_and_never_a_duplicates_original() {
+        let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+        let mut overrides = ImportOverrides::default();
+        overrides.skip.insert(2);
+        let (preview, _) = c.import_questions_with(FILE, false, None, &overrides, NOW).unwrap();
+        assert!(preview.rows[1].skipped);
+        assert_eq!(preview.rows[2].status, RowStatus::Incomplete, "row 3 is no duplicate of a skipped row");
+        assert_eq!(preview.counts.skipped, 1);
+        assert_eq!(preview.counts.complete + preview.counts.incomplete, 2);
+        c.import_questions_with(FILE, true, None, &overrides, NOW).unwrap();
+        assert_eq!(stems(&c), ["Capital of Australia?", "Capital of France?"]);
+    }
+
+    #[test]
+    fn an_override_for_a_row_that_is_not_in_the_file_refuses_the_import_whole() {
+        let c = CatalogService::open(CatalogLocation::Memory).unwrap();
+        let mut overrides = ImportOverrides::default();
+        overrides.skip.insert(4);
+        assert!(c.import_questions_with(FILE, true, None, &overrides, NOW).is_err());
+        let mut overrides = ImportOverrides::default();
+        overrides.edits.insert(0, json!({ "question": "Q?" }));
+        assert!(c.import_questions_with(FILE, true, None, &overrides, NOW).is_err());
+        assert!(stems(&c).is_empty());
+    }
+}

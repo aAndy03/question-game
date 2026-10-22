@@ -53,7 +53,9 @@ pub use db::{CatalogLocation, META_CURRENT_WORKSPACE};
 pub use error::{CatalogError, CatalogKind, CatalogResult};
 pub use family::{FamilyCopy, PropagationPreview, SkippedCopy};
 pub use groups::{TAG_MAX, TAGS_PER_QUESTION, TagCount, tag_key};
-pub use import::{ImportCounts, ImportReport, ImportRow, RowStatus};
+pub use import::{
+    ImportCounts, ImportOption, ImportOverrides, ImportReport, ImportRow, ImportRowBody, RowStatus,
+};
 pub use labels::{FOLDER_MAX, LabelReport, RecipeEdit, TAGS_PER_GAME};
 pub use model::{
     ArchiveScope, Asset, BoardDomain, CatalogItem, Domain, DomainGroup, DomainMember,

@@ -23,7 +23,8 @@ export interface FilterControl {
 export interface FilterMenuProps {
   filters: readonly FilterControl[]
   values: Readonly<Record<string, FilterControlValue | null>>
-  changed: ChangedWindow
+  /** The *Changed* window; a list with no dates passes none and shows none (P20). */
+  changed?: ChangedWindow | undefined
   onChange(id: string, value: FilterControlValue | null): void
   onChanged(changed: ChangedWindow): void
   activeCount: number
@@ -97,7 +98,9 @@ export function FilterMenu({ filters, values, changed, onChange, onChanged, acti
           {filters.map((f) => (
             <FilterField key={f.id} f={f} value={values[f.id]} onChange={(v) => onChange(f.id, v)} />
           ))}
-          <SegmentedField label={LIST.changed} value={changed} onChange={onChanged} options={WINDOWS.map((w) => ({ value: w, label: LIST.changedWindow[w] }))} size="sm" />
+          {changed !== undefined ? (
+            <SegmentedField label={LIST.changed} value={changed} onChange={onChanged} options={WINDOWS.map((w) => ({ value: w, label: LIST.changedWindow[w] }))} size="sm" />
+          ) : null}
         </Popover.Dialog>
       </Popover.Content>
     </Popover>

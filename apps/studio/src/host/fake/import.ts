@@ -7,7 +7,7 @@
 
 import { suggestDomainCode } from '../domain'
 import { questionGaps } from '../question'
-import type { Domain, ImportIgnored, ImportReport, ImportRow, Question } from '../types'
+import type { Domain, ImportIgnored, ImportOverrides, ImportReport, ImportRow, ImportRowBody, Question } from '../types'
 
 export const IMPORT_FORMAT = 'questiongame.questions'
 export const IMPORT_VERSION = 1
@@ -129,14 +129,30 @@ function readRow(fields: Record<string, unknown>): Read {
 
 const suffix = (k: number) => (k < 26 ? String.fromCharCode(97 + k) : `o${k}`)
 
+/** The row in the file's own terms (P20), for the dialog to show and edit. */
+const bodyOf = (read: Read): ImportRowBody => ({
+  question: read.stem,
+  options: read.options.map(([text, correct]) => ({ text, correct })),
+  difficulty: read.difficulty,
+  domains: read.domains,
+  explanation: read.explanation,
+  tags: read.tags,
+})
+
 /** Read one question file and say what importing it would do. */
 export function planImport(
   text: string,
   library: { readonly questions: readonly Question[]; readonly domains: readonly Domain[] },
   defaultDomainId: string | null,
   mint: () => string,
+  overrides: ImportOverrides = { edits: [], skip: [] },
 ): ImportPlan {
   const rows = rowsOf(text)
+  // The dialog's edits and skips (P20): an index that is not a row refuses the file whole.
+  const edits = new Map(overrides.edits.map((e) => [e.index, e.row]))
+  const skip = new Set(overrides.skip)
+  const outside = [...edits.keys(), ...skip].find((i) => i < 1 || i > rows.length)
+  if (outside !== undefined) throw refused(`row ${outside} is not in this file`)
   if (defaultDomainId !== null && !library.domains.some((d) => d.id === defaultDomainId)) {
     throw refused('the domain chosen for questions without one is not in the active library')
   }
@@ -186,28 +202,34 @@ export function planImport(
 
   const reportRows: ImportRow[] = []
   const questions: Question[] = []
-  const counts = { complete: 0, incomplete: 0, duplicate: 0, rejected: 0 }
-  rows.forEach((raw, i) => {
+  const counts = { complete: 0, incomplete: 0, duplicate: 0, rejected: 0, skipped: 0 }
+  rows.forEach((original, i) => {
     const index = i + 1
+    const edited = edits.has(index)
+    const raw = edited ? edits.get(index) : original
     if (!isObject(raw)) {
       counts.rejected += 1
-      reportRows.push({ index, status: 'rejected', stem: '', domains: [], landing: [], tags: [], duplicateOf: null, duplicateRow: null, gaps: [], ignored: [], reason: 'not_an_object' })
+      reportRows.push({ index, status: 'rejected', stem: '', domains: [], landing: [], tags: [], duplicateOf: null, duplicateRow: null, gaps: [], ignored: [], reason: 'not_an_object', body: null, skipped: false, edited })
       return
     }
     const read = readRow(raw)
+    const body = bodyOf(read)
     if (!read.stem && read.options.length === 0) {
       counts.rejected += 1
-      reportRows.push({ index, status: 'rejected', stem: read.stem, domains: [], landing: [], tags: [], duplicateOf: null, duplicateRow: null, gaps: [], ignored: read.ignored, reason: 'no_content' })
+      reportRows.push({ index, status: 'rejected', stem: read.stem, domains: [], landing: [], tags: [], duplicateOf: null, duplicateRow: null, gaps: [], ignored: read.ignored, reason: 'no_content', body, skipped: false, edited })
       return
     }
     const print = fingerprint(read.stem, read.options)
     const of = seen.get(print)
     if (of !== undefined) {
       counts.duplicate += 1
-      reportRows.push({ index, status: 'duplicate', stem: read.stem, domains: [], landing: [], tags: [], duplicateOf: of.stem, duplicateRow: of.row, gaps: [], ignored: read.ignored, reason: null })
+      // Its tags and domains as written (P20), so a grouping puts it with its kind.
+      reportRows.push({ index, status: 'duplicate', stem: read.stem, domains: read.domains, landing: [], tags: read.tags, duplicateOf: of.stem, duplicateRow: of.row, gaps: [], ignored: read.ignored, reason: null, body, skipped: false, edited })
       return
     }
-    seen.set(print, { stem: null, row: index })
+    // Left out: planned and said, never the original of a later duplicate.
+    const skipped = skip.has(index)
+    if (!skipped) seen.set(print, { stem: null, row: index })
 
     const domainIds: string[] = []
     for (const name of read.domains) {
@@ -232,10 +254,13 @@ export function planImport(
     }
     const gaps = questionGaps(question, domainIds.length > 0)
     const status = gaps.length === 0 ? 'complete' : 'incomplete'
-    counts[status] += 1
-    for (const d of domainIds) members.set(d, [...(members.get(d) ?? []), id])
-    reportRows.push({ index, status, stem: read.stem, domains: domainIds.map((d) => find(d)?.name ?? ''), landing: domainIds.map(landing), tags: read.tags, duplicateOf: null, duplicateRow: null, gaps, ignored: read.ignored, reason: null })
-    questions.push(question)
+    if (skipped) counts.skipped += 1
+    else {
+      counts[status] += 1
+      for (const d of domainIds) members.set(d, [...(members.get(d) ?? []), id])
+    }
+    reportRows.push({ index, status, stem: read.stem, domains: domainIds.map((d) => find(d)?.name ?? ''), landing: domainIds.map(landing), tags: read.tags, duplicateOf: null, duplicateRow: null, gaps, ignored: read.ignored, reason: null, body, skipped, edited })
+    if (!skipped) questions.push(question)
   })
 
   const domains: Domain[] = [...members.entries()].flatMap(([id, added]) => {

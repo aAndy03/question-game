@@ -8,8 +8,8 @@
  * and the selection; `LibraryList` draws the result.
  */
 
-/** The four tabs, and the Game page's three pickers (beta.4), each with its own view. */
-export type LibraryTab = 'teams' | 'library' | 'games' | 'operators' | 'workspaces' | 'pickTeams' | 'pickDomains' | 'pickQuestions'
+/** The library tabs, the Game page's three pickers (beta.4) and the import dialog's rows (P20), each with its own view. */
+export type LibraryTab = 'teams' | 'library' | 'games' | 'operators' | 'workspaces' | 'pickTeams' | 'pickDomains' | 'pickQuestions' | 'importQuestions'
 export type PageSize = 50 | 100 | 250 | 'all'
 export const PAGE_SIZES: readonly PageSize[] = [50, 100, 250, 'all']
 export type Changed = 'any' | 'today' | '7d' | '30d'
@@ -53,8 +53,8 @@ export interface ListSpec<T> {
   readonly defaults: { readonly sort: { readonly id: string; readonly desc: boolean }; readonly group: string | null; readonly pageSize: PageSize }
   /** The last word in any order: name or text. Then the id. */
   tiebreak(item: T): string
-  /** What the shared *Changed* filter reads. */
-  changedAt(item: T): number
+  /** What the shared *Changed* filter reads; a list with no dates (an import's rows) has none, and no Changed filter. */
+  changedAt?(item: T): number
   /** Archived rows: what *Restore* applies to under Status All. */
   isArchived?(item: T): boolean
 }
@@ -160,7 +160,7 @@ export function listView<T, V>(items: readonly ListItem<T, V>[], spec: ListSpec<
   const active = spec.filters.filter((f) => isActive(state.filters[f.id]))
   const kept = items.filter((item) => {
     if (state.hits !== null && !state.hits.has(item.id)) return false
-    if (since !== null && spec.changedAt(item.data) < since) return false
+    if (since !== null && spec.changedAt && spec.changedAt(item.data) < since) return false
     return active.every((f) => f.test(item.data, state.filters[f.id] as FilterValue))
   })
 

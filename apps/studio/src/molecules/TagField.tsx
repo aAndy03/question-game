@@ -24,6 +24,8 @@ export interface TagFieldProps {
   error?: string | null | undefined
   /** Whose tags (P20): a question's by default, or a game's (`GAME_TAG_WORDS`). */
   words?: TagWords | undefined
+  /** The longest entry and the most entries: a tag's 40 and 20 by default. */
+  limits?: { readonly length: number; readonly count: number } | undefined
 }
 
 const fold = (t: string) => t.trim().toLowerCase()
@@ -38,7 +40,7 @@ const fold = (t: string) => t.trim().toLowerCase()
  * Leaving the field adds what is in it — unless focus goes to an offered tag
  * (which adds itself) or to a control marked `data-keep-draft` (Cancel).
  */
-export function TagField({ value, onChange, known, error, words = QUESTION_TAG_WORDS }: TagFieldProps) {
+export function TagField({ value, onChange, known, error, words = QUESTION_TAG_WORDS, limits = { length: 40, count: 20 } }: TagFieldProps) {
   const [text, setText] = useState('')
   const [local, setLocal] = useState<string | null>(null)
   const [said, setSaid] = useState('')
@@ -49,13 +51,13 @@ export function TagField({ value, onChange, known, error, words = QUESTION_TAG_W
     for (const raw of raws) {
       const tag = raw.trim()
       if (!tag) continue
-      if ([...tag].length > 40) {
+      if ([...tag].length > limits.length) {
         if (next.length !== value.length) onChange(next)
         setLocal(words.tooLong)
         return false
       }
       if (next.some((t) => fold(t) === fold(tag))) continue
-      if (next.length >= 20) {
+      if (next.length >= limits.count) {
         if (next.length !== value.length) onChange(next)
         setLocal(words.full)
         return false
@@ -110,7 +112,7 @@ export function TagField({ value, onChange, known, error, words = QUESTION_TAG_W
             setText(addAll(parts) ? rest : v.replace(/,/g, ''))
           }}
           error={local ?? error}
-          maxLength={41}
+          maxLength={limits.length + 1}
         />
       </div>
       {offered.length > 0 ? (

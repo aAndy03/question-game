@@ -12,7 +12,7 @@
 
 use questiongame_host::catalog::{
     ArchiveScope, Asset, BoardDomain, CatalogChange, CatalogItem, CatalogKind, ChangeOp, Demo,
-    DomainOverlay, EditScope, ImportReport, LabelReport, OverlayTarget, QuestionOverlay, Recipe,
+    DomainOverlay, EditScope, ImportOverrides, ImportReport, LabelReport, OverlayTarget, QuestionOverlay, Recipe,
     RecipeChange, RecipeEdit,
     SearchHit, SearchQuery, SeedMode, SeedResult, SeedStatus, TeamOverlay,
 };
@@ -144,6 +144,22 @@ pub fn catalog_restore_many(
     Ok(changes)
 }
 
+/// A row the import dialog edited (P20): its 1-based index and the row, in the
+/// file's own format, read by the host's reader like any other.
+#[derive(Debug, Deserialize)]
+pub struct ImportEdit {
+    index: usize,
+    row: serde_json::Value,
+}
+
+/// The import dialog's changes to the file (P20): edited rows and left-out rows.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct ImportChanges {
+    edits: Vec<ImportEdit>,
+    skip: Vec<usize>,
+}
+
 /// `catalog_import_questions` (§2.32). `commit: false` is the import dialog's
 /// preview and writes nothing; `commit: true` writes the same plan in one
 /// transaction. A batch can be two thousand rows, so it announces one
@@ -156,11 +172,22 @@ pub fn catalog_import_questions(
     text: String,
     commit: bool,
     default_domain_id: Option<DomainId>,
+    overrides: Option<ImportChanges>,
 ) -> AppResult<ImportReport> {
+    let changes = overrides.unwrap_or_default();
+    let overrides = ImportOverrides {
+        edits: changes.edits.into_iter().map(|e| (e.index, e.row)).collect(),
+        skip: changes.skip.into_iter().collect(),
+    };
     let (report, changes) =
         catalog_write(&window, &state, "catalog_import_questions", |h, now| {
-            Ok(h.catalog
-                .import_questions(&text, commit, default_domain_id.as_ref(), now)?)
+            Ok(h.catalog.import_questions_with(
+                &text,
+                commit,
+                default_domain_id.as_ref(),
+                &overrides,
+                now,
+            )?)
         })?;
     if !changes.is_empty() {
         for kind in [CatalogKind::Question, CatalogKind::Domain] {

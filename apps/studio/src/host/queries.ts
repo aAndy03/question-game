@@ -25,6 +25,7 @@ import type {
   ArchiveScope,
   CatalogKind,
   CatalogItem,
+  ImportOverrides,
   ImportReport,
   ItemOf,
   LibraryKind,
@@ -44,6 +45,9 @@ import type {
   FamilyCopy,
   WorkspaceCounts,
 } from './types'
+
+/** No edits, no skips: the file as it is. */
+export const NO_OVERRIDES: ImportOverrides = { edits: [], skip: [] }
 
 export const keys = {
   catalog: {
@@ -81,7 +85,9 @@ export const keys = {
    * Keyed on the text itself, so a paste that has not changed is not planned
    * again.
    */
-  importPreview: (text: string, defaultDomainId: string | null) => ['import-preview', text, defaultDomainId] as const,
+  /** The preview of a file with the dialog's edits and skips (P20), each in index order so the key is stable. */
+  importPreview: (text: string, defaultDomainId: string | null, overrides: ImportOverrides = NO_OVERRIDES) =>
+    ['import-preview', text, defaultDomainId, JSON.stringify([...overrides.edits].sort((a, b) => a.index - b.index)), [...overrides.skip].sort((a, b) => a - b).join(',')] as const,
   plays: {
     list: (recipeId: string | null) => ['plays', 'list', recipeId] as const,
     events: (playId: string) => ['plays', 'events', playId] as const,
@@ -272,10 +278,10 @@ export function useSeedStatus(demo: SeedDemo = 'en') {
  * error and the dialog shows it; it is never a notice, because the operator is
  * mid-paste, not being told off.
  */
-export function useImportPreview(text: string, defaultDomainId: string | null) {
+export function useImportPreview(text: string, defaultDomainId: string | null, overrides: ImportOverrides = NO_OVERRIDES) {
   return useQuery({
-    queryKey: keys.importPreview(text, defaultDomainId),
-    queryFn: () => command<ImportReport>('catalog_import_questions', { text, commit: false, defaultDomainId }),
+    queryKey: keys.importPreview(text, defaultDomainId, overrides),
+    queryFn: () => command<ImportReport>('catalog_import_questions', { text, commit: false, defaultDomainId, overrides }),
     enabled: enabled() && text.trim().length > 0,
     retry: false,
     placeholderData: (previous) => previous,

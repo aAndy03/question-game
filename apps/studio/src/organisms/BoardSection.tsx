@@ -321,6 +321,7 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
         initial={recipe.board.map((b) => b.domainId)}
         onApply={applyDomains}
         isPending={pending}
+        columns={2}
       />
       <PickerDialog
         isOpen={choosing !== undefined}
@@ -332,6 +333,8 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
         disabledReason={questionReason}
         onApply={(chosen) => applyQuestions(choosingIn ?? '', chosen)}
         isPending={pending}
+        // The walk the snapshot will ask them in: easy to hard, then id.
+        chosenOrder={(ids) => [...ids].sort((a, b) => (difficultyOf(a) ?? 101) - (difficultyOf(b) ?? 101) || (a < b ? -1 : a > b ? 1 : 0))}
       />
       <DifficultyDialog
         isOpen={difficultyFor !== null}
