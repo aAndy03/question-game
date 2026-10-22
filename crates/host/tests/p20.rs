@@ -415,3 +415,41 @@ mod statistics {
         assert_eq!(labels(&by_band), ["1–10", "11–20", "21–30"]);
     }
 }
+
+/// The Board's domains are dragged into the order Stage's ChooseDomain grid
+/// shows them (P20): the snapshot keeps the board's order, and
+/// `stage_contract.rs` pins the snapshot → play-state step after it.
+mod board_order {
+    use super::NOW;
+    use questiongame_host::catalog::{CatalogLocation, CatalogService, Demo, SeedMode};
+    use questiongame_host::flags::{FlagService, GameSettings};
+    use questiongame_host::{PlayId, RecipeId};
+
+    #[test]
+    fn the_boards_domain_order_is_the_order_stage_gets() {
+        let catalog = CatalogService::open(CatalogLocation::Memory).unwrap();
+        catalog
+            .seed_demo(Demo::En, SeedMode::Missing, GameSettings::default(), NOW)
+            .unwrap();
+        let id = RecipeId::from("seed-recipe-demo");
+        let recipe = catalog.recipe_get(&id).unwrap();
+        assert!(
+            recipe.board.len() >= 2,
+            "the Demo's board has two domains to swap"
+        );
+        let mut board = recipe.board.clone();
+        board.reverse();
+        let order: Vec<String> = board.iter().map(|b| b.domain_id.to_string()).collect();
+        catalog
+            .recipe_set_membership(&id, recipe.teams.clone(), board, NOW + 1)
+            .unwrap();
+
+        let mut flags = FlagService::default();
+        flags.load_recipe(GameSettings::default()).unwrap();
+        let snapshot = catalog
+            .build_snapshot(&id, PlayId::from("play-order"), flags.freeze().unwrap())
+            .unwrap();
+        let got: Vec<String> = snapshot.domains.iter().map(|d| d.id.to_string()).collect();
+        assert_eq!(got, order);
+    }
+}

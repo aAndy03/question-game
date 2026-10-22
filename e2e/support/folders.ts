@@ -40,6 +40,8 @@ const SEEDS: Readonly<Record<string, readonly string[] | null>> = {
   'beta-no-stable.e2e.ts': null,
   'beta-stable-running.e2e.ts': null,
   'beta-corrupt.e2e.ts': null,
+  // P20: `lookSeed` writes it — a snapshot of `E2E_LOOK_LIBRARY`, or nothing and the spec skips.
+  'look.e2e.ts': null,
 }
 
 /**
