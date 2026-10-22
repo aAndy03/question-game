@@ -134,15 +134,20 @@ pub fn domain_group_reorder(
     Ok(())
 }
 
+/// With `into`, a merge: its questions join that group first, in one write (P20).
 #[tauri::command(async)]
 pub fn domain_group_delete(
     window: WebviewWindow,
     app: AppHandle,
     state: State<'_, AppState>,
     id: DomainGroupId,
+    into: Option<DomainGroupId>,
 ) -> AppResult<()> {
     guard::allow(window.label(), "domain_group_delete")?;
-    let domain_id = state.lock().catalog.domain_group_delete(&id, now_ms())?;
+    let domain_id = state
+        .lock()
+        .catalog
+        .domain_group_delete_into(&id, into.as_ref(), now_ms())?;
     changed(&app, CatalogKind::Domain, domain_id.as_str());
     Ok(())
 }

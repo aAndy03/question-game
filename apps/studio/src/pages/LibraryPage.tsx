@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, MeaningChip, Text } from '@/atoms'
 import { ActionMenu, IncompleteMark, PageHeader } from '@/molecules'
-import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, useBulkEdit, GroupsDialog, ManageTagsDialog, useGroupEditing, type RecordView } from '@/organisms'
+import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, useBulkEdit, DomainGroupsManager, QuestionTagsManager, useGroupEditing, type RecordView } from '@/organisms'
 import { ListArea, SplitLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
@@ -309,9 +309,23 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
           {archive.dialog}
           {transfer.dialog}
           {bulkEdit.dialog}
-          <GroupsDialog domain={groupsOpen ? domain : null} onClose={() => setGroupsOpen(false)} />
+          <DomainGroupsManager
+            domain={groupsOpen ? domain : null}
+            onClose={() => setGroupsOpen(false)}
+            onShowInList={(groupId) => {
+              lv.setFilter('group', [groupId])
+              setGroupsOpen(false)
+            }}
+          />
           {groupEditing.dialogs}
-          <ManageTagsDialog isOpen={tagsOpen} onClose={() => setTagsOpen(false)} />
+          <QuestionTagsManager
+            isOpen={tagsOpen}
+            onClose={() => setTagsOpen(false)}
+            onShowInList={(tag) => {
+              lv.setFilter('tag', [tag])
+              setTagsOpen(false)
+            }}
+          />
           <ImportQuestionsDialog
             isOpen={importing}
             onOpenChange={setImporting}

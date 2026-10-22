@@ -30,7 +30,8 @@ export interface QuestionItem {
 const BANDS = ['easy', 'medium', 'hard'] as const
 
 /** `allQuestions`: the domain pane is on *All questions*, the only place the Domain filter is offered. */
-const foldTag = (t: string) => t.trim().toLowerCase()
+/** How a question tag compares: no case, no outer spaces — the filter's value. */
+export const foldTag = (t: string) => t.trim().toLowerCase()
 
 export function questionsSpec(opts: {
   allQuestions: boolean

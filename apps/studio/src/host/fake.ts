@@ -1528,14 +1528,20 @@ export function createFakeHost(): FakeHost {
       putGroups(domainId, [...groups].sort((x, y) => rank(x.id) - rank(y.id)))
       return null
     },
+    // With `into`, a merge (P20): the questions join that group of the same domain, then the group goes.
     domain_group_delete: (a: Record<string, unknown>) => {
       const domainId = groupHome(a.id as string)
+      const into = (a.into as string | null | undefined) ?? null
+      if (into !== null) {
+        if (into === a.id) refuse('catalog', `domain-group/${a.id}.into: a domain group cannot merge into itself`)
+        if (groupHome(into) !== domainId) refuse('catalog', `domain-group/${a.id}.into: that domain group is in another domain`)
+      }
       putGroups(domainId, (domainGroups.get(domainId) ?? []).filter((g) => g.id !== a.id))
       const row = library.get(key('domain', domainId))
       if (row?.kind === 'domain') {
         library.set(key('domain', domainId), {
           kind: 'domain',
-          item: { ...row.item, questions: row.item.questions.map((m) => (m.groupId === a.id ? { ...m, groupId: null } : m)) },
+          item: { ...row.item, questions: row.item.questions.map((m) => (m.groupId === a.id ? { ...m, groupId: into } : m)) },
         })
       }
       return null

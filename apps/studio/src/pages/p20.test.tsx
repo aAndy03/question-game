@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { App } from '@/App'
 import { useChromeStore } from '@/chrome/chrome'
 import { HOME, useNavStore, type Route } from '@/chrome/nav'
@@ -127,5 +127,59 @@ describe('menus have section names (P20)', () => {
     const menu = await screen.findByRole('menu')
     for (const title of ['Question tags', 'Domains', 'Difficulty']) expect(within(menu).getByText(title)).toBeTruthy()
     expect(within(menu).getByRole('menuitem', { name: 'Set difficulty…' })).toBeTruthy()
+  })
+})
+
+describe('managers for question tags and domain groups (P20)', () => {
+  const tagged = (id: string, tags: string[]) => {
+    const row = fake.library.get(`question:${id}`)
+    if (row?.kind !== 'question') throw new Error(id)
+    fake.library.set(`question:${id}`, { kind: 'question', item: { ...row.item, tags } })
+  }
+
+  it('the chosen question tag shows its questions; Show in list filters the list to it and closes', async () => {
+    tagged('q-h1', ['Rome'])
+    tagged('q-h2', ['Rome'])
+    await at({ tab: 'library' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Question tags…' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(await within(dialog).findByRole('option', { name: /Rome/ }))
+    expect(within(dialog).getByRole('list', { name: 'Tags on this question' }).querySelectorAll('li')).toHaveLength(2)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Show in list' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(useChromeStore.getState().listState.library?.filters?.tag).toEqual(['rome'])
+  })
+
+  it('Merge into… moves a question tag onto another in one write, judged on press', async () => {
+    tagged('q-h1', ['Rome'])
+    tagged('q-h2', ['Roma'])
+    await at({ tab: 'library' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Question tags…' }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.click(await within(dialog).findByRole('option', { name: /Roma/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Merge into…' }))
+    const merge = await screen.findByRole('alertdialog')
+    fireEvent.click(within(merge).getByRole('button', { name: 'Merge' }))
+    // Nothing picked: nothing written, the dialog stays.
+    expect(fake.calls.filter((c) => c.name === 'tag_rename')).toHaveLength(0)
+    expect(screen.getByRole('alertdialog')).toBeTruthy()
+  })
+
+  it('a domain’s groups list *No domain group* with its count, and a merge is one host call with into', async () => {
+    fake.domainGroups.set('dom-history', [
+      { id: 'g1', domainId: 'dom-history', name: 'Antiquity', sortKey: 0 },
+      { id: 'g2', domainId: 'dom-history', name: 'Modern', sortKey: 1 },
+    ])
+    await at({ tab: 'library', domainId: 'dom-history' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Domain groups…' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('option', { name: /No domain group/ }).textContent).toContain('4')
+    fireEvent.click(within(dialog).getByRole('option', { name: /Antiquity/ }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Merge into…' }))
+    const merge = await screen.findByRole('alertdialog')
+    fireEvent.change(merge.querySelector('select') as HTMLSelectElement, { target: { value: 'g2' } })
+    fireEvent.click(within(merge).getByRole('button', { name: 'Merge' }))
+    await waitFor(() => expect(fake.domainGroups.get('dom-history')?.map((g) => g.id)).toEqual(['g2']))
+    expect(fake.calls.filter((c) => c.name === 'domain_group_delete').map((c) => c.args)).toEqual([{ id: 'g1', into: 'g2' }])
   })
 })

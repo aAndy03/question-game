@@ -153,10 +153,39 @@ impl CatalogService {
         group: &DomainGroupId,
         now_ms: u64,
     ) -> CatalogResult<DomainId> {
-        let conn = self.conn();
+        self.domain_group_delete_into(group, None, now_ms)
+    }
+
+    /// The group goes; with `into`, its questions join that group of the same
+    /// domain first — a merge, in **one transaction** (P20), so a refused
+    /// merge never leaves the questions moved and the group still there, or
+    /// the group gone and its questions ungrouped. `into` must be another
+    /// group of the same domain.
+    pub fn domain_group_delete_into(
+        &self,
+        group: &DomainGroupId,
+        into: Option<&DomainGroupId>,
+        now_ms: u64,
+    ) -> CatalogResult<DomainId> {
+        let mut conn = self.conn();
         let row = group_in_view(&conn, group)?;
-        store::domain_group_delete(&conn, group)?;
-        store::domain_touch(&conn, &row.domain_id, now_ms)?;
+        if let Some(target) = into {
+            let at = format!("domain-group/{group}.into");
+            if target == group {
+                return Err(CatalogError::invalid(at, "a domain group cannot merge into itself"));
+            }
+            let other = group_in_view(&conn, target)?;
+            if other.domain_id != row.domain_id {
+                return Err(CatalogError::invalid(at, "that domain group is in another domain"));
+            }
+        }
+        let tx = conn.transaction()?;
+        if let Some(target) = into {
+            store::domain_group_move_members(&tx, group, target)?;
+        }
+        store::domain_group_delete(&tx, group)?;
+        store::domain_touch(&tx, &row.domain_id, now_ms)?;
+        tx.commit()?;
         Ok(row.domain_id)
     }
 

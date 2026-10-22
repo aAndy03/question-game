@@ -368,6 +368,20 @@ fn all_domain_groups(
     Ok(by)
 }
 
+/// Every member of `from` joins `to` (a merge, P20). The caller checks both
+/// are groups of one domain.
+pub(super) fn domain_group_move_members(
+    conn: &Connection,
+    from: &crate::ids::DomainGroupId,
+    to: &crate::ids::DomainGroupId,
+) -> CatalogResult<()> {
+    conn.execute(
+        "UPDATE domain_questions SET group_id = ?2 WHERE group_id = ?1",
+        params![from.as_str(), to.as_str()],
+    )?;
+    Ok(())
+}
+
 pub(super) fn domain_group_delete(
     conn: &Connection,
     id: &crate::ids::DomainGroupId,
