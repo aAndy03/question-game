@@ -57,7 +57,9 @@
   color-scheme: dark;
   /* Theme Colors (Dark Mode). Lifted from HeroUI's near-black to a dark gray
    * (P20, at the operator's ask): a black page under every tab cost contrast.
-   * The steps between background, surface, field and overlay are kept. */
+   * The steps between background, surface, field and overlay are kept. The
+   * scrollbar came down with it, to 42%: at HeroUI's 70% it was the brightest
+   * thing on a gray page. */
   --accent: oklch(62.04% 0.1950 253.83);
   --accent-foreground: oklch(99.11% 0 0);
   --background: oklch(24.00% 0.0030 253.83);
@@ -75,7 +77,7 @@
   --muted: oklch(73.00% 0.0030 253.83);
   --overlay: oklch(30.50% 0.0035 253.83);
   --overlay-foreground: oklch(99.11% 0.0015 253.83);
-  --scrollbar: oklch(70.50% 0.0015 253.83);
+  --scrollbar: oklch(42.00% 0.0030 253.83);
   --segment: oklch(44.00% 0.0030 253.83);
   --segment-foreground: oklch(99.11% 0.0015 253.83);
   --separator: oklch(33.00% 0.0030 253.83);

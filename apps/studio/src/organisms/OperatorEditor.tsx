@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Panel, Text, TextField } from '@/atoms'
-import { DirtyGuard, EditorColumns, EditorFooter, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
+import { DirtyGuard, EditorColumns, EditorActions, InlineNotice, NavCrumbs, PageHeader } from '@/molecules'
 import { noticesAt, useNoticeStore, noticeText } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
 import { LIST, OPERATOR, SHELL, TABS } from '@/copy'
@@ -60,20 +60,23 @@ export function OperatorEditor({ id }: OperatorEditorProps) {
 
   return (
     <>
-      <PageHeader
-        title={id ? draft.value.displayName || OPERATOR.one : LIST.new(OPERATOR.one)}
-        isDirty={draft.isDirty}
-        crumbs={
-          <NavCrumbs
-            crumbs={[
-              { label: TABS.operators.label, onPress: () => void go({ tab: 'operators' }) },
-              { label: id ? LIST.edit : LIST.new(OPERATOR.one) },
-            ]}
-          />
-        }
-      />
       {/* The PIN saves on its own: beside the form, not above Save (P20). */}
-      <EditorColumns sideLabel={OPERATOR.pinSide} side={id && source.data ? <OperatorPinPanel operator={source.data} /> : undefined}>
+      <EditorColumns
+        header={
+          <PageHeader
+            primaryAction={<EditorActions canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={cancel} />}
+            title={id ? draft.value.displayName || OPERATOR.one : LIST.new(OPERATOR.one)}
+            isDirty={draft.isDirty}
+            crumbs={
+              <NavCrumbs
+                crumbs={[
+                  { label: TABS.operators.label, onPress: () => void go({ tab: 'operators' }) },
+                  { label: id ? LIST.edit : LIST.new(OPERATOR.one) },
+                ]}
+              />
+            }
+          />
+        } sideLabel={OPERATOR.pinSide} side={id && source.data ? <OperatorPinPanel operator={source.data} /> : undefined}>
         {inline
           .filter((n) => !n.targetPath?.startsWith(`${path}.`))
           .map((n) => (
@@ -95,7 +98,6 @@ export function OperatorEditor({ id }: OperatorEditorProps) {
           )}
         </Panel>
       </EditorColumns>
-      <EditorFooter canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={cancel} withSide={id !== null} />
       <DirtyGuard
         isOpen={guard.isOpen}
         isSaving={saving}

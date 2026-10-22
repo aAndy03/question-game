@@ -8,11 +8,18 @@ export interface SidebarItemProps {
   /** Rail mode: icon only, label in a tooltip. */
   collapsed: boolean
   badge?: string | number | undefined
+  /**
+   * `sm`: the size of a status bar item (P20) — Settings, on the shell's
+   * bottom row beside the status bar, where a full nav row read as a second,
+   * louder status bar.
+   */
+  size?: 'md' | 'sm' | undefined
   onPress: () => void
 }
 
 /** One sidebar entry; active state is the accent (05_STUDIO_DESIGN.md §2.1). */
-export function SidebarItem({ icon, label, hint, isActive, collapsed, badge, onPress }: SidebarItemProps) {
+export function SidebarItem({ icon, label, hint, isActive, collapsed, badge, size = 'md', onPress }: SidebarItemProps) {
+  const small = size === 'sm'
   const button = (
     <button
       type="button"
@@ -21,17 +28,18 @@ export function SidebarItem({ icon, label, hint, isActive, collapsed, badge, onP
       aria-label={collapsed ? label : undefined}
       title={collapsed ? undefined : hint}
       className={[
-        'group flex h-9 w-full items-center gap-3 rounded-[calc(var(--radius)/1.5)] px-2.5 text-left outline-none transition-colors',
+        'group flex items-center rounded-[calc(var(--radius)/1.5)] px-2.5 text-left outline-none transition-colors',
+        small ? 'h-6 gap-1.5' : 'h-9 w-full gap-3',
         'focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]',
         isActive
           ? 'bg-[var(--accent)]/12 text-[var(--accent)]'
-          : 'text-[var(--foreground)] hover:bg-[var(--surface-secondary)]',
-        collapsed ? 'justify-center px-0' : '',
+          : [small ? 'text-[var(--muted)]' : 'text-[var(--foreground)]', 'hover:bg-[var(--surface-secondary)]'].join(' '),
+        collapsed ? 'w-full justify-center px-0' : '',
       ].join(' ')}
     >
-      <Icon name={icon} size="md" className={isActive ? '' : 'opacity-75 group-hover:opacity-100'} />
+      <Icon name={icon} size={small ? 'sm' : 'md'} className={isActive ? '' : 'opacity-75 group-hover:opacity-100'} />
       {collapsed ? null : (
-        <Text variant="studio-label" tone="inherit" truncate className="flex-1">
+        <Text variant={small ? 'studio-caption' : 'studio-label'} tone="inherit" truncate className={small ? undefined : 'flex-1'}>
           {label}
         </Text>
       )}

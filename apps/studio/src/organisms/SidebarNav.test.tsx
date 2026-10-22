@@ -52,3 +52,30 @@ describe('the Beta chip', () => {
     }
   })
 })
+
+describe('the hidden sidebar’s edge (P20)', () => {
+  it('shows nothing at rest: no gradient, and its bar only on hover or focus (class is the rule)', () => {
+    act(() => useChromeStore.getState().setSidebar('hidden'))
+    mount()
+    const edge = screen.getByRole('button', { name: 'Show sidebar' })
+    expect(edge.getAttribute('style') ?? '').not.toContain('gradient')
+    const bar = edge.querySelector('span') as HTMLElement
+    expect(bar.className).toContain('opacity-0')
+    expect(bar.className).toContain('group-hover:opacity-100')
+    expect(bar.className).toContain('group-focus-visible:opacity-100')
+    expect(bar.getAttribute('style')).not.toContain('gradient')
+  })
+
+  it('brings the sidebar back at its default size when pressed, and does not slide it in on hover', () => {
+    act(() => useChromeStore.getState().setSidebar('hidden'))
+    mount()
+    const edge = screen.getByRole('button', { name: 'Show sidebar' })
+    act(() => {
+      edge.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+    })
+    expect(useChromeStore.getState().prefs[useChromeStore.getState().operatorId]?.sidebar ?? 'hidden').toBe('hidden')
+    act(() => edge.click())
+    expect(screen.queryByRole('button', { name: 'Show sidebar' })).toBeNull()
+    expect(screen.getByRole('navigation').getAttribute('aria-label')).toBeTruthy()
+  })
+})

@@ -25,8 +25,8 @@ export function StatusBar() {
 
   return (
     <footer
-      className="flex h-7 shrink-0 items-center gap-4 border-t border-[var(--border)] px-3"
-      style={{ background: 'var(--surface)' }}
+      className="flex h-7 shrink-0 items-center gap-4 border-t border-[var(--chrome-line)] px-3"
+      style={{ background: 'var(--chrome)' }}
     >
       <Tooltip content={healthText} placement="top">
         <button

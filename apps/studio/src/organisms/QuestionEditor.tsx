@@ -5,7 +5,7 @@ import {
   DirtyGuard,
   DomainPicker,
   EditorColumns,
-  EditorFooter,
+  EditorActions,
   TagField,
   GapNotice,
   InlineNotice,
@@ -210,20 +210,23 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
   return (
     <>
       {propagating.dialog}
-      <PageHeader
-        title={id ? q.stem.trim() || QUESTION.one : LIST.new(QUESTION.one)}
-        isDirty={draft.isDirty}
-        status={<MeaningChip meaning={answerMode(q)}>{answerMode(q) === 'single' ? QUESTION.single : QUESTION.multiple}</MeaningChip>}
-        crumbs={
-          <NavCrumbs
-            crumbs={[
-              { label: TABS.library.label, onPress: () => void go(back) },
-              { label: id ? LIST.edit : LIST.new(QUESTION.one) },
-            ]}
+      <EditorColumns
+        header={
+          <PageHeader
+            primaryAction={<EditorActions canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={() => void go(id ? { tab: 'library', questionId: id, mode: 'view', ...(domainId ? { domainId } : {}) } : back)} />}
+            title={id ? q.stem.trim() || QUESTION.one : LIST.new(QUESTION.one)}
+            isDirty={draft.isDirty}
+            status={<MeaningChip meaning={answerMode(q)}>{answerMode(q) === 'single' ? QUESTION.single : QUESTION.multiple}</MeaningChip>}
+            crumbs={
+              <NavCrumbs
+                crumbs={[
+                  { label: TABS.library.label, onPress: () => void go(back) },
+                  { label: id ? LIST.edit : LIST.new(QUESTION.one) },
+                ]}
+              />
+            }
           />
         }
-      />
-      <EditorColumns
         sideLabel={QUESTION.filing}
         side={
           <>
@@ -325,7 +328,6 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
           />
         </Panel>
       </EditorColumns>
-      <EditorFooter canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={() => void go(id ? { tab: 'library', questionId: id, mode: 'view', ...(domainId ? { domainId } : {}) } : back)} withSide />
       <DirtyGuard
         isOpen={guard.isOpen}
         isSaving={saving}

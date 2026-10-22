@@ -41,7 +41,8 @@ export function ControlTopBar() {
   const neverStarted = play !== null && play.status === 'loaded'
 
   return (
-    <div className="flex flex-wrap items-center gap-3" data-control-top>
+    // Compact (P20): set once per show, so it should not outweigh the mosaic under it.
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5" data-control-top data-density="compact">
       <div className="flex items-center gap-2">
         <Text variant="studio-caption" tone="muted">
           {CONTROL.stageDisplay}

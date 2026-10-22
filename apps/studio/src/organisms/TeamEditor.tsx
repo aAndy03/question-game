@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Panel, Swatch, Text, TextAreaField, TextField } from '@/atoms'
-import { DirtyGuard, EditorColumns, EditorFooter, InlineNotice, NavCrumbs, PageHeader, TeamPreview } from '@/molecules'
+import { DirtyGuard, EditorColumns, EditorActions, InlineNotice, NavCrumbs, PageHeader, TeamPreview } from '@/molecules'
 import { noticesAt, useNoticeStore, noticeText } from '@/chrome/notices'
 import { useNavStore } from '@/chrome/nav'
 import { CONFIRM, LIST, SHELL, TABS, TEAM } from '@/copy'
@@ -87,20 +87,23 @@ export function TeamEditor({ id }: TeamEditorProps) {
   return (
     <>
       {propagating.dialog}
-      <PageHeader
-        title={id ? draft.value.name || TEAM.one : LIST.new(TEAM.one)}
-        isDirty={draft.isDirty}
-        crumbs={
-          <NavCrumbs
-            crumbs={[
-              { label: TABS.teams.label, onPress: () => void go({ tab: 'teams' }) },
-              ...(id ? [{ label: source.data?.name ?? '…', onPress: () => void go({ tab: 'teams', id, mode: 'view' }) }] : []),
-              { label: id ? LIST.edit : LIST.new(TEAM.one) },
-            ]}
+      <EditorColumns
+        header={
+          <PageHeader
+            primaryAction={<EditorActions canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={cancel} />}
+            title={id ? draft.value.name || TEAM.one : LIST.new(TEAM.one)}
+            isDirty={draft.isDirty}
+            crumbs={
+              <NavCrumbs
+                crumbs={[
+                  { label: TABS.teams.label, onPress: () => void go({ tab: 'teams' }) },
+                  ...(id ? [{ label: source.data?.name ?? '…', onPress: () => void go({ tab: 'teams', id, mode: 'view' }) }] : []),
+                  { label: id ? LIST.edit : LIST.new(TEAM.one) },
+                ]}
+              />
+            }
           />
         }
-      />
-      <EditorColumns
         sideLabel={TEAM.preview}
         side={
           <>
@@ -187,7 +190,6 @@ export function TeamEditor({ id }: TeamEditorProps) {
           <TextAreaField label={TEAM.notes} value={draft.value.notes ?? ''} onChange={(notes) => draft.set({ notes })} rows={3} />
         </Panel>
       </EditorColumns>
-      <EditorFooter canSave={canSave} isSaving={saving} onSave={() => void saveAndView()} onCancel={cancel} withSide />
       <DirtyGuard
         isOpen={guard.isOpen}
         isSaving={saving}

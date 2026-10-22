@@ -7,6 +7,13 @@ export interface EditorColumnsProps {
   side?: ReactNode
   /** The side column's accessible name. */
   sideLabel?: string | undefined
+  /**
+   * The editor's `PageHeader`, with Cancel · Save in it (P20). It spans both
+   * columns, so its actions end where the content ends at any width, and it
+   * stays at the top while the form scrolls — on the page's own background,
+   * no bar drawn. Assumes `RecordPageLayout`'s padding.
+   */
+  header?: ReactNode
 }
 
 /**
@@ -17,7 +24,7 @@ export interface EditorColumnsProps {
  * threshold the side follows the form in reading order. A container query,
  * not a breakpoint: the sidebar is 240, 56 or 0px.
  */
-export function EditorColumns({ children, side, sideLabel }: EditorColumnsProps) {
+export function EditorColumns({ children, side, sideLabel, header }: EditorColumnsProps) {
   return (
     <div className="@container/editor w-full">
       <div
@@ -26,6 +33,11 @@ export function EditorColumns({ children, side, sideLabel }: EditorColumnsProps)
           side ? '@[60rem]/editor:max-w-[71.5rem] @[60rem]/editor:grid-cols-[minmax(0,48rem)_22rem] @[60rem]/editor:items-start' : '',
         ].join(' ')}
       >
+        {header ? (
+          <div className="sticky top-0 z-20 -mt-6 pb-2 pt-6 @[60rem]/editor:col-span-2" style={{ background: 'var(--background)' }}>
+            {header}
+          </div>
+        ) : null}
         <div className="flex min-w-0 flex-col gap-6">{children}</div>
         {side ? (
           <aside aria-label={sideLabel} className="flex min-w-0 flex-col gap-6">

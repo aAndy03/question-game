@@ -36,7 +36,7 @@ export function ControlPage() {
   if (!hasPlay) {
     return (
       <div className="flex h-full flex-col">
-        <div className="shrink-0 border-b border-[var(--border)] px-4 py-2">
+        <div className="shrink-0 border-b border-[var(--chrome-line)] px-4 py-1.5">
           <ControlTopBar />
         </div>
         <div className="flex flex-1 items-center justify-center">

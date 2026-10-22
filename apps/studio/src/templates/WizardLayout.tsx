@@ -9,14 +9,16 @@ export interface WizardLayoutProps {
   steps: ReactNode
   /** The step body, one centred column ≤ 560px. */
   children: ReactNode
-  /** Right-aligned actions: Skip · Next. */
+  /** The step's actions — Skip · Next — right-aligned at the end of its column. */
   footer: ReactNode
 }
 
 /**
- * The first-run frame (05_STUDIO_DESIGN.md §12.1): brand · step rail · body ·
- * footer. No sidebar, no top bar, no status bar — the shell is not shown
- * until an operator exists.
+ * The first-run frame (05_STUDIO_DESIGN.md §12.1): brand · step rail · body,
+ * the step's actions ending the body. No sidebar, no top bar, no status bar —
+ * the shell is not shown until an operator exists. Also *Name your workspace*
+ * and the Beta welcome. No lines and no bar across the foot (P20): the actions
+ * follow the fields they act on.
  */
 export function WizardLayout({ brand, steps, children, footer }: WizardLayoutProps) {
   return (
@@ -32,12 +34,16 @@ export function WizardLayout({ brand, steps, children, footer }: WizardLayoutPro
         <Text as="div" variant="studio-heading">
           {brand}
         </Text>
-        <div className="border-b border-[var(--separator)] pb-4">{steps}</div>
+        <div className="pb-2">{steps}</div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-8 py-8">
-        <div className="flex w-full max-w-[560px] flex-col gap-6">{children}</div>
+        <div className="flex w-full max-w-[560px] flex-col gap-6">
+          {children}
+          <div className="flex flex-wrap items-center justify-end gap-2" data-wizard-actions>
+            {footer}
+          </div>
+        </div>
       </main>
-      <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--separator)] px-8 py-4">{footer}</footer>
     </motion.div>
   )
 }

@@ -69,7 +69,7 @@ function MosaicLayoutInner<T extends string>({ value, onChange, titles, renderTi
 
   return (
     <div ref={root} className="flex h-full min-h-0 flex-col">
-      {top ? <div className="shrink-0 border-b border-[var(--border)] px-4 py-2">{top}</div> : null}
+      {top ? <div className="shrink-0 border-b border-[var(--chrome-line)] px-4 py-1.5">{top}</div> : null}
       <div className="min-h-0 flex-1 p-1">
         <Mosaic<T> className="questiongame-mosaic" value={value} onChange={onChange} renderTile={renderWindow} />
       </div>

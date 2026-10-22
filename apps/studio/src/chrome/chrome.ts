@@ -98,8 +98,6 @@ interface ChromeState {
   readonly archiveScope: Readonly<Partial<Record<Tab, ArchiveScope>>>
   /** Session-only list views per tab (stable 1.1): filters, search, page, collapsed groups. */
   readonly listState: Readonly<Partial<Record<LibraryTab, ListState>>>
-  /** True while the pointer is over the left-edge peek strip (sidebar hidden). */
-  readonly peeking: boolean
 
   setOperator(id: string | null): void
   /** Another workspace: its own list views, and a fresh session view. */
@@ -112,7 +110,6 @@ interface ChromeState {
   setListPrefs(tab: LibraryTab, patch: Partial<ListPrefs>): void
   setListState(tab: LibraryTab, patch: Partial<ListState>): void
   setSettingsInner(inner: SettingsInner): void
-  setPeeking(peeking: boolean): void
 }
 
 const ORDER: SidebarMode[] = ['expanded', 'rail', 'hidden']
@@ -132,7 +129,6 @@ export const useChromeStore = create<ChromeState>()(
         prefs: {},
         archiveScope: {},
         listState: {},
-        peeking: false,
 
         setOperator(id) {
           set({ operatorId: id ?? '' })
@@ -180,9 +176,6 @@ export const useChromeStore = create<ChromeState>()(
         },
         setSettingsInner(settingsInner) {
           update({ settingsInner })
-        },
-        setPeeking(peeking) {
-          set({ peeking })
         },
       }
     },

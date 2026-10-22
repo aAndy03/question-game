@@ -37,8 +37,8 @@ export function TopBar() {
 
   return (
     <header
-      className="flex h-12 shrink-0 items-center gap-3 border-b border-[var(--border)] px-3"
-      style={{ background: 'var(--surface)' }}
+      className="flex h-12 shrink-0 items-center gap-3 border-b border-[var(--chrome-line)] px-3"
+      style={{ background: 'var(--chrome)' }}
     >
       <div className="flex items-center gap-1">
         <IconButton icon="back" label={CHROME.back} size="sm" isDisabled={back.length === 0} onPress={() => void goBack()} />

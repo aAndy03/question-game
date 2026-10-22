@@ -2,14 +2,14 @@ import type { ReactNode } from 'react'
 import { motion } from 'motion/react'
 
 export interface RecordPageLayoutProps {
-  /** Sections, stacked. Editors render their own `PageHeader` and `EditorFooter`. */
+  /** Sections, stacked. Editors render their own `PageHeader`, sticky, with Cancel · Save in it (P20). */
   children: ReactNode
   /** A section rail on the left (the Game page). */
   rail?: ReactNode
   /**
    * `fluid` (editors): the column fills the page and the editor caps its own
-   * content (`EditorColumns`), so the footer and the page background run edge
-   * to edge (P20). `wide` (the Game page): up to 96rem.
+   * content (`EditorColumns`), so the page background runs edge to edge
+   * (P20). `wide` (the Game page): up to 96rem.
    */
   width?: 'fluid' | 'wide'
 }

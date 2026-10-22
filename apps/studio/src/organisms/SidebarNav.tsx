@@ -1,7 +1,7 @@
 import { motion } from 'motion/react'
-import { Chip, IconButton, Separator, Text, type IconName } from '@/atoms'
+import { Chip, IconButton, Text, type IconName } from '@/atoms'
 import { SidebarItem } from '@/molecules'
-import { useChromeStore, usePrefs, type SidebarMode } from '@/chrome/chrome'
+import { DEFAULT_PREFS, useChromeStore, usePrefs, type SidebarMode } from '@/chrome/chrome'
 import { useNavStore, useRoute, type Tab } from '@/chrome/nav'
 import { APP, CHROME, SHELL, TABS } from '@/copy'
 import { usePlayState } from '@/host/playState'
@@ -24,15 +24,16 @@ const SHOW: readonly { tab: Tab; icon: IconName }[] = [
 ]
 
 /**
- * Three states — expanded, icon rail, hidden with a left-edge peek strip
- * (spec §11.I). Width animates with Motion; nothing here is Play truth
- * except the Control badge, which reads `play-state` to say a show is on.
+ * Three states — expanded, icon rail, hidden (spec §11.I). Hidden leaves no
+ * hint at rest (P20): pointing at the window's left edge shows a solid bar,
+ * and pressing it brings the sidebar back at its default size. Width animates
+ * with Motion; nothing here is Play truth except the Control badge, which
+ * reads `play-state` to say a show is on.
  */
 export function SidebarNav() {
   const { sidebar } = usePrefs()
-  const peeking = useChromeStore((s) => s.peeking)
-  const setPeeking = useChromeStore((s) => s.setPeeking)
   const cycle = useChromeStore((s) => s.cycleSidebar)
+  const setSidebar = useChromeStore((s) => s.setSidebar)
   const route = useRoute()
   const go = useNavStore((s) => s.go)
   const play = usePlayState()
@@ -46,13 +47,14 @@ export function SidebarNav() {
     </span>
   ) : null
 
-  const mode: SidebarMode = sidebar === 'hidden' && peeking ? 'expanded' : sidebar
+  const mode: SidebarMode = sidebar
   const collapsed = mode === 'rail'
   const width = SIDEBAR_WIDTH[mode]
   const playing = play?.status === 'playing' || play?.status === 'paused'
 
-  const item = ({ tab, icon }: { tab: Tab; icon: IconName }) => (
+  const item = ({ tab, icon, size = 'md' }: { tab: Tab; icon: IconName; size?: 'md' | 'sm' }) => (
     <SidebarItem
+      size={size}
       key={tab}
       icon={icon}
       label={TABS[tab].label}
@@ -67,24 +69,28 @@ export function SidebarNav() {
   return (
     <>
       {sidebar === 'hidden' ? (
-        <div
-          aria-hidden
-          onMouseEnter={() => setPeeking(true)}
-          className="absolute inset-y-0 left-0 z-20 w-2 cursor-e-resize"
-          style={{ background: 'linear-gradient(to right, var(--separator), transparent)' }}
-        />
+        // Nothing at rest; a solid gray bar on hover or focus — no gradient, no accent (P20).
+        <button
+          type="button"
+          aria-label={CHROME.sidebarShow}
+          title={CHROME.sidebarShow}
+          onClick={() => setSidebar(DEFAULT_PREFS.sidebar)}
+          className="group absolute inset-y-0 left-0 z-20 w-3 cursor-pointer outline-none"
+          data-sidebar-edge
+        >
+          <span aria-hidden className="absolute inset-y-0 left-0 w-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" style={{ background: 'var(--muted)' }} />
+        </button>
       ) : null}
       <motion.nav
         aria-label={SHELL.sections}
         initial={false}
         animate={{ width }}
         transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
-        onMouseLeave={() => sidebar === 'hidden' && setPeeking(false)}
-        className={[
-          'relative z-10 flex h-full shrink-0 flex-col overflow-hidden border-r border-[var(--border)]',
-          sidebar === 'hidden' && peeking ? 'absolute inset-y-0 left-0 shadow-lg' : '',
-        ].join(' ')}
-        style={{ background: 'var(--surface)' }}
+        className="relative z-10 flex h-full shrink-0 flex-col overflow-hidden border-r border-[var(--chrome-line)]"
+        // Hidden is gone, not just zero wide: nothing in it takes focus or is read out.
+        inert={sidebar === 'hidden'}
+        aria-hidden={sidebar === 'hidden' ? true : undefined}
+        style={{ background: 'var(--chrome)' }}
       >
         <div className={['flex h-12 items-center', collapsed ? 'justify-center' : 'justify-between px-3'].join(' ')}>
           {collapsed ? null : (
@@ -103,12 +109,12 @@ export function SidebarNav() {
           />
         </div>
         {collapsed && betaChip ? <div className="flex justify-center pb-2">{betaChip}</div> : null}
-        <Separator />
+        <ChromeLine />
         {/* Above Library: every tab below it is this workspace's (Beta 2.0). */}
         <div className="px-2 py-2">
           <WorkspaceSwitcher collapsed={collapsed} />
         </div>
-        <Separator />
+        <ChromeLine />
         <div className={['flex flex-1 flex-col gap-0.5 overflow-y-auto py-2', collapsed ? 'px-2' : 'px-2'].join(' ')}>
           {collapsed ? null : (
             <Text variant="studio-caption" tone="muted" className="px-2.5 pb-1 pt-2">
@@ -116,16 +122,22 @@ export function SidebarNav() {
             </Text>
           )}
           {LIBRARY.map(item)}
-          {collapsed ? <Separator className="my-2" /> : (
+          {collapsed ? <ChromeLine className="my-2" /> : (
             <Text variant="studio-caption" tone="muted" className="px-2.5 pb-1 pt-4">
               Show
             </Text>
           )}
           {SHOW.map(item)}
         </div>
-        <Separator />
-        <div className="px-2 py-2">{item({ tab: 'settings', icon: 'settings' })}</div>
+        <ChromeLine />
+        {/* The shell's bottom row, level with the status bar and its size (P20). */}
+        <div className="flex h-7 shrink-0 items-center px-2">{item({ tab: 'settings', icon: 'settings', size: 'sm' })}</div>
       </motion.nav>
     </>
   )
+}
+
+/** A line of the shell, in the shell's one line colour (`--chrome-line`; transparent on trial, P20). */
+function ChromeLine({ className }: { className?: string | undefined }) {
+  return <div aria-hidden className={['h-px shrink-0', className ?? ''].join(' ')} style={{ background: 'var(--chrome-line)' }} />
 }
