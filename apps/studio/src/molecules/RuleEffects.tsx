@@ -1,4 +1,4 @@
-import { Chip, Panel, Text, Tooltip } from '@/atoms'
+import { Chip, Icon, Panel, Text, Tooltip } from '@/atoms'
 import { disabledReasonText } from './SettingRow'
 import { PREVIEW } from '@/copy/preview'
 import { RULES } from '@/copy'
@@ -43,9 +43,13 @@ const LABEL: Record<string, string> = {
  */
 export function RuleEffects({ preview }: RuleEffectsProps) {
   return (
-    <div className="flex flex-col gap-2">
-      <Text variant="studio-heading">{PREVIEW.effects.title}</Text>
-      <Panel className="overflow-x-auto" flush>
+    // Reference, read when asked (P20): a closed disclosure, the rows still in the page.
+    <details className="group flex flex-col gap-2" data-rule-effects>
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded py-1 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]">
+        <Icon name="chevronRight" size="sm" className="transition-transform group-open:rotate-90" />
+        <Text as="h3" variant="studio-subheading">{`${PREVIEW.effects.title} · ${preview.rules.length}`}</Text>
+      </summary>
+      <Panel className="mt-2 overflow-x-auto" flush>
         <table className="w-full border-collapse" aria-label={PREVIEW.effects.title}>
           <thead>
             <tr className="border-b border-[var(--separator)]">
@@ -84,7 +88,7 @@ export function RuleEffects({ preview }: RuleEffectsProps) {
           </tbody>
         </table>
       </Panel>
-    </div>
+    </details>
   )
 }
 

@@ -1,11 +1,11 @@
 import { Tabs } from '@heroui/react'
-import { PageHeader } from '@/molecules'
+import { PageHeader, SectionIndex } from '@/molecules'
 import { AboutPanel, MonitorsSettings, SettingsForm, ShortcutsEditor } from '@/organisms'
 import { SettingsLayout } from '@/templates'
 import { useChromeStore, useSettingsInner, type SettingsInner } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { TABS } from '@/copy'
-import { SETTINGS } from '@/copy/settings'
+import { SETTINGS, SETTINGS_GROUPS } from '@/copy/settings'
 
 export interface SettingsPageProps {
   /** The route's inner tab; wins over the remembered one so a notice can deep-link. */
@@ -28,6 +28,7 @@ export function SettingsPage({ inner }: SettingsPageProps) {
 
   return (
     <SettingsLayout
+      aside={selected === 'settings' ? <SectionIndex entries={SETTINGS_GROUPS.map((g) => ({ id: `settings-${g.id}`, title: g.title }))} /> : undefined}
       header={<PageHeader title={TABS.settings.label} description={TABS.settings.hint} />}
       tabs={
         <Tabs
@@ -38,7 +39,8 @@ export function SettingsPage({ inner }: SettingsPageProps) {
           }}
         >
           <Tabs.ListContainer>
-            <Tabs.List aria-label={TABS.settings.label}>
+            {/* As wide as their labels (P20): four tabs spread over the window read as a ruler. */}
+            <Tabs.List aria-label={TABS.settings.label} className="w-fit">
               {INNER.map((id) => (
                 <Tabs.Tab key={id} id={id}>
                   {SETTINGS.inner[id]}

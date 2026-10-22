@@ -411,6 +411,8 @@ export const QUESTION = {
   option: (i: number) => `Option ${String.fromCharCode(65 + i)}`,
   addOption: 'Add option',
   removeOption: 'Remove option',
+  /** The option's drag handle (P20): the order is the order Stage shows them in. */
+  reorderOption: (i: number) => `Reorder option ${String.fromCharCode(65 + i)}`,
   correct: 'Correct',
   lastCorrect: 'The last correct mark cannot be removed.',
   difficulty: 'Difficulty',
@@ -437,6 +439,8 @@ export const QUESTION = {
 /** The Game page's pickers (beta.4). */
 /** Words that had lived at their call sites (beta.5). */
 export const SHELL = {
+  /** A long page's index of its sections (P20). */
+  onThisPage: 'On this page',
   teamSaved: 'Team saved',
   operatorSaved: 'Operator saved',
   inControl: (game: string) => `${game} is in Control`,
@@ -617,7 +621,7 @@ export const GAME = {
   labelsHint: 'Folder and game tags organise the Games list. They are not part of the show.',
   sections: { roster: 'Roster', board: 'Board', rules: 'Rules', plays: 'Plays' },
   roster: 'Roster',
-  rosterHint: 'Play order is the opening ring. Every active team gets one token per round.',
+  rosterHint: 'Play order is the opening ring. Drag a team by its handle to change it; every active team gets one token per round.',
   rosterEmpty: 'No teams on this game yet.',
   moreActions: 'More actions',
   copyName: (name: string) => `${name} (copy)`,
@@ -629,20 +633,26 @@ export const GAME = {
   removeQuestion: 'Take off the board',
   editDifficulty: (stem: string, now: string) => `Difficulty of ${stem}: ${now}`,
   removeTeam: 'Remove from roster',
-  moveUp: 'Move up',
-  moveDown: 'Move down',
+  /** A drag handle's name (P20): the keyboard lifts it with Space, the arrows move it. */
+  reorder: (name: string) => `Reorder ${name}`,
+  rosterOrder: 'Play order',
   board: 'Board',
   boardHint:
     'Pick domains for this show, then the questions from each. One question per difficulty in each domain unless repeats are allowed; consumed questions never return in a Play.',
   allowRepeats: 'Allow repeated difficulties',
   allowRepeatsHint:
     'Several questions at one difficulty in a domain, asked one after the other. They pay the same, and teams cannot tell them apart when they choose.',
+  /** The Board's hint once it has domains (P20): the long one is for an empty board. */
+  boardHintShort: 'Drag a domain to change the order teams see them in. Each domain asks its questions easy to hard.',
   boardEmpty: 'No domains on the board yet.',
+  span: (min: number, max: number) => (min === max ? `Difficulty ${min}` : `Difficulty ${min}–${max}`),
+  pointsAvailable: (n: number) => `${n.toLocaleString('en')} points`,
+  openAll: 'Open all',
+  closeAll: 'Close all',
+  boardOrder: 'Domains on the board',
+  noQuestionsYet: 'No questions chosen yet.',
   removeDomain: 'Remove from board',
   questionsOn: (n: number, of: number) => `${n} of ${of} questions`,
-  shape: 'Shape',
-  shapeHint:
-    'A domain can hold many questions at one difficulty — a game plays one of them, unless it allows repeated difficulties. Untick the one on the board to free the others.',
   difficultyTaken: (difficulty: number) =>
     `Difficulty ${difficulty} is already taken by another question in this domain. Untick that one, or allow repeated difficulties.`,
   incomplete: (gaps: readonly QuestionGap[]) =>
@@ -704,8 +714,9 @@ export const RULES = {
   timerEnabled: 'Timer',
   timerEnabledHint: 'Inherit uses the all-games default. Off means operator pace: no countdown, no auto-lock.',
   timerDuration: 'Duration',
-  timerDurationHint: 'Milliseconds. Empty inherits the all-games default.',
+  timerDurationHint: 'Seconds per question. Empty inherits the all-games default.',
   inherit: 'Inherit',
+  inheritSeconds: (s: number) => `Empty inherits the all-games default: ${s} s.`,
   on: 'On',
   off: 'Off',
   reveal: 'Reveal',

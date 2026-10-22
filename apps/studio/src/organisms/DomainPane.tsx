@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Button, Icon, IconButton, MeaningChip, Panel, Skeleton, Text } from '@/atoms'
+import { Button, Icon, IconButton, Panel, Skeleton, Text } from '@/atoms'
 import { ActionMenu, ArchiveToggle, DomainForm, EmptyState, suggestDomainCode, type DomainFormValue } from '@/molecules'
 import { CONFIRM, DOMAIN, LIST, MENU, SHELL } from '@/copy'
 import { activeMemberIds, bodyGaps, questionGaps } from '@/host/question'
@@ -214,7 +214,7 @@ function DomainRow({
         }
       }}
       className={[
-        'group flex h-10 cursor-pointer items-center gap-2 rounded-[calc(var(--radius)/1.5)] px-2.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]',
+        'group flex min-h-11 cursor-pointer items-center gap-2 rounded-[calc(var(--radius)/1.5)] py-1 pr-1 pl-2.5 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]',
         isSelected ? 'bg-[var(--accent)]/12' : 'hover:bg-[var(--surface-secondary)]',
         isArchived ? 'opacity-70' : '',
       ].join(' ')}
@@ -224,7 +224,7 @@ function DomainRow({
           {name}
         </Text>
         {code ? (
-          <Text variant="studio-mono" tone="muted">
+          <Text variant="studio-mono" tone="muted" className="leading-tight" truncate>
             {code}
           </Text>
         ) : null}
@@ -237,12 +237,13 @@ function DomainRow({
           </Text>
         </span>
       ) : null}
-      {count !== null ? <MeaningChip meaning="seed">{count}</MeaningChip> : null}
-      {actions ? (
-        <div className="opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
-          {actions}
-        </div>
-      ) : null}
+      {/* The count in one column down the pane (P20): every row keeps the menu's slot, filled or not. */}
+      <Text variant="studio-caption" tone="muted" tabular className="w-10 shrink-0 text-right">
+        {count ?? ''}
+      </Text>
+      <div className="flex w-8 shrink-0 justify-end opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+        {actions}
+      </div>
     </div>
   )
 }

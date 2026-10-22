@@ -66,5 +66,5 @@ export function TextField({
       {error ? <FieldError>{error}</FieldError> : null}
     </HeroTextField>
   )
-  return <DisabledReason reason={disabled ? disabledReason : null}>{field}</DisabledReason>
+  return <DisabledReason reason={disabled ? disabledReason : null} block>{field}</DisabledReason>
 }

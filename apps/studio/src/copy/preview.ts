@@ -115,6 +115,7 @@ export const PREVIEW = {
     available: 'Points available',
     availableHint: 'Every question answered correctly, with no speed bonus.',
     ladder: 'Walk',
+    ladderTitle: (n: number) => `The ladder every domain walks · ${n} questions`,
   },
 
   // --------------------------------------------------------------- the effects

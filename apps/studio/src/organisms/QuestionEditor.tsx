@@ -11,6 +11,7 @@ import {
   InlineNotice,
   NavCrumbs,
   OptionRow,
+  SortableList,
   PageHeader,
   type DomainFormValue,
 } from '@/molecules'
@@ -282,20 +283,32 @@ export function QuestionEditor({ id, domainId }: QuestionEditorProps) {
                 </Text>
               ) : null}
             </div>
-            {q.options.map((o, i) => (
-              <OptionRow
-                key={o.id}
-                index={i}
-                text={o.text}
-                correct={o.correct}
-                onTextChange={(text) => setOption(i, { text })}
-                onCorrectChange={(correct) => setOption(i, { correct })}
-                onRemove={() => setQ({ options: q.options.filter((_, j) => j !== i) })}
-                isLastCorrect={o.correct && correctCount === 1}
-                isRequired={q.options.length <= 2}
-                autoFocus={i === q.options.length - 1 && i > 1 && o.text === ''}
-              />
-            ))}
+            {/* Dragged by a handle (P20): the order is the order Stage shows them in; the draft holds it until Save. */}
+            <SortableList
+              ids={q.options.map((o) => o.id)}
+              label={QUESTION.options}
+              onReorder={(next) => setQ({ options: next.flatMap((id) => q.options.filter((o) => o.id === id)) })}
+              className="flex flex-col gap-3"
+              renderRow={(id, handle) => {
+                const i = q.options.findIndex((o) => o.id === id)
+                const o = q.options[i]
+                if (!o) return null
+                return (
+                  <OptionRow
+                    handle={handle}
+                    index={i}
+                    text={o.text}
+                    correct={o.correct}
+                    onTextChange={(text) => setOption(i, { text })}
+                    onCorrectChange={(correct) => setOption(i, { correct })}
+                    onRemove={() => setQ({ options: q.options.filter((_, j) => j !== i) })}
+                    isLastCorrect={o.correct && correctCount === 1}
+                    isRequired={q.options.length <= 2}
+                    autoFocus={i === q.options.length - 1 && i > 1 && o.text === ''}
+                  />
+                )
+              }}
+            />
             <div>
               <Button size="sm" variant="ghost" icon="add" onPress={() => setQ({ options: [...q.options, { ...newOption(q.options.length), correct: false }] })}>
                 {QUESTION.addOption}

@@ -56,5 +56,5 @@ export function SliderField({
       </Slider.Track>
     </Slider>
   )
-  return <DisabledReason reason={disabled ? disabledReason : null}>{field}</DisabledReason>
+  return <DisabledReason reason={disabled ? disabledReason : null} block>{field}</DisabledReason>
 }

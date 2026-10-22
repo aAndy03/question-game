@@ -179,7 +179,7 @@ export function SettingsForm({ groups, compact }: SettingsFormProps) {
       case 'reveal':
         return (
           <SettingsGroup {...props}>
-            <SettingRow label={row('reveal').label} description={row('reveal').description}>
+            <SettingRow label={row('reveal').label} description={row('reveal').description} wide>
               <div className="grid grid-cols-2 gap-3">
                 {CHANNELS.map((channel) => (
                   <SegmentedField<RevealMode>
@@ -335,7 +335,7 @@ function AudioGroup({ title, description }: { title: string; description?: strin
       <SettingRow label={SETTINGS.rows['audio.muted'].label} description={SETTINGS.rows['audio.muted'].description} disabled={disabledFor('audio.muted')}>
         <SwitchField label={SETTINGS.rows['audio.muted'].label} hideLabel isSelected={audio.muted} onChange={(value) => setGlobal({ key: 'audio_muted', value })} disabledReason={reason('audio.muted') ?? audioOff} />
       </SettingRow>
-      <SettingRow label={SETTINGS.rows['audio.cues'].label} description={SETTINGS.rows['audio.cues'].description} disabled={disabledFor('audio.cues')}>
+      <SettingRow label={SETTINGS.rows['audio.cues'].label} description={SETTINGS.rows['audio.cues'].description} disabled={disabledFor('audio.cues')} wide>
         <div className="flex flex-col divide-y divide-[var(--separator)]">
           {CUE_KEYS.map((cue) => (
             <CueMapRow

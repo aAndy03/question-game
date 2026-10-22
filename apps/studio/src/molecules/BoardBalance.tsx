@@ -1,6 +1,6 @@
-import { Chip, Panel, Text, Tooltip } from '@/atoms'
+import { Chip, Icon, Panel, Text } from '@/atoms'
 import { PREVIEW } from '@/copy/preview'
-import type { BoardShape, DomainLadder } from '@/host/types'
+import type { BoardShape } from '@/host/types'
 
 export interface BoardBalanceProps {
   board: BoardShape
@@ -18,27 +18,25 @@ export interface BoardBalanceProps {
  *
  * The presentation **adapts to the shape**, which is the point of asking:
  *
- * - `aligned` — same count *and* the same ladder everywhere — collapses to one
- *   rung table, because then one table is the whole truth: every domain's nth
- *   question is that difficulty and pays that base.
- * - `uniform` and `ragged` show the ladders side by side with the divergence
- *   marked, because there is no single ladder to show.
+ * - `aligned` — same count *and* the same ladder everywhere — offers one rung
+ *   table, closed, because then one table is the whole truth: every domain's
+ *   nth question is that difficulty and pays that base.
+ * - `uniform` and `ragged` say so in a line; each domain's count, span and
+ *   ceiling are on its Board row (P20), the shortest marked on a ragged board.
  */
 export function BoardBalance({ board }: BoardBalanceProps) {
   if (board.kind === 'empty') {
     return (
-      <Panel>
-        <Text variant="studio-caption" tone="muted">
-          {PREVIEW.board.empty}
-        </Text>
-      </Panel>
+      <Text as="p" variant="studio-caption" tone="muted">
+        {PREVIEW.board.empty}
+      </Text>
     )
   }
-
+  const hint = board.kind === 'aligned' ? PREVIEW.board.alignedHint : board.kind === 'ragged' ? PREVIEW.board.raggedHint : null
   return (
-    <div className="flex flex-col gap-2" data-board-shape={board.kind}>
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <Text variant="studio-heading">{PREVIEW.board.title}</Text>
+    // One line on the Board (P20); each domain's own numbers are on its row.
+    <div className="flex flex-col gap-1.5" data-board-shape={board.kind}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Chip tone={board.kind === 'ragged' ? 'warning' : 'success'}>
           {board.kind === 'aligned'
             ? PREVIEW.board.aligned(board.perDomain)
@@ -46,124 +44,64 @@ export function BoardBalance({ board }: BoardBalanceProps) {
               ? PREVIEW.board.uniform(board.perDomain)
               : PREVIEW.board.ragged(board.min, board.max)}
         </Chip>
+        {hint ? (
+          <Text variant="studio-caption" tone="muted">
+            {hint}
+          </Text>
+        ) : null}
       </div>
-      <Text variant="studio-caption" tone="muted">
-        {board.kind === 'aligned' ? PREVIEW.board.alignedHint : board.kind === 'ragged' ? PREVIEW.board.raggedHint : ''}
-      </Text>
-
       {board.kind === 'aligned' ? (
-        <Panel className="overflow-x-auto" flush>
-          <table className="w-full border-collapse" aria-label={PREVIEW.board.title}>
-            <thead>
-              <tr className="border-b border-[var(--separator)]">
-                <th scope="col" className="p-2 pl-3 text-left">
-                  <Text variant="studio-caption" tone="muted">
-                    {PREVIEW.board.rung}
-                  </Text>
-                </th>
-                <th scope="col" className="p-2 text-right">
-                  <Text variant="studio-caption" tone="muted">
-                    {PREVIEW.board.span}
-                  </Text>
-                </th>
-                <th scope="col" className="p-2 pr-3 text-right">
-                  <Text variant="studio-caption" tone="muted">
-                    {PREVIEW.matrix.baseColumn}
-                  </Text>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {board.rungs.map((rung) => (
-                <tr key={rung.index} className="border-b border-[var(--separator)] last:border-0" data-rung={rung.index}>
-                  <th scope="row" className="p-2 pl-3 text-left font-normal">
-                    <Text variant="studio-label" tabular>
-                      {PREVIEW.board.rungIndex(rung.index)}
+        <details className="group">
+          <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 rounded py-1 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]">
+            <Icon name="chevronRight" size="sm" className="transition-transform group-open:rotate-90" />
+            <Text variant="studio-label">{PREVIEW.board.ladderTitle(board.rungs.length)}</Text>
+          </summary>
+          <Panel className="mt-1 max-w-md overflow-x-auto" flush>
+            <table className="w-full border-collapse" aria-label={PREVIEW.board.title}>
+              <thead>
+                <tr className="border-b border-[var(--separator)]">
+                  <th scope="col" className="p-2 pl-3 text-left">
+                    <Text variant="studio-caption" tone="muted">
+                      {PREVIEW.board.rung}
                     </Text>
                   </th>
-                  <td className="p-2 text-right">
-                    <Text variant="studio-body" tabular>
-                      {rung.difficulty}
+                  <th scope="col" className="p-2 text-right">
+                    <Text variant="studio-caption" tone="muted">
+                      {PREVIEW.board.span}
                     </Text>
-                  </td>
-                  <td className="p-2 pr-3 text-right">
-                    <Text variant="studio-body" tabular>
-                      {rung.base}
+                  </th>
+                  <th scope="col" className="p-2 pr-3 text-right">
+                    <Text variant="studio-caption" tone="muted">
+                      {PREVIEW.matrix.baseColumn}
                     </Text>
-                  </td>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </Panel>
+              </thead>
+              <tbody>
+                {board.rungs.map((rung) => (
+                  <tr key={rung.index} className="border-b border-[var(--separator)] last:border-0" data-rung={rung.index}>
+                    <th scope="row" className="p-2 pl-3 text-left font-normal">
+                      <Text variant="studio-label" tabular>
+                        {PREVIEW.board.rungIndex(rung.index)}
+                      </Text>
+                    </th>
+                    <td className="p-2 text-right">
+                      <Text variant="studio-body" tabular>
+                        {rung.difficulty}
+                      </Text>
+                    </td>
+                    <td className="p-2 pr-3 text-right">
+                      <Text variant="studio-body" tabular>
+                        {rung.base}
+                      </Text>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Panel>
+        </details>
       ) : null}
-
-      <LadderTable domains={board.domains} highlight={board.kind === 'ragged'} />
     </div>
-  )
-}
-
-/** One row per domain: how many, how hard, how far it walks, and its ceiling. */
-function LadderTable({ domains, highlight }: { domains: readonly DomainLadder[]; highlight: boolean }) {
-  const counts = domains.map((domain) => domain.questions)
-  const min = Math.min(...counts)
-  return (
-    <Panel className="overflow-x-auto" flush>
-      <table className="w-full border-collapse" aria-label={PREVIEW.board.domain}>
-        <thead>
-          <tr className="border-b border-[var(--separator)]">
-            {[PREVIEW.board.domain, PREVIEW.board.count, PREVIEW.board.span, PREVIEW.board.ladder].map((head, index) => (
-              <th key={head} scope="col" className={['p-2', index === 0 ? 'pl-3 text-left' : 'text-right'].join(' ')}>
-                <Text variant="studio-caption" tone="muted">
-                  {head}
-                </Text>
-              </th>
-            ))}
-            <th scope="col" className="p-2 pr-3 text-right">
-              <Tooltip content={PREVIEW.board.availableHint}>
-                <Text variant="studio-caption" tone="muted">
-                  {PREVIEW.board.available}
-                </Text>
-              </Tooltip>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {domains.map((domain) => (
-            <tr key={domain.id} className="border-b border-[var(--separator)] last:border-0" data-domain={domain.id}>
-              <th scope="row" className="max-w-[16rem] p-2 pl-3 text-left font-normal">
-                <Text variant="studio-label" truncate>
-                  {domain.name}
-                </Text>
-              </th>
-              <td className="p-2 text-right">
-                <Text
-                  variant="studio-body"
-                  tone={highlight && domain.questions === min ? 'warning' : 'default'}
-                  tabular
-                >
-                  {domain.questions}
-                </Text>
-              </td>
-              <td className="p-2 text-right">
-                <Text variant="studio-body" tone="muted" tabular>
-                  {domain.minDifficulty}–{domain.maxDifficulty}
-                </Text>
-              </td>
-              <td className="p-2 text-right">
-                <Text variant="studio-caption" tone="muted" tabular truncate>
-                  {domain.ladder.join(' → ')}
-                </Text>
-              </td>
-              <td className="p-2 pr-3 text-right">
-                <Text variant="studio-body" tabular>
-                  {domain.pointsAvailable}
-                </Text>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Panel>
   )
 }

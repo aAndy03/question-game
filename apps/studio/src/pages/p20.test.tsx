@@ -8,6 +8,8 @@ import { createFakeHost, type FakeHost } from '@/host/fake'
 import { demoLibrary, demoPlay, demoRecipe } from '@/host/devFake'
 import { setHostTransport } from '@/host/host'
 import { receivePlayState } from '@/host/playState'
+import { keyboardDrag, stubRowLayout } from '@/test/sortable'
+import type { CatalogItem } from '@/host/types'
 
 /** P20, the interface pass, in Studio: route-level rules (05_STUDIO_DESIGN.md §26). */
 let fake: FakeHost
@@ -276,5 +278,27 @@ describe('game tags and folders (P20)', () => {
     second({ tags: Array.from({ length: 20 }, (_, i) => `t${i}`) })
     await expect(fake.invoke('recipe_bulk_edit', { ids: ['recipe-demo', 'recipe-two'], edits: [{ op: 'tag', tag: 'new' }], preview: false })).rejects.toBeTruthy()
     expect(fake.recipes.get('recipe-demo')?.tags).toEqual(['demo', 'four teams'])
+  })
+})
+
+describe('a question’s options, by drag and drop (P20)', () => {
+  it('reorders the draft, letters following, and saves the new order', async () => {
+    const restore = stubRowLayout()
+    try {
+      await at({ tab: 'library', questionId: 'q-h1', mode: 'edit' })
+      const value = (name: string) => (screen.getByRole('textbox', { name }) as HTMLInputElement).value
+      await waitFor(() => expect(value('Option B')).not.toBe(''))
+      const [first, second] = [value('Option A'), value('Option B')]
+      await keyboardDrag(screen.getByRole('button', { name: 'Reorder option A' }), 1)
+      await waitFor(() => expect(value('Option A')).toBe(second))
+      expect(value('Option B')).toBe(first)
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      await waitFor(() => {
+        const saved = fake.library.get('question:q-h1') as Extract<CatalogItem, { kind: 'question' }>
+        expect(saved.item.options.slice(0, 2).map((o) => o.text)).toEqual([second, first])
+      })
+    } finally {
+      restore()
+    }
   })
 })

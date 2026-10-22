@@ -66,5 +66,5 @@ export function SelectField<V extends string>({
       </Select.Popover>
     </Select>
   )
-  return <DisabledReason reason={disabled ? disabledReason : null}>{field}</DisabledReason>
+  return <DisabledReason reason={disabled ? disabledReason : null} block>{field}</DisabledReason>
 }

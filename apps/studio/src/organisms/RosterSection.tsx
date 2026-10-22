@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Button, IconButton, MeaningChip, Panel, Text } from '@/atoms'
-import { EmptyState, InlineNotice, TeamMark } from '@/molecules'
+import { DragHandle, EmptyState, InlineNotice, SortableList, TeamMark } from '@/molecules'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { GAME, LIST, PICKER, TEAM } from '@/copy'
 import { useHostCommand } from '@/host/commands'
@@ -16,7 +16,8 @@ export interface RosterSectionProps {
 }
 
 /**
- * The roster in play order — the opening ring (spec §4.3). Up/down reorders;
+ * The roster in play order — the opening ring (spec §4.3). A row is dragged
+ * by its handle (P20: the other rows slide aside, the drop writes once);
  * *Add teams…* is the picker on the list-view model (beta.4), which keeps the
  * order and appends what it adds. Writes `recipe_set_membership`.
  *
@@ -48,17 +49,6 @@ export function RosterSection({ recipe, frozenReason }: RosterSectionProps) {
     setPending(false)
     return ok
   }
-  const move = (i: number, dir: -1 | 1) => {
-    const next = [...recipe.teams]
-    const j = i + dir
-    const a = next[i]
-    const b = next[j]
-    if (a === undefined || b === undefined) return
-    next[i] = b
-    next[j] = a
-    void write(next)
-  }
-
   return (
     <Panel className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-4">
@@ -78,18 +68,28 @@ export function RosterSection({ recipe, frozenReason }: RosterSectionProps) {
       {recipe.teams.length === 0 ? (
         <EmptyState kind="empty" what={TEAM.many} compact />
       ) : (
-        <ol className="flex flex-col gap-1">
-          {recipe.teams.map((id, i) => {
+        <SortableList
+          ids={recipe.teams}
+          label={GAME.rosterOrder}
+          onReorder={write}
+          disabledReason={frozenReason}
+          className="flex flex-col gap-1"
+          renderRow={(id, handle) => {
             const t = byId.get(id)
             const overlay = recipe.overlays.teams[id]
+            const name = overlay?.name ?? t?.name ?? GAME.missingTeam
             return (
-              <li key={id} className="flex h-12 items-center gap-3 rounded-[calc(var(--radius)/1.5)] px-2" style={{ background: 'var(--surface-secondary)' }}>
+              <div
+                className={['flex h-12 items-center gap-2 rounded-[calc(var(--radius)/1.5)] px-1.5 transition-shadow', handle.isDragging ? 'shadow-lg ring-1 ring-[var(--accent)]' : ''].join(' ')}
+                style={{ background: 'var(--surface-secondary)' }}
+              >
+                <DragHandle handle={handle} label={GAME.reorder(name)} disabledReason={frozenReason} />
                 <Text variant="studio-mono" tone="muted" className="w-5 text-right" tabular>
-                  {i + 1}
+                  {handle.index + 1}
                 </Text>
                 <div className="min-w-0 flex-1">
                   {t ? (
-                    <TeamMark mark={{ color: overlay?.color ?? t.color, shortCode: overlay?.shortCode ?? t.shortCode, name: overlay?.name ?? t.name }} withName />
+                    <TeamMark mark={{ color: overlay?.color ?? t.color, shortCode: overlay?.shortCode ?? t.shortCode, name }} withName />
                   ) : (
                     <Text variant="studio-caption" tone="muted">
                       {GAME.missingTeam}
@@ -98,8 +98,6 @@ export function RosterSection({ recipe, frozenReason }: RosterSectionProps) {
                 </div>
                 {t && isArchived(t) ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null}
                 {overlay ? <MeaningChip meaning="overridden">{GAME.overridden}</MeaningChip> : null}
-                <IconButton icon="up" label={GAME.moveUp} size="sm" onPress={() => move(i, -1)} isDisabled={i === 0 || pending} disabledReason={frozenReason} />
-                <IconButton icon="down" label={GAME.moveDown} size="sm" onPress={() => move(i, 1)} isDisabled={i === recipe.teams.length - 1 || pending} disabledReason={frozenReason} />
                 <IconButton
                   icon="remove"
                   label={GAME.removeTeam}
@@ -108,10 +106,10 @@ export function RosterSection({ recipe, frozenReason }: RosterSectionProps) {
                   isDisabled={pending}
                   disabledReason={frozenReason}
                 />
-              </li>
+              </div>
             )
-          })}
-        </ol>
+          }}
+        />
       )}
       <PickerDialog
         isOpen={picking}

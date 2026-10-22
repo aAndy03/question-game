@@ -12,6 +12,8 @@ export interface SettingRowProps {
   disabled?: Disabled | undefined
   /** Nest child rows under a parent (award mode → points / map / weight). */
   nested?: boolean | undefined
+  /** A control that needs the row's width (P20): the reveal grid, the cue map, the band table — under the name, not squeezed beside it. */
+  wide?: boolean | undefined
 }
 
 /** Why the host disabled a key, in the operator's words (spec §4.2). */
@@ -38,13 +40,14 @@ export function disabledReasonText(disabled: Disabled | undefined): string | nul
  * per line. Below the threshold the row stacks — label, description, then the
  * control at full width — and the nesting indent shrinks with it.
  */
-export function SettingRow({ label, description, children, disabled, nested }: SettingRowProps) {
+export function SettingRow({ label, description, children, disabled, nested, wide }: SettingRowProps) {
   const reason = disabledReasonText(disabled)
   return (
     <div className={['@container/setting-row', nested ? 'ml-2 border-l-2 border-[var(--separator)] pl-3 @[34rem]/setting-row:ml-6 @[34rem]/setting-row:pl-4' : ''].join(' ')}>
       <div className="grid grid-cols-1 gap-x-6 gap-y-2 py-3 @[34rem]/setting-row:grid-cols-[minmax(0,1fr)_minmax(0,20rem)] @[34rem]/setting-row:items-start">
         <div className="flex min-w-0 flex-col gap-0.5 @[34rem]/setting-row:pt-1.5">
-          <Text as="div" variant="studio-label" tone={reason ? 'muted' : 'default'}>
+          {/* The name reads before its explanation (P20): a sub-heading over a caption. */}
+          <Text as="div" variant="studio-subheading" tone={reason ? 'muted' : 'default'}>
             {label}
           </Text>
           {description ? (
@@ -58,7 +61,7 @@ export function SettingRow({ label, description, children, disabled, nested }: S
             </Text>
           ) : null}
         </div>
-        <div className="min-w-0">{children}</div>
+        <div className={['min-w-0', wide ? '@[34rem]/setting-row:col-span-2' : ''].join(' ')}>{children}</div>
       </div>
     </div>
   )

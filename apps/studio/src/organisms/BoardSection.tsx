@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { Button, IconButton, MeaningChip, Panel, SwitchField, Text } from '@/atoms'
-import { BoardBalance, DifficultyDialog, EmptyState, IncompleteMark, InlineNotice } from '@/molecules'
+import { BoardBalance, BoardDomainRow, DifficultyDialog, EmptyState, IncompleteMark, InlineNotice, SettingRow, SortableList } from '@/molecules'
 import { DOMAIN, GAME, PICKER, QUESTION } from '@/copy'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
 import { blockedMembers, everyQuestion, oneQuestionPerDifficulty } from '@/host/board'
@@ -8,7 +8,7 @@ import { useHostCommand } from '@/host/commands'
 import { pickDomainsSpec, pickQuestionsSpec, type QuestionItem } from '@/host/listSpecs'
 import { bodyGaps, effectiveBody } from '@/host/question'
 import { useCatalogList, useRulesPreview, useTags } from '@/host/queries'
-import { difficultyBand, type BoardDomain, type BoardSettings, type Domain, type EditScope, type Recipe } from '@/host/types'
+import { difficultyBand, type BoardDomain, type BoardSettings, type Domain, type EditScope, type QuestionGap, type Recipe } from '@/host/types'
 import { PickerDialog, type PickerRow } from './PickerDialog'
 import { usePropagatingSave } from './usePropagatingSave'
 
@@ -21,10 +21,11 @@ export interface BoardSectionProps {
  * Pick domains for this show, then the questions from each (spec §12).
  * *Add domains…* and *Choose questions…* are pickers on the list-view model
  * (beta.4): search, filters, the domain's groups, select all in a group, pages
- * — a library of hundreds is a board of minutes. A domain card lists what it
- * has chosen. Difficulty overrides go through `DifficultyDialog` (§2.17); the
- * snapshot re-sorts by difficulty at Play start, so the order here is for the
- * operator's eye only.
+ * — a library of hundreds is a board of minutes. Each domain is one row
+ * (P20): dragged by its handle to set the order teams see the domains in,
+ * opened to list its questions in the walk the snapshot asks them in (easy to
+ * hard, then id) — a big board opens closed. Difficulty overrides go through
+ * `DifficultyDialog` (§2.17).
  *
  * **One question per difficulty, per domain** (P11.13), unless the game allows
  * repeats (`board.allow_repeated_difficulty`, P12.7). In *Choose questions…*
@@ -50,6 +51,8 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
   const [pickingDomains, setPickingDomains] = useState(false)
   const [choosingIn, setChoosingIn] = useState<string | null>(null)
   const [difficultyFor, setDifficultyFor] = useState<{ questionId: string; current: number | null } | null>(null)
+  /** Rows the operator opened or closed; the rest follow the board's size. */
+  const [toggled, setToggled] = useState<Readonly<Record<string, boolean>>>({})
   const notices = useNoticeStore((s) => s.notices)
   const dismiss = useNoticeStore((s) => s.dismiss)
 
@@ -169,18 +172,28 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
   }
 
   const total = recipe.board.reduce((n, b) => n + b.questionIds.length, 0)
+  // A big board opens closed (P20): fifteen domains of thirty-eight questions
+  // is a page of headers, not five hundred rows.
+  const startsOpen = total <= 40 && recipe.board.length <= 4
+  const isOpen = (domainId: string) => toggled[domainId] ?? startsOpen
+  const setAll = (open: boolean) => setToggled(Object.fromEntries(recipe.board.map((b) => [b.domainId, open])))
+  const ladders = new Map(preview.data && preview.data.board.kind !== 'empty' ? preview.data.board.domains.map((l) => [l.id, l]) : [])
+  const shortest = preview.data?.board.kind === 'ragged' ? preview.data.board.min : null
+  /** The order the snapshot asks them in: easy to hard, then id (`SnapshotDomain::new`). */
+  const walk = (ids: readonly string[]) => [...ids].sort((a, b) => (difficultyOf(a) ?? 101) - (difficultyOf(b) ?? 101) || (a < b ? -1 : a > b ? 1 : 0))
+  const reorderDomains = (order: readonly string[]) => write(order.flatMap((id) => recipe.board.filter((b) => b.domainId === id)))
 
   return (
-    <Panel className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-0.5">
+    <Panel className="@container/board flex flex-col gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 flex-col gap-0.5">
           <Text variant="studio-heading">{GAME.board}</Text>
           <Text variant="studio-caption" tone="muted">
-            {GAME.boardHint}
+            {recipe.board.length === 0 ? GAME.boardHint : GAME.boardHintShort}
           </Text>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <Text variant="studio-caption" tone="muted" className="whitespace-nowrap">
+          <Text variant="studio-caption" tone="muted" className="whitespace-nowrap" tabular>
             {`${GAME.domainsCount(recipe.board.length)} · ${GAME.questionsCount(total)}`}
           </Text>
           <Button variant="secondary" icon="add" onPress={() => setPickingDomains(true)} isDisabled={pending} disabledReason={frozenReason}>
@@ -189,129 +202,125 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
         </div>
       </div>
 
-      <SwitchField
-        label={GAME.allowRepeats}
-        description={GAME.allowRepeatsHint}
-        isSelected={allowRepeats}
-        onChange={(on) =>
-          void run('recipe_set_settings', {
-            id: recipe.id,
-            settings: { ...recipe.settings, board: { allow_repeated_difficulty: on } },
-          })
-        }
-        disabledReason={frozenReason}
-      />
+      <div className="border-y border-[var(--separator)]">
+        <SettingRow label={GAME.allowRepeats} description={GAME.allowRepeatsHint}>
+          <SwitchField
+            label={GAME.allowRepeats}
+            hideLabel
+            isSelected={allowRepeats}
+            onChange={(on) =>
+              void run('recipe_set_settings', {
+                id: recipe.id,
+                settings: { ...recipe.settings, board: { allow_repeated_difficulty: on } },
+              })
+            }
+            disabledReason={frozenReason}
+          />
+        </SettingRow>
+      </div>
 
       {boardNotices.map((n) => (
         <InlineNotice key={n.id} notice={n} onAction={() => dismiss(n.id)} onDismiss={() => dismiss(n.id)} compact />
       ))}
 
-      {recipe.board.length === 0 ? <EmptyState kind="empty" what={DOMAIN.many} compact /> : null}
-
-      {/*
-        What kind of board this is, and what that means for the show (P11.12).
-        Uneven domains never change what a question pays — the award does not
-        read domain membership — but they change the ceiling and the walk, and
-        that belongs here, next to the questions, rather than in Rules.
-      */}
-      {preview.data ? <BoardBalance board={preview.data.board} /> : null}
-
-      {recipe.board.map((b) => {
-        const d = domainById.get(b.domainId)
-        const members = d ? d.questions.length : b.questionIds.length
-        const overlay = recipe.overlays.domains[b.domainId]
-        return (
-          <div key={b.domainId} className="flex flex-col gap-2 rounded-[var(--radius)] border border-[var(--border)] p-3">
-            <div className="flex items-center gap-3">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <Text variant="studio-label" truncate>
-                  {overlay?.name ?? d?.name ?? GAME.missingDomain}
-                </Text>
-                <Text variant="studio-mono" tone="muted">
-                  {overlay?.code ?? d?.code ?? ''}
-                </Text>
-                {overlay ? <MeaningChip meaning="overridden">{GAME.overridden}</MeaningChip> : null}
-              </div>
-              <Text variant="studio-caption" tone="muted">
-                {GAME.questionsOn(b.questionIds.length, members)}
-              </Text>
-              <Button variant="secondary" size="sm" onPress={() => setChoosingIn(b.domainId)} isDisabled={pending || !d} disabledReason={frozenReason}>
-                {PICKER.chooseQuestions}
-              </Button>
-              <IconButton
-                icon="remove"
-                label={GAME.removeDomain}
-                size="sm"
-                onPress={() => void write(recipe.board.filter((x) => x.domainId !== b.domainId))}
-                isDisabled={pending}
-                disabledReason={frozenReason}
-              />
-            </div>
-            {b.questionIds.length === 0 ? (
-              <Text variant="studio-caption" tone="muted">
-                {DOMAIN.questionCount(0)}
-              </Text>
-            ) : (
-              <ul className="flex flex-col gap-0.5">
-                {b.questionIds.map((qid) => {
-                  const q = questionById.get(qid)
-                  const qOverlay = recipe.overlays.questions[qid]
-                  const gaps = gapsOf(qid)
-                  const difficulty = difficultyOf(qid)
-                  const band = difficulty === null ? null : difficultyBand(difficulty)
-                  const stem = qOverlay?.stem ?? q?.stem ?? ''
-                  return (
-                    <li key={qid} className="flex h-9 items-center gap-3 rounded px-1.5 hover:bg-[var(--surface-secondary)]">
-                      <Text variant="studio-body" truncate className="min-w-0 flex-1">
-                        {q ? stem || QUESTION.noStem : GAME.missingQuestion}
-                      </Text>
-                      <IncompleteMark gaps={gaps} />
-                      {qOverlay ? <MeaningChip meaning="overridden">{GAME.overridden}</MeaningChip> : null}
-                      <button
-                        type="button"
-                        className="rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
-                        aria-label={GAME.editDifficulty(stem || QUESTION.noStem, band ? `${QUESTION.band[band]} · ${difficulty}` : QUESTION.difficultyUnset)}
-                        title={QUESTION.difficulty}
-                        disabled={frozenReason !== null || !q}
-                        onClick={() => setDifficultyFor({ questionId: qid, current: difficulty })}
-                      >
-                        {band ? (
-                          <MeaningChip meaning={band}>{`${QUESTION.band[band]} · ${difficulty}`}</MeaningChip>
-                        ) : (
-                          <MeaningChip meaning="unset">{QUESTION.difficultyUnset}</MeaningChip>
-                        )}
-                      </button>
-                      {qOverlay ? (
-                        <IconButton
-                          icon="undo"
-                          label={GAME.reset}
-                          size="sm"
-                          onPress={() =>
-                            void run('recipe_set_overlay', { id: recipe.id, target: { target: 'question', id: qid, patch: null }, scope: 'this_game' })
-                          }
-                          disabledReason={frozenReason}
-                        />
-                      ) : null}
+      {recipe.board.length === 0 ? (
+        <EmptyState kind="empty" what={DOMAIN.many} compact />
+      ) : (
+        <>
+          {/*
+            What kind of board this is (P11.12), in a line. Uneven domains never
+            change what a question pays — the award does not read domain
+            membership — but they change the ceiling and the walk, which each
+            row shows for its own domain.
+          */}
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">{preview.data ? <BoardBalance board={preview.data.board} /> : null}</div>
+            {recipe.board.length > 1 ? (
+              <span className="flex shrink-0 items-center gap-1">
+                <Button variant="ghost" size="sm" onPress={() => setAll(true)}>
+                  {GAME.openAll}
+                </Button>
+                <Button variant="ghost" size="sm" onPress={() => setAll(false)}>
+                  {GAME.closeAll}
+                </Button>
+              </span>
+            ) : null}
+          </div>
+          <SortableList
+            ids={recipe.board.map((b) => b.domainId)}
+            label={GAME.boardOrder}
+            onReorder={reorderDomains}
+            disabledReason={frozenReason}
+            className="flex flex-col gap-2"
+            renderRow={(domainId, handle) => {
+              const b = recipe.board.find((x) => x.domainId === domainId)
+              if (!b) return null
+              const d = domainById.get(domainId)
+              const overlay = recipe.overlays.domains[domainId]
+              const ladder = ladders.get(domainId)
+              return (
+                <BoardDomainRow
+                  handle={handle}
+                  name={overlay?.name ?? d?.name ?? GAME.missingDomain}
+                  code={overlay?.code ?? d?.code ?? ''}
+                  overridden={overlay !== undefined}
+                  count={b.questionIds.length}
+                  of={d ? d.questions.length : b.questionIds.length}
+                  ladder={ladder}
+                  short={shortest !== null && ladder?.questions === shortest}
+                  open={isOpen(domainId)}
+                  onToggle={() => setToggled((t) => ({ ...t, [domainId]: !isOpen(domainId) }))}
+                  frozenReason={frozenReason}
+                  actions={
+                    <>
+                      <Button variant="secondary" size="sm" onPress={() => setChoosingIn(domainId)} isDisabled={pending || !d} disabledReason={frozenReason}>
+                        {PICKER.chooseQuestions}
+                      </Button>
                       <IconButton
                         icon="remove"
-                        label={GAME.removeQuestion}
+                        label={GAME.removeDomain}
                         size="sm"
-                        onPress={() => removeQuestion(b.domainId, qid)}
+                        onPress={() => void write(recipe.board.filter((x) => x.domainId !== domainId))}
                         isDisabled={pending}
                         disabledReason={frozenReason}
                       />
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </div>
-        )
-      })}
+                    </>
+                  }
+                >
+                  {b.questionIds.length === 0 ? (
+                    <Text as="p" variant="studio-caption" tone="muted" className="px-1.5 py-1">
+                      {GAME.noQuestionsYet}
+                    </Text>
+                  ) : (
+                    // Two columns where they fit; the walk reads down, then across.
+                    <ul
+                      className="grid grid-cols-1 gap-x-6 @[64rem]/board:grid-flow-col @[64rem]/board:grid-cols-2 @[64rem]/board:[grid-template-rows:repeat(var(--walk-rows),auto)]"
+                      style={{ '--walk-rows': Math.ceil(b.questionIds.length / 2) } as CSSProperties}
+                    >
+                      {walk(b.questionIds).map((qid) => (
+                        <BoardQuestion
+                          key={qid}
+                          stem={recipe.overlays.questions[qid]?.stem ?? questionById.get(qid)?.stem ?? ''}
+                          missing={!questionById.has(qid)}
+                          difficulty={difficultyOf(qid)}
+                          gaps={gapsOf(qid)}
+                          overridden={recipe.overlays.questions[qid] !== undefined}
+                          frozenReason={frozenReason}
+                          pending={pending}
+                          onDifficulty={() => setDifficultyFor({ questionId: qid, current: difficultyOf(qid) })}
+                          onReset={() => void run('recipe_set_overlay', { id: recipe.id, target: { target: 'question', id: qid, patch: null }, scope: 'this_game' })}
+                          onRemove={() => removeQuestion(domainId, qid)}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                </BoardDomainRow>
+              )
+            }}
+          />
+        </>
+      )}
 
-      <Text variant="studio-caption" tone="muted">
-        {GAME.shapeHint}
-      </Text>
       <PickerDialog
         isOpen={pickingDomains}
         onClose={() => setPickingDomains(false)}
@@ -334,7 +343,7 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
         onApply={(chosen) => applyQuestions(choosingIn ?? '', chosen)}
         isPending={pending}
         // The walk the snapshot will ask them in: easy to hard, then id.
-        chosenOrder={(ids) => [...ids].sort((a, b) => (difficultyOf(a) ?? 101) - (difficultyOf(b) ?? 101) || (a < b ? -1 : a > b ? 1 : 0))}
+        chosenOrder={walk}
       />
       <DifficultyDialog
         isOpen={difficultyFor !== null}
@@ -344,5 +353,51 @@ export function BoardSection({ recipe, frozenReason }: BoardSectionProps) {
       />
       {propagating.dialog}
     </Panel>
+  )
+}
+
+/**
+ * One question on an open Board row: its difficulty first (the walk's key, and
+ * the button that changes it for this game), then the stem. *Reset* and
+ * *Take off the board* appear on hover or focus, so a long walk reads as a list.
+ */
+function BoardQuestion(props: {
+  stem: string
+  missing: boolean
+  difficulty: number | null
+  gaps: readonly QuestionGap[]
+  overridden: boolean
+  frozenReason: string | null
+  pending: boolean
+  onDifficulty: () => void
+  onReset: () => void
+  onRemove: () => void
+}) {
+  const { stem, missing, difficulty, gaps, overridden, frozenReason, pending } = props
+  const band = difficulty === null ? null : difficultyBand(difficulty)
+  const label = band ? `${QUESTION.band[band]} · ${difficulty}` : QUESTION.difficultyUnset
+  return (
+    <li className="group/q flex h-9 min-w-0 items-center gap-2 rounded px-1.5 hover:bg-[var(--surface-secondary)]" data-board-question>
+      <button
+        type="button"
+        // One width for every chip, so the stems start in one column.
+        className="flex w-24 shrink-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
+        aria-label={GAME.editDifficulty(stem || QUESTION.noStem, label)}
+        title={QUESTION.difficulty}
+        disabled={frozenReason !== null || missing}
+        onClick={props.onDifficulty}
+      >
+        <MeaningChip meaning={band ?? 'unset'}>{label}</MeaningChip>
+      </button>
+      <Text variant="studio-body" truncate className="min-w-0 flex-1">
+        {missing ? GAME.missingQuestion : stem || QUESTION.noStem}
+      </Text>
+      <IncompleteMark gaps={gaps} />
+      {overridden ? <MeaningChip meaning="overridden">{GAME.overridden}</MeaningChip> : null}
+      <span className="flex shrink-0 items-center opacity-0 transition-opacity group-focus-within/q:opacity-100 group-hover/q:opacity-100">
+        {overridden ? <IconButton icon="undo" label={GAME.reset} size="sm" onPress={props.onReset} disabledReason={frozenReason} /> : null}
+        <IconButton icon="remove" label={GAME.removeQuestion} size="sm" onPress={props.onRemove} isDisabled={pending} disabledReason={frozenReason} />
+      </span>
+    </li>
   )
 }

@@ -128,7 +128,17 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
             {inControl ? <MeaningChip meaning="playing">{GAME.loadedInControl}</MeaningChip> : null}
             {frozen ? <MeaningChip meaning="frozen">{GAME.frozen}</MeaningChip> : null}
             {archived ? <MeaningChip meaning="archived">{LIST.archived}</MeaningChip> : null}
-            <Text variant="studio-mono" tone="muted">{`${GAME.rev} ${r.rev}`}</Text>
+            {/* How the Games list files it (P20); the internal rev is a tooltip on the folder, not a headline. */}
+            {r.folder ? (
+              <span title={`${GAME.rev} ${r.rev}`}>
+                <MeaningChip meaning="seed">{r.folder}</MeaningChip>
+              </span>
+            ) : null}
+            {r.tags.slice(0, 4).map((t) => (
+              <MeaningChip key={t} meaning="tag">
+                {t}
+              </MeaningChip>
+            ))}
           </span>
         }
         crumbs={<NavCrumbs crumbs={[{ label: TABS.games.label, onPress: () => void go({ tab: 'games' }) }, { label: r.name }]} />}
@@ -230,14 +240,19 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
       ) : null}
       {section === 'board' ? <BoardSection recipe={r} frozenReason={frozenReason} /> : null}
       {section === 'rules' ? (
-        <>
-          <RulesSection recipe={r} frozenReason={frozenReason} />
-          {/*
-            The preview reads the same recipe and the same rev, so it refetches
-            with the write it is explaining (P11.12).
-          */}
-          <RulesPreviewPanel recipeId={r.id} rev={r.rev} />
-        </>
+        // On a wide page the rules and what they pay sit side by side, the explanation sticky (P20).
+        <div className="@container/rules">
+          <div className="grid grid-cols-1 gap-6 @[72rem]/rules:grid-cols-[minmax(0,1fr)_minmax(26rem,34rem)] @[72rem]/rules:items-start">
+            <RulesSection recipe={r} frozenReason={frozenReason} />
+            {/*
+              The preview reads the same recipe and the same rev, so it refetches
+              with the write it is explaining (P11.12).
+            */}
+            <div className="@[72rem]/rules:sticky @[72rem]/rules:top-0 @[72rem]/rules:max-h-[calc(100vh-7rem)] @[72rem]/rules:overflow-y-auto">
+              <RulesPreviewPanel recipeId={r.id} rev={r.rev} />
+            </div>
+          </div>
+        </div>
       ) : null}
       {section === 'plays' ? <PlaysSection recipe={r} /> : null}
       {archive.dialog}

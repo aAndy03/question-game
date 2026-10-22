@@ -52,5 +52,5 @@ export function NumberField({
       {error ? <FieldError>{error}</FieldError> : null}
     </HeroNumberField>
   )
-  return <DisabledReason reason={disabled ? disabledReason : null}>{field}</DisabledReason>
+  return <DisabledReason reason={disabled ? disabledReason : null} block>{field}</DisabledReason>
 }

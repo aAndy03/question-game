@@ -1,5 +1,6 @@
 import { CheckboxField, IconButton, Text, TextField } from '@/atoms'
 import { QUESTION } from '@/copy'
+import { DragHandle, type SortableRowHandle } from './SortableList'
 
 export interface OptionRowProps {
   index: number
@@ -16,9 +17,11 @@ export interface OptionRowProps {
   isDisabled?: boolean | undefined
   disabledReason?: string | null | undefined
   autoFocus?: boolean | undefined
+  /** From `SortableList`: the row is dragged by a handle before its letter (P20). */
+  handle?: SortableRowHandle | undefined
 }
 
-/** One answer option in the question editor: letter · text · correct · remove. */
+/** One answer option in the question editor: (handle) · letter · text · correct · remove. */
 export function OptionRow({
   index,
   text,
@@ -32,9 +35,15 @@ export function OptionRow({
   isDisabled,
   disabledReason,
   autoFocus,
+  handle,
 }: OptionRowProps) {
   return (
-    <div className="grid grid-cols-[2rem_1fr_auto_auto] items-start gap-3">
+    <div className={['grid items-start gap-3', handle ? 'grid-cols-[auto_2rem_1fr_auto_auto]' : 'grid-cols-[2rem_1fr_auto_auto]'].join(' ')}>
+      {handle ? (
+        <div className="flex h-10 items-center">
+          <DragHandle handle={handle} label={QUESTION.reorderOption(index)} disabledReason={isDisabled ? disabledReason : null} />
+        </div>
+      ) : null}
       <div className="flex h-10 items-center justify-center rounded-[calc(var(--radius)/2)]" style={{ background: 'var(--surface-secondary)' }}>
         <Text variant="studio-label" tone={correct ? 'success' : 'muted'}>
           {String.fromCharCode(65 + index)}

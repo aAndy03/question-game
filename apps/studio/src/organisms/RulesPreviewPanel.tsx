@@ -1,5 +1,5 @@
 import { Chip, Panel, Skeleton, Text } from "@/atoms";
-import { AwardMatrix, BandLadder, RuleEffects } from "@/molecules";
+import { AwardMatrix, BandLadder, InlineNotice, RuleEffects } from "@/molecules";
 import { PREVIEW } from "@/copy/preview";
 import { useRulesPreview } from "@/host/queries";
 
@@ -55,11 +55,15 @@ export function RulesPreviewPanel({ recipeId, rev }: RulesPreviewPanelProps) {
         </div>
 
         {p.warnings.length > 0 ? (
-          <div className="flex flex-col gap-1" data-preview-warnings>
+          // Compact notices, like every other warning (P20).
+          <div className="flex flex-col gap-2" data-preview-warnings>
             {p.warnings.map((warning, index) => (
-              <Text key={index} variant="studio-caption" tone="warning">
-                {PREVIEW.warning(warning)}
-              </Text>
+              <InlineNotice
+                key={index}
+                notice={{ code: 'preview.warning', severity: 'warn', targetPath: null, actions: [], detail: { message: PREVIEW.warning(warning) } }}
+                onAction={() => {}}
+                compact
+              />
             ))}
           </div>
         ) : null}

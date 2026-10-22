@@ -38,6 +38,33 @@ if (typeof window !== 'undefined') {
   if (typeof Element.prototype.getAnimations !== 'function') {
     Element.prototype.getAnimations = () => []
   }
+  // dnd-kit finishes the document's running animations before it measures a
+  // row it lifts (P20's `SortableList`).
+  if (typeof document.getAnimations !== 'function') {
+    document.getAnimations = () => []
+  }
+  // …animates the drop, then removes its placeholder when that finishes…
+  if (typeof Element.prototype.animate !== 'function') {
+    Element.prototype.animate = function () {
+      const finished = Promise.resolve()
+      return { finished, cancel() {}, finish() {}, onfinish: null, addEventListener() {}, removeEventListener() {} } as unknown as Animation
+    }
+  }
+  // …and watches which rows are on screen while one is lifted.
+  if (typeof window.IntersectionObserver === 'undefined') {
+    class IntersectionObserverStub {
+      readonly root = null
+      readonly rootMargin = '0px'
+      readonly thresholds = [0]
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return []
+      }
+    }
+    window.IntersectionObserver = IntersectionObserverStub as unknown as typeof IntersectionObserver
+  }
   // React Aria ≥ 3.53 builds `meta[name="…"]` selectors with `CSS.escape`
   // when a modal mounts; jsdom has no `CSS` global. Escapes every character a
   // selector string cannot carry raw, which is all a meta name needs.

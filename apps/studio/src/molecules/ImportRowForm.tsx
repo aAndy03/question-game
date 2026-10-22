@@ -2,6 +2,7 @@ import { Button, Text, TextAreaField } from '@/atoms'
 import { IMPORT, QUESTION, type TagWords } from '@/copy'
 import { DifficultyField } from './DifficultyField'
 import { OptionRow } from './OptionRow'
+import { SortableList } from './SortableList'
 import { TagField } from './TagField'
 
 /** A row of an import file being edited (P20), in the file's own terms. */
@@ -54,19 +55,30 @@ export function ImportRowForm({ value, onChange, knownTags, knownDomains }: Impo
       <TextAreaField label={QUESTION.stem} value={value.question} onChange={(question) => set({ question })} rows={3} />
       <div className="flex flex-col gap-2">
         <Text variant="studio-label">{QUESTION.options}</Text>
-        {value.options.map((o, i) => (
-          <OptionRow
-            key={o.key}
-            index={i}
-            text={o.text}
-            correct={o.correct}
-            onTextChange={(text) => set({ options: value.options.map((x, j) => (j === i ? { ...x, text } : x)) })}
-            onCorrectChange={(c) => set({ options: value.options.map((x, j) => (j === i ? { ...x, correct: c } : x)) })}
-            onRemove={() => set({ options: value.options.filter((_, j) => j !== i) })}
-            isLastCorrect={o.correct && correct === 1}
-            isRequired={value.options.length <= 2}
-          />
-        ))}
+        <SortableList
+          ids={value.options.map((o) => o.key)}
+          label={QUESTION.options}
+          onReorder={(next) => set({ options: next.flatMap((key) => value.options.filter((o) => o.key === key)) })}
+          className="flex flex-col gap-2"
+          renderRow={(key, handle) => {
+            const i = value.options.findIndex((o) => o.key === key)
+            const o = value.options[i]
+            if (!o) return null
+            return (
+              <OptionRow
+                handle={handle}
+                index={i}
+                text={o.text}
+                correct={o.correct}
+                onTextChange={(text) => set({ options: value.options.map((x, j) => (j === i ? { ...x, text } : x)) })}
+                onCorrectChange={(c) => set({ options: value.options.map((x, j) => (j === i ? { ...x, correct: c } : x)) })}
+                onRemove={() => set({ options: value.options.filter((_, j) => j !== i) })}
+                isLastCorrect={o.correct && correct === 1}
+                isRequired={value.options.length <= 2}
+              />
+            )
+          }}
+        />
         <div>
           <Button size="sm" variant="ghost" icon="add" onPress={() => set({ options: [...value.options, { key: optionKey(), text: '', correct: false }] })}>
             {QUESTION.addOption}

@@ -1,6 +1,7 @@
-import { DifficultyMapField, SettingRow, SpeedWindowField, disabledReasonText } from '@/molecules'
-import { NumberField, Panel, SegmentedField, SelectField, SwitchField, Text } from '@/atoms'
+import { DifficultyMapField, SettingRow, SettingsGroup, SpeedWindowField, disabledReasonText } from '@/molecules'
+import { DurationField, NumberField, OptionalNumberField, SegmentedField, SliderField, SwitchField, Text } from '@/atoms'
 import { GAME, RULES } from '@/copy'
+import { SETTINGS, SETTINGS_GROUPS, type SettingsGroupId } from '@/copy/settings'
 import { useHostCommand } from '@/host/commands'
 import { useRulesPreview } from '@/host/queries'
 import { useSettings } from '@/host/queries'
@@ -13,10 +14,16 @@ export interface RulesSectionProps {
 }
 
 const CHANNELS: readonly RevealChannel[] = ['question', 'answers', 'outcome', 'leaderboard']
+const titleOf = (id: SettingsGroupId) => SETTINGS_GROUPS.find((g) => g.id === id)?.title ?? id
 
 /**
  * The recipe's B5 document (spec §4.2), one `SettingRow` per key, parents
  * nesting children (award mode → points / map / weight).
+ *
+ * **Grouped and drawn as Settings draws them** (P20): Award · Turn · Judging ·
+ * Timer · Reveal · Stage language, each key with the control the Settings tab
+ * uses for it — a game's rules and the defaults for new games read the same
+ * way, and the duration is in seconds, not milliseconds.
  *
  * **Interlocks come from the host, for this recipe, always** (P11.12).
  * `settings_get.disabled` can only answer for the recipe in Control, so this
@@ -49,199 +56,212 @@ export function RulesSection({ recipe, frozenReason }: RulesSectionProps) {
 
   const exclusiveLockSpeed = s.scoring.mode === 'lock_speed'
   const globalsTimer = settings.data?.globals.timer
+  const timerChoice = s.timer.enabled === null ? 'inherit' : s.timer.enabled ? 'on' : 'off'
 
   return (
-    <Panel className="flex flex-col gap-2">
-      <div className="flex flex-col gap-0.5 pb-2">
-        <Text variant="studio-heading">{GAME.rules}</Text>
+    <div className="flex flex-col gap-4" data-rules>
+      <div className="flex flex-col gap-0.5">
+        <Text as="h2" variant="studio-heading">
+          {GAME.rules}
+        </Text>
         <Text variant="studio-caption" tone="muted">
           {GAME.rulesHint}
         </Text>
       </div>
 
-      <SettingRow label={RULES.scoringMode} description={RULES.scoringModeHint} disabled={disabledFor('scoring.mode')}>
-        <SelectField
-          label={RULES.scoringMode}
-          hideLabel
-          value={s.scoring.mode}
-          onChange={(mode) => scoring({ mode })}
-          options={[
-            { value: 'flat', label: RULES.flat },
-            { value: 'difficulty', label: RULES.difficulty },
-            { value: 'lock_speed', label: RULES.lockSpeed },
-          ]}
-          disabledReason={reason('scoring.mode')}
-        />
-      </SettingRow>
-      {s.scoring.mode === 'flat' || (exclusiveLockSpeed && s.scoring.lock_speed_base === 'flat') ? (
-        <SettingRow label={RULES.flatPoints} nested>
-          <NumberField label={RULES.flatPoints} hideLabel value={s.scoring.flat_points} onChange={(v) => scoring({ flat_points: v ?? 0 })} minValue={0} disabledReason={reason('scoring.flat_points')} />
-        </SettingRow>
-      ) : null}
-      {s.scoring.mode === 'difficulty' || (exclusiveLockSpeed && s.scoring.lock_speed_base === 'difficulty') ? (
-        <SettingRow label={RULES.difficultyMap} description={RULES.difficultyMapHint} nested>
-          {/*
-            One molecule, both call sites. Until P11.12 this row had its own
-            Select and a factor field, and the Bands branch rendered *nothing*:
-            the operator picked Bands and the panel went blank, which is most
-            of why nobody could say what Bands did.
-          */}
-          <DifficultyMapField
-            value={s.scoring.difficulty_map}
-            onChange={(difficulty_map) => scoring({ difficulty_map })}
-            disabledReason={reason('scoring.difficulty_map')}
-            isDisabled={reason('scoring.difficulty_map') !== null}
-          />
-        </SettingRow>
-      ) : null}
-      {exclusiveLockSpeed ? (
-        <SettingRow label={RULES.lockSpeedBase} nested>
-          <SelectField
-            label={RULES.lockSpeedBase}
+      <SettingsGroup title={titleOf('award')}>
+        <SettingRow label={RULES.scoringMode} description={RULES.scoringModeHint} disabled={disabledFor('scoring.mode')}>
+          <SegmentedField
+            label={RULES.scoringMode}
             hideLabel
-            value={s.scoring.lock_speed_base}
-            onChange={(lock_speed_base) => scoring({ lock_speed_base })}
+            value={s.scoring.mode}
+            onChange={(mode) => scoring({ mode })}
             options={[
               { value: 'flat', label: RULES.flat },
               { value: 'difficulty', label: RULES.difficulty },
+              { value: 'lock_speed', label: RULES.lockSpeed },
             ]}
-            disabledReason={reason('scoring.lock_speed_base')}
+            disabledReason={reason('scoring.mode')}
           />
         </SettingRow>
-      ) : (
-        <SettingRow label={RULES.lockSpeedEnabled} description={RULES.lockSpeedEnabledHint} nested>
-          <SwitchField label={RULES.lockSpeedEnabled} hideLabel isSelected={s.scoring.lock_speed_enabled} onChange={(lock_speed_enabled) => scoring({ lock_speed_enabled })} disabledReason={reason('scoring.lock_speed.enabled')} />
-        </SettingRow>
-      )}
-      <SettingRow label={RULES.speedWeight} description={RULES.speedWeightHint} nested>
-        <NumberField
-          label={RULES.speedWeight}
-          hideLabel
-          value={s.scoring.speed_weight}
-          onChange={(v) => scoring({ speed_weight: v ?? 0 })}
-          minValue={0}
-          step={0.1}
-          disabledReason={reason('scoring.speed_weight')}
-        />
-      </SettingRow>
-      {/*
-        P11.12. Both default to the pre-P11.12 formula — the whole clock, no
-        banding — so an existing game pays exactly what it paid before.
-      */}
-      <SettingRow label={RULES.speedWindow} description={RULES.speedWindowHint} nested>
-        <SpeedWindowField
-          value={s.scoring.speed_window}
-          durationMs={resolvedDuration}
-          onChange={(speed_window) => scoring({ speed_window })}
-          disabledReason={reason('scoring.speed_window')}
-        />
-      </SettingRow>
-      <SettingRow label={RULES.speedSteps} description={RULES.speedStepsHint} nested>
-        <div className="flex items-center gap-2">
-          <SwitchField
-            label={RULES.speedSteps}
+        {s.scoring.mode === 'flat' || (exclusiveLockSpeed && s.scoring.lock_speed_base === 'flat') ? (
+          <SettingRow label={RULES.flatPoints} nested disabled={disabledFor('scoring.flat_points')}>
+            <NumberField label={RULES.flatPoints} hideLabel value={s.scoring.flat_points} onChange={(v) => scoring({ flat_points: v ?? 0 })} minValue={0} disabledReason={reason('scoring.flat_points')} />
+          </SettingRow>
+        ) : null}
+        {s.scoring.mode === 'difficulty' || (exclusiveLockSpeed && s.scoring.lock_speed_base === 'difficulty') ? (
+          <SettingRow label={RULES.difficultyMap} description={RULES.difficultyMapHint} nested disabled={disabledFor('scoring.difficulty_map')} wide>
+            {/*
+              One molecule, both call sites. Until P11.12 this row had its own
+              Select and a factor field, and the Bands branch rendered *nothing*:
+              the operator picked Bands and the panel went blank, which is most
+              of why nobody could say what Bands did.
+            */}
+            <DifficultyMapField
+              value={s.scoring.difficulty_map}
+              onChange={(difficulty_map) => scoring({ difficulty_map })}
+              disabledReason={reason('scoring.difficulty_map')}
+              isDisabled={reason('scoring.difficulty_map') !== null}
+            />
+          </SettingRow>
+        ) : null}
+        {exclusiveLockSpeed ? (
+          <SettingRow label={RULES.lockSpeedBase} nested disabled={disabledFor('scoring.lock_speed_base')}>
+            <SegmentedField
+              label={RULES.lockSpeedBase}
+              hideLabel
+              value={s.scoring.lock_speed_base}
+              onChange={(lock_speed_base) => scoring({ lock_speed_base })}
+              options={[
+                { value: 'flat', label: RULES.flat },
+                { value: 'difficulty', label: RULES.difficulty },
+              ]}
+              disabledReason={reason('scoring.lock_speed_base')}
+            />
+          </SettingRow>
+        ) : (
+          <SettingRow label={RULES.lockSpeedEnabled} description={RULES.lockSpeedEnabledHint} nested disabled={disabledFor('scoring.lock_speed.enabled')}>
+            <SwitchField label={RULES.lockSpeedEnabled} hideLabel isSelected={s.scoring.lock_speed_enabled} onChange={(lock_speed_enabled) => scoring({ lock_speed_enabled })} disabledReason={reason('scoring.lock_speed.enabled')} />
+          </SettingRow>
+        )}
+        <SettingRow label={RULES.speedWeight} description={RULES.speedWeightHint} nested disabled={disabledFor('scoring.speed_weight')}>
+          <SliderField
+            label={RULES.speedWeight}
             hideLabel
-            isSelected={s.scoring.speed_steps !== null}
-            onChange={(on) => scoring({ speed_steps: on ? 3 : null })}
-            disabledReason={reason('scoring.speed_steps')}
+            value={s.scoring.speed_weight}
+            onChange={() => {}}
+            onChangeEnd={(speed_weight) => scoring({ speed_weight })}
+            minValue={0}
+            maxValue={2}
+            step={0.05}
+            disabledReason={reason('scoring.speed_weight')}
           />
-          {s.scoring.speed_steps !== null ? (
-            <NumberField
+        </SettingRow>
+        {/*
+          P11.12. Both default to the pre-P11.12 formula — the whole clock, no
+          banding — so an existing game pays exactly what it paid before.
+        */}
+        <SettingRow label={RULES.speedWindow} description={RULES.speedWindowHint} nested disabled={disabledFor('scoring.speed_window')}>
+          <SpeedWindowField value={s.scoring.speed_window} durationMs={resolvedDuration} onChange={(speed_window) => scoring({ speed_window })} disabledReason={reason('scoring.speed_window')} />
+        </SettingRow>
+        <SettingRow label={RULES.speedSteps} description={RULES.speedStepsHint} nested disabled={disabledFor('scoring.speed_steps')}>
+          <div className="flex items-center gap-2">
+            <SwitchField
               label={RULES.speedSteps}
               hideLabel
-              value={s.scoring.speed_steps}
-              onChange={(v) => scoring({ speed_steps: Math.max(1, v ?? 1) })}
-              minValue={1}
-              maxValue={20}
+              isSelected={s.scoring.speed_steps !== null}
+              onChange={(on) => scoring({ speed_steps: on ? 3 : null })}
               disabledReason={reason('scoring.speed_steps')}
             />
-          ) : null}
-        </div>
-      </SettingRow>
+            {s.scoring.speed_steps !== null ? (
+              <NumberField
+                label={RULES.speedSteps}
+                hideLabel
+                value={s.scoring.speed_steps}
+                onChange={(v) => scoring({ speed_steps: Math.max(1, v ?? 1) })}
+                minValue={1}
+                maxValue={20}
+                disabledReason={reason('scoring.speed_steps')}
+              />
+            ) : null}
+          </div>
+        </SettingRow>
+      </SettingsGroup>
 
-      <SettingRow label={RULES.partialCredit} description={RULES.partialCreditHint} disabled={disabledFor('judging.partial_credit')}>
-        <SwitchField label={RULES.partialCredit} hideLabel isSelected={s.judging.partial_credit} onChange={(partial_credit) => judging({ partial_credit })} disabledReason={reason('judging.partial_credit')} />
-      </SettingRow>
-      <SettingRow label={RULES.orderMatters} description={RULES.orderMattersHint} disabled={disabledFor('judging.order_matters')}>
-        <SwitchField label={RULES.orderMatters} hideLabel isSelected={s.judging.order_matters} onChange={(order_matters) => judging({ order_matters })} disabledReason={reason('judging.order_matters')} />
-      </SettingRow>
-
-      <SettingRow label={RULES.maxConsecutive} description={RULES.maxConsecutiveHint}>
-        <NumberField label={RULES.maxConsecutive} hideLabel value={s.turn.max_consecutive_correct} onChange={(v) => turn({ max_consecutive_correct: v })} minValue={1} disabledReason={reason('turn.max_consecutive_correct')} />
-      </SettingRow>
-      <SettingRow label={RULES.bonus}>
-        <div className="flex items-center gap-2">
-          <SwitchField
-            label={RULES.bonus}
-            hideLabel
-            isSelected={s.turn.bonus_after_consecutive !== null}
-            onChange={(on) => turn({ bonus_after_consecutive: on ? { count: 3, award: 10 } : null })}
-            disabledReason={reason('turn.bonus_after_consecutive')}
-          />
-          {s.turn.bonus_after_consecutive ? (
-            <>
-              <NumberField label={RULES.bonusCount} hideLabel value={s.turn.bonus_after_consecutive.count} onChange={(v) => turn({ bonus_after_consecutive: { count: v ?? 1, award: s.turn.bonus_after_consecutive?.award ?? 0 } })} minValue={1} disabledReason={reason('turn.bonus_after_consecutive')} />
-              <NumberField label={RULES.bonusAward} hideLabel value={s.turn.bonus_after_consecutive.award} onChange={(v) => turn({ bonus_after_consecutive: { count: s.turn.bonus_after_consecutive?.count ?? 1, award: v ?? 0 } })} minValue={0} disabledReason={reason('turn.bonus_after_consecutive')} />
-            </>
-          ) : null}
-        </div>
-      </SettingRow>
-
-      <SettingRow label={RULES.timerEnabled} description={RULES.timerEnabledHint} disabled={disabledFor('timer.enabled')}>
-        <SelectField
-          label={RULES.timerEnabled}
-          hideLabel
-          value={s.timer.enabled === null ? 'inherit' : s.timer.enabled ? 'on' : 'off'}
-          onChange={(v) => timer({ enabled: v === 'inherit' ? null : v === 'on' })}
-          options={[
-            { value: 'inherit', label: `${RULES.inherit}${globalsTimer ? ` (${globalsTimer.enabled ? RULES.on : RULES.off})` : ''}` },
-            { value: 'on', label: RULES.on },
-            { value: 'off', label: RULES.off },
-          ]}
-          disabledReason={reason('timer.enabled')}
-        />
-      </SettingRow>
-      <SettingRow label={RULES.timerDuration} description={RULES.timerDurationHint} nested>
-        <NumberField
-          label={RULES.timerDuration}
-          hideLabel
-          value={s.timer.duration_ms}
-          onChange={(v) => timer({ duration_ms: v })}
-          minValue={1000}
-          step={1000}
-          description={globalsTimer?.duration_ms ? `${RULES.inherit}: ${globalsTimer.duration_ms} ms` : undefined}
-          disabledReason={reason('timer.duration_ms')}
-        />
-      </SettingRow>
-
-      <SettingRow label={RULES.reveal} description={RULES.revealHint}>
-        <div className="grid grid-cols-2 gap-2">
-          {CHANNELS.map((channel) => (
-            <SelectField
-              key={channel}
-              label={RULES.revealChannel[channel]}
-              value={s.reveal[channel]}
-              onChange={(mode) => reveal(channel, mode)}
-              options={[
-                { value: 'operator', label: RULES.operator },
-                { value: 'auto', label: RULES.auto },
-              ]}
-              disabledReason={frozenReason ? null : reason(`reveal.${channel}`)}
+      <SettingsGroup title={titleOf('turn')}>
+        <SettingRow label={RULES.maxConsecutive} description={RULES.maxConsecutiveHint} disabled={disabledFor('turn.max_consecutive_correct')}>
+          <OptionalNumberField label={RULES.maxConsecutive} hideLabel value={s.turn.max_consecutive_correct} onChange={(v) => turn({ max_consecutive_correct: v })} min={1} disabledReason={reason('turn.max_consecutive_correct')} />
+        </SettingRow>
+        <SettingRow label={RULES.bonus} nested disabled={disabledFor('turn.bonus_after_consecutive')}>
+          <div className="flex flex-wrap items-end gap-2">
+            <OptionalNumberField
+              label={SETTINGS.bonus.count}
+              value={s.turn.bonus_after_consecutive?.count ?? null}
+              onChange={(count) => turn({ bonus_after_consecutive: count === null ? null : { count, award: s.turn.bonus_after_consecutive?.award ?? 10 } })}
+              min={1}
+              disabledReason={reason('turn.bonus_after_consecutive')}
             />
-          ))}
-        </div>
-      </SettingRow>
+            {s.turn.bonus_after_consecutive ? (
+              <NumberField
+                label={SETTINGS.bonus.award}
+                value={s.turn.bonus_after_consecutive.award}
+                onChange={(award) => turn({ bonus_after_consecutive: { count: s.turn.bonus_after_consecutive?.count ?? 1, award: award ?? 0 } })}
+                minValue={0}
+                disabledReason={reason('turn.bonus_after_consecutive')}
+              />
+            ) : null}
+          </div>
+        </SettingRow>
+      </SettingsGroup>
+
+      <SettingsGroup title={titleOf('judging')}>
+        <SettingRow label={RULES.partialCredit} description={RULES.partialCreditHint} disabled={disabledFor('judging.partial_credit')}>
+          <SwitchField label={RULES.partialCredit} hideLabel isSelected={s.judging.partial_credit} onChange={(partial_credit) => judging({ partial_credit })} disabledReason={reason('judging.partial_credit')} />
+        </SettingRow>
+        <SettingRow label={RULES.orderMatters} description={RULES.orderMattersHint} disabled={disabledFor('judging.order_matters')}>
+          <SwitchField label={RULES.orderMatters} hideLabel isSelected={s.judging.order_matters} onChange={(order_matters) => judging({ order_matters })} disabledReason={reason('judging.order_matters')} />
+        </SettingRow>
+      </SettingsGroup>
+
+      <SettingsGroup title={titleOf('timer')}>
+        <SettingRow label={RULES.timerEnabled} description={RULES.timerEnabledHint} disabled={disabledFor('timer.enabled')}>
+          <SegmentedField
+            label={RULES.timerEnabled}
+            hideLabel
+            value={timerChoice}
+            onChange={(v) => timer({ enabled: v === 'inherit' ? null : v === 'on' })}
+            options={[
+              { value: 'inherit', label: `${RULES.inherit}${globalsTimer ? ` (${globalsTimer.enabled ? RULES.on : RULES.off})` : ''}` },
+              { value: 'on', label: RULES.on },
+              { value: 'off', label: RULES.off },
+            ]}
+            disabledReason={reason('timer.enabled')}
+          />
+        </SettingRow>
+        <SettingRow label={RULES.timerDuration} description={RULES.timerDurationHint} nested disabled={disabledFor('timer.duration_ms')}>
+          <DurationField
+            label={RULES.timerDuration}
+            hideLabel
+            value={s.timer.duration_ms}
+            onChange={(duration_ms) => timer({ duration_ms })}
+            description={globalsTimer?.duration_ms ? RULES.inheritSeconds(Math.round(globalsTimer.duration_ms / 1000)) : undefined}
+            disabledReason={reason('timer.duration_ms')}
+          />
+        </SettingRow>
+      </SettingsGroup>
+
+      <SettingsGroup title={titleOf('reveal')}>
+        <SettingRow label={RULES.reveal} description={RULES.revealHint} wide>
+          <div className="grid grid-cols-1 gap-3 @[28rem]:grid-cols-2">
+            {CHANNELS.map((channel) => (
+              <SegmentedField<RevealMode>
+                key={channel}
+                label={RULES.revealChannel[channel]}
+                value={s.reveal[channel]}
+                onChange={(mode) => reveal(channel, mode)}
+                options={[
+                  { value: 'operator', label: RULES.operator },
+                  { value: 'auto', label: RULES.auto },
+                ]}
+                disabledReason={frozenReason ? null : reason(`reveal.${channel}`)}
+              />
+            ))}
+          </div>
+        </SettingRow>
+      </SettingsGroup>
 
       {/* Presentation, not rules: live like reveal, so never frozen. */}
-      <SettingRow label={RULES.language} description={RULES.languageHint}>
-        <SegmentedField
-          label={RULES.language}
-          hideLabel
-          value={s.language ?? 'en'}
-          onChange={language}
-          options={STAGE_LANGUAGES.map((value) => ({ value, label: RULES.languageName[value] }))}
-        />
-      </SettingRow>
-    </Panel>
+      <SettingsGroup title={RULES.language}>
+        <SettingRow label={RULES.language} description={RULES.languageHint}>
+          <SegmentedField
+            label={RULES.language}
+            hideLabel
+            value={s.language ?? 'en'}
+            onChange={language}
+            options={STAGE_LANGUAGES.map((value) => ({ value, label: RULES.languageName[value] }))}
+          />
+        </SettingRow>
+      </SettingsGroup>
+    </div>
   )
 }

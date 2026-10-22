@@ -84,5 +84,5 @@ export function ComboField({ label, description, error, value, options, onCommit
       </ComboBox.Popover>
     </ComboBox>
   )
-  return <DisabledReason reason={disabled ? disabledReason : null}>{field}</DisabledReason>
+  return <DisabledReason reason={disabled ? disabledReason : null} block>{field}</DisabledReason>
 }

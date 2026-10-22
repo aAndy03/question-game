@@ -28,7 +28,7 @@ export function AwardMatrix({ preview, sampled }: AwardMatrixProps) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <Text variant="studio-heading">{PREVIEW.matrix.title}</Text>
+        <Text as="h3" variant="studio-subheading">{PREVIEW.matrix.title}</Text>
         {sampled ? (
           <Text variant="studio-caption" tone="muted">
             {PREVIEW.matrix.fallback}
@@ -159,7 +159,7 @@ export function BandLadder({ bands }: { bands: RulesPreview['bands'] }) {
   const lastReachable = [...bands].reverse().find((band) => band.reachable)
   return (
     <div className="flex flex-col gap-2" data-band-ladder>
-      <Text variant="studio-heading">{PREVIEW.bands.title}</Text>
+      <Text as="h3" variant="studio-subheading">{PREVIEW.bands.title}</Text>
       <Text variant="studio-caption" tone="muted">
         {PREVIEW.bands.hint}
       </Text>
