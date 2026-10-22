@@ -6,7 +6,7 @@ import { LibraryTabLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { toast } from '@/chrome/toast'
-import { LIST, SHELL, TABS, TEAM, VIEWS, fmt } from '@/copy'
+import { LIST, MENU, SHELL, TABS, TEAM, VIEWS, fmt } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
 import { teamsSpec } from '@/host/listSpecs'
 import type { ListItem } from '@/host/listView'
@@ -114,16 +114,30 @@ export function TeamsPage({ currentId = null }: TeamsPageProps) {
         onDismiss={currentId ? () => replace({ tab: 'teams' }) : undefined}
         actions={(row) => (
           <ActionMenu
-            items={[
-              { id: 'open', label: LIST.open, icon: 'open' },
-              { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: row.isArchived },
-              { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
-              { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
-              { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
-              ...(family(row.id) ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
-              row.isArchived
-                ? { id: 'restore', label: LIST.restore, icon: 'restore' }
-                : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true },
+            sections={[
+              {
+                id: 'row',
+                title: MENU.team,
+                items: [
+                  { id: 'open', label: LIST.open, icon: 'open' },
+                  { id: 'edit', label: LIST.edit, icon: 'edit', disabledReason: row.isArchived ? LIST.editArchived : null },
+                ],
+              },
+              {
+                id: 'copy',
+                title: MENU.copyMove,
+                items: [
+                  { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
+                  { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
+                  { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
+                  ...(family(row.id) ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
+                ],
+              },
+              {
+                id: 'status',
+                title: MENU.status,
+                items: [row.isArchived ? { id: 'restore', label: LIST.restore, icon: 'restore' } : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true }],
+              },
             ]}
             onAction={(a) => {
               if (a === 'copy' || a === 'move') transfer.open(a, { teams: [row.id] })

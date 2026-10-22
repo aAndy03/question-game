@@ -4,6 +4,7 @@ import { Button, Text } from '@/atoms'
 import { ActionMenu, ConfirmDialog, NameDialog } from '@/molecules'
 import { toast } from '@/chrome/toast'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
+import { MENU } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { command } from '@/host/host'
 import { useTags } from '@/host/queries'
@@ -50,9 +51,9 @@ export function ManageTagsDialog({ isOpen, onClose }: ManageTagsDialogProps) {
                       </Text>
                       <ActionMenu
                         label={`${GROUPS_TAGS.tag}: ${t.tag}`}
-                        items={[
-                          { id: 'rename', label: GROUPS_TAGS.rename },
-                          { id: 'delete', label: GROUPS_TAGS.deleteTag, isDanger: true },
+                        sections={[
+                          { id: 'row', title: MENU.questionTag, items: [{ id: 'rename', label: GROUPS_TAGS.rename, icon: 'edit' }] },
+                          { id: 'danger', title: MENU.danger, items: [{ id: 'delete', label: GROUPS_TAGS.deleteTag, icon: 'trash', isDanger: true }] },
                         ]}
                         onAction={(a) => (a === 'rename' ? setRenaming(t) : setDeleting(t))}
                       />

@@ -1,14 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { AlertDialog, Description, Dropdown, Label } from '@heroui/react'
+import { AlertDialog, Dropdown } from '@heroui/react'
 import { Button, SelectField, SwitchField, Text } from '@/atoms'
 import { toast } from '@/chrome/toast'
-import { CONFIRM } from '@/copy'
+import { CONFIRM, MENU } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
 import { useHostCommand } from '@/host/commands'
 import { command, type HostError } from '@/host/host'
 import { useCatalogList, useWorkspaces } from '@/host/queries'
 import type { Selection, TransferOp, TransferReport } from '@/host/types'
 import { workspaceName } from './WorkspaceSwitcher'
+import { renderMenuSections } from '@/molecules'
 
 interface Open {
   readonly op: TransferOp
@@ -242,13 +243,16 @@ export function useTransfer(): TransferController {
             } else open(String(key) as TransferOp, selection)
           }}
         >
-          <Dropdown.Item id="copy" textValue={TRANSFER.copyTo}>
-            <Label>{TRANSFER.copyTo}</Label>
-          </Dropdown.Item>
-          <Dropdown.Item id="move" textValue={TRANSFER.moveTo}>
-            <Label>{TRANSFER.moveTo}</Label>
-            {move?.leftOut ? <Description>{move.leftOut}</Description> : null}
-          </Dropdown.Item>
+          {renderMenuSections([
+            {
+              id: 'transfer',
+              title: MENU.toWorkspace,
+              items: [
+                { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
+                { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', description: move?.leftOut ?? null },
+              ],
+            },
+          ])}
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>

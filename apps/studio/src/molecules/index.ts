@@ -24,7 +24,7 @@ export { TeamMark, type TeamMarkProps } from './TeamMark'
 export { TeamPreview, type TeamPreviewProps } from './TeamPreview'
 export { OperatorBadge, type OperatorBadgeProps } from './OperatorBadge'
 export { PlayStatusPill, type PlayStatusPillProps } from './PlayStatusPill'
-export { ActionMenu, type ActionMenuProps, type ActionItem } from './ActionMenu'
+export { ActionMenu, renderMenuSections, disabledIds, type ActionSection, type ActionMenuProps, type ActionItem } from './ActionMenu'
 export { RecordRow, type RecordRowProps, type RecordLayout } from './RecordRow'
 export { BulkBar, type BulkAction, type BulkBarProps } from './BulkBar'
 export {

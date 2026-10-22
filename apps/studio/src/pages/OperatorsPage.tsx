@@ -5,7 +5,7 @@ import { LibraryList, ListToolbar, OperatorDetail, useActivateOperator, useArchi
 import { LibraryTabLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
-import { fmt, LIST, OPERATOR, TABS, VIEWS } from '@/copy'
+import { fmt, LIST, MENU, OPERATOR, TABS, VIEWS } from '@/copy'
 import { operatorsSpec, type OperatorItem } from '@/host/listSpecs'
 import type { ListItem } from '@/host/listView'
 import { useCatalogList, useListHits, useSettings } from '@/host/queries'
@@ -112,13 +112,30 @@ export function OperatorsPage({ currentId = null }: OperatorsPageProps) {
         onDismiss={currentId ? () => replace({ tab: 'operators' }) : undefined}
         actions={(row) => (
           <ActionMenu
-            items={[
-              { id: 'open', label: LIST.open, icon: 'open' },
-              { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: row.isArchived },
-              { id: 'activate', label: OPERATOR.makeActive, icon: 'check', isDisabled: row.isArchived || row.id === activeId },
-              row.isArchived
-                ? { id: 'restore', label: LIST.restore, icon: 'restore' }
-                : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true, isDisabled: row.id === activeId },
+            sections={[
+              {
+                id: 'row',
+                title: MENU.operator,
+                items: [
+                  { id: 'open', label: LIST.open, icon: 'open' },
+                  { id: 'edit', label: LIST.edit, icon: 'edit', disabledReason: row.isArchived ? LIST.editArchived : null },
+                  {
+                    id: 'activate',
+                    label: OPERATOR.makeActive,
+                    icon: 'check',
+                    disabledReason: row.isArchived ? LIST.editArchived : row.id === activeId ? OPERATOR.alreadyActive : null,
+                  },
+                ],
+              },
+              {
+                id: 'status',
+                title: MENU.status,
+                items: [
+                  row.isArchived
+                    ? { id: 'restore', label: LIST.restore, icon: 'restore' }
+                    : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true, disabledReason: row.id === activeId ? OPERATOR.activeNotArchived : null },
+                ],
+              },
             ]}
             onAction={(a) => {
               if (a === 'open') void go({ tab: 'operators', id: row.id, mode: 'view' })

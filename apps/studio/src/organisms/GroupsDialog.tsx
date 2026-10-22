@@ -3,6 +3,7 @@ import { AlertDialog } from '@heroui/react'
 import { Button, Text } from '@/atoms'
 import { ActionMenu, ConfirmDialog, NameDialog } from '@/molecules'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
+import { MENU } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { command } from '@/host/host'
 import type { Domain, DomainGroup } from '@/host/types'
@@ -109,11 +110,17 @@ export function GroupsDialog({ domain, onClose }: GroupsDialogProps) {
                         </Text>
                         <ActionMenu
                           label={`${GROUPS_TAGS.group}: ${g.name}`}
-                          items={[
-                            { id: 'rename', label: GROUPS_TAGS.rename },
-                            { id: 'up', label: GROUPS_TAGS.moveUp, isDisabled: i === 0 },
-                            { id: 'down', label: GROUPS_TAGS.moveDown, isDisabled: i === groups.length - 1 },
-                            { id: 'delete', label: GROUPS_TAGS.deleteGroup, isDanger: true },
+                          sections={[
+                            { id: 'row', title: MENU.domainGroup, items: [{ id: 'rename', label: GROUPS_TAGS.rename, icon: 'edit' }] },
+                            {
+                              id: 'arrange',
+                              title: MENU.arrange,
+                              items: [
+                                { id: 'up', label: GROUPS_TAGS.moveUp, icon: 'up', isDisabled: i === 0 },
+                                { id: 'down', label: GROUPS_TAGS.moveDown, icon: 'down', isDisabled: i === groups.length - 1 },
+                              ],
+                            },
+                            { id: 'danger', title: MENU.danger, items: [{ id: 'delete', label: GROUPS_TAGS.deleteGroup, icon: 'trash', isDanger: true }] },
                           ]}
                           onAction={(a) => {
                             if (a === 'rename') editing.rename(g)

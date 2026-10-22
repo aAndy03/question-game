@@ -6,7 +6,7 @@ import { ListArea, SplitLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { toast } from '@/chrome/toast'
-import { DOMAIN, IMPORT, LIST, QUESTION, SHELL, TABS, VIEWS, fmt } from '@/copy'
+import { DOMAIN, IMPORT, LIST, MENU, QUESTION, SHELL, TABS, VIEWS, fmt } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { activeMemberIds, questionGaps } from '@/host/question'
@@ -234,16 +234,30 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
               onDismiss={currentId ? () => replace({ tab: 'library', ...(domainId ? { domainId } : {}) }) : undefined}
               actions={(row) => (
                 <ActionMenu
-                  items={[
-                    { id: 'open', label: LIST.open, icon: 'open' },
-                    { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: row.isArchived },
-                    { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
-                    { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
-                    { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
-                    ...(questions.data?.find((q) => q.id === row.id)?.familyId != null ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
-                    row.isArchived
-                      ? { id: 'restore', label: LIST.restore, icon: 'restore' }
-                      : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true },
+                  sections={[
+                    {
+                      id: 'row',
+                      title: MENU.question,
+                      items: [
+                        { id: 'open', label: LIST.open, icon: 'open' },
+                        { id: 'edit', label: LIST.edit, icon: 'edit', disabledReason: row.isArchived ? LIST.editArchived : null },
+                      ],
+                    },
+                    {
+                      id: 'copy',
+                      title: MENU.copyMove,
+                      items: [
+                        { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
+                        { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
+                        { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
+                        ...(questions.data?.find((q) => q.id === row.id)?.familyId != null ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
+                      ],
+                    },
+                    {
+                      id: 'status',
+                      title: MENU.status,
+                      items: [row.isArchived ? { id: 'restore', label: LIST.restore, icon: 'restore' } : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true }],
+                    },
                   ]}
                   onAction={(a) => {
                     if (a === 'copy' || a === 'move') transfer.open(a, { questions: [row.id] })
@@ -282,9 +296,9 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                 return (
                   <ActionMenu
                     label={`${GROUPS_TAGS.group}: ${g.name}`}
-                    items={[
-                      { id: 'rename', label: GROUPS_TAGS.rename },
-                      { id: 'delete', label: GROUPS_TAGS.deleteGroup, isDanger: true },
+                    sections={[
+                      { id: 'row', title: MENU.domainGroup, items: [{ id: 'rename', label: GROUPS_TAGS.rename, icon: 'edit' }] },
+                      { id: 'danger', title: MENU.danger, items: [{ id: 'delete', label: GROUPS_TAGS.deleteGroup, icon: 'trash', isDanger: true }] },
                     ]}
                     onAction={(a) => (a === 'rename' ? groupEditing.rename(g) : groupEditing.remove(g))}
                   />

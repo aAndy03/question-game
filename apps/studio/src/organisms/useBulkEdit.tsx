@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { AlertDialog, Dropdown, Label } from '@heroui/react'
+import { AlertDialog, Dropdown } from '@heroui/react'
 import { Button, CheckboxField, SelectField, Text, TextField } from '@/atoms'
-import { DifficultyField } from '@/molecules'
+import { DifficultyField, renderMenuSections, type ActionSection } from '@/molecules'
 import { toast } from '@/chrome/toast'
-import { CONFIRM } from '@/copy'
+import { CONFIRM, MENU } from '@/copy'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { useHostCommand } from '@/host/commands'
 import { command, type HostError } from '@/host/host'
@@ -252,26 +252,28 @@ export function useBulkEdit(): BulkEditController {
 
   const menu: BulkEditController['menu'] = (ids, context) => {
     const inside = context.domain !== null
-    const items: { id: Op; label: string }[] = [
-      { id: 'tag', label: GROUPS_TAGS.bulkTag },
-      { id: 'untag', label: GROUPS_TAGS.bulkUntag },
-      ...(inside ? [{ id: 'group' as const, label: GROUPS_TAGS.bulkGroup }] : []),
-      { id: 'add_to_domain', label: GROUPS_TAGS.bulkAdd },
-      ...(inside ? [{ id: 'remove_from_domain' as const, label: GROUPS_TAGS.bulkRemove }] : []),
-      { id: 'set_difficulty', label: GROUPS_TAGS.bulkDifficulty },
+    // Sections say what each edit changes (P20): the question's tags, where it is filed, how hard it is.
+    const sections: ActionSection[] = [
+      { id: 'tags', title: MENU.questionTags, items: [{ id: 'tag', label: GROUPS_TAGS.bulkTag, icon: 'tag' }, { id: 'untag', label: GROUPS_TAGS.bulkUntag, icon: 'tag' }] },
+      {
+        id: 'domains',
+        title: MENU.domains,
+        items: [
+          ...(inside ? [{ id: 'group', label: GROUPS_TAGS.bulkGroup, icon: 'folder' as const }] : []),
+          { id: 'add_to_domain', label: GROUPS_TAGS.bulkAdd, icon: 'add' },
+          ...(inside ? [{ id: 'remove_from_domain', label: GROUPS_TAGS.bulkRemove, icon: 'remove' as const }] : []),
+        ],
+      },
+      { id: 'difficulty', title: MENU.difficulty, items: [{ id: 'set_difficulty', label: GROUPS_TAGS.bulkDifficulty, icon: 'sliders' }] },
     ]
     return (
       <Dropdown>
         <Button size="sm" variant="secondary" icon="edit">
           {GROUPS_TAGS.edit}
         </Button>
-        <Dropdown.Popover placement="bottom start">
+        <Dropdown.Popover placement="bottom start" className="min-w-[14rem]">
           <Dropdown.Menu aria-label={GROUPS_TAGS.edit} onAction={(k) => start(String(k) as Op, ids, context)}>
-            {items.map((i) => (
-              <Dropdown.Item key={i.id} id={i.id} textValue={i.label}>
-                <Label>{i.label}</Label>
-              </Dropdown.Item>
-            ))}
+            {renderMenuSections(sections)}
           </Dropdown.Menu>
         </Dropdown.Popover>
       </Dropdown>

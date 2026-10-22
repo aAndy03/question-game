@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Button, Icon, IconButton, MeaningChip, Panel, Skeleton, Text } from '@/atoms'
 import { ActionMenu, ArchiveToggle, DomainForm, EmptyState, suggestDomainCode, type DomainFormValue } from '@/molecules'
-import { CONFIRM, DOMAIN, LIST, SHELL } from '@/copy'
+import { CONFIRM, DOMAIN, LIST, MENU, SHELL } from '@/copy'
 import { activeMemberIds, bodyGaps, questionGaps } from '@/host/question'
 import { useCatalogList } from '@/host/queries'
 import type { ArchiveScope, Domain } from '@/host/types'
@@ -140,15 +140,23 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
                   onSelect={() => onSelect(d.id)}
                   actions={
                     <ActionMenu
-                      items={[
-                        { id: 'edit', label: LIST.edit, icon: 'edit', isDisabled: d.archivedAt !== null },
-                        { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
-                        { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
-                        { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
-                        ...(d.familyId != null ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
-                        d.archivedAt !== null
-                          ? { id: 'restore', label: LIST.restore, icon: 'restore' }
-                          : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true },
+                      sections={[
+                        { id: 'row', title: MENU.domain, items: [{ id: 'edit', label: LIST.edit, icon: 'edit', disabledReason: d.archivedAt !== null ? LIST.editArchived : null }] },
+                        {
+                          id: 'copy',
+                          title: MENU.copyMove,
+                          items: [
+                            { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
+                            { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
+                            { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
+                            ...(d.familyId != null ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
+                          ],
+                        },
+                        {
+                          id: 'status',
+                          title: MENU.status,
+                          items: [d.archivedAt !== null ? { id: 'restore', label: LIST.restore, icon: 'restore' } : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true }],
+                        },
                       ]}
                       onAction={(a) => {
                         if (a === 'copy' || a === 'move') transfer.open(a, { domains: [d.id] })

@@ -92,3 +92,40 @@ describe('editor pages use the width (P20)', () => {
     expect(screen.queryByRole('complementary', { name: 'Pin' })).toBeNull()
   })
 })
+
+describe('menus have section names (P20)', () => {
+  it('a team’s row menu groups its items under Team, Copy and move, and Status — item names unchanged', async () => {
+    await at({ tab: 'teams' })
+    const kebabs = await screen.findAllByRole('button', { name: 'Open' })
+    fireEvent.click(kebabs[0]!)
+    const menu = await screen.findByRole('menu')
+    for (const title of ['Team', 'Copy and move', 'Status']) expect(within(menu).getByText(title)).toBeTruthy()
+    const names = within(menu).getAllByRole('menuitem').map((i) => i.getAttribute('data-key') ?? i.textContent)
+    expect(names.length).toBe(6)
+    expect(within(menu).getByRole('menuitem', { name: 'Copy to…' })).toBeTruthy()
+    expect(within(menu).getByRole('menuitem', { name: 'Archive' })).toBeTruthy()
+  })
+
+  it('a disabled item says why under its name', async () => {
+    await fake.invoke('settings_set_global', { setting: { key: 'active_operator_id', value: 'op-andy' } })
+    await at({ tab: 'operators' })
+    await screen.findAllByText('Andy M.')
+    const kebabs = screen.getAllByRole('button', { name: 'Open' })
+    // The active operator's row (op-andy) is the first, by name.
+    fireEvent.click(kebabs[0]!)
+    const menu = await screen.findByRole('menu')
+    const activate = within(menu).getByRole('menuitem', { name: /Make active/ })
+    expect(activate.getAttribute('aria-disabled')).toBe('true')
+    expect(activate.textContent).toContain('Already the active operator')
+  })
+
+  it('the bulk Edit… menu is sectioned: Question tags, Domains, Difficulty', async () => {
+    await at({ tab: 'library', domainId: 'dom-history' })
+    const box = await screen.findByRole('checkbox', { name: /^Select Which empire/ })
+    fireEvent.click(box)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit…' }))
+    const menu = await screen.findByRole('menu')
+    for (const title of ['Question tags', 'Domains', 'Difficulty']) expect(within(menu).getByText(title)).toBeTruthy()
+    expect(within(menu).getByRole('menuitem', { name: 'Set difficulty…' })).toBeTruthy()
+  })
+})

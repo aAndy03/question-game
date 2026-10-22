@@ -1,5 +1,5 @@
-import { Button as HeroButton, Dropdown, Label } from '@heroui/react'
-import { IconButton, Icon, Text } from '@/atoms'
+import { Button as HeroButton, Dropdown, Header, Label } from '@heroui/react'
+import { IconButton, Icon } from '@/atoms'
 import { OperatorBadge, PlayStatusPill } from '@/molecules'
 import { useActivateOperator } from './useActivateOperator'
 import { useChromeStore, usePrefs, type ThemeChoice } from '@/chrome/chrome'
@@ -93,9 +93,7 @@ export function TopBar() {
               }}
             >
               <Dropdown.Section>
-                <Text as="div" variant="studio-caption" tone="muted" className="px-2 py-1">
-                  {CHROME.switchOperator}
-                </Text>
+                <Header>{CHROME.switchOperator}</Header>
                 {(operators.data ?? []).map((o) => (
                   <Dropdown.Item key={o.id} id={o.id} textValue={o.displayName}>
                     <Label>{o.displayName}</Label>

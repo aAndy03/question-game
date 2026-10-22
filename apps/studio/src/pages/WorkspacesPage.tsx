@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Button, MeaningChip, SelectField, Text } from '@/atoms'
-import { ActionMenu, ConfirmDialog, NameDialog, PageHeader, type ActionItem, type ConfirmFrame } from '@/molecules'
+import { ActionMenu, ConfirmDialog, NameDialog, PageHeader, type ActionSection, type ConfirmFrame } from '@/molecules'
+import { MENU } from '@/copy'
 import { LibraryList, ListToolbar, isGameLoaded, useSwitchWorkspace, workspaceName, type RecordView } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
@@ -99,11 +100,17 @@ export function WorkspacesPage() {
   const groupMenu = (group: WorkspaceGroup) => (
     <ActionMenu
       label={`${WORKSPACE.actions}: ${group.name}`}
-      items={[
-        { id: 'rename', label: WORKSPACE.renameGroup },
-        { id: 'up', label: WORKSPACE.moveUp, isDisabled: groups[0]?.id === group.id },
-        { id: 'down', label: WORKSPACE.moveDown, isDisabled: groups[groups.length - 1]?.id === group.id },
-        { id: 'delete', label: WORKSPACE.deleteGroup, isDanger: true },
+      sections={[
+        { id: 'row', title: MENU.workspaceGroup, items: [{ id: 'rename', label: WORKSPACE.renameGroup, icon: 'edit' }] },
+        {
+          id: 'arrange',
+          title: MENU.arrange,
+          items: [
+            { id: 'up', label: WORKSPACE.moveUp, icon: 'up', isDisabled: groups[0]?.id === group.id },
+            { id: 'down', label: WORKSPACE.moveDown, icon: 'down', isDisabled: groups[groups.length - 1]?.id === group.id },
+          ],
+        },
+        { id: 'danger', title: MENU.danger, items: [{ id: 'delete', label: WORKSPACE.deleteGroup, icon: 'trash', isDanger: true }] },
       ]}
       onAction={(id) => {
         if (id === 'rename') setDialog({ kind: 'renameGroup', group })
@@ -128,16 +135,30 @@ export function WorkspacesPage() {
     void run.ok('workspace_group_reorder', { order })
   }
 
-  const rowActions = (w: Workspace): ActionItem[] => {
+  const rowActions = (w: Workspace): ActionSection[] => {
     const isCurrent = w.id === data.current
     const archived = w.archivedAt !== null
     return [
-      { id: 'open', label: WORKSPACE.open, isDisabled: isCurrent || archived || loaded },
-      { id: 'rename', label: WORKSPACE.rename },
-      { id: 'group', label: WORKSPACE.moveToGroup },
-      { id: 'duplicate', label: WORKSPACE.duplicate },
-      archived ? { id: 'restore', label: WORKSPACE.restore } : { id: 'archive', label: WORKSPACE.archive, isDisabled: isCurrent },
-      { id: 'delete', label: WORKSPACE.deletePermanently, isDanger: true, isDisabled: !archived || loaded },
+      {
+        id: 'row',
+        title: MENU.workspace,
+        items: [
+          { id: 'open', label: WORKSPACE.open, icon: 'open', isDisabled: isCurrent || archived || loaded },
+          { id: 'rename', label: WORKSPACE.rename, icon: 'edit' },
+          { id: 'group', label: WORKSPACE.moveToGroup, icon: 'folder' },
+        ],
+      },
+      { id: 'copy', title: MENU.copyMove, items: [{ id: 'duplicate', label: WORKSPACE.duplicate, icon: 'duplicate' }] },
+      {
+        id: 'status',
+        title: MENU.status,
+        items: [
+          archived
+            ? { id: 'restore', label: WORKSPACE.restore, icon: 'restore' }
+            : { id: 'archive', label: WORKSPACE.archive, icon: 'archive', disabledReason: isCurrent ? WORKSPACE.isCurrent : null },
+        ],
+      },
+      { id: 'danger', title: MENU.danger, items: [{ id: 'delete', label: WORKSPACE.deletePermanently, icon: 'trash', isDanger: true, isDisabled: !archived || loaded }] },
     ]
   }
 
@@ -214,7 +235,7 @@ export function WorkspacesPage() {
           what={WORKSPACE.many}
           actions={(row) => {
             const w = data.workspaces.find((x) => x.id === row.id)
-            return w ? <ActionMenu label={`${WORKSPACE.actions}: ${workspaceName(w)}`} items={rowActions(w)} onAction={(id) => void onRow(w, id)} /> : null
+            return w ? <ActionMenu label={`${WORKSPACE.actions}: ${workspaceName(w)}`} sections={rowActions(w)} onAction={(id) => void onRow(w, id)} /> : null
           }}
           headerActions={(key) => {
             const g = key.startsWith('wg:') ? groups.find((x) => `wg:${x.id}` === key) : undefined

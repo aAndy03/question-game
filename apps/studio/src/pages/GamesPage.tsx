@@ -5,7 +5,7 @@ import { LibraryList, ListToolbar, useArchive, useTransfer, type RecordView } fr
 import { LibraryTabLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
-import { CHROME, fmt, GAME, LIST, TABS, VIEWS } from '@/copy'
+import { CHROME, fmt, GAME, LIST, MENU, TABS, VIEWS } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
 import type { SeedResult } from '@/host/types'
 import { useHostCommand } from '@/host/commands'
@@ -166,14 +166,26 @@ export function GamesPage() {
         }}
         actions={(row) => (
           <ActionMenu
-            items={[
-              { id: 'open', label: LIST.open, icon: 'open' },
-              { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
-              { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
-              { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', isDisabled: playingId === row.id },
-              row.isArchived
-                ? { id: 'restore', label: LIST.restore, icon: 'restore' }
-                : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true, isDisabled: playingId === row.id },
+            sections={[
+              { id: 'row', title: MENU.game, items: [{ id: 'open', label: LIST.open, icon: 'open' }] },
+              {
+                id: 'copy',
+                title: MENU.copyMove,
+                items: [
+                  { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
+                  { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
+                  { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', disabledReason: playingId === row.id ? GAME.frozen : null },
+                ],
+              },
+              {
+                id: 'status',
+                title: MENU.status,
+                items: [
+                  row.isArchived
+                    ? { id: 'restore', label: LIST.restore, icon: 'restore' }
+                    : { id: 'archive', label: LIST.archive, icon: 'archive', isDanger: true, disabledReason: playingId === row.id ? GAME.frozen : null },
+                ],
+              },
             ]}
             onAction={(a) => {
               if (a === 'open') void go({ tab: 'games', id: row.id })

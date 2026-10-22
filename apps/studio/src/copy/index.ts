@@ -89,6 +89,36 @@ export const CHROME = {
   dirty: 'Unsaved changes',
 } as const
 
+/**
+ * Menu section titles (P20, 05_STUDIO_DESIGN.md §4.6) — a fixed vocabulary:
+ * a title never repeats an item's text, and "delete" words appear only under
+ * *Danger zone* (Archive is not a delete).
+ */
+export const MENU = {
+  team: 'Team',
+  question: 'Question',
+  domain: 'Domain',
+  game: 'Game',
+  operator: 'Operator',
+  workspace: 'Workspace',
+  domainGroup: 'Domain group',
+  questionTag: 'Question tag',
+  gameTag: 'Game tag',
+  folder: 'Folder',
+  workspaceGroup: 'Workspace group',
+  roster: 'Play order',
+  copyMove: 'Copy and move',
+  organise: 'Organise',
+  arrange: 'Arrange',
+  status: 'Status',
+  danger: 'Danger zone',
+  questionTags: 'Question tags',
+  domains: 'Domains',
+  difficulty: 'Difficulty',
+  gameTags: 'Game tags',
+  toWorkspace: 'To another workspace',
+} as const
+
 export const LIST = {
   search: 'Search',
   searchPlaceholder: (what: string) => `Search ${what}…`,
@@ -105,6 +135,8 @@ export const LIST = {
   duplicate: 'Duplicate',
   /** The opened row's Close below 1280 px (1.1.1). */
   closeDetail: 'Close details',
+  /** Why Edit is off on an archived row (P20: a disabled menu item says why). */
+  editArchived: 'Archived — restore it first',
   detail: 'Details',
   new: (what: string) => `New ${what}`,
   selected: (n: number) => (n === 1 ? '1 selected' : `${n} selected`),
@@ -131,6 +163,7 @@ export const LIST = {
   ascending: 'Ascending',
   descending: 'Descending',
   group: 'Group',
+  groupBy: 'Group by',
   groupNone: 'None',
   changed: 'Changed',
   changedWindow: { any: 'Any time', today: 'Today', '7d': 'Last 7 days', '30d': 'Last 30 days' } as const,
@@ -429,6 +462,8 @@ export const IMPORT = {
 export const OPERATOR = {
   /** The editor's side column (P20): the PIN panel, which saves on its own. */
   pinSide: 'Pin',
+  alreadyActive: 'Already the active operator',
+  activeNotArchived: 'The active operator stays; make another active first',
   one: 'operator',
   many: 'operators',
   displayName: 'Display name',

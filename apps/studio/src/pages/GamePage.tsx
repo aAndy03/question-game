@@ -7,7 +7,7 @@ import type { Recipe } from '@/host/types'
 import { RecordPageLayout } from '@/templates'
 import { useNavStore, type GameSection } from '@/chrome/nav'
 import { gameSectionOf, useNoticeStore } from '@/chrome/notices'
-import { CHROME, CONFIRM, GAME, LIST, SHELL, TABS } from '@/copy'
+import { CHROME, CONFIRM, GAME, LIST, MENU, SHELL, TABS } from '@/copy'
 import { useHostCommand } from '@/host/commands'
 import { toast } from '@/chrome/toast'
 import { isPlayOpen, usePlayState } from '@/host/playState'
@@ -163,10 +163,16 @@ export function GamePage({ id, section = 'roster' }: GamePageProps) {
             <ActionMenu
               label={GAME.moreActions}
               size="md"
-              items={[
-                { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
-                { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
-                { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', isDisabled: frozen },
+              sections={[
+                {
+                  id: 'copy',
+                  title: MENU.copyMove,
+                  items: [
+                    { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
+                    { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
+                    { id: 'move', label: TRANSFER.moveTo, icon: 'transfer', disabledReason: frozen ? frozenReason : null },
+                  ],
+                },
               ]}
               onAction={(a) => {
                 if (a === 'duplicate') void duplicate()

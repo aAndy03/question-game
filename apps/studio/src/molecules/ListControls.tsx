@@ -208,12 +208,15 @@ export function GroupMenu({ groups, value, onChange }: GroupMenuProps) {
       </Button>
       <Dropdown.Popover placement="bottom end">
         <Dropdown.Menu aria-label={LIST.group} selectionMode="single" selectedKeys={new Set([value ?? '~none'])} onAction={(key) => onChange(String(key) === '~none' ? null : String(key))}>
-          {[{ id: '~none', label: LIST.groupNone }, ...groups].map((g) => (
-            <Dropdown.Item key={g.id} id={g.id} textValue={g.label}>
-              <Dropdown.ItemIndicator />
-              <Label>{g.label}</Label>
-            </Dropdown.Item>
-          ))}
+          <Dropdown.Section>
+            <Header>{LIST.groupBy}</Header>
+            {[{ id: '~none', label: LIST.groupNone }, ...groups].map((g) => (
+              <Dropdown.Item key={g.id} id={g.id} textValue={g.label}>
+                <Dropdown.ItemIndicator />
+                <Label>{g.label}</Label>
+              </Dropdown.Item>
+            ))}
+          </Dropdown.Section>
         </Dropdown.Menu>
       </Dropdown.Popover>
     </Dropdown>
