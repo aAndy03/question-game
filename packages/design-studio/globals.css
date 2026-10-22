@@ -55,35 +55,37 @@
 .dark,
 [data-theme="dark"] {
   color-scheme: dark;
-  /* Theme Colors (Dark Mode) */
+  /* Theme Colors (Dark Mode). Lifted from HeroUI's near-black to a dark gray
+   * (P20, at the operator's ask): a black page under every tab cost contrast.
+   * The steps between background, surface, field and overlay are kept. */
   --accent: oklch(62.04% 0.1950 253.83);
   --accent-foreground: oklch(99.11% 0 0);
-  --background: oklch(12.00% 0.0015 253.83);
-  --border: oklch(28.00% 0.0015 253.83);
+  --background: oklch(24.00% 0.0030 253.83);
+  --border: oklch(37.00% 0.0030 253.83);
   --danger: oklch(59.40% 0.1973 24.63);
   --danger-foreground: oklch(99.11% 0 0);
-  --default: oklch(27.40% 0.0015 253.83);
+  --default: oklch(34.00% 0.0030 253.83);
   --default-foreground: oklch(99.11% 0 0);
-  --field-background: oklch(21.03% 0.0030 253.83);
+  --field-background: oklch(32.50% 0.0030 253.83);
   --field-border: transparent;
   --field-foreground: oklch(99.11% 0.0015 253.83);
-  --field-placeholder: oklch(70.50% 0.0030 253.83);
+  --field-placeholder: oklch(73.00% 0.0030 253.83);
   --focus: oklch(62.04% 0.1950 253.83);
   --foreground: oklch(99.11% 0.0015 253.83);
-  --muted: oklch(70.50% 0.0030 253.83);
-  --overlay: oklch(21.03% 0.0030 253.83);
+  --muted: oklch(73.00% 0.0030 253.83);
+  --overlay: oklch(30.50% 0.0035 253.83);
   --overlay-foreground: oklch(99.11% 0.0015 253.83);
   --scrollbar: oklch(70.50% 0.0015 253.83);
-  --segment: oklch(39.64% 0.0015 253.83);
+  --segment: oklch(44.00% 0.0030 253.83);
   --segment-foreground: oklch(99.11% 0.0015 253.83);
-  --separator: oklch(25.00% 0.0015 253.83);
+  --separator: oklch(33.00% 0.0030 253.83);
   --success: oklch(73.29% 0.1941 150.81);
   --success-foreground: oklch(21.03% 0.0059 150.81);
-  --surface: oklch(21.03% 0.0030 253.83);
+  --surface: oklch(28.50% 0.0035 253.83);
   --surface-foreground: oklch(99.11% 0.0015 253.83);
-  --surface-secondary: oklch(25.70% 0.0023 253.83);
+  --surface-secondary: oklch(32.50% 0.0030 253.83);
   --surface-secondary-foreground: oklch(99.11% 0.0015 253.83);
-  --surface-tertiary: oklch(27.21% 0.0023 253.83);
+  --surface-tertiary: oklch(34.50% 0.0030 253.83);
   --surface-tertiary-foreground: oklch(99.11% 0.0015 253.83);
   --warning: oklch(82.03% 0.1392 76.34);
   --warning-foreground: oklch(21.03% 0.0059 76.34);

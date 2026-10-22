@@ -28,7 +28,7 @@
 /* Studio fields sit on panels (--surface), not on the page background the
  * way HeroUI's demos do. In dark, globals.css gives fields the same colour as
  * a surface, so an unfocused input on a panel vanishes. Lift it one step —
- * the value of --surface-secondary — and give every field a hairline edge in
+ * to --surface-secondary — and give every field a hairline edge in
  * both themes so a panel full of inputs still reads as a form. Recorded in
  * docs/v1/05_STUDIO_DESIGN.md §2.1. */
 :root {
@@ -38,7 +38,7 @@
 
 .dark,
 [data-theme="dark"] {
-  --field-background: oklch(25.7% 0.0023 253.83);
+  --field-background: var(--surface-secondary);
 }
 
 html,
