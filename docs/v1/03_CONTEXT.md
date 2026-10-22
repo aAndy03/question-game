@@ -137,12 +137,16 @@ A named shelf of workspaces in *Manage workspaces*. Not a *domain group*.
 _Avoid_: group (bare), folder
 
 **Domain group**:
-A named group of questions inside one domain, for organising only. Not a *workspace group*.
-_Avoid_: group (bare), category
+An operator-made group of questions inside one domain, for organising only — boards and Plays never read it (P15). Not a *workspace group*. *Merge into…* moves its questions into another domain group of the same domain and removes it, in one write (P20); *Delete* leaves its questions in no domain group. Say *domain group* where *group* could mean a workspace group or a list grouping.
+_Avoid_: group (bare), category, folder, section
 
 **Question tag** / **Game tag**:
-A word on a question (across domains) or on a game (the Games tab's filter). Two different things.
-_Avoid_: tag (bare) where both could be meant
+A word or phrase on a question (across domains, part of its body, P15) or on a game (how the Games list sorts its shows, P20). Two different things, cleaned the same way: at most 40 characters, at most 20 on one row, one per spelling.
+_Avoid_: tag (bare) where both could be meant; label, keyword
+
+**Folder**:
+Where the Games list files a game: one name per game, at most 60 characters, picked from the workspace's folders or typed new (P20). Organisation, not part of the show — Load, the snapshot and Stage never read a folder or a game tag, so both stay editable while the game plays. A change is still a recipe write and takes one `rev`.
+_Avoid_: group, category, shelf (a *workspace group* is a shelf of workspaces)
 
 **Scope choice**:
 Cancel, *This game only*, or *Apply to original* (the library row) — asked by `DifficultyDialog` (beta.4; once `ScopeConfirm`).
@@ -159,14 +163,6 @@ _Avoid_: Slide, deck page
 **Workspace**:
 One library of teams, domains, questions and games in the file, named by the operator (Beta 2.0). A row lives in exactly one workspace; it reaches another only by *Copy to* or *Move to* (there is no shared library since beta.2).
 _Avoid_: project, space, profile
-
-**Domain group**:
-An operator-made group of questions inside one domain, for organising only — boards and Plays never read it (P15). Say *domain group* where *group* could mean a workspace group or a list grouping.
-_Avoid_: category, folder, section
-
-**Tag**:
-A word or phrase on a question, across domains, part of its body (P15).
-_Avoid_: label, keyword
 
 **Copy** (between workspaces):
 A new row in another workspace that remembers where it came from — a row and its copies are one **family** — so editing one offers *Also update {n} copies*; *Stop following its copies* leaves the family (Beta 2.0).

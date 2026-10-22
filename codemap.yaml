@@ -2759,40 +2759,42 @@ packages:
       packages/design-studio/globals.css:
         "--accent": "78133a9c"
         "--accent-foreground": "613bc3b4"
-        "--background": "758cecf3"
-        "--border": "2e31c153"
+        "--background": "8a5a3cd5"
+        "--border": "8e4e5051"
         "--danger": e82ee952
         "--danger-foreground": "613bc3b4"
-        "--default": "8b60fb26"
+        "--default": "650204b0"
         "--default-foreground": "64b57381"
-        "--field-background": "3be44653"
+        "--field-background": "81d3dc23"
         "--field-border": b580d915
         "--field-foreground": decc5ea3
-        "--field-placeholder": e53972b3
+        "--field-placeholder": "1e2ef687"
         "--field-radius": "823f1262"
         "--focus": "78133a9c"
         "--font-sans": a7ab6c4f
         "--foreground": decc5ea3
-        "--muted": e53972b3
-        "--overlay": "0fa8d006"
+        "--muted": "1e2ef687"
+        "--overlay": f72ca43f
         "--overlay-foreground": decc5ea3
         "--radius": "823f1262"
-        "--scrollbar": f1787600
-        "--segment": "450ecece"
+        "--scrollbar": "6ea96e32"
+        "--segment": c787c945
         "--segment-foreground": decc5ea3
-        "--separator": cd7ee8f0
+        "--separator": "2857be21"
         "--success": "82d37101"
         "--success-foreground": fe271d68
-        "--surface": "3be44653"
+        "--surface": "796057ea"
         "--surface-foreground": decc5ea3
-        "--surface-secondary": bd9bc656
+        "--surface-secondary": "8f30a31a"
         "--surface-secondary-foreground": decc5ea3
-        "--surface-tertiary": bdfd15fb
+        "--surface-tertiary": f3bf88a7
         "--surface-tertiary-foreground": decc5ea3
         "--warning": "31ab89a3"
         "--warning-foreground": f7f2ffe8
       packages/design-studio/studio.css:
-        "--field-background": c7b10c4f
+        "--chrome": a635c716
+        "--chrome-line": "038e6f38"
+        "--field-background": d092f90a
         "--field-border": "5628777f"
         "--field-border-width": "9e0741c0"
         "--font-geist": "7f0352bf"
@@ -3097,6 +3099,7 @@ e2e:
     groups-tags.e2e.ts: "[]"
     library-views.e2e.ts: "['--more-questions', '120']"
     load-refusal.e2e.ts: "['--broken-board']"
+    look.e2e.ts: "null"
     narrow.e2e.ts: "[]"
     show.e2e.ts: "[]"
     upgrade-shared.e2e.ts: "['--beta1-shared']"
@@ -3115,6 +3118,7 @@ e2e:
     e2e/specs/groups-tags.e2e.ts: ["groups, tags and bulk edits > groups a domain, tags across domains, and sets a difficulty at once"]
     e2e/specs/library-views.e2e.ts: ["library views > pages, filters, groups and keeps the operator in place"]
     e2e/specs/load-refusal.e2e.ts: ["a refused Load > says why from the Roster and leads to the Board"]
+    e2e/specs/look.e2e.ts: []
     e2e/specs/narrow.e2e.ts: ["a narrow window > shows an opened row, and edits a difficulty in a dialog"]
     e2e/specs/show.e2e.ts: ["a show > loads a game, opens Stage, and puts the first question on air"]
     e2e/specs/upgrade-shared.e2e.ts: ["an update from beta.1 > keeps what both workspaces saw, as their own rows"]

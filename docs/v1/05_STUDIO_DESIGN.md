@@ -27,10 +27,11 @@ editor and notice on every tab.
 
 ### 2.1 Tokens
 
-`packages/design-studio/globals.css` (HeroUI's theme as shipped) plus
-`tokens/theme.css` (the layer HeroUI leaves implicit). **Do not fork the
-palette.** Studio is the HeroUI look on purpose (§2.30); everything below is
-expressed in those variables and Tailwind utilities that resolve to them.
+`packages/design-studio/globals.css` (HeroUI's theme as shipped, its dark
+ramp lifted — below) plus `tokens/theme.css` (the layer HeroUI leaves
+implicit). **Do not fork the palette.** Studio is the HeroUI look on purpose
+(§2.30); everything below is expressed in those variables and Tailwind
+utilities that resolve to them.
 
 | Meaning | Token | Used for |
 | --- | --- | --- |
@@ -43,9 +44,43 @@ expressed in those variables and Tailwind utilities that resolve to them.
 
 **Fields on panels.** HeroUI's shipped dark theme gives a field the same
 colour as a surface, so an unfocused input on a `Panel` vanished. `studio.css`
-sets `--field-border: var(--border)`, `--field-border-width: 1px` and a dark
-`--field-background` one step lighter than the surface. That is the only
-departure from the shipped theme.
+sets `--field-border: var(--border)`, `--field-border-width: 1px` and, in dark,
+`--field-background: var(--surface-secondary)` — one step above the surface,
+and a reference rather than a copied literal since P20, so it follows the ramp
+below.
+
+**Dark is dark gray, not black (P20).** HeroUI's dark background is oklch 12%,
+and a near-black page under every tab cost the operator contrast. The dark
+block of `globals.css` lifts the whole ramp together, so each layer still steps
+above the one under it:
+
+| Token (dark) | HeroUI | Studio |
+| --- | --- | --- |
+| `--background` | 12% | 24% |
+| `--surface` | 21.03% | 28.5% |
+| `--overlay` | 21.03% | 30.5% |
+| `--surface-secondary` (and so a field) | 25.7% | 32.5% |
+| `--separator` | 25% | 33% |
+| `--default` | 27.4% | 34% |
+| `--surface-tertiary` | 27.21% | 34.5% |
+| `--border` | 28% | 37% |
+| `--segment` | 39.64% | 44% |
+| `--scrollbar` (P20.11) | 70.5% | 42% |
+| `--muted`, `--field-placeholder` | 70.5% | 73% |
+
+Lightness only, at hue 253.83 with a chroma of 0.003 (0.0035 on `--surface`
+and `--overlay`); the accent, the state colours and `--foreground` are
+HeroUI's. Muted text lifts with the panels to keep its contrast on them; the
+scrollbar comes down, a thumb a step above the borders rather than the
+brightest thing on a gray page. Light mode and Stage are unchanged. These two —
+the field override and the dark ramp — are the only departures from the
+shipped theme.
+
+**The shell's own tokens (P20.11, `studio.css`).** `--chrome` is what the top
+bar, sidebar and status bar paint — `var(--background)`, so the bars and the
+page are one surface. `--chrome-line` is every line the shell draws, one colour
+at one weight — `transparent`. `[data-density="compact"]` shrinks the HeroUI
+buttons and selects inside it to 28px (§26).
 
 **Decision on the roadmap's open question ("Studio theme reconciliation"):**
 Studio does **not** borrow Stage's mint and coral. The two surfaces agree on
@@ -66,15 +101,36 @@ component is written against the semantic variables so it never needs a
 `--font-sans` is Geist, self-hosted from `@fontsource-variable/geist`
 (offline-first; the app must not fetch a font). The `Text` module (§2.29) gains Studio variants:
 
-| Variant | Role |
-| --- | --- |
-| `studio-display` | one large figure on a card (score, count) |
-| `studio-title` | page title |
-| `studio-heading` | section title inside a page or card |
-| `studio-body` | default text |
-| `studio-label` | form labels, table headers, sidebar items |
-| `studio-caption` | metadata, timestamps, ids |
-| `studio-mono` | ids, codes, chords, durations in ms |
+| Variant | Size · weight | Role |
+| --- | --- | --- |
+| `studio-display` | 30px · semibold, tight | one large figure on a card (score, count) |
+| `studio-title` | 20px · semibold, tight | page title |
+| `studio-heading` | 18px · medium | section title inside a page or card |
+| `studio-subheading` | 14px · medium | a name inside a section (P20): a setting's name, a titled block in a section (*Preview*, *Chosen*, *What each setting does*) |
+| `studio-body` | 14px | default text |
+| `studio-label` | 12px · medium | form labels, table headers, sidebar items |
+| `studio-caption` | 12px | metadata, timestamps, ids, a setting's description |
+| `studio-mono` | 12px, `--font-mono` | ids, codes, chords, durations in ms |
+
+The sizes are Tailwind's (`--text-3xl`, `-xl`, `-lg`, `-sm`, `-xs`), named as
+roles in `tokens/theme.css`; add a role there rather than reaching for
+`text-[13px]`. A sub-heading is body size at medium weight: a name stands out
+from its description by weight and by the caption under it, not by size.
+
+**The scale is emitted (P20).** The roles were declared `@theme inline`.
+Tailwind v4 emits a theme variable only when a utility uses it, and `Text`
+reads its role from an inline style Tailwind never sees — so every role but
+one resolved to nothing and fell back to the inherited 16px. Titles, headings,
+body and captions were one size from P7 to P20 while labels were 12px, which is
+how a setting's name read smaller than its own description, the Board read
+flat, and a list row's meta outweighed its question. The block is now
+`@theme static` (always emitted) and restates the weights, the tracking and
+`--font-mono` that `Text` reads, at Tailwind's own values.
+`packages/design-studio/src/tokens.test.ts` compiles `globals.css` and
+`tokens/theme.css` with Tailwind and no candidates at all, and fails on any
+variable a `studio-*` variant reads that is not emitted — jsdom applies no CSS,
+so only the compiled stylesheet can say. A role added to `packages/text`
+without its variable fails it.
 
 `transition="swap"` / `"count"` are implemented by Calligraph (Motion) in the
 Studio `Text` atom. They are used **only** on text whose change deserves to be
@@ -100,6 +156,39 @@ Radius is HeroUI's `--radius` (0.75rem) on cards and fields, `--radius`/2 on
 chips and small controls — never a literal. Elevation: no drop shadows on
 panels; only overlays (popover, modal, drawer) float, using HeroUI's own
 overlay styling.
+
+**Page layout — binding for every page (P20).** The maintainer's list of
+2026-10-22: editor pages used the width badly, the Questions status strip jumped under the toolbar
+when a row opened, the selection strip made lists jump, Rules and Settings put
+a setting's name at one edge and its switch at the other. The rules that came
+out of it, checked on a library of 1,050 questions and on one of three:
+
+1. **A reading column is at most 48rem.** Inside it a row keeps its label and
+   its controls together; a wider window never stretches a row.
+2. **Extra width is a second column of related content** — a preview, where
+   the record is filed, what the page's settings pay, an index of the page —
+   22rem, like the detail aside and the Screens inspector. A page with nothing
+   for it stays one column.
+3. **No bar, no rule** (P20.11). The shell and the pages draw no separators
+   (`--chrome-line`, §2.1) and no bar at a page's foot: an editor's
+   Cancel · Save sit in its header, which stays at the top and ends where the
+   content ends (`EditorColumns`' `header`, `EditorActions`); a wizard's
+   buttons follow its fields.
+4. **Widths are container queries** (`@container/…`), never viewport
+   breakpoints: the sidebar is 240, 56 or 0px, so the window says nothing about
+   the room a page has. `DetailAside` keeps its 1280px breakpoint (1.1.1).
+5. **Below the threshold the second column follows the first**, in reading
+   order; nothing needed to finish the task is hidden.
+6. **Nothing moves because something appeared.** A strip that can appear is
+   always there, quiet when empty (`BulkBar`); a panel that opens starts below
+   the toolbar, never beside it (`ListArea`).
+7. **A name reads before its explanation.** A setting's or a field's name is
+   the strongest text in its row (`studio-subheading`); its description is a
+   muted caption.
+8. **Summary first, detail on demand.** A long section opens on its counts and
+   ranges and its rows are a press away — open by default only when they are
+   few. The Board opens its domains only on a small board; *What each setting
+   does*, the ledger's working and Statistics' *More options* start closed.
 
 **Scrollbars.** A control room has a dozen scroll containers on screen at once
 — sidebar, list, editor, every mosaic panel — and the OS default puts a wide
@@ -138,6 +227,11 @@ second icon set is in use. Sizes: `sm` 16, `md` 20, `lg` 24.
 notice stack frames. Nothing whose truth lives in `play-state` is animated by
 Motion; the play status pill and status-bar score use `Text transition` and
 nothing else.
+
+Two movements that are not Motion (P20): a dragged list's other rows slide
+aside with dnd-kit's own sortable transition (`SortableList`, 220ms on the
+standard curve, `cubic-bezier(0.2, 0, 0, 1)`), and a `MeterBar` eases its fill
+with a CSS width transition (300ms, none under `prefers-reduced-motion`).
 
 ## 3. Architecture of the webview
 
@@ -264,17 +358,20 @@ someone remembers to add.
 | `IconButton` | `Button isIconOnly` | `label` (required, tooltip + aria) | same | never an icon without a label |
 | `Icon` | `@iconify/react` | `name: keyof ICONS`, `size` | `sm` `md` `lg` | only names from `ICONS` |
 | `Text` | Calligraph | `variant`, `transition`, `tone` | see §2.3; `tone: default \| muted \| accent \| success \| warning \| danger` | strings come from `copy/` |
-| `Chip` | HeroUI `Chip` | `tone` | `soft` by default; tones map to `color` | fixed vocabulary, §4.6 |
+| `Chip` | HeroUI `Chip` | `tone` | `soft` by default; tones map to `color` | fixed vocabulary, §4.6; never wraps or shrinks (P20) — a squeezed row clips its chips rather than fold *Multiple answers* onto two lines |
 | `StatusDot` | span | `tone`, `pulse` | 5 tones; `pulse` only for `playing` | one place a status is a colour |
 | `Kbd` | HeroUI `Kbd` | — | `default` | paints keys only, never binds them |
 | `Avatar` | HeroUI `Avatar` | `mark: { color, shortCode, logoUrl? }` | `sm` `md` `lg` | the team mark everywhere in Studio |
 | `Swatch` | span | `color`, `size` | — | colour preview in editors and rows |
+| `MeterBar` | div `role="meter"` | `value`, `max`, `label` (required), `tone` | `accent` `success` `warning` `danger` | "how much of" under a `StatCard` (Statistics ▸ Live, P20); clamped to its track, `max ≤ 0` is empty, never `NaN`. Not HeroUI's `Meter`, which lays out its own label and output and divides by `max` itself |
 | `Panel` | HeroUI `Surface` | `density: comfortable \| compact`, `title?` | `default` `secondary` `tertiary` `transparent` | the only card-like box |
 | `Separator` | HeroUI `Separator` | — | `default` `secondary`; `horizontal` `vertical` | |
 | `Skeleton` | HeroUI `Skeleton` | `shape: row \| card \| text` | — | every loading state |
 | `Spinner` | HeroUI `Spinner` | — | `sm` `md` | inside buttons and empty regions only |
 | `Tooltip` | HeroUI `Tooltip` | — | 4 placements | reasons and labels, never content |
+| `DisabledReason` | a focusable `span role="group"` in a `Tooltip` | `reason`, `block` | inline · `block` | how a disabled control says why: the reason is its name and its tooltip; no reason, no wrapper. `block` (P20) for a field that fills its width — `TextField`, `TextAreaField`, `NumberField`, `SelectField`, `SliderField`, `ComboField` pass it; a switch, checkbox, segmented field or button does not. The inline wrapper had shrunk the inert *Speed weight* slider to 24px |
 | `TextField` `TextArea` `NumberField` `Select` `ComboBox` `Switch` `Checkbox` `Slider` | HeroUI | `label`, `description`, `error`, `isRequired`, `disabledReason` | HeroUI sizes; `error` renders `FieldError` | every field carries its own label and error slot |
+| `ComboField` | HeroUI `ComboBox` with custom values | `value`, `options` (values already used, the only offers), `onCommit(value \| null)`, `onInputChange`, `maxLength` | — | a free-text field that offers what is used (P20): the game's Folder (Game page, *Set folder…*) and *Add game tag…*. Enter or leaving commits — not when focus goes to a `data-keep-draft` control or its own list; emptied is `null`; unchanged commits nothing. `onInputChange` is every keystroke, so a dialog's *Apply* reads what has not blurred yet |
 | `Link` | HeroUI `Link` | `to: Route` | — | in-app navigation only; no external URLs in v1 |
 
 ### 4.2 Molecules — one job, two to five atoms
@@ -282,12 +379,12 @@ someone remembers to add.
 | Molecule | Composition | Props / states | Where |
 | --- | --- | --- | --- |
 | `PageHeader` | crumbs · `Text studio-title` · description · action slot | `title`, `crumbs`, `primaryAction`, `secondaryActions`, `status?` | top of every page |
-| `ListToolbar` *(an organism since 1.1)* | `SearchField` · `FilterMenu` · `SortMenu` · `GroupMenu` · `ViewSwitch` · `ArchiveToggle`, then the active-filter chips | `view` (`useListView`), layout, status | every library tab (§20) |
+| `ListToolbar` *(an organism since 1.1)* | `SearchField` · `FilterMenu` · `SortMenu` · `GroupMenu` · `ViewSwitch` · `ArchiveToggle`, then the active-filter chips | `view` (`useListView`), layout, status, `lead` | every library tab (§20), the pickers and the import dialog (no View, no Status). Two groups since P20: the lead · Search · Filters · Sort · Group wrap on the left; View · Status are a cluster on the right that never wraps, so Status stays top right at every width. DOM order is the toolbar order |
 | `SearchField` | HeroUI `SearchField` + Pacer debounce (200ms) | `kinds`, `scope`, `onHits` | `ListToolbar` |
 | `ViewSwitch` | `ToggleButtonGroup` grid / table | `value`, `onChange` | `ListToolbar` |
 | `ArchiveToggle` | `Tabs variant=secondary` Active / Archived (/ All with `withAll`) | `value`, `counts?`, `withAll?` | `ListToolbar` (with All), `DomainPane` |
 | `RecordRow` | `Avatar`/`Swatch` · title · subtitle · chips · meta · actions · checkbox | `layout: grid \| table`; states `rest` `hover` `selected` `archived` `overridden` `drag` | `LibraryList` |
-| `BulkBar` | count · Archive / Restore · Clear | appears when selection > 0; one confirm per batch | `LibraryList` |
+| `BulkBar` | (page checkbox) · count · Archive / Restore · extra · Select all *n* · Clear | **always mounted** on a list with bulk actions (P20): at 0 a quiet strip — dashed hairline, no fill, "0 selected", nothing to press, no `toolbar` role — and the same element, one height (`h-11`), once something is ticked; `page` draws grid view's *Select all* for the page (table view has it in the header); the actions scroll inside the strip, the count and *Clear* never shrink; one confirm per batch | `LibraryList` on Teams, Questions, Games (Operators has none) |
 | `EmptyState` | icon · title · body · action | `kind: empty \| noResults \| archivedEmpty \| error` | lists, detail panes |
 | `InlineNotice` | HeroUI `Alert` + up to 3 `Button`s | `notice`, `onAction`, `onDismiss`; stacked confirm frames render *inside* | fields, rows, pages |
 | `ConfirmDialog` | HeroUI `AlertDialog` | `severity`, `arm → confirm` two-click for destructive | archive with references, abandon (P8) |
@@ -296,14 +393,32 @@ someone remembers to add.
 | `SidebarItem` | `Icon` · label · badge | `active`, `collapsed`, `badge?` | `SidebarNav` |
 | `NavCrumbs` | HeroUI `Breadcrumbs` | from `Route` | `PageHeader` |
 | `MetaList` | label / value pairs | `items`, `columns` | detail views |
-| `StatCard` | `Panel` · `Text studio-display` · caption | `value`, `label`, `tone?` | detail views, Games |
-| `SettingRow` | label · description · control · reason | `disabled: { reason, detail }` from host | Games rules, Settings (P10), float (P8) — a **container query**: two columns at ≥ 34rem, stacked below, so the Control float reads label-over-control |
-| `RecordRow` | one record, two layouts | `index` (1-based place in the list as filtered and sorted, table only) · `isCurrent` · `isSelected` | the table row's ring is `ring-inset` and its container is `overflow-hidden`, so hover and selection follow the rounded corners |
+| `StatCard` | `Panel` · caption label · `Text studio-display` · detail · `MeterBar` | `value`, `label`, `tone?`, `animate?`, `detail?` (P20: whose, of what — the leader, "5 left"), `meter?: { value, max }`; a `group` named by its label, so the number is read with what it means | detail views, Statistics ▸ Live tiles and All data's summary |
+| `SettingRow` | name · description · reason · control | `disabled: { reason, detail }` from host, `nested`, `wide` | Games rules, Settings (P10), float (P8) — a **container query**: two columns at ≥ 34rem, stacked below, so the Control float reads label-over-control. P20: the name is a `studio-subheading` over a muted caption; a `wide` row puts its control under the name at full width (the reveal grid, the cue map, the difficulty band table) |
+| `RecordRow` | one record, two layouts | `index` (1-based place in the list as filtered and sorted, table only) · `isCurrent` · `isSelected` · `badge` (P20) | the table row's ring is `ring-inset` and its container is `overflow-hidden`, so hover and selection follow the rounded corners. A `badge` always shows — in a table it ends the title area at one width, so it reads as a column down the list, and stays when a narrow list hides the chips; on a card it is the first chip. The subtitle and the *also in …* note follow the list's width (`@container/list`), not the window's |
+| `DifficultyChip` | `MeaningChip` in the band's tone | `difficulty` (`null` is *Not set*), `unset?` | the one difficulty pill (P20), `Easy · 20`: the Questions list (its `badge` — no number column before the stem), the Board, the managers, the import dialog, Question detail. `difficultyLabel` is the same words without the pill |
 | `DifficultyField` | `NumberField` + `Slider` + band chip | 1–100; band easy/medium/hard | question editor |
-| `OptionRow` | drag handle · `TextField` · correct `Checkbox` · remove | `isLastCorrect` disables the untick | question editor |
+| `OptionRow` | (`DragHandle`) · letter · `TextField` · correct `Checkbox` · remove | `isLastCorrect` disables the untick; `handle` from `SortableList` (P20) — the letter follows the position, the correct tick follows its option | question editor, `ImportRowForm` (the draft only, until Save or Apply) |
 | `TeamMark` | `Swatch`/logo + short code | `size` | roster, rows |
-| `DomainPicker` | `ComboBox` over domains + "Create domain…" | §2.22; opens `DomainForm` in place | question editor, board |
-| `DomainForm` | name · code · description fields | standalone or embedded | Domains pane, `DomainPicker` |
+| `DomainPicker` | `ComboBox` over domains + "Create domain…" | §2.22; opens `DomainForm` in place; measures its own box (P20): one column, two from a 30rem container | question editor's side column, board |
+| `DomainForm` | name · code · description fields | standalone or embedded; name and code side by side from a 24rem container (P20) | Domains pane, `DomainPicker` |
+| `TagField` | chips with a remove button · field · the offered tags | `value`, `known`, `words` (P20: the game's words, `GAME_TAG_WORDS`; the question's by default), `limits` | question editor, the Game page, the game-tags dialog, `ImportRowForm` (its domains too, in their own words) — chips under the field |
+| `ActionMenu` | `IconButton` (⋮) · HeroUI `Dropdown` | `sections: { id, title, items }[]`; an item's `icon`, `isDanger`, `disabledReason`, `description`; `label` (default *Open*) | every row menu, a group header's, a manager's. **Sections** (P20): a `Header` per section from `MENU` (§4.6), a separator between, an empty section left out; a disabled item says why under its name and keeps its label as its accessible name. `renderMenuSections` draws the hand-built menus (bulk *Edit…*, *Copy or move…*) the same way |
+| `EditorColumns` | the form · an `aside` | `children`, `side?`, `sideLabel?` | an editor's body (P20, §2.4): one 48rem column; from a 60rem container, and only with a `side`, 48rem + 22rem. Below, the side follows the form. Team (*Preview*, then *Copies*), Question (*Where it is filed*: domains and their domain groups, then *Question tags*, then *Copies*), Operator (*Pin*, editing only — it saves on its own) |
+| `EditorActions` | Cancel · Save | `canSave`, `isSaving`, `onSave`, `onCancel`, `saveLabel` | an editor's `PageHeader` `primaryAction` (P20.11; it was `EditorFooter`, a bar pinned across the page's foot). Cancel sits in `data-keep-draft`. The header goes in `EditorColumns`' `header` slot, sticky on the page's background, spanning both columns so the buttons end where the content ends |
+| `TeamPreview` | the Studio mark · the Stage mark | `name`, `shortCode`, `color` | the team editor's side (P20): the mark rows show, and Stage's — one letter of the short code in the colour, the name in capitals. A theme colour (`var(--state-…)`) does not resolve in Studio, so it is a hatched box captioned *Theme colour*, never the token. Nothing in it is interactive |
+| `SortableList` · `DragHandle` | an `ol` in a dnd-kit `DragDropProvider` · a grip `button` | `ids`, `onReorder(next)` (`false` puts the order back), `label`, `disabledReason`, `renderRow(id, { index, handleRef, isDragging })` | a list ordered by dragging (P20): the roster, the Board's domains, a question's options. A handle per row; the others slide aside; the drop writes once; the new order shows until the next `ids` arrives (compared by content). Keyboard on the handle: Space or Enter lifts, arrows move, Space drops, Escape cancels. A `disabledReason` (a frozen game) turns every handle off with the reason |
+| `BoardDomainRow` | handle · disclosure (name, code) · *Overridden* · *n of m questions* · span · points · actions | `count`/`of`, `ladder` (the host's `rules_preview` for the domain), `short` (a ragged board's shortest), `open`, `onToggle`, `frozenReason`, `actions` | one domain on the Board (P20), replacing the domain card and the ladder table; its questions are mounted only while open |
+| `BoardBalance` | the shape chip · its hint · (aligned) the rung table | `board: BoardShape` | the Board, one line (P20). Its domain table is gone — each row carries its domain's count, span and ceiling — and an aligned board's rung table is a closed disclosure |
+| `SectionIndex` | a `nav` *On this page* of buttons | `entries: { id, title }[]` | beside the Settings tab's form (P20): sticky; a press scrolls its section into view; the section in view is marked (`aria-current`) |
+| `ManagerDialog` | `Modal`: the list · the chosen entry · a footer | `isOpen`, `onClose`, `title`, `description?`, `list`, `detail`, `footer`, `hook` (a `data-…` attribute on the body) | the managers' frame (P20): 56rem wide and a fixed height (40rem, or the window), the two panes side by side from a 36rem body and stacked below, each scrolling on its own |
+| `PaneList` | a `listbox` of name · count | `entries: { id, label, count, muted? }[]`, `selectedId`, `onSelect`, `what`, `top?` | a manager's entries (P20), the Domains pane's look; a search above eight entries; `top` holds A–Z · Most used |
+| `MemberList` | Board-style lines: text · chips | `members`, `limit` (100), `more(hidden)`, `onOpen?` | what a question tag, a domain group, a folder or a game tag holds (P20): the first 100, then — where the manager passes `more` — one line for the rest, *and N more — Show in list* |
+| `ImportRowForm` | question · options (`OptionRow`s in a `SortableList`) · difficulty · question tags · domains · explanation | `value: ImportDraft`, `onChange`, `knownTags`, `knownDomains` | one row of an import file, edited in the dialog (P20) in the file's own terms (domains as names or codes). Pure: the dialog sends it back to the host as a row of the file |
+| `StatsTable` | rank · name (swatch) · one cell per metric · totals | `result`, `markedKey`, `hideTotals`, `bars` (the first metric drawn against the largest row), `cap` (50), `ranks`, `colors` | Statistics (§13.4): 50 rows, then *Show all N*; the totals row is never capped |
+| `StatsCards` | a card per row | `result`, `markedKey`, `cap` (50) | All data's grid view: the table's cap, so the two views agree |
+| `StatsChart` | caption · the chart · a note | `result`, `kind` (`bars` `ranking` `verdicts` `timeline` `bands` `race`), `metricIndex`, `title`, `colors`; `turns`, `totals`, `teams` for `race` | the only ECharts importer (§13.2) |
+| `StatsFilterBar` | Time · Game · Team · Domain · Verdict · Group by · *More options* · *Clear filters* | `filter`, `groupBy`, `metrics`, `allMetrics`, `defaultMetrics` | All data: one row; Columns, *Include rehearsals* and *All workspaces* inside a HeroUI `Disclosure`, whose closed button reads *More options · n* when n of them are not at their default |
 | `OperatorBadge` | `Avatar` initials · name | `size` | `TopBar`, Operators |
 | `PlayStatusPill` | `StatusDot` · `Text transition=swap` | status from play-state via props | `TopBar` |
 
@@ -317,14 +432,23 @@ someone remembers to add.
 | `StatusBar` | play-state, monitors, notices | opens collector | health (P10 placeholder "—"), displays count, latest notice one-liner, `remaining_ms` while playing |
 | `NoticeCollector` | notices | runs notice actions | HeroUI `Drawer` from the right; `block` severity opens `NoticeDialog` instead |
 | `NoticeDialog` | one `block` notice | its actions | modal, cannot be dismissed by click-away |
-| `LibraryList` | a `useListView` page | selection (the view's), bulk commands | draws the list view (§20): group headers, sortable header row, page footer; grid or table renderer; `@tanstack/react-virtual` above 200 entries; `Skeleton` while loading; `EmptyState` variants. No TanStack Table since 1.1 |
-| `TeamEditor` `DomainEditor` `QuestionEditor` `OperatorEditor` | one item Query | `catalog_upsert` | TanStack Form; validation mirrors host rules; host refusal lands inline |
+| `LibraryList` | a `useListView` page | selection (the view's), bulk commands | draws the list view (§20): group headers, sortable header row, page footer; grid or table renderer; `@tanstack/react-virtual` above 200 entries; `Skeleton` while loading; `EmptyState` variants. No TanStack Table since 1.1. P20: the selection strip (`BulkBar`) is mounted before the first tick and sits right above the list body; grid view hands it the page's *Select all* |
+| `TeamEditor` `DomainEditor` `QuestionEditor` `OperatorEditor` | one item Query | `catalog_upsert` | TanStack Form; validation mirrors host rules; host refusal lands inline. P20: Team, Question and Operator draw their body in `EditorColumns` (§4.2) — the side column holds the preview, where the question is filed and its question tags, the PIN panel |
+| `DomainPane` | domains, archive scope | — (its menu's commands) | P20: a row is the name over a muted code, the count in one column down the pane, the menu in a slot every row keeps |
 | `TeamDetail` `QuestionDetail` `OperatorDetail` | one item Query, `referenced_by` | archive / restore | read view with `MetaList`, `StatCard`s, chips |
 | `RecipeEditor` | recipe, teams, domains, questions Queries | `recipe_upsert`, `recipe_set_membership`, `recipe_set_settings`, `recipe_set_overlay` | sections Roster · Board · Rules · Plays; frozen when that recipe's Play is `playing\|paused` (banner + all controls disabled with reason) |
-| `RosterSection` | recipe, teams | `recipe_set_membership` | the roster in order with up/down/remove; *Add teams…* is a `PickerDialog` (§24); an archived team by name with *Archived*; its own refusals inline |
-| `PickerDialog` | spec, items, initial, disabledReason | — (its caller writes) | §24: a choice of rows on the list-view model — toolbar, groups with *Select all in …*, pages, Apply / Cancel |
-| `BoardSection` | recipe, domains, questions | `recipe_set_membership`, `recipe_set_overlay` (`DifficultyDialog`, `alsoCopies`), `recipe_set_settings` (the repeats switch) | domain cards with their chosen questions, *Add domains…* and *Choose questions…* (§24); `BoardBalance` reports the shape (P11.12); **one question per difficulty** — a member whose difficulty is taken is disabled with the reason (§15), unless *Allow repeated difficulties* is on (§15.4) |
-| `RulesSection` | recipe settings, `settings_get.disabled` | `recipe_set_settings` | `SettingRow`s; interlocks come from the host's `disabled` list, never recomputed |
+| `RosterSection` | recipe, teams | `recipe_set_membership` | the roster in play order, dragged by a handle (`SortableList`, P20 — the ↑/↓ buttons are gone), *Remove from roster* a button on each row; *Add teams…* is a `PickerDialog` (§24); an archived team by name with *Archived*; its own refusals inline |
+| `PickList` | spec, items, chosen, disabledReason | — (its caller holds the ticks) | the body of a choice of rows on the list-view model (beta.4, extracted P20): `ListToolbar`, a *Select all* for the page with the count, group headers with *Select all in …*, a checkbox per row, pages. Its chrome is pinned — toolbar, strip and page footer stay put and only the rows scroll. `columns={2}` runs short rows in two columns from a 56rem list; `onOpen` opens a row (the import dialog). A row that cannot be ticked says why on its second line |
+| `PickerDialog` | spec, items, initial, disabledReason | — (its caller writes) | §24, P20: the window's width (72rem) and a fixed height (52rem, or the window), so filtering never moves the frame; `PickList` beside a **Chosen** pane (18rem, from a 52rem body) listing what is ticked, numbered, each with a remove button, the first 100 then *and N more*. `chosenOrder` sets the pane's order — as ticked (the roster's play order), or the questions' easy→hard walk. Apply / Cancel |
+| `BoardSection` | recipe, domains, questions, `rules_preview` | `recipe_set_membership`, `recipe_set_overlay` (`DifficultyDialog`, `alsoCopies`), `recipe_set_settings` (the repeats switch) | P20: a header (title; the long hint only while the board is empty; *n domains · m questions*; *Add domains…*), *Allow repeated difficulties* as a `SettingRow`, `BoardBalance` in a line, then one `BoardDomainRow` per domain in a `SortableList` — dragged into the order teams see the domains in; *Choose questions…* and *Remove from board* on the row. Open, a row lists its questions in the walk (difficulty, then id), difficulty first; *Reset to original* and *Take off the board* quiet until the line is hovered or focused. A board of more than 40 questions or more than 4 domains opens closed, with *Open all · Close all*. **One question per difficulty** — a member whose difficulty is taken is disabled with the reason (§15), unless *Allow repeated difficulties* is on (§15.4) |
+| `RulesSection` | recipe settings, `rules_preview.effects` | `recipe_set_settings` | P20: grouped and titled as Settings groups them — Award · Turn · Judging · Timer · Reveal · Stage language (`SettingsGroup`) — each key with the control Settings uses (the segmented award mode, the weight slider, the optional consecutive cap, the labelled bonus, a three-way timer, the duration in seconds); every row carries the host's disabled reason; interlocks are never recomputed |
+| `RulesPreviewPanel` | `rules_preview` | — | *What these rules pay*: beside the rules, sticky, from a 72rem page (P20); its inner titles are sub-headings, its warnings compact `InlineNotice`s, *What each setting does* a closed disclosure whose rows stay in the page |
+| `QuestionTagsManager` | `tag_list`, the questions | `tag_rename`, `tag_delete` | *Question tags…* on Domains & Questions (P20, was *Manage tags*): a `ManagerDialog` — the tags with their counts (A–Z · Most used), the chosen one's questions beside them; *Rename* (to an existing tag merges), *Merge into…* (judged on press), *Show in list* (filters Questions to it and closes), *Delete question tag*; a tag written several ways says *Written n ways* and offers *Use “…”* for each spelling |
+| `DomainGroupsManager` · `useGroupEditing` | the open domain, the questions | `domain_group_create`, `_rename`, `_reorder`, `_delete { id, into? }` | *Domain groups…* inside a domain (P20): the domain's groups in order with their counts, *No domain group* last; *Rename*, *Move up* · *Move down*, *Merge into…* (one write: `domain_group_delete { into }`), *Show in list*, *Delete domain group*; *New domain group*. `useGroupEditing` holds Rename · New · Delete, shared with a group header's menu so the two say the same thing |
+| `GameLabelsManager` | the games | `recipe_bulk_edit` | *Folders and game tags…* on the Games tab (P20): every folder and game tag with how many games hold it, the chosen one's games beside them. A folder: *Rename* · *Empty folder* · *Show in list*; a game tag: *Rename* · *Merge into…* · *Show in list* · *Delete game tag*. Each write is one `recipe_bulk_edit` over the games it names, so a rename onto an existing name merges |
+| `useGameLabels` | the games | `recipe_bulk_edit` | the Games tab's bulk *Edit…* (*Folder*: Set folder…, Clear folder · *Game tags*: Add game tag…, Remove game tag…), the row's *Organise* dialogs, and the workspace's folders and game tags (distinct, A–Z) the fields offer. Labels are organisation, not the show: the game in Control is included and nothing freezes. A dialog's value is judged on *Apply* |
+| `ImportQuestionsDialog` | `catalog_import_questions { commit: false }` | `catalog_import_questions { commit: true }` | §17.4, P20: a workspace for the file (§26) — the rows in a `PickList` on the import spec, each ticked to import or left out, one opened beside the list in `ImportRowForm`; edits and skips go to the host as `overrides { edits, skip }` |
+| `LiveStats` · `AllDataStats` | `play-state`, `stats_query` | — | Statistics ▸ Live and ▸ All data (§13.2); read-only, neither imports the command hook |
 | `PlaysSection` | `play_list(recipeId)` | — | history table; read-only |
 | `DevHarness` | play-state, monitors | any command | **dev builds only** (`import.meta.env.DEV`); the P6 harness restyled, lives under Control until P8 replaces it |
 
@@ -333,9 +457,11 @@ someone remembers to add.
 | Template | Slots | Behaviour |
 | --- | --- | --- |
 | `ShellLayout` | sidebar · top · content · status · overlays | CSS grid; sidebar column animates between 240/56/0 |
-| `LibraryTabLayout` | header · toolbar · list · aside? | list fills; aside (detail) optional at ≥1280px, otherwise stacked page |
+| `LibraryTabLayout` | header · toolbar · list · aside? | list fills; draws its toolbar, list and aside through `ListArea` (P20) |
+| `ListArea` | toolbar · list · aside? | P20: the toolbar on its own row, then the list and the opened row's `DetailAside` side by side — the aside starts **below** the toolbar (beside the list at ≥1280px, over its right edge below). Every library tab draws its list here; Domains & Questions uses it as its second pane |
 | `SplitLayout` | primary pane · secondary pane | Domains + Questions (280px domain pane, resizable later) |
-| `RecordPageLayout` | header · sections · sticky footer | editors: Save / Cancel footer pinned; dirty dot in the header |
+| `RecordPageLayout` | sections · rail? | a padded scrolling column; editors put their own `PageHeader` in `EditorColumns`' sticky `header` (P20.11), which assumes this column's padding. `width`: `fluid` (default since P20 — the column fills the page and `EditorColumns` caps the content) or `wide` (the Game page, up to 96rem) |
+| `SettingsLayout` | header · inner tabs · scrolling column · aside? | `width`: `form` (48rem; 64rem with an aside), `wide` (`max-w-6xl`, the Statistics tab), `full` (no cap, the Statistics window, P20). `aside` (P20): beside the form from a 60rem column — 48rem + 12rem, *On this page* on the Settings tab — and hidden below that |
 | `BlankLayout` | content | stubs for P8–P11 tabs |
 
 ### 4.5 Pages
@@ -343,7 +469,7 @@ someone remembers to add.
 | Page | Route | Composition |
 | --- | --- | --- |
 | `TeamsPage` | `teams` | `LibraryTabLayout` + `LibraryList` (kind team) + `TeamDetail` aside |
-| `TeamPage` | `teams/:id` | `RecordPageLayout` + `TeamDetail` or `TeamEditor` |
+| `TeamPage` | `teams/:id` | `RecordPageLayout` + `TeamEditor` (a view route opens the list's aside since 1.1.1; the page's unreachable view branch went in P20) |
 | `LibraryPage` | `library` | `SplitLayout`: domain pane (`DomainForm` add, domain list with archive scope) · question list filtered by domain, with its own archive scope |
 | `QuestionPage` | `library/question/:id` | `RecordPageLayout` + `QuestionEditor` (with `DomainPicker`) |
 | `GamesPage` | `games` | `LibraryTabLayout` + `LibraryList` (recipes as cards: name, folder, tags, teams, board size, last play) |
@@ -357,28 +483,79 @@ someone remembers to add.
 **Chips.** `archived` (warning) · `overridden` (accent) · `seed` (default) ·
 `single` / `multiple` (default) · `easy` / `medium` / `hard` (success /
 warning / danger, thresholds ≤33 / ≤66 / else) · `playing` (success) ·
-`frozen` (warning) · `unset` (default — a difficulty not set yet, P11.17).
-Nothing else without adding it here. *Filter chips* (stable 1.1, §20) are a
-separate family: removable, under the toolbar, "{filter}: {value}" with a ×.
+`frozen` (warning) · `unset` (default — a difficulty not set yet, P11.17) ·
+`active` (accent) · `pinned` (default) · `primary` / `stage` / `disconnected`
+(default / accent / warning — monitors, §12.2.1) · `tag` (default — a question
+tag, P15, or a game tag, P20) · `edited` (accent — an import row changed in
+the dialog, P20) · `leftOut` (default — an import row left out of the import,
+P20). The list is `CHIP_TONES` in `atoms/Chip.tsx`. Nothing else without
+adding it here. *Filter chips* (stable 1.1, §20) are a separate family:
+removable, under the toolbar, "{filter}: {value}" with a ×.
 
 **Empty states.** `empty` ("No teams yet" + New) · `noResults` ("Nothing
 matches" + Clear search) · `archivedEmpty` ("Nothing archived") ·
 `allComplete` ("No incomplete questions here", the Incomplete filter,
 P11.17) · `error` (the host message + Retry).
 
-**Row actions**, in order, everywhere: Open · Edit · Duplicate (recipes only)
-· Archive / Restore. Destructive last, in `danger` only inside a menu or after
-selection.
+**Row actions**, in order, everywhere: Open · Edit · Duplicate · Copy to… ·
+Move to… · Archive / Restore. Destructive last, in `danger` only inside a menu
+or after selection.
+
+**Menu sections** (P20). A menu's items sit under titled sections, and the
+titles are `MENU` in `copy/index.ts` — never written at a call site:
+
+| `MENU` key | Title |
+| --- | --- |
+| `team` `question` `domain` `game` `operator` `workspace` | *Team* · *Question* · *Domain* · *Game* · *Operator* · *Workspace* — the row's own kind |
+| `domainGroup` `workspaceGroup` `folder` | *Domain group* · *Workspace group* · *Folder* |
+| `questionTag` `gameTag` `roster` | *Question tag* · *Game tag* · *Play order* (in the vocabulary, drawn by no menu yet) |
+| `copyMove` · `organise` · `arrange` · `status` · `danger` | *Copy and move* · *Organise* · *Arrange* · *Status* · *Danger zone* |
+| `questionTags` `domains` `difficulty` `gameTags` `toWorkspace` | *Question tags* · *Domains* · *Difficulty* · *Game tags* · *To another workspace* — the bulk menus |
+
+| Menu | Sections (items, in order) |
+| --- | --- |
+| Team row · Question row | *Team* / *Question* (Open, Edit) · *Copy and move* (Duplicate, Copy to…, Move to…, and *Stop following its copies* on a copy) · *Status* (Archive / Restore) |
+| Domain row | *Domain* (Edit) · *Copy and move* (as above) · *Status* |
+| Game row | *Game* (Open) · *Organise* (Folder…, Game tags…) · *Copy and move* (Duplicate, Copy to…, Move to…) · *Status* |
+| Game page, *More actions* | *Copy and move* (Duplicate, Copy to…, Move to…) |
+| Operator row | *Operator* (Open, Edit, Make active) · *Status* |
+| Workspace row | *Workspace* (Open, Rename, Move to workspace group…) · *Copy and move* (Duplicate…) · *Status* · *Danger zone* (Delete permanently…) |
+| Workspace group header | *Workspace group* (Rename workspace group) · *Arrange* (Move up, Move down) · *Danger zone* (Delete workspace group) |
+| Domain group header (Questions, inside a domain) | *Domain group* (Rename) · *Danger zone* (Delete domain group) |
+| Bulk *Edit…*, questions | *Question tags* (Add question tag…, Remove question tag…) · *Domains* (Set domain group…, Add to domain…, Remove from domain — the first and last inside a domain only) · *Difficulty* (Set difficulty…) |
+| Bulk *Edit…*, games | *Folder* (Set folder…, Clear folder) · *Game tags* (Add game tag…, Remove game tag…) |
+| Bulk *Copy or move…* | *To another workspace* (Copy to…, Move to…) |
+
+A section title never repeats an item's text; a "delete" word appears only
+under *Danger zone* — what cannot be undone — and Archive only under *Status*.
+An empty section is not drawn. A disabled item stays in its place and says why
+under its name (`disabledReason`); its accessible name is its label alone, so
+the e2e suite and a screen reader find it by the same words.
 
 **Toolbar order**, everywhere: **Search · Filters · Sort · Group · View ·
 Status** (Active · Archived · All), then New (primary, in the page header). On
-the library tabs this is one organism, `ListToolbar` (stable 1.1, §20).
+the library tabs this is one organism, `ListToolbar` (stable 1.1, §20); since
+P20 it is two groups — the first four wrap, View · Status stay together at the
+top right.
+
+**Words P20 fixed.** *Question tags…* (the manager, was *Manage tags…*) ·
+*Domain groups…* · *Folders and game tags…* · *Show in list* · *Merge into…* ·
+*No domain group* · *Open all* · *Close all* · *Show all N* · *More options* ·
+*On this page* · *Chosen* · *Preview* · *Where it is filed* · *Theme colour* ·
+*Leading* · *Questions* · *Accuracy* · *Round* · *Fastest lock* · *Edited* ·
+*Left out*; and, from the host, a Statistics row's *No operator*.
 
 ## 5. Interaction rules
 
 - **Selection** is local to a list; leaving the page clears it.
 - **Bulk** is one `ConfirmDialog` per batch, wording carries the count;
   `catalog_archive_many` / `catalog_restore_many` are the only calls.
+- **Order is dragged** (P20) where an operator sets it: the roster, the
+  Board's domains, a question's options (`SortableList`, by a handle, the
+  keyboard on the handle too). The drop writes once — an option's only to the
+  editor's draft, until Save; the order shows before the host answers and a
+  refusal puts it back. The Domain groups manager and
+  the workspace groups menu keep *Move up* · *Move down*.
 - **Archive with references** first calls `referenced_by`; when the row is
   used, the confirm names what uses it and asks to arm then confirm.
 - **Dirty editors** guard `nav.go`, window close (Tauri `onCloseRequested`,
@@ -440,9 +617,9 @@ Toasts · dnd-kit roster drag (P8) · Shape manager dialog (P8+) · hotkey chord
   composed in each list page and a wrapper would only have forwarded props; once
   the toolbar carried Filters, Sort and Group, four hand-built copies were how the
   tabs would drift apart (§20).
-- **`EditorFooter`** (a molecule) is pinned inside the editor's scroll column,
-  because an organism may not import a template. `RecordPageLayout` is a padded
-  scrolling column with an optional rail.
+- **`EditorActions`** (a molecule; `EditorFooter` until P20.11) goes in the
+  editor's header, inside `EditorColumns`, because an organism may not import a
+  template. `RecordPageLayout` is a padded scrolling column with an optional rail.
 - **The in-memory host** (`host/fake.ts`) exists and is the second adapter
   behind `HostTransport`; `?fake` on a dev URL installs it with a demo library.
 - **Board difficulty overrides** take the value and the scope from one
@@ -1366,27 +1543,106 @@ reads correctly.
 ┌ Statistics ──────────────────────────────────────────────────────────┐
 │ Live | All data                                    [grid|table]      │
 ├──────────────────────────────────────────────────────────────────────┤
-│ Live:      tiles (score · turns · accuracy · questions left)         │
-│            leaderboard table, domain table, one chart                │
-│ All data:  FilterBar (time · game · team · domain · verdict …)       │
-│            group-by + metric picker · StatsTable | StatsCards        │
-│            one StatsChart under it                                   │
+│ Live:      tiles: Leading · Questions ▬ · Accuracy ▬ · Round ·       │
+│            Fastest lock                                              │
+│            By team: rank · colour · team · points ▬ · turns …        │
+│            Score over turns (one line per team)                      │
+│            By domain (verdicts)  |  By difficulty (bands)            │
+│            Award ledger (working closed)                             │
+│ All data:  Time · Game · Team · Domain · Verdict · Group by          │
+│            [More options · n]  [Clear filters]                       │
+│            Plays · Turns · Accuracy · Points                         │
+│            [Chart ▾]  StatsChart, its kind from Group by             │
+│            StatsTable | StatsCards — 50 rows, then Show all N        │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Live** is `stats_query` scoped to the open Play, refreshed on
-  `operator.eventCount` — the Timeline's trick (§10.3), not a clock. The
-  tiles that need no arithmetic (scores, questions left, round) come straight
-  off `play-state`; nothing is recomputed from a second source.
-- **All data** is the same command with the filter document the FilterBar
-  builds. The table is the default view and the cards are the option (§12);
-  the preference is chrome, per operator, like every other list.
-- **The chart is one molecule** (`StatsChart`) and the only file that imports
-  `echarts`. Bars for a categorical dimension, a line for `day`, themed from
-  the Studio CSS variables so it follows light and dark like everything else.
+**A picture first (P20).** The maintainer found the tab hard to read: numbers
+in tables, one chart at the bottom. Since P20 each view leads with what it means
+and keeps the table for the detail.
+
+- **Live** reads two sources, each for what it owns. What the scoreboard shows
+  comes straight off `play-state` — scores, ranks, team colours, questions
+  left, the round, who holds the token. What needs the log is three
+  `stats_query`s scoped to the open Play — by team (with the award ledger,
+  `detail: 60`), by domain and by difficulty — refreshed on
+  `operator.eventCount`, the Timeline's trick (§10.3), not a clock.
+- **The tiles** (`StatCard`) say what they mean: *Leading* (the top score;
+  the team, or "*n* teams tied"), *Questions* (asked / asked + left, with a
+  meter, "*n* left" under it — asked is what the log resolved, since a team
+  keeps the token through a run, left the board's unconsumed rest), *Accuracy*
+  (with a meter of 100), *Round* ("*team* holds the token"), *Fastest lock*. A
+  figure the log cannot give yet is an em dash, and a meter is drawn only over
+  a figure.
+- **By team** is the leaderboard in the scoreboard's order (`leaderboard(play)`)
+  with the host's ranks — ties share one, `1, 1, 3` — not ranked by turns. Every
+  team of the Play has a row (em dashes where the log has nothing yet), a swatch
+  in its colour, and its points drawn as a bar against the leader's; no Total
+  row, the tiles carry the totals. A theme colour (`var(--state-…)`) is Stage's
+  token and Studio cannot draw it, so that team has no swatch and its race line
+  takes one of ECharts' own colours.
+- **Three charts**: *Score over turns* (`race`), then *By domain* (`verdicts`:
+  correct, partial and wrong stacked) and *By difficulty* (`bands`: the points
+  each band paid) side by side once the column is 48rem wide.
+- **The award ledger is last** (§14.5), its *Show working* off by default.
+- **All data** is one command with the filter document the bar builds. The
+  bar is one row — Time · Game · Team · Domain · Verdict · Group by — and what
+  is asked least, *Columns*, *Include rehearsals* and *All workspaces*, waits
+  behind *More options*. A hidden filter is never invisible: the closed button
+  reads *More options · n* when *n* of those three are not at their default.
+- **Then a summary strip** — *Plays*, *Turns*, *Accuracy*, *Points*, the
+  answer's own counts and totals (an em dash when the column was not asked) —
+  then the chart, with a *Chart* picker for the column it draws (none for
+  `verdicts`, which draws three), then the table (the default) or the cards
+  (§12; the preference is chrome, per operator, like every other list).
+- **The chart's kind follows Group by**: *Team* → `ranking`, or `verdicts`
+  when Correct and Wrong are both columns · *Domain* → `ranking` · *Day* →
+  `timeline` · *Difficulty* → `bands` · anything else → `bars`. The kind is
+  read off the answer, not the bar, so while the next answer loads the picture
+  stays the one of the rows it was drawn from. When the chart will stack
+  verdicts the query asks for *Partial* too — without it a game with partial
+  credit stacks short of its turns — and the table and cards still show only
+  the columns the operator chose.
+- **No Play open** is an empty state that points at Control, not an error.
+
+Rules for the chart, the tables and the host's rows:
+
+- **One file imports ECharts** (`molecules/StatsChart.tsx`), and its `kind` is
+  closed: `bars` · `ranking` · `verdicts` · `timeline` · `bands` · `race`.
   EvilCharts is not installed: it is a Recharts component collection, and one
   themed wrapper over ECharts is less surface than a second chart runtime.
-- **No Play open** is an empty state that points at Control, not an error.
+- **ECharts is handed rgb colours — never oklch, never `var(…)`.** It paints
+  outside CSS, so the theme is read off the chart's own element when it draws:
+  a `var(--…)` is resolved to its value, and the value converted to rgb;
+  anything still unresolved is the accent. HeroUI's tokens are oklch, which
+  ECharts cannot parse — its hover highlight derived an invalid colour from one
+  and the hovered bar vanished. Axis text is `--muted` (it read
+  `--foreground-muted`, which does not exist, and was always `#666`).
+- **Options are memoised.** The option is built in a memo keyed on content
+  (colours, totals and roster compared as JSON), so a re-render that changes
+  nothing does not call `setOption`; `animation: false`; the instance is
+  disposed once, on unmount, and not created where there is no layout to
+  measure (jsdom, a hidden panel).
+- **`null` is never a zero.** A ranking or a bar leaves the row out; a line
+  over days or a bar per band leaves a gap where it stands; the tooltip prints
+  an em dash. A ranking draws the top 12 and says the rest are in the table.
+- **The race is computed backwards from the scores.** The ledger is capped
+  (60 turns), so each line ends at the team's score now and each earlier point
+  takes off what that turn paid (points + bonus). When the ledger accounts for
+  every point every line starts at 0 and this is the whole Play; when it does
+  not, the axis counts on from the turns before it and the note says *The last
+  n turns*.
+- **Tables and cards show 50 rows** (`STATS_CAP`), then *Show all N*; the
+  totals row is never capped, and a bar is scaled against every row, not only
+  the ones shown, so *Show all* never rescales.
+- **The host orders the rows** (P20.8): days by date and difficulty bands
+  easy to hard, whatever they counted; every other dimension ranks by its
+  first column, then its label, and `limit` keeps the top. A turn with nobody
+  at the desk is its own *No operator* row, never the name of the team that
+  answered, and the catalog never renames it. A Play row is its game and the
+  day it started (`Quiz Night · 2025-09-06`), the game's current name winning
+  as a team's does. The chart draws in the order it is given — except a
+  ranking, which is a sort by definition.
 
 ### 13.3 The Statistics window (§9)
 
@@ -1441,6 +1697,14 @@ Settings ▸ Monitors ─ Statistics window                   [Show Statistics]
   not a write, not `stats_window` itself, not Stage's own handshake.
   `health_get` is on the list because the bridge asks for the report on mount
   the way Studio's own window does; refusing it logged a warning on every open.
+- **It never asks `workspace_list`** (P20). The line under the title names the
+  workspace from the query cache alone (`useKnownWorkspaces`): in Studio's own
+  window the sidebar's read fills it, in this one `workspace-changed` does. The
+  page used to call `useWorkspaces()`, which this window may not;
+  `guard::statistics_may_only_read` now names `workspace_list` and
+  `workspace_counts` among the refused.
+- **It is full width** (P20, `SettingsLayout width="full"`): it is there to be
+  read across a room. The tab keeps its `wide` column.
 - **Windows are never built while the host lock is held.** Building a webview
   pumps the Windows message loop, and the new window invokes as soon as it
   loads — with the lock still held it waits on the command that created it.
@@ -1459,10 +1723,10 @@ Settings ▸ Monitors ─ Statistics window                   [Show Statistics]
 
 | Level | New | Notes |
 | --- | --- | --- |
-| atoms | — | the tiles are P7's `StatCard`; a `StatTile` would have been the same component twice |
-| molecules | `StatsTable` · `StatsCards` · `StatsChart` · `StatsFilterBar` | `StatsChart` is the only ECharts importer; the metric picker is the filter bar's last row, not a component of its own |
-| organisms | `LiveStats` · `AllDataStats` | both read-only; neither imports the command hook |
-| pages | `StatisticsPage` | Live \| All data, the view toggle, the empty state. Takes `onView` so the Statistics window, which has no route stack, can hold the view itself, and `surface` so that window's empty state offers no door out |
+| atoms | `MeterBar` (P20) | the tiles are still P7's `StatCard` — it gained `detail` and `meter` rather than a `StatTile` beside it, which would have been the same component twice |
+| molecules | `StatsTable` · `StatsCards` · `StatsChart` · `StatsFilterBar` | `StatsChart` is the only ECharts importer and takes a `kind` (P20); `StatsTable` takes `bars`, `cap`, `ranks` and `colors`, `StatsCards` the same `cap`; *More options* is a HeroUI `Disclosure` inside the filter bar. The chart's column picker is a `SelectField` in `AllDataStats`, not a component of its own |
+| organisms | `LiveStats` · `AllDataStats` · `AwardLedger` | all read-only; none imports the command hook. `LiveStats` builds the tiles, the ranked leaderboard (`leaderboard(play)`) and the race's roster in ring order from `play-state`; `AllDataStats` holds the filter, the summary strip and the chart's kind per Group by |
+| pages | `StatisticsPage` | Live \| All data, the view toggle, the empty state. Takes `onView` so the Statistics window, which has no route stack, can hold the view itself, and `surface` so that window's empty state offers no door out and its column takes the whole display (P20) |
 
 Formatting lives on the metric, not the call site: `formatMetric` reads
 `statsUnit(metric)` (a ratio is a percentage, milliseconds are seconds to one
@@ -1494,6 +1758,17 @@ cannot disagree.
 - `apps/studio`: picking a display issues a settings write and **no**
   `stats_window`; the button shows, then closes, and its label follows the
   host's `statsOpen`; Control offers the same pair.
+- P20: `molecules/StatsChart.test.tsx` (each kind; a theme colour never
+  reaches ECharts and a literal passes through; axis text from `--muted`;
+  re-rendering the same props does not call `setOption`; no animation, an em
+  dash for `null`, one dispose), `StatsTable` / `StatsCards` (50 rows, then
+  *Show all N*; bars against the largest row; a rank column), `StatsFilterBar`
+  (*More options* holds the three and counts what is set), `StatCard`,
+  `atoms/MeterBar` (never overflows, never `NaN`); `pages/p20.test.tsx` (the
+  tiles, ranks `1, 1, 3`, team colours, the three charts in order, the ledger
+  last and closed, the summary strip, the kind per Group by, and the window
+  asking no `workspace_list`); `crates/host` (days in date order, bands easy to
+  hard, *No operator*, a Play row's label).
 
 ### 13.6 Not in P11, decided
 
@@ -1518,7 +1793,12 @@ display as Stage (the picker refuses it).
   and the jsdom setup stubs `Element.prototype.getAnimations`.
 - **`?fake` carries a canned `stats_query` answer** (`demoStats`), the way
   `&play=<fixture>` carries a Play — the fake host does not fold events, and
-  the tab needs something to draw in a browser.
+  the tab needs something to draw in a browser. Since P20 there is one per
+  dimension (`fake.statsBy`; team, domain, difficulty, day, operator, game and
+  Play), because Live alone asks three at once and one answer relabelled for
+  all of them is a table of teams under a Domain heading; and a canned answer
+  is read by metric name, so a query gets exactly the columns it asked for, in
+  its order, `null` for one the answer lacks.
 
 ---
 
@@ -2417,3 +2697,38 @@ Design: `docs/superpowers/specs/2026-10-21-beta5-the-rest-design.md`.
 - **Health**: "*n* references in the library point at nothing, or at another workspace." · *Repair…* → "Remove *n* broken references?" (only the references go) · *Remove them*. "Games here that would not load: *n*, *Friday* among them." · *Show games*. "Question tags spelled two ways: *n*." · *Use one spelling*.
 - **Manage workspaces** rows read "3 teams · 4 domains · 40 questions · 2 games" under the name; **Statistics** reads "Plays in *Club* — or every workspace, with All workspaces." under its title.
 - **The workspace switcher**, disabled while a game is loaded, is reached by Tab and read as "Workspace: {name}. Unload the game in Control to change workspace".
+
+## 26. The interface pass (Beta, P20)
+
+Design: `docs/superpowers/specs/2026-10-22-p20-interface-pass-design.md`; plan and test list: `docs/superpowers/plans/2026-10-22-p20-interface-pass.md`. Tweaks, not a redesign: the Board's *Choose questions…* picker (beta.4) was the model the maintainer liked — the same components, laid out so the eye can follow them. It has to hold for a library five years old (checked on the maintainer's Beta library: about 1,050 questions, 15 domains, a game with 569 questions on its board) and for a first evening with three questions. Screens, Control and Stage are unchanged except where the type scale reached them.
+
+- **Type and theme.** The Studio type scale is emitted at last, and `studio-subheading` names a setting or a titled block (§2.3). Dark is dark gray, not black (§2.1).
+- **The page rules** (§2.4): a 48rem reading column, a 22rem second column for related content, frames edge to edge, container queries, the second column following the first, nothing moving because something appeared, a name before its explanation, a summary before the detail.
+- **Lists.** `ListArea` puts the toolbar on its own row and the opened row's panel under it; on Questions, Status no longer wraps under the toolbar when a row opens, and below 1280px the panel no longer covers it. `ListToolbar` keeps View · Status top right at every width; the Questions lead (the domain's name) truncates. The selection strip (`BulkBar`) is always there on Teams, Questions and Games, quiet at 0, so ticking, *Clear* or a filter never moves the list; grid view gains a *Select all* for the page. A question's difficulty is one `DifficultyChip` after its stem, the same pill as on the Board (§4.2).
+- **Editors** (`EditorColumns`, `EditorActions`): the form at 48rem, a 22rem side from a 60rem page. Team: *Preview* (`TeamPreview`, the Studio mark and the Stage mark) and *Copies*. Question: *Where it is filed* (domains and their domain groups), *Question tags* and *Copies* beside the body. Operator: the PIN panel beside the form, saving on its own. The footer spans the page. The editor pages' unreachable `mode === 'view'` branches are gone — 1.1.1 sends every view to the list's aside.
+- **Menus have section names** (§4.6): `ActionMenu` takes sections, draws each item's icon, and a disabled item says why under its name; the bulk *Edit…* and *Copy or move…* menus are drawn the same way, and the Group menu gained its *Group by* header.
+- **Managers** (`ManagerDialog`, `PaneList`, `MemberList`): *Question tags…* and *Domain groups…* on Domains & Questions, *Folders and game tags…* on Games — the entries with their counts on the left, the chosen one on the right with its actions and its members (the first 100). *Merge into…* a domain group is one host write, `domain_group_delete { id, into }`: the members join the target, then the group goes, in one transaction; a group of another domain, or the group itself, is refused. *Show in list* filters the list to the entry and closes.
+- **Folders and game tags, edited.** The model had them since P7 and nothing wrote them. The Game page's first panel is Name · Folder (`ComboField`: the workspace's folders offered, a new one typed) · Game tags (`TagField` in the game's words); the page header shows the folder and up to four game tags. The Games list shows the folder under the name and the game tags as chips; the row menu gains *Organise* (Folder…, Game tags…), the bulk bar an *Edit…* (*Folder*, *Game tags*). One host write, `recipe_bulk_edit { ids, edits: set_folder | tag | untag, preview }`, one transaction, refused whole: a folder trimmed and at most 60 characters, game tags cleaned like question tags (40 characters, 20 a game, one per spelling, written as the workspace already spells them); a rename is untag + tag in one call. Labels are organisation, not the show: they stay editable while the game plays.
+- **Import is a workspace for the file** (`ImportQuestionsDialog`, §17.4). A wide dialog (80rem; once a file is in, a fixed height). The source in one line — the file and its rows, *Choose another file*, *Edit the text*, *Copy template*, *Questions without a domain go to* — then the summary, whose duplicate, rejected and incomplete counts are buttons that filter to them, then the rows in a `PickList` on the import spec: search; filters Status, Missing, Domain, Question tag, Creates a domain, Ignored fields, Skipped; sorts row, text, difficulty, status; grouped by status (duplicates and rejected first, complete last), domain, missing or question tag; pages of 100. Each row is ticked to import or left out — per row, group or page; a duplicate or a rejected row cannot be ticked and says why on its second line. A row opens beside the list (over it below a 64rem body) in `ImportRowForm`: what is wrong first, then its fields; *Apply*, *Apply and next*, *Back to the file's version*, *Leave this row out* / *Import this row*. Edits and skips go to the host as overrides of the file (`{ edits: [{ index, row }], skip: [index] }`) and the host still reads every row with its one reader, so the preview and the import cannot disagree; an override for a row not in the file refuses the import whole. New text drops every edit and skip with it. The template carries question tags, a multiple-answer row and an incomplete one; the dialog says media and domain groups are not read from a file; an ignored tags list says "more than 20 question tags, or one over 40 characters". Esc or a click outside does not drop a loaded file; *Cancel* does. Rows carry *Edited* and *Left out* chips.
+- **The picker uses the width** (`PickerDialog`, `PickList`): 72rem and a fixed height, so filtering never moves the frame; the toolbar, the strip and the page footer stay put and only the rows scroll; a *Chosen* pane lists what is ticked in its order (the roster's play order, or the questions' easy→hard walk), each with a remove button; teams and domains run in two columns.
+- **The Board** (`BoardSection`, `BoardDomainRow`): a header (the long hint only while the board is empty, the counts, *Add domains…*), *Allow repeated difficulties* as a setting row, the board's shape in a line, then one row per domain — handle, name and code, *n of m questions*, its difficulty span and the points it makes available (the host's `rules_preview`), *Choose questions…*, *Remove from board* — opened to its questions in walk order, difficulty first, *Reset to original* and *Take off the board* quiet until hovered or focused. A board of more than 40 questions or 4 domains opens closed, with *Open all · Close all*; a small one opens. `BoardBalance` lost its domain table; the closing shape hint is gone.
+- **Rules and Settings.** Rules is grouped and titled as Settings groups it, with Settings' own controls and the duration in seconds; on a wide page *What these rules pay* sits beside it, sticky, its warnings compact notices and *What each setting does* a closed disclosure. Settings' inner tabs are as wide as their labels and the Settings tab has *On this page* beside its 48rem column (`SectionIndex`). `SettingRow`'s name is a sub-heading over a caption, and a `wide` row gives its control the full width. `DisabledReason block` stops shrinking a disabled field to its content. The Domains pane's rows are the name over a muted code, the count in one column.
+- **Order is dragged** (`SortableList`, §5): the roster (its ↑/↓ buttons are gone), the Board's domains — the order Stage's ChooseDomain grid shows them in — and a question's options in the editor and the import row form.
+- **Statistics is a picture first** (§13.2): Live's five tiles, the leaderboard ranked as the scoreboard ranks in team colours, three charts and the ledger last; All data's compact filter bar, summary strip, the chart before the table with its kind following Group by, and 50 rows then *Show all N*. The host orders days and difficulty bands naturally and names *No operator* and a Play's row. The Statistics window is full width and never asks `workspace_list`.
+- **The look spec** (`e2e/specs/look.e2e.ts`) is the large-library check: skipped unless `E2E_LOOK_LIBRARY` names a library, it snapshots that file read-only (`e2e_library --copy-from`), plays `E2E_LOOK_PLAYS` (default 6) simulated Plays on the copy, and photographs every surface P20 changed at 1440 and 1100px into `e2e/.artifacts/look-p20-*.png`. A source inside `org.questiongame.desktop` or `org.questiongame.app` is refused: it reads a copy.
+
+**As built — departures worth knowing**
+
+- **The type scale fix changed every surface**, Control, Screens and Statistics included: they had run at 16px since P7 and now get the sizes the scale names. It is the size they were designed at; they were checked on the real app, not adjusted.
+- **A label edit is a recipe write and takes a `rev`.** `recipe_bulk_edit` writes each changed game through the same `store::recipe_upsert` as every recipe write, so its `rev` advances once (the plan's pinned decision 1 said labels would not bump it; the build kept one rule for every recipe write). A preview rolls back and moves nothing. The Game page shows `rev` only as the tooltip of its folder chip — a game with no folder shows no `rev` at all.
+- **Arrows stay where the list is not a show's order.** The Domain groups manager keeps *Move up* · *Move down* buttons, and the workspace group header its *Arrange* section; only the roster, the Board's domains and a question's options are dragged. A domain group's header in the Questions list offers *Domain group* (Rename) · *Danger zone* (Delete domain group) — no *Arrange*.
+- **The managers count on the client.** *Question tags…* and *Folders and game tags…* read their counts from `tag_list` and the games, and write with `preview: false`; the bulk folder and game-tag dialogs say "Applies to *n* games" from the same count. The design asked for the host's preview before every write. *Folders and game tags…* draws no *and N more* line past 100 games.
+- **The Chosen pane is hidden below a 52rem dialog body**, and *On this page* below a 60rem Settings column, rather than following their lists; the strip's count still says how many are chosen. The picker's page footer stays at the foot of `PickList`, under the rows, not in the dialog's footer beside *Cancel* · *Apply*: `PickList` is shared with the import dialog, whose footer carries its own count.
+- **The Board's collapse rule is more than 40 questions or more than 4 domains** (the design's calls said 30). A domain's name on its row is a `studio-label`, and *Remove from board* is an icon button on the row, not a menu item.
+- **The import dialog is 80rem**, not the design's 72rem, and fixes its height only once a file is in.
+- **ECharts is handed rgb** (§13.2): HeroUI's oklch tokens broke its hover highlight — the hovered bar vanished. *By domain* stacks correct, partial and wrong; there is no "left" segment.
+- **One surface** (P20.11, the maintainer's pick after trying both). The top bar, sidebar and status bar paint the page's background (`--chrome` in `studio.css`; `var(--surface)` gives them their own tone back) and every line the shell drew — under the top bar and the Control and Screens strips, over the status bar, beside and inside the sidebar — is `--chrome-line`, transparent: the lines had used two greys at two heights and never met. Settings sits on the status bar's row at its size (`SidebarItem size="sm"`). A hidden sidebar shows a solid gray bar only when the window's left edge is pointed at or focused, and a press brings it back expanded; it no longer slides in on hover, and while hidden it is `inert`. Editors lost their footer bar (§2.4 rule 3); `WizardLayout` (first run, the Beta welcome, *Name your workspace*) lost its two rules, its buttons under the step's fields.
+- **Difficulty is one pill** (P20.10): `DifficultyChip` — `Easy · 20` — wherever a question is listed. On the Questions list it replaced the number column before the stem and the band chip after it; it is `RecordRow`'s `badge`, a column at the end of the question's area that stays when a narrow list hides the chips, and the first chip on a card. A chip never wraps or shrinks.
+- **A compact strip** (P20.11): `[data-density="compact"]` in `studio.css` makes every HeroUI button and select inside it 28px with 12px text and 14px icons (HeroUI's smallest are 32 and 36px). Control's top strip opts in; nothing else changes size.
+- **The dark scrollbar is 42%**, not HeroUI's 70%, which on a gray page was the brightest thing on screen (§2.1).
+- **`MENU` carries three titles no menu draws yet**: *Play order*, *Question tag*, *Game tag*. The bulk *Copy or move…* section is *To another workspace*, not *Copy and move*.

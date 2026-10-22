@@ -30,6 +30,63 @@ export interface WhatsNewRelease {
 
 export const WHATS_NEW: readonly WhatsNewRelease[] = [
   {
+    version: '2.0.0-beta.6',
+    notes: {
+      en: [
+        {
+          title: 'Calmer pages that use the width',
+          body: 'The Dark theme is dark gray instead of black, and the top bar, the sidebar and the status bar share the page’s colour with no lines between them. Editors put Cancel and Save at the top, beside the title, and a team’s preview, a question’s domains and question tags, or the operator’s PIN beside the form. Lists no longer jump when you open a row, tick one or change a filter, and a question’s difficulty reads as one pill, such as Easy · 20.',
+        },
+        {
+          title: 'Menus in sections, and managers',
+          body: 'A row’s menu groups its actions under names such as Copy and move, Status and Danger zone, and an action you cannot take says why. Question tags…, Domain groups… and Folders and game tags… open a manager that lists each one with its count and what it holds, to rename, merge, delete or Show in list. A game’s Folder and Game tags are set on the Game page, or for many games with Edit… on the Games list.',
+        },
+        {
+          title: 'Import, row by row',
+          body: 'Import questions lists the file’s rows with search, filters and sorts, duplicates and rejected rows first; tick a row to import it or leave it out, or open it beside the list to fix it, then Apply and next. Copy template gives a fuller example, with question tags, a multiple-answer question and an incomplete one.',
+        },
+        {
+          title: 'The Board, Rules and Settings, easier to read',
+          body: 'The Board shows a row per domain with its questions, difficulty span and points, and a big board opens with its domains closed, with Open all. Rules reads like Settings, in the same groups with the same controls, so a timer’s Duration is in seconds, and Settings lists its sections under On this page. Add teams…, Add domains… and Choose questions… take the window’s width and keep what you chose beside the list.',
+        },
+        {
+          title: 'Drag to change the order',
+          body: 'Drag a team on the Roster, a domain on the Board or a question’s option by its handle, and the others slide aside; the Roster’s arrows are gone. From the keyboard, Space picks a row up, the arrow keys move it, Space puts it down and Escape cancels.',
+        },
+        {
+          title: 'Statistics, picture first',
+          body: 'Live opens on tiles — Leading, Questions, Accuracy, Round, Fastest lock — then the teams ranked as on the Scoreboard, Score over turns, and charts By domain and By difficulty. All data sums up Plays, Turns, Accuracy and Points, draws the chart before the table, keeps its options under More options and shows the first 50 rows, with Show all.',
+        },
+      ],
+      ro: [
+        {
+          title: 'Pagini mai liniștite, care folosesc lățimea',
+          body: 'Tema Dark e gri închis în loc de negru, iar bara de sus, bara laterală și bara de stare au culoarea paginii, fără linii între ele. Editoarele pun Cancel și Save sus, lângă titlu, iar lângă formular previzualizarea unei echipe, domeniile și etichetele unei întrebări sau PIN-ul operatorului. Listele nu mai sar când deschizi un rând, bifezi unul sau schimbi un filtru, iar dificultatea unei întrebări se citește într-o singură etichetă, de pildă Easy · 20.',
+        },
+        {
+          title: 'Meniuri pe secțiuni și ferestre de administrare',
+          body: 'Meniul unui rând își grupează acțiunile sub nume precum Copy and move, Status și Danger zone, iar o acțiune pe care nu o poți face spune de ce. Question tags…, Domain groups… și Folders and game tags… deschid o fereastră care arată fiecare intrare cu numărul și conținutul ei, ca s-o redenumești, s-o unești cu alta, s-o ștergi sau s-o găsești cu Show in list. Folder și Game tags ale unui joc se pun din pagina jocului sau, pentru mai multe jocuri deodată, cu Edit… din lista Games.',
+        },
+        {
+          title: 'Import rând cu rând',
+          body: 'Import questions arată rândurile fișierului cu căutare, filtre și sortări, cu duplicatele și rândurile respinse la început; bifezi un rând ca să-l imporți sau îl lași deoparte, ori îl deschizi lângă listă ca să-l corectezi, apoi Apply and next. Copy template dă un exemplu mai bogat, cu etichete de întrebare, o întrebare cu mai multe răspunsuri și una neterminată.',
+        },
+        {
+          title: 'Board, Rules și Settings mai ușor de citit',
+          body: 'Board arată un rând pe domeniu, cu întrebările, intervalul de dificultate și punctele lui, iar un Board mare se deschide cu domeniile strânse și cu Open all. Rules se citește ca Settings, în aceleași grupuri și cu aceleași controale, așa că Duration a cronometrului e în secunde, iar Settings își arată secțiunile în On this page. Add teams…, Add domains… și Choose questions… folosesc lățimea ferestrei și țin ce ai ales lângă listă.',
+        },
+        {
+          title: 'Tragi ca să schimbi ordinea',
+          body: 'Tragi de mâner o echipă din Roster, un domeniu din Board sau o variantă de răspuns a unei întrebări, iar celelalte se dau la o parte; săgețile din Roster au dispărut. De la tastatură, Space ridică un rând, săgețile îl mută, Space îl așază și Escape renunță.',
+        },
+        {
+          title: 'Statistics: întâi imaginea',
+          body: 'Live începe cu casete — Leading, Questions, Accuracy, Round, Fastest lock — apoi echipele clasate ca pe Scoreboard, Score over turns și graficele By domain și By difficulty. All data adună Plays, Turns, Accuracy și Points, arată graficul înaintea tabelului, își ține opțiunile în More options și arată primele 50 de rânduri, cu Show all.',
+        },
+      ],
+    },
+  },
+  {
     version: '2.0.0-beta.5',
     notes: {
       en: [

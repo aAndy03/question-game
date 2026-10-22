@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-Shipped: **1.0.2**; main is at P14 — questiongame Beta (P13.1), stable 1.1's library views (P13.2–P13.4, also on `release/1.x`, not yet tagged) and Beta 2.0's workspaces (P14, `main` only, not yet versioned). The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: roadmap ▸ Next. **Which branch?** Stable fixes on `release/1.x`, merged forward into `main`; Beta work on `main` only — `docs/as-built/release.md` ▸ Channels.
+Shipped: **1.1.1** (stable, `release/1.x`) and **2.0.0-beta.5** (questiongame Beta, `main`); main is at P20 — the interface pass (Beta, `main` only, not yet versioned). The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: roadmap ▸ Next. **Which branch?** Stable fixes on `release/1.x`, merged forward into `main`; Beta work on `main` only — `docs/as-built/release.md` ▸ Channels.
 
 ## As built — read the area's file before changing it
 
@@ -163,7 +163,7 @@ Both webviews are TypeScript + React 19 and both use HeroUI v3 and Base UI. **Wh
 
 | | Studio (`main`) | Stage (`stage`) |
 | --- | --- | --- |
-| Tokens | `packages/design-studio/globals.css` — HeroUI theme as shipped | `packages/design-stage/tokens/*` — questiongame |
+| Tokens | `packages/design-studio/globals.css` — HeroUI's theme, its dark ramp lifted to dark gray (P20) | `packages/design-stage/tokens/*` — questiongame |
 | Look | HeroUI defaults, oklch, `--radius: 0.75rem` | Ink on white, radius 0, inset borders, no shadows |
 | Type | HeroUI sans stack | Space Grotesk + Space Mono |
 | Motion | `motion/react` | GSAP only |
