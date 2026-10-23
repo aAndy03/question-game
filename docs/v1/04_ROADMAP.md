@@ -1888,7 +1888,7 @@ Design: `docs/superpowers/specs/2026-10-21-stable-1.1.1-design.md`. Built on `re
 
 After beta.5: the interface pass, **P20** above.
 
-### P21 — Beta: a smaller scale (beta.7)  ☐
+### P21 — Beta: a smaller scale (beta.7)  ☑
 
 On `main` only. The maintainer's ask after beta.6: a page's title, its buttons and its toolbar were too big; follow the scale Control's top strip took in P20.11, as the default, with no option yet. Rows, cards and dialogs stay as they are.
 
@@ -1901,7 +1901,8 @@ On `main` only. The maintainer's ask after beta.6: a page's title, its buttons a
 
 ### Next
 
-- ☐ Finish **P21**; `npm run version:beta` for 2.0.0-beta.7 when the maintainer says; the e2e suite on Windows before the tag.
+- ☑ **P21** versioned as 2.0.0-beta.7 (What's new in English and Romanian); **not tagged** — the maintainer said to commit it and go on. The e2e suite on Windows comes before any tag.
+- ☐ **P22 — beta.8**: the maintainer's next list, on `main`.
 
 ---
 

@@ -30,6 +30,55 @@ export interface WhatsNewRelease {
 
 export const WHATS_NEW: readonly WhatsNewRelease[] = [
   {
+    version: '2.0.0-beta.7',
+    notes: {
+      en: [
+        {
+          title: 'A smaller scale',
+          body: 'Page titles, toolbars and every button are smaller, so lists and the Board get more of the window. Menus, dropdowns and their lists are tighter, the pagination strip is smaller and the Domains pane narrower. In the Dark theme a message in the corner is gray instead of black.',
+        },
+        {
+          title: 'Health and notices in one place',
+          body: 'Health and the latest notice are one button in the status bar. It opens a panel of a fixed size, so a long list scrolls inside it, with every notice compact and Clear all at the top.',
+        },
+        {
+          title: 'Stage and Statistics on every display',
+          body: 'The status bar draws your displays as small screens, marked where Stage and Statistics are. Press them to send Stage to a display, mirror it on another, move it, or show and close Statistics, from any page. Settings ▸ Monitors is the same picture: a map of where the displays stand and a row for each, with a Stage and a Statistics column. Pointing at a row lights its display on the map.',
+        },
+        {
+          title: 'More room in Control',
+          body: 'Mute, Reset layout and Control settings sit in the top bar beside the theme and the operator while Control is open, and Unload game is the ✕ beside the game’s name. The display pickers moved to the status bar, so the panels start right under the top bar.',
+        },
+        {
+          title: 'Manage workspaces, like every list',
+          body: 'Manage workspaces shows a grid or a table, and you can tick several to Archive, Restore or Move to workspace group… at once. The workspace you are in is never archived with them.',
+        },
+      ],
+      ro: [
+        {
+          title: 'O scară mai mică',
+          body: 'Titlurile paginilor, barele de unelte și toate butoanele sunt mai mici, așa că listele și Board-ul primesc mai mult din fereastră. Meniurile, listele derulante și ce deschid ele sunt mai strânse, banda de pagini e mai mică, iar panoul Domains mai îngust. În tema Dark, mesajul din colț e gri în loc de negru.',
+        },
+        {
+          title: 'Starea și notificările într-un singur loc',
+          body: 'Starea aplicației și ultima notificare sunt un singur buton în bara de stare. Deschide un panou de mărime fixă, în care o listă lungă se derulează, cu fiecare notificare compactă și Clear all sus.',
+        },
+        {
+          title: 'Stage și Statistics pe orice ecran',
+          body: 'Bara de stare îți desenează ecranele ca niște ecrane mici, marcate acolo unde sunt Stage și Statistics. Apasă pe ele ca să trimiți Stage pe un ecran, să-l oglindești pe altul, să-l muți sau să deschizi și să închizi Statistics, din orice pagină. Settings ▸ Monitors arată la fel: o hartă cu așezarea ecranelor și câte un rând pentru fiecare, cu o coloană Stage și una Statistics. Când treci peste un rând, ecranul lui se aprinde pe hartă.',
+        },
+        {
+          title: 'Mai mult loc în Control',
+          body: 'Cât timp Control e deschis, Mute, Reset layout și Control settings stau în bara de sus, lângă temă și operator, iar Unload game e ✕-ul de lângă numele jocului. Alegerea ecranelor s-a mutat în bara de stare, așa că panourile încep imediat sub bara de sus.',
+        },
+        {
+          title: 'Manage workspaces, ca orice listă',
+          body: 'Manage workspaces arată o grilă sau un tabel și poți bifa mai multe ca să le dai Archive, Restore sau Move to workspace group… deodată. Spațiul de lucru în care ești nu e arhivat niciodată odată cu ele.',
+        },
+      ],
+    },
+  },
+  {
     version: '2.0.0-beta.6',
     notes: {
       en: [

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-Shipped: **1.1.1** (stable, `release/1.x`) and **2.0.0-beta.5** (questiongame Beta, `main`); main is at P20 — the interface pass (Beta, `main` only, not yet versioned). The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: roadmap ▸ Next. **Which branch?** Stable fixes on `release/1.x`, merged forward into `main`; Beta work on `main` only — `docs/as-built/release.md` ▸ Channels.
+Shipped: **1.1.1** (stable, `release/1.x`) and **2.0.0-beta.6** (questiongame Beta, `main`); main is at **2.0.0-beta.7** (P21, a smaller scale — versioned, not tagged), and P22 (beta.8) is next. The plan and each phase's exit criteria are `docs/v1/04_ROADMAP.md`; what each phase built and why is `docs/as-built/history.md`. Next: roadmap ▸ Next. **Which branch?** Stable fixes on `release/1.x`, merged forward into `main`; Beta work on `main` only — `docs/as-built/release.md` ▸ Channels.
 
 ## As built — read the area's file before changing it
 
