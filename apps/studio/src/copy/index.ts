@@ -70,6 +70,9 @@ export const CHROME = {
   openDisplays: 'Displays',
   displaysTitle: (n: number) => (n === 1 ? '1 display' : `${n} displays`),
   displaysSettings: 'Monitors settings',
+  /** P21.4: what the status bar's displays say beside the small screens. */
+  displaysSummary: (n: number, stage: boolean, stats: boolean) =>
+    stage && stats ? 'Stage · Statistics' : stage ? 'Stage' : stats ? 'Statistics' : n === 1 ? '1 display' : `${n} displays`,
   noNotices: 'No notices',
   /**
    * The collector's line for notices that are addressed to a field and render

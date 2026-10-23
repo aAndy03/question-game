@@ -48,6 +48,8 @@ export const CHIP_TONES = {
   primary: 'default',
   stage: 'accent',
   disconnected: 'warning',
+  // P21.4: the Statistics window stands on this display
+  statistics: 'success',
   // questions (P11.17): a difficulty not set yet
   unset: 'default',
   // P15: an operator's tag on a question

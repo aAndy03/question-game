@@ -2222,30 +2222,25 @@ studio_calls:
     settings_set_current_game: [apps/studio/src/organisms/SettingsFloat.tsx]
     settings_set_global:
       - apps/studio/src/organisms/AboutPanel.tsx
-      - apps/studio/src/organisms/ControlTopBar.tsx
-      - apps/studio/src/organisms/MonitorsSettings.tsx
+      - apps/studio/src/organisms/ControlTools.tsx
       - apps/studio/src/organisms/SettingsForm.tsx
+      - apps/studio/src/organisms/useDisplays.ts
     settings_set_shortcut: [apps/studio/src/organisms/ShortcutsEditor.tsx]
     show_overlay: [apps/studio/src/organisms/StripsPanel.tsx]
     show_screen:
       - apps/studio/src/organisms/ActionPanel.tsx
       - apps/studio/src/organisms/StripsPanel.tsx
       - apps/studio/src/organisms/useControlHotkeys.ts
-    stage_add_mirror: [apps/studio/src/organisms/MonitorCards.tsx]
-    stage_open:
-      - apps/studio/src/organisms/ControlTopBar.tsx
-      - apps/studio/src/organisms/MonitorCards.tsx
-      - apps/studio/src/organisms/MonitorsSettings.tsx
-      - apps/studio/src/organisms/useNoticeActions.ts
-    stage_remove_mirror: [apps/studio/src/organisms/MonitorCards.tsx]
+    stage_add_mirror: [apps/studio/src/organisms/useDisplays.ts]
+    stage_open: [apps/studio/src/organisms/useDisplays.ts, apps/studio/src/organisms/useNoticeActions.ts]
+    stage_remove_mirror: [apps/studio/src/organisms/useDisplays.ts]
     stage_set_monitor:
-      - apps/studio/src/organisms/ControlTopBar.tsx
-      - apps/studio/src/organisms/MonitorCards.tsx
       - apps/studio/src/organisms/MonitorsSettings.tsx
+      - apps/studio/src/organisms/useDisplays.ts
       - apps/studio/src/organisms/useNoticeActions.ts
     start_timer: [apps/studio/src/organisms/ActionPanel.tsx]
     stats_query: [apps/studio/src/host/queries.ts]
-    stats_window: [apps/studio/src/organisms/ControlTopBar.tsx, apps/studio/src/organisms/MonitorsSettings.tsx]
+    stats_window: [apps/studio/src/organisms/useDisplays.ts]
     tag_delete: [apps/studio/src/organisms/QuestionTagsManager.tsx]
     tag_list: [apps/studio/src/host/queries.ts]
     tag_rename: [apps/studio/src/organisms/QuestionTagsManager.tsx]
@@ -2801,6 +2796,7 @@ packages:
         "--field-border-width": "9e0741c0"
         "--font-geist": "7f0352bf"
         "--normal-bg": "442e7f57"
+        "--normal-bg-hover": d092f90a
         "--normal-border": "5628777f"
         "--normal-text": "57ff1514"
       packages/design-studio/tokens/theme.css:

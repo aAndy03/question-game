@@ -436,7 +436,9 @@ someone remembers to add.
 | `TopBar` | play-state, settings (active operator), chrome | theme, sidebar mode, `settings_set_global(active_operator_id)` | recipe name if loaded · `PlayStatusPill` · `OperatorBadge` menu |
 | `StatusBar` | play-state, monitors, notices | opens the notices and displays popovers | one button for health and the latest notice (its popover is `NoticePanel`), the displays count (its popover draws `MonitorCards`), `remaining_ms` while playing (P21.3) |
 | `NoticePanel` | notices | runs notice actions (`useNoticeActions`) | fixed 24rem × 26rem, scrolls, compact `InlineNotice`s, *Clear all*, the *needs attention elsewhere* lines |
-| `MonitorCards` | monitors, Stage placement | `stage_open`, `stage_set_monitor`, `stage_add_mirror` | every display as a `MonitorCard` — Settings ▸ Monitors and the status bar's displays popover |
+| `MonitorCards` | `useDisplays` | `stage_open`, `stage_set_monitor`, `stage_add_mirror`, `stage_remove_mirror`, `stats_window`, `stats_monitor_id` | every display as a `MonitorCard` with Stage and Statistics on it — Settings ▸ Monitors and the status bar's displays popover (P21.4) |
+| `DisplaysStatus` | `useDisplays` | — | the status bar's displays: `DisplayGlyphs` and what is up; its popover is `DisplayWindowButtons` and `MonitorCards` |
+| `ControlTools` | settings, Control layout | `audio_muted`, reset layout | audio · *Reset layout* · `SettingsFloat`, in `TopBar` while Control is open (P21.4) |
 | `NoticeCollector` | notices | runs notice actions | the `block` dialog only since P21.3 |
 | `NoticeDialog` | one `block` notice | its actions | modal, cannot be dismissed by click-away |
 | `LibraryList` | a `useListView` page | selection (the view's), bulk commands | draws the list view (§20): group headers, sortable header row, page footer; grid or table renderer; `@tanstack/react-virtual` above 200 entries; `Skeleton` while loading; `EmptyState` variants. No TanStack Table since 1.1. P20: the selection strip (`BulkBar`) is mounted before the first tick and sits right above the list body; grid view hands it the page's *Select all* |
@@ -843,7 +845,7 @@ redo · `[` / `]` previous / next screen.
 | --- | --- |
 | atoms | `TransportButton` (icon-only, `state: rest \| active \| armed`) · `TimerIcon` · `HitTarget` (positioned button, `legal \| illegal`) · `RingRowHandle` |
 | molecules | `TimerCluster` · `RevealControls` · `RingRow` (nine variants) · `ScreenStrip` · `OverlayStrip` · `MosaicPanel` (title bar, density, menu) · `DisplayPicker` · `EventRow` |
-| organisms | `Viewer` · `GamePanel` · `ActionPanel` · `StripsPanel` · `TimelinePanel` · `SettingsFloat` · `ControlTopBar` |
+| organisms | `Viewer` · `GamePanel` · `ActionPanel` · `StripsPanel` · `TimelinePanel` · `SettingsFloat` · `ControlTopBar` (*Unload game* only since P21.4) · `ControlTools` (in the top bar) |
 | templates | `MosaicLayout` |
 | pages | `ControlPage` (replaces the stub; `DevHarness` is deleted) |
 
@@ -1127,6 +1129,11 @@ Writes `stage_set_monitor` and `settings_set_global { stage_reattach }`.
   currently unplugged; `warning` chip *Not connected*), `free` (button
   *Send Stage here*). The Stage window is created if it does not exist
   yet (`stage_open` then `stage_set_monitor`).
+- **Statistics on a card** (P21.4): `stats` is `here` (a `statistics`
+  chip and its icon in the rectangle, *Close Statistics*), `free` (*Show
+  Statistics here*) or `blocked` (Stage stands there; no button). Stage gets
+  its icon in the rectangle too. *Move Stage here* moves the pacer while it
+  stands on another display.
 - **A display can be a Stage display, or mirror one** (P11.11). The card's
   action is *Send Stage here* on a free display and *Remove Stage* on one that
   is mirroring; the **pacer's card offers neither**, because it is *moved* with
@@ -1654,10 +1661,12 @@ Rules for the chart, the tables and the host's rows:
 ### 13.3 The Statistics window (§9)
 
 Optional, off by default, and **opened only by the operator** (revised
-2026-09-07). Settings ▸ Monitors carries its own group — the display it would
-use, a Fullscreen switch, whether it is up right now, and the one button that
-shows or closes it — and Control's top bar carries the same picker and the same
-button, because mid-show is exactly when the numbers go up and come down.
+2026-09-07). **Since P21.4 it is on the display cards beside Stage**: a card
+offers *Show Statistics here* or *Close Statistics* and marks the display it
+stands on; *Show / Close Statistics* sits above the cards, the Fullscreen
+switch under them. The status bar's displays carry the same cards on every
+page, because mid-show is exactly when the numbers go up and come down (it was
+a group of its own, and a picker in Control's top strip, until then).
 
 ```text
 Settings ▸ Monitors ─ Statistics window                   [Show Statistics]

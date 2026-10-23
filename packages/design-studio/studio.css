@@ -241,9 +241,12 @@ html .list-box-section .header {
 }
 
 /* Toasts (P21.3): Sonner's dark toast is near-black, the one black left on a
- * gray page; it takes the overlay's gray, as a popover does. */
-[data-sonner-toaster][data-sonner-theme="dark"] {
+ * gray page; it takes the overlay's gray, as a popover does. Sonner injects
+ * its stylesheet after ours with the same selector, so `html` is what wins
+ * (P21.4: without it the toast stayed black). */
+html [data-sonner-toaster][data-sonner-theme="dark"] {
   --normal-bg: var(--overlay);
+  --normal-bg-hover: var(--surface-secondary);
   --normal-border: var(--border);
   --normal-text: var(--foreground);
 }

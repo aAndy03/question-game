@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { EMPTY_PLAY_STATE } from '@questiongame/contract'
 import { App } from '@/App'
 import { HOME, useNavStore } from '@/chrome/nav'
@@ -278,7 +279,8 @@ describe('the Statistics window', () => {
       await useNavStore.getState().go({ tab: 'settings', inner: 'monitors' })
     })
 
-    expect(await screen.findByLabelText(STATS.window.title)).toBeTruthy()
+    // P21.4: Statistics lives on the display cards, beside Stage.
+    await waitFor(() => expect(document.querySelectorAll('[data-monitor-card]').length).toBe(2))
 
     // Remembering a display is not showing one: the pick the picker makes is a
     // settings write and nothing else. This is the bug the manual model fixed
@@ -299,25 +301,48 @@ describe('the Statistics window', () => {
     expect(fake.calls.find((c) => c.name === 'stats_window')?.args).toEqual({ open: true })
 
     // And the same button closes it, because the host said it is open.
-    const close = await screen.findByRole('button', { name: STATS.window.close })
+    // The group's own button; the card it opened on offers the same.
+    const [close] = await screen.findAllByRole('button', { name: STATS.window.close })
     await act(async () => {
-      fireEvent.click(close)
+      fireEvent.click(close!)
     })
     await waitFor(() => expect(fake.statsOpen).toBe(false))
     expect(await screen.findByRole('button', { name: STATS.window.show })).toBeTruthy()
   })
 
-  it('offers the same show/close from Control', async () => {
+  it('offers the same show/close from the status bar, on any page (P21.4)', async () => {
     const fake = mount(openPlay(12))
     render(<App />)
     await act(async () => {
       await useNavStore.getState().go({ tab: 'control' })
     })
-    const show = await screen.findByRole('button', { name: STATS.window.show })
-    await act(async () => {
-      fireEvent.click(show)
-    })
+    await userEvent.click(await screen.findByRole('button', { name: /^Displays: / }))
+    const panel = await screen.findByRole('dialog', { name: 'Displays' })
+    await userEvent.click(within(panel).getByRole('button', { name: STATS.window.show }))
     await waitFor(() => expect(fake.statsOpen).toBe(true))
+    // The status bar says what is up, and marks the display it is on.
+    await userEvent.keyboard('{Escape}')
+    expect(await screen.findByRole('button', { name: /^Displays: .*Statistics$/ })).toBeTruthy()
+    expect(document.querySelector('[data-display-glyph="primary"]')?.hasAttribute('data-stats')).toBe(true)
+  })
+
+  it('shows Statistics on the display whose card asked, and closes it there', async () => {
+    const fake = mount()
+    render(<App />)
+    await act(async () => {
+      await useNavStore.getState().go({ tab: 'settings', inner: 'monitors' })
+    })
+    const card = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>('[data-monitor-key="tv@1920x1080"]')
+      if (!el) throw new Error('no card')
+      return el
+    })
+    await userEvent.click(within(card).getByRole('button', { name: 'Show Statistics here' }))
+    await waitFor(() => expect(fake.statsOpen).toBe(true))
+    expect(fake.calls.find((c) => c.name === 'settings_set_global')?.args).toEqual({ setting: { key: 'stats_monitor_id', value: 'tv@1920x1080' } })
+    await waitFor(() => expect(card.dataset['monitorStats']).toBe('here'))
+    await userEvent.click(within(card).getByRole('button', { name: STATS.window.close }))
+    await waitFor(() => expect(fake.statsOpen).toBe(false))
   })
 })
 

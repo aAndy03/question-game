@@ -25,7 +25,8 @@ export const CONTROL = {
   statsDisplay: 'Statistics display',
   primaryDisplay: 'Primary display',
   openStage: 'Open Stage',
-  settings: 'Settings',
+  /** The settings float's name — "Settings" alone is the sidebar's (P21.4: both in the shell). */
+  settings: 'Control settings',
   settingsGlobal: 'Global',
   settingsCurrentGame: 'Current game',
   settingsNoGame: 'No recipe in Control.',

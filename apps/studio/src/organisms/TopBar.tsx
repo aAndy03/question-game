@@ -1,6 +1,7 @@
 import { Button as HeroButton, Dropdown, Header, Label } from '@heroui/react'
 import { IconButton, Icon } from '@/atoms'
 import { OperatorBadge, PlayStatusPill } from '@/molecules'
+import { ControlTools } from './ControlTools'
 import { useActivateOperator } from './useActivateOperator'
 import { useChromeStore, usePrefs, type ThemeChoice } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
@@ -21,6 +22,7 @@ export function TopBar() {
   const goBack = useNavStore((s) => s.goBack)
   const goForward = useNavStore((s) => s.goForward)
   const go = useNavStore((s) => s.go)
+  const onControl = useNavStore((s) => s.route.tab === 'control')
   const { theme } = usePrefs()
   const setTheme = useChromeStore((s) => s.setTheme)
   const { activate, prompt } = useActivateOperator()
@@ -48,6 +50,8 @@ export function TopBar() {
         <PlayStatusPill status={play?.status ?? null} recipeName={recipe.data?.name ?? null} />
       </div>
       <div className="flex items-center gap-1">
+        {/* Control's own tools, only while Control is open (P21.4). */}
+        {onControl ? <ControlTools /> : null}
         <Dropdown>
           {/* The button *is* the trigger. `Dropdown.Trigger` renders a
             * `<button>` around its child, so wrapping one nests two buttons —

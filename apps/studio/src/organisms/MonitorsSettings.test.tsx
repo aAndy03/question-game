@@ -71,6 +71,20 @@ describe('Settings ▸ Monitors, with several displays', () => {
     expect(cardFor('tv@1920x1080').textContent).toContain('Mirroring')
   })
 
+  it('moves the pacer from another card, now that Control has no Stage picker (P21.4)', async () => {
+    await openMonitors()
+    expect(button(cardFor('tv@1920x1080'), 'Move Stage here'), 'no Stage yet, nothing to move').toBeNull()
+    await act(async () => button(cardFor('primary'), 'Send Stage here')!.click())
+    await waitFor(() => expect(cardFor('primary').dataset['monitorCard']).toBe('stage'))
+
+    await act(async () => button(cardFor('tv@1920x1080'), 'Move Stage here')!.click())
+    await waitFor(() => expect(cardFor('tv@1920x1080').dataset['monitorCard']).toBe('stage'))
+    expect(cardFor('primary').dataset['monitorCard']).toBe('free')
+    const moves = fake.calls.filter((c) => c.name === 'stage_set_monitor')
+    expect(moves.at(-1)?.args).toEqual({ monitorId: 'tv@1920x1080' })
+    expect(fake.calls.some((c) => c.name === 'stage_add_mirror'), 'a move is not a mirror').toBe(false)
+  })
+
   it('takes a mirror away again, and never the pacer', async () => {
     await openMonitors()
     await act(async () => button(cardFor('primary'), 'Send Stage here')!.click())

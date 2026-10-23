@@ -215,6 +215,8 @@ export const SETTINGS = {
     stage: 'Stage',
     notConnected: 'Not connected',
     sendStage: 'Send Stage here',
+    /** P21.4: moves the pacer; *Send* beside it adds a mirror. */
+    moveStage: 'Move Stage here',
     /** The same picture as the Stage display (§9, P11.11). */
     mirror: 'Mirroring',
     removeStage: 'Remove Stage',
@@ -231,6 +233,10 @@ export const SETTINGS = {
     remembered: 'Remembered',
     statsDisplay: 'Statistics display',
     none: 'None',
+    /** P21.4: the Statistics window on a display card. */
+    statistics: 'Statistics',
+    showStatsHere: 'Show Statistics here',
+    statsFullscreen: 'Statistics fullscreen',
   } as const,
 
   shortcuts: {

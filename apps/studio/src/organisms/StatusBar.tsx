@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Popover } from '@heroui/react'
-import { Button, Icon, StatusDot, Text } from '@/atoms'
+import { Icon, StatusDot, Text } from '@/atoms'
 import { latestForStatusBar, useNoticeStore } from '@/chrome/notices'
 import { healthTone, useHealthStore } from '@/chrome/health'
 import { CHROME, fmt, noticeTitle } from '@/copy'
 import { usePlayClock, usePlayState } from '@/host/playState'
-import { useMonitors } from '@/host/queries'
-import { useNavStore } from '@/chrome/nav'
-import { MonitorCards } from './MonitorCards'
+import { DisplaysStatus } from './DisplaysStatus'
 import { NoticePanel } from './NoticePanel'
 
 /**
@@ -16,7 +14,6 @@ import { NoticePanel } from './NoticePanel'
  */
 export function StatusBar() {
   const play = usePlayState()
-  const monitors = useMonitors()
   const notices = useNoticeStore((s) => s.notices)
   const setCollectorOpen = useNoticeStore((s) => s.setCollectorOpen)
   const collectorOpen = useNoticeStore((s) => s.collectorOpen)
@@ -29,8 +26,6 @@ export function StatusBar() {
     setOpen(next)
     setCollectorOpen(next)
   }
-  const go = useNavStore((s) => s.go)
-  const count = monitors.data?.length ?? 0
   const latest = latestForStatusBar(notices)
   const health = useHealthStore((s) => s.report)
   const tone = healthTone(health)
@@ -85,34 +80,7 @@ export function StatusBar() {
           </Popover.Dialog>
         </Popover.Content>
       </Popover>
-      {/* The displays, drawn as Settings ▸ Monitors draws them (P21.3). */}
-      <Popover>
-        <Popover.Trigger
-          className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded px-1 outline-none hover:bg-[var(--surface-secondary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
-          aria-label={`${CHROME.openDisplays}: ${CHROME.displays(count)}`}
-          data-displays-trigger
-        >
-          <Icon name="displays" size="sm" className="opacity-60" />
-          <Text variant="studio-caption" tone="muted">
-            {CHROME.displays(count)}
-          </Text>
-        </Popover.Trigger>
-        <Popover.Content placement="top start">
-          <Popover.Dialog aria-label={CHROME.openDisplays}>
-            <div className="flex max-w-[min(40rem,90vw)] flex-col gap-3" data-displays-panel>
-              <div className="flex items-center justify-between gap-4">
-                <Text as="h2" variant="studio-subheading">
-                  {CHROME.displaysTitle(count)}
-                </Text>
-                <Button size="sm" variant="tertiary" icon="settings" onPress={() => void go({ tab: 'settings', inner: 'monitors' })}>
-                  {CHROME.displaysSettings}
-                </Button>
-              </div>
-              <MonitorCards />
-            </div>
-          </Popover.Dialog>
-        </Popover.Content>
-      </Popover>
+      <DisplaysStatus />
       <span className="flex-1" />
       {showTimer ? <StatusClock /> : null}
     </footer>
