@@ -2,6 +2,10 @@
 
 The end-to-end suite and the codebase map. The rules here are binding; `CLAUDE.md` points here instead of carrying them.
 
+## The Studio unit suite's waits (beta.8)
+
+- **Two limits, both raised for load.** `vitest.config.ts` gives the `studio` project `testTimeout: 20_000` (P12.9: a test that renders the whole App takes ~1 s alone and up to 5 s with every jsdom worker busy). Testing Library's own `findBy…` / `waitFor` limit is separate and was still 1 s, so a test with several waits on a booted App failed some full runs and never alone (`transfer.test.tsx`, one run in three). `src/test/setup.ts` sets `configure({ asyncUtilTimeout: 5_000 })`: a wait that succeeds returns as soon as it does; only a failing one waits longer. A test that fails only in the full run is this before it is anything else — check its durations against 1 s.
+
 ## The end-to-end suite (P12.14)
 
 `e2e/` drives the **real app** through WebDriver: WebdriverIO, `tauri-driver` and the WebView2 driver (`cargo install tauri-driver --locked`; `msedgedriver-tool` fetches the driver matching the installed WebView2). **Windows only** — macOS's WKWebView has no WebDriver. It is **not** run on CI (since v1.1.0): the runner's ~1024-wide screen and older WebView2 failed the release runs on layout alone. `npm run e2e` runs on the maintainer's Windows machine before every tag.

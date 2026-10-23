@@ -80,7 +80,9 @@ describe('Library — incomplete questions (§2.32)', () => {
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Incomplete' }))
     await waitFor(() => expect(screen.queryByText(completeStem())).toBeNull())
     expect(screen.getByText('Who wrote Luceafărul?')).toBeTruthy()
-    expect(screen.getByText('Completeness: Incomplete')).toBeTruthy()
+    // beta.8: the chip is beside the Filters button and, with the menu open, at its top too.
+    expect(within(document.querySelector<HTMLElement>('[data-inline-filters]')!).getByText('Completeness: Incomplete')).toBeTruthy()
+    expect(within(dialog).getByText('Completeness: Incomplete')).toBeTruthy()
   })
 
   it('puts the toolbar in its order: Search · Filters · Sort · Group · View · Status (U-01)', async () => {

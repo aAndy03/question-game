@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Dropdown, Header, Label, Pagination, Popover } from '@heroui/react'
-import { Button, CheckboxField, IconButton, NumberField, SegmentedField, SwitchField, Text } from '@/atoms'
+import { Button, CheckboxField, Icon, IconButton, NumberField, SegmentedField, SQUEEZE_EVENT, SwitchField, Text } from '@/atoms'
 import { LIST } from '@/copy'
 
 /**
@@ -30,6 +30,14 @@ export interface FilterMenuProps {
   activeCount: number
   /** A line under the title, e.g. how many questions are incomplete. */
   hint?: string | undefined
+  /**
+   * The filters in force (beta.8): small chips right after the button, as many
+   * as fit, then *+N*, which opens the menu — where all of them are listed,
+   * with *Clear all*. No row of their own under the toolbar.
+   */
+  active?: ActiveFiltersProps['items'] | undefined
+  onRemove?: ((id: string) => void) | undefined
+  onClearAll?: (() => void) | undefined
 }
 
 const WINDOWS: readonly ChangedWindow[] = ['any', 'today', '7d', '30d']
@@ -81,9 +89,13 @@ function FilterField({ f, value, onChange }: { f: FilterControl; value: FilterCo
 }
 
 /** One button, a popover of the tab's own filters and the shared *Changed* window. */
-export function FilterMenu({ filters, values, changed, onChange, onChanged, activeCount, hint }: FilterMenuProps) {
+export function FilterMenu({ filters, values, changed, onChange, onChanged, activeCount, hint, active = [], onRemove, onClearAll }: FilterMenuProps) {
+  // Open state is held here so the toolbar's *+N* chip can open the menu.
+  const [open, setOpen] = useState(false)
+  const chips = active.length > 0 && onRemove !== undefined && onClearAll !== undefined
   return (
-    <Popover>
+    <>
+    <Popover isOpen={open} onOpenChange={setOpen}>
       <Button variant="secondary" size="sm" icon="filter">
         {activeCount > 0 ? `${LIST.filters} · ${activeCount}` : LIST.filters}
       </Button>
@@ -96,6 +108,8 @@ export function FilterMenu({ filters, values, changed, onChange, onChanged, acti
               {hint}
             </Text>
           ) : null}
+          {/* Every filter in force, the ones the toolbar had no room for too. */}
+          {chips ? <ActiveFilters items={active} onRemove={onRemove} onClearAll={onClearAll} /> : null}
           {filters.map((f) => (
             <FilterField key={f.id} f={f} value={values[f.id]} onChange={(v) => onChange(f.id, v)} />
           ))}
@@ -105,6 +119,91 @@ export function FilterMenu({ filters, values, changed, onChange, onChanged, acti
         </Popover.Dialog>
       </Popover.Content>
     </Popover>
+    {chips ? <InlineFilters items={active} onRemove={onRemove} onMore={() => setOpen(true)} /> : null}
+    </>
+  )
+}
+
+/** One filter in force (beta.8): a 24px chip, 11px, with its remove button. */
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <li
+      className="flex h-6 shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full border border-[var(--border)] pl-2 pr-0.5 text-[0.6875rem] leading-none"
+      style={{ background: 'var(--surface-secondary)' }}
+      data-filter-chip
+      data-fold-item
+    >
+      <span>{label}</span>
+      <button
+        type="button"
+        aria-label={LIST.removeFilter(label)}
+        onClick={onRemove}
+        className="flex size-5 items-center justify-center rounded-full text-[var(--muted)] outline-none hover:bg-[var(--surface-tertiary)] hover:text-[var(--foreground)] focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
+      >
+        <Icon name="close" size="sm" style={{ width: 12, height: 12 }} />
+      </button>
+    </li>
+  )
+}
+
+const chipLabel = (f: ActiveFiltersProps['items'][number]) => (f.valueLabel ? `${f.label}: ${f.valueLabel}` : f.label)
+
+/**
+ * The filters in force beside the Filters button (beta.8): as many chips as
+ * the toolbar has room for, then *+N* — which opens the menu, where the rest
+ * are. Measured each render and each resize of the **toolbar**, never of
+ * itself, so hiding a chip cannot set off another measure.
+ */
+function InlineFilters({ items, onRemove, onMore }: { items: ActiveFiltersProps['items']; onRemove: (id: string) => void; onMore: () => void }) {
+  const box = useRef<HTMLUListElement>(null)
+  const [hidden, setHidden] = useState(0)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    const fit = () => {
+      const chips = [...el.querySelectorAll<HTMLElement>('[data-filter-chip]')]
+      const more = el.querySelector<HTMLElement>('[data-filter-more]')
+      chips.forEach((c) => (c.style.display = ''))
+      if (more) more.style.display = 'none'
+      const room = el.getBoundingClientRect().right
+      let shown = chips.length
+      if (chips.some((c) => c.getBoundingClientRect().right > room + 0.5)) {
+        if (more) more.style.display = ''
+        const reserve = (more?.getBoundingClientRect().width ?? 0) + 4
+        shown = chips.filter((c) => c.getBoundingClientRect().right <= room - reserve).length
+      }
+      chips.forEach((c, k) => (c.style.display = k < shown ? '' : 'none'))
+      if (more) more.style.display = shown < chips.length ? '' : 'none'
+      setHidden((h) => (h === chips.length - shown ? h : chips.length - shown))
+    }
+    fit()
+    const toolbar = el.closest<HTMLElement>('[data-list-tools]') ?? el.parentElement
+    if (!toolbar) return
+    // The toolbar's buttons just went to icons or back: fit to the room they leave.
+    toolbar.addEventListener(SQUEEZE_EVENT, fit)
+    const watch = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit)
+    watch?.observe(toolbar)
+    return () => {
+      toolbar.removeEventListener(SQUEEZE_EVENT, fit)
+      watch?.disconnect()
+    }
+  })
+  return (
+    <ul aria-label={LIST.filters} ref={box} className="-ml-1 flex min-w-8 shrink items-center gap-1 overflow-hidden" data-inline-filters data-fold>
+      {items.map((f) => (
+        <FilterChip key={f.id} label={chipLabel(f)} onRemove={() => onRemove(f.id)} />
+      ))}
+      <li className="shrink-0" data-filter-more style={{ display: 'none' }}>
+        <button
+          type="button"
+          onClick={onMore}
+          aria-label={LIST.moreFilters(hidden)}
+          className="flex h-6 items-center rounded-full border border-[var(--border)] px-2 text-[0.6875rem] leading-none outline-none hover:bg-[var(--surface-secondary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
+        >
+          {`+${hidden}`}
+        </button>
+      </li>
+    </ul>
   )
 }
 
@@ -114,21 +213,15 @@ export interface ActiveFiltersProps {
   onClearAll(): void
 }
 
-/** The filters in force, under the toolbar: each removable, and *Clear all*. */
+/** Every filter in force, each removable, and *Clear all* — at the top of the Filters menu (beta.8; a row under the toolbar until then). */
 export function ActiveFilters({ items, onRemove, onClearAll }: ActiveFiltersProps) {
   if (items.length === 0) return null
   return (
-    <div className="flex flex-wrap items-center gap-2" data-active-filters>
-      <ul aria-label={LIST.filters} className="flex flex-wrap items-center gap-2">
-        {items.map((f) => {
-          const label = f.valueLabel ? `${f.label}: ${f.valueLabel}` : f.label
-          return (
-            <li key={f.id} className="flex items-center gap-1 rounded-full border border-[var(--border)] py-0.5 pl-3 pr-1" style={{ background: 'var(--surface-secondary)' }}>
-              <Text variant="studio-caption">{label}</Text>
-              <IconButton icon="close" size="sm" label={LIST.removeFilter(label)} hideTooltip onPress={() => onRemove(f.id)} />
-            </li>
-          )
-        })}
+    <div className="flex flex-wrap items-center gap-1" data-active-filters>
+      <ul aria-label={LIST.filters} className="flex flex-wrap items-center gap-1">
+        {items.map((f) => (
+          <FilterChip key={f.id} label={chipLabel(f)} onRemove={() => onRemove(f.id)} />
+        ))}
       </ul>
       <Button variant="tertiary" size="sm" onPress={onClearAll}>
         {LIST.clearAll}

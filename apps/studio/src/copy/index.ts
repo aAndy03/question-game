@@ -267,6 +267,8 @@ export const LIST = {
   hideGroup: (label: string) => `Hide ${label}`,
   alsoIn: (names: readonly string[]) => `also in ${names.join(', ')}`,
   removeFilter: (label: string) => `Remove ${label}`,
+  /** beta.8: the toolbar's *+N* chip — the filters in force it had no room for, in the menu. */
+  moreFilters: (n: number) => `${n} more ${n === 1 ? 'filter' : 'filters'} — open Filters`,
   range: (min: number, max: number) => `${min}–${max}`,
 } as const
 

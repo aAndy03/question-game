@@ -4,9 +4,17 @@
  */
 
 import { afterEach } from 'vitest'
-import { cleanup } from '@testing-library/react'
+import { cleanup, configure } from '@testing-library/react'
 
 afterEach(() => cleanup())
+
+// How long `findBy…` and `waitFor` wait (beta.8). The default is 1 s; the
+// project's `testTimeout` was raised to 20 s in P12.9 because a test that
+// renders the whole App can take 5 s with every jsdom worker busy, but each
+// wait inside it still gave up after 1 s — so `transfer.test.tsx`, four waits
+// in a row on a booted App, failed one full run in three and never alone.
+// A wait that succeeds returns as soon as it does; only a real failure waits.
+configure({ asyncUtilTimeout: 5_000 })
 
 if (typeof window !== 'undefined') {
   if (typeof window.matchMedia !== 'function') {
