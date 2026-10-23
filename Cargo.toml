@@ -9,7 +9,7 @@ resolver = "3"
 members = ["crates/host", "crates/app", "tools/codemap"]
 
 [workspace.package]
-version = "2.0.0-beta.6"
+version = "2.0.0-beta.7"
 edition = "2024"
 license = "GPL-3.0-or-later"
 authors = ["Darius", "Andy (aAndy03) <https://github.com/aAndy03>"]
