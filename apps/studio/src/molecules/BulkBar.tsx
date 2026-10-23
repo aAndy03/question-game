@@ -33,8 +33,8 @@ export interface BulkBarProps {
  * The selection strip (P20): **always there** on a list with bulk actions, so
  * nothing moves when the first row is ticked, on *Clear*, or when a filter
  * clears the selection — the list used to jump 56px each time, and a second
- * click in the same place ticked the page. Quiet at 0 (no fill, a dashed
- * hairline, "0 selected", nothing to press); one confirm per batch when
+ * click in the same place ticked the page. Quiet at 0 (no fill, no outline,
+ * "0 selected", nothing to press); one confirm per batch when
  * something is selected (spec §2.19). Under Status *All* a selection mixes
  * active and archived rows, so both actions are offered, each with the count
  * it applies to (stable 1.1). The actions scroll inside the strip rather than
@@ -47,7 +47,8 @@ export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, i
       {...(idle ? {} : { role: 'toolbar', 'aria-label': SHELL.bulkActions })}
       className={[
         'flex h-11 shrink-0 items-center gap-3 rounded-[var(--radius)] border px-3',
-        idle ? 'border-dashed border-[var(--separator)]' : 'border-[var(--border)]',
+        // Idle draws no outline (P20.11: no lines); the border stays, transparent, so the strip keeps its size.
+        idle ? 'border-transparent' : 'border-[var(--border)]',
       ].join(' ')}
       style={idle ? undefined : { background: 'var(--surface-secondary)' }}
       data-bulk-strip

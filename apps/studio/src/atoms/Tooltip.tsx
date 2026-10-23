@@ -9,15 +9,17 @@ export interface TooltipProps {
   placement?: TooltipPlacement
   delay?: number
   isDisabled?: boolean | undefined
+  /** The trigger fills its width: HeroUI's is an inline-block that shrinks a field to its content. */
+  block?: boolean | undefined
   children: ReactNode
 }
 
 /** HeroUI `Tooltip` with the arrow on and a short delay, everywhere. */
-export function Tooltip({ content, placement = 'top', delay = 400, isDisabled, children }: TooltipProps) {
+export function Tooltip({ content, placement = 'top', delay = 400, isDisabled, block, children }: TooltipProps) {
   if (isDisabled || content === null || content === undefined || content === '') return <>{children}</>
   return (
     <HeroTooltip delay={delay}>
-      <HeroTooltip.Trigger>{children}</HeroTooltip.Trigger>
+      <HeroTooltip.Trigger {...(block ? { className: 'block w-full' } : {})}>{children}</HeroTooltip.Trigger>
       <HeroTooltip.Content placement={placement} showArrow>
         {content}
       </HeroTooltip.Content>
@@ -34,8 +36,9 @@ export function Tooltip({ content, placement = 'top', delay = 400, isDisabled, c
 export function DisabledReason({ reason, children, block }: { reason: string | null | undefined; children: ReactNode; block?: boolean | undefined }) {
   if (!reason) return <>{children}</>
   return (
-    <Tooltip content={reason}>
-      <span className={[block ? 'flex w-full' : 'inline-flex', 'cursor-not-allowed'].join(' ')} role="group" tabIndex={0} aria-label={reason}>
+    <Tooltip content={reason} block={block}>
+      {/* `block` all the way down — this span and the tooltip's trigger — or a disabled slider shrank to its thumb (P20). */}
+      <span className={[block ? 'block w-full' : 'inline-flex', 'cursor-not-allowed'].join(' ')} role="group" tabIndex={0} aria-label={reason}>
         {children}
       </span>
     </Tooltip>

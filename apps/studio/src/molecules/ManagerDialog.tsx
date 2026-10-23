@@ -14,6 +14,11 @@ export interface ManagerDialogProps {
   footer: ReactNode
   /** A test hook on the body, e.g. `data-groups-dialog`. */
   hook?: string | undefined
+  /**
+   * Nothing to manage yet: shown alone, in place of both panes (P20) — an
+   * empty list beside an empty state, a rule between them, said nothing twice.
+   */
+  empty?: ReactNode
 }
 
 /**
@@ -24,7 +29,7 @@ export interface ManagerDialogProps {
  * Stacks in a narrow window. Its height is fixed, so choosing an entry never
  * moves the frame; each pane scrolls on its own.
  */
-export function ManagerDialog({ isOpen, onClose, title, description, list, detail, footer, hook }: ManagerDialogProps) {
+export function ManagerDialog({ isOpen, onClose, title, description, list, detail, footer, hook, empty }: ManagerDialogProps) {
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Modal.Container size="lg">
@@ -35,12 +40,16 @@ export function ManagerDialog({ isOpen, onClose, title, description, list, detai
             {description ? <p className="text-sm text-[var(--muted)]">{description}</p> : null}
           </Modal.Header>
           <Modal.Body className="@container/manager flex min-h-0 flex-1 overflow-hidden" {...(hook ? { [hook]: '' } : {})}>
-            <div className="grid min-h-0 w-full flex-1 grid-cols-1 gap-4 @[36rem]/manager:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
-              <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">{list}</div>
-              <div className="flex min-h-0 flex-col gap-3 overflow-y-auto border-t border-[var(--separator)] pt-3 @[36rem]/manager:border-l @[36rem]/manager:border-t-0 @[36rem]/manager:pl-4 @[36rem]/manager:pt-0">
-                {detail}
+            {empty ? (
+              <div className="flex w-full flex-1 items-center justify-center">{empty}</div>
+            ) : (
+              <div className="grid min-h-0 w-full flex-1 grid-cols-1 gap-4 @[36rem]/manager:grid-cols-[minmax(12rem,16rem)_minmax(0,1fr)]">
+                <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">{list}</div>
+                <div className="flex min-h-0 flex-col gap-3 overflow-y-auto border-t border-[var(--separator)] pt-3 @[36rem]/manager:border-l @[36rem]/manager:border-t-0 @[36rem]/manager:pl-4 @[36rem]/manager:pt-0">
+                  {detail}
+                </div>
               </div>
-            </div>
+            )}
           </Modal.Body>
           <Modal.Footer>{footer}</Modal.Footer>
         </Modal.Dialog>

@@ -50,9 +50,12 @@ async function settle(): Promise<void> {
   )
 }
 
+/** A list's rows, as `library-views.e2e.ts` picks them. */
+const ROW = '[data-list-body] [role="button"]'
+
 /** The first row's menu on a list, by its kebab. */
 async function firstRowMenu(): Promise<void> {
-  const kebab = await $('[data-record-row] button[aria-haspopup]')
+  const kebab = await $(`${ROW} button[aria-haspopup]`)
   await kebab.waitForClickable({ timeout: 15_000 })
   await kebab.click()
   await $('[role="menu"]').waitForDisplayed({ timeout: 5_000 })
@@ -64,7 +67,8 @@ describe('P20 over a real library', () => {
   })
 
   for (const width of WIDTHS) {
-    it(`photographs every changed surface at ${width} px`, async () => {
+    it(`photographs every changed surface at ${width} px`, async function () {
+      this.timeout(20 * 60_000)
       await onStudio()
       await browser.setWindowSize(width, 900)
       await settle()
@@ -79,14 +83,14 @@ describe('P20 over a real library', () => {
       })
       await surface(width, 'questions', async () => {
         await press('Domains & Questions')
-        await $('[data-record-row]').waitForDisplayed({ timeout: 20_000 })
+        await $(ROW).waitForDisplayed({ timeout: 20_000 })
       })
       await surface(width, 'question-open', async () => {
-        await (await $('[data-record-row]')).click()
+        await (await $(ROW)).click()
         await $('[data-detail-aside]').waitForDisplayed({ timeout: 15_000 })
       })
       await surface(width, 'questions-selected', async () => {
-        await (await $('[data-record-row] [role="checkbox"], [data-record-row] input[type="checkbox"]')).click()
+        await (await $(`${ROW} [role="checkbox"], ${ROW} input[type="checkbox"]`)).click()
         await $('[data-bulk-strip]:not([data-bulk-idle])').waitForDisplayed({ timeout: 5_000 })
       })
       await surface(width, 'questions-menu', async () => {
@@ -100,12 +104,13 @@ describe('P20 over a real library', () => {
       })
       await surface(width, 'domain-groups', async () => {
         await browser.keys('Escape')
+        await (await $('[role="listbox"] [role="option"]:nth-child(2)')).click()
         await press('Domain groups…')
         await $('[role="dialog"]').waitForDisplayed({ timeout: 10_000 })
       })
       await surface(width, 'import', async () => {
         await browser.keys('Escape')
-        await press('Import…')
+        await press('Import')
         await $('[role="dialog"]').waitForDisplayed({ timeout: 10_000 })
       })
       await surface(width, 'question-new', async () => {
@@ -146,6 +151,7 @@ describe('P20 over a real library', () => {
 
       await surface(width, 'settings', async () => {
         await press('Settings')
+        await (await $('//*[@role="tab"][normalize-space()="Settings"]')).click()
         await sees('On this page')
       })
       await surface(width, 'stats-all', async () => {

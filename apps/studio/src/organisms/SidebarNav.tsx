@@ -47,9 +47,8 @@ export function SidebarNav() {
     </span>
   ) : null
 
-  const mode: SidebarMode = sidebar
-  const collapsed = mode === 'rail'
-  const width = SIDEBAR_WIDTH[mode]
+  const collapsed = sidebar === 'rail'
+  const width = SIDEBAR_WIDTH[sidebar]
   const playing = play?.status === 'playing' || play?.status === 'paused'
 
   const item = ({ tab, icon, size = 'md' }: { tab: Tab; icon: IconName; size?: 'md' | 'sm' }) => (
@@ -102,8 +101,8 @@ export function SidebarNav() {
             </div>
           )}
           <IconButton
-            icon={mode === 'expanded' ? 'sidebarExpanded' : 'sidebarRail'}
-            label={mode === 'expanded' ? CHROME.sidebarCollapse : mode === 'rail' ? CHROME.sidebarHide : CHROME.sidebarShow}
+            icon={sidebar === 'expanded' ? 'sidebarExpanded' : 'sidebarRail'}
+            label={sidebar === 'expanded' ? CHROME.sidebarCollapse : sidebar === 'rail' ? CHROME.sidebarHide : CHROME.sidebarShow}
             size="sm"
             onPress={cycle}
           />
@@ -137,7 +136,7 @@ export function SidebarNav() {
   )
 }
 
-/** A line of the shell, in the shell's one line colour (`--chrome-line`; transparent on trial, P20). */
+/** A line of the shell, in the shell's one line colour (`--chrome-line`, transparent since P20.11). */
 function ChromeLine({ className }: { className?: string | undefined }) {
   return <div aria-hidden className={['h-px shrink-0', className ?? ''].join(' ')} style={{ background: 'var(--chrome-line)' }} />
 }

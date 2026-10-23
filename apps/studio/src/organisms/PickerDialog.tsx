@@ -97,11 +97,12 @@ export function PickerDialog<T>({ isOpen, onClose, title, spec, items, initial, 
                     {ordered.slice(0, CHOSEN_SHOWN).map((id, i) => {
                       const row = byId.get(id)
                       return (
-                        <li key={id} className="flex min-h-9 items-center gap-2 rounded px-1.5 hover:bg-[var(--surface-secondary)]">
+                        <li key={id} className="flex min-h-9 items-center gap-2 rounded px-1.5 py-1 hover:bg-[var(--surface-secondary)]">
                           <Text variant="studio-mono" tone="muted" className="w-6 shrink-0 text-right" tabular>
                             {i + 1}
                           </Text>
-                          <Text variant="studio-body" truncate className="min-w-0 flex-1" title={row?.title ?? id}>
+                          {/* Two lines, not one cut short: the pane is 22rem and a stem is a sentence (P20). */}
+                          <Text variant="studio-body" className="line-clamp-2 min-w-0 flex-1 break-words" title={row?.title ?? id}>
                             {row?.title ?? id}
                           </Text>
                           {row?.chips}

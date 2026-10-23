@@ -22,7 +22,7 @@ export function WorkshopLayout({ toolbar, children, inspector }: WorkshopLayoutP
       <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--chrome-line)] px-4 py-2">{toolbar}</div>
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_22rem]">
         <div className="min-h-0 min-w-0 p-4">{children}</div>
-        <aside className="min-h-0 overflow-y-auto border-l border-[var(--border)] p-4" style={{ background: 'var(--surface)' }}>
+        <aside className="min-h-0 overflow-y-auto border-l border-[var(--chrome-line)] p-4" style={{ background: 'var(--surface)' }}>
           {inspector}
         </aside>
       </div>

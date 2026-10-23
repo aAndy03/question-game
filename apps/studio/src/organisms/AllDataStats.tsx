@@ -130,8 +130,8 @@ function Summary({ result }: { result: StatsResult }) {
   return (
     <div className="@container/summary">
       <div className="grid grid-cols-2 gap-3 @[36rem]/summary:grid-cols-4">
-        <StatCard label={STATS.summary.plays} value={result.playCount} />
-        <StatCard label={STATS.summary.turns} value={result.turnCount} />
+        <StatCard label={STATS.summary.plays} value={formatMetric(result.playCount, 'plays')} />
+        <StatCard label={STATS.summary.turns} value={formatMetric(result.turnCount, 'turns')} />
         <StatCard label={STATS.summary.accuracy} value={total('accuracy')} />
         <StatCard label={STATS.summary.points} value={total('points')} />
       </div>

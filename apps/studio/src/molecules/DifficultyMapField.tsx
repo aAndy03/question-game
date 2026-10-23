@@ -58,19 +58,22 @@ export function DifficultyMapField({ value, onChange, error, isDisabled, disable
         isDisabled={isDisabled}
         disabledReason={disabledReason}
       />
+      {/* A number keeps a number's width, even in a wide setting row (P20). */}
       {value.kind === 'linear' ? (
-        <NumberField
-          label={SETTINGS.difficultyMap.factor}
-          value={value.factor}
-          onChange={(factor) => onChange({ kind: 'linear', factor: Math.max(0, factor ?? 0) })}
-          minValue={0}
-          step={0.5}
-          error={error}
-          isDisabled={isDisabled}
-          disabledReason={disabledReason}
-        />
+        <div className="max-w-xs">
+          <NumberField
+            label={SETTINGS.difficultyMap.factor}
+            value={value.factor}
+            onChange={(factor) => onChange({ kind: 'linear', factor: Math.max(0, factor ?? 0) })}
+            minValue={0}
+            step={0.5}
+            error={error}
+            isDisabled={isDisabled}
+            disabledReason={disabledReason}
+          />
+        </div>
       ) : (
-        <div className="flex flex-col gap-2" role="group" aria-label={SETTINGS.difficultyMap.bands}>
+        <div className="flex max-w-md flex-col gap-2" role="group" aria-label={SETTINGS.difficultyMap.bands}>
           <div className="grid grid-cols-[1fr_1fr_2.5rem] gap-2">
             <Text variant="studio-caption" tone="muted">
               {SETTINGS.difficultyMap.upTo}

@@ -195,10 +195,9 @@ export function formatMetric(value: number | null, metric: StatsMetric): string 
       return `${Math.round(value * 100)}%`
     case 'milliseconds':
       return value >= 10_000 ? `${(value / 1000).toFixed(0)}s` : `${(value / 1000).toFixed(1)}s`
-    case 'points':
-      return Number.isInteger(value) ? String(value) : value.toFixed(1)
     default:
-      return Number.isInteger(value) ? String(value) : value.toFixed(1)
+      // Grouped as the Board writes points (P20): 81,550, not 81550.
+      return Number.isInteger(value) ? value.toLocaleString('en') : value.toLocaleString('en', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   }
 }
 

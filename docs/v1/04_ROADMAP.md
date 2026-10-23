@@ -1863,8 +1863,8 @@ Design: `docs/superpowers/specs/2026-10-22-p20-interface-pass-design.md`; plan a
 - ☑ **P20.11** — one surface: the top bar, sidebar and status bar paint the page's background (`--chrome`) and every line the shell drew is one transparent token (`--chrome-line`); Settings sits on the status bar's row at its size; a hidden sidebar leaves nothing at the edge until pointed at (a solid gray bar; a press brings it back expanded; no slide-in on hover); editors' Cancel · Save move from a bar at the foot into the header, which stays at the top and ends where the content ends (`EditorColumns`' `header`, `EditorActions`); first run, the Beta welcome and *Name your workspace* lose their lines, the buttons under the fields; Control's top strip is compact (`data-density="compact"`, 28px controls); the dark scrollbar comes down to 42%.
 - ☑ **P20.12** — the Board's domain order pinned to Stage's by a host test; the look spec named in `SEEDS`.
 - ☑ **P20.13** — docs (`05_STUDIO_DESIGN.md` §§2.1, 2.3, 2.4, 4, 13, 26; `as-built/` studio, host, tooling, app-shell; `03_CONTEXT.md`; history), *What's new* 2.0.0-beta.6 in English and Romanian, `codemap.yaml`.
-- ☐ **P20.14** — the look spec run over the Beta library, at 1440 and 1100 px, and what it showed.
-- ☐ **P20.15** — the Opus and Sonnet reviews over the range and every finding fixed with a test.
+- ☑ **P20.14** — the look spec over a copy of the Beta library (1,022 questions, 15 domains, a 569-question game, six simulated Plays), at 1440 and 1100 px, and what it showed: the Board's counts, spans and points in fixed columns; the *Chosen* pane's stems on two lines; big numbers grouped (81,550); an empty chart only its note; *Points per difficulty point* at a number's width; an empty manager its empty state alone; the idle selection strip without an outline; no line between the Screens canvas and its inspector; on a narrow list the toolbar's tools under the title and View · Status, not four rows high; a disabled slider at its width (a HeroUI tooltip trigger is an inline-block and shrank it to its thumb).
+- ☑ **P20.15** — the review of the range, in this session rather than by two reviewer agents (the maintainer stopped the agents): the code that writes data (game labels, domain group merges, import overrides) and P20.10–P20.12, findings fixed with tests.
 
 ### Stable 1.1.1 — the narrow window and the 1.1 bugs  ☑
 
@@ -1890,7 +1890,7 @@ After beta.5: the interface pass, **P20** above.
 
 ### Next
 
-- ☐ Finish **P20** (P20.14, P20.15); `npm run version:beta` for 2.0.0-beta.6 when the maintainer says.
+- ☐ `npm run version:beta` for 2.0.0-beta.6 when the maintainer says; the e2e suite on Windows before the tag.
 
 ---
 

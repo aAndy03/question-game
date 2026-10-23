@@ -32,10 +32,17 @@ export function ListToolbar({ view, what, layout, onLayout, status, onStatus, fi
   const viewSwitch = layout && onLayout ? <ViewSwitch value={layout} onChange={onLayout} /> : null
   const statusTabs = status && onStatus ? <ArchiveToggle value={status} onChange={onStatus} withAll /> : null
   return (
-    <div className="flex flex-col gap-2" data-list-toolbar>
-      <div className="flex items-start gap-2">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          {lead}
+    <div className="@container/toolbar flex flex-col gap-2" data-list-toolbar>
+      {/*
+        One row on a wide list. On a narrow one (a row open beside it, a small
+        window) the tools share their row with View · Status and every button
+        wrapped alone, four rows high (P20, the Beta library at 1100px): there
+        the lead and View · Status take the first row and the tools the whole
+        width under it. CSS order only — the DOM, and the tab order, stay.
+      */}
+      <div className="flex flex-wrap items-center gap-2 @[48rem]/toolbar:flex-nowrap @[48rem]/toolbar:items-start">
+        {lead ? <div className="min-w-0 shrink">{lead}</div> : null}
+        <div className="order-3 flex w-full min-w-0 flex-wrap items-center gap-2 @[48rem]/toolbar:order-none @[48rem]/toolbar:w-auto @[48rem]/toolbar:flex-1">
           <SearchField what={what} onSearch={view.setSearch} initial={state.search} className="w-64 min-w-40" />
           <FilterMenu
             filters={spec.filters}
@@ -56,7 +63,7 @@ export function ListToolbar({ view, what, layout, onLayout, status, onStatus, fi
           <GroupMenu groups={spec.groups} value={state.group} onChange={view.setGroup} />
         </div>
         {viewSwitch || statusTabs ? (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="order-2 ml-auto flex shrink-0 items-center gap-2 @[48rem]/toolbar:order-none">
             {viewSwitch}
             {statusTabs}
           </div>

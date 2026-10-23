@@ -59,17 +59,18 @@ export function BoardDomainRow({ handle, name, code, overridden, count, of, ladd
           </Text>
         </button>
         {overridden ? <MeaningChip meaning="overridden">{GAME.overridden}</MeaningChip> : null}
+        {/* Fixed widths, right-aligned: down a long board the three numbers read as columns. */}
         <span className="flex items-center gap-4 whitespace-nowrap">
-          <Text variant="studio-caption" tone={short ? 'warning' : 'muted'} tabular>
+          <Text variant="studio-caption" tone={short ? 'warning' : 'muted'} tabular className="inline-block w-32 text-right">
             {GAME.questionsOn(count, of)}
           </Text>
           {ladder && ladder.questions > 0 ? (
             <>
-              <Text variant="studio-caption" tone="muted" tabular>
+              <Text variant="studio-caption" tone="muted" tabular className="inline-block w-28 text-right">
                 {GAME.span(ladder.minDifficulty, ladder.maxDifficulty)}
               </Text>
               <Tooltip content={PREVIEW.board.availableHint}>
-                <Text variant="studio-caption" tone="muted" tabular>
+                <Text variant="studio-caption" tone="muted" tabular className="inline-block w-28 text-right">
                   {GAME.pointsAvailable(ladder.pointsAvailable)}
                 </Text>
               </Tooltip>

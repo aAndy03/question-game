@@ -165,7 +165,8 @@ export function StatsChart({
         data-stats-kind={kind}
         role="img"
         aria-label={STATS.chart.label}
-        style={{ height }}
+        // Nothing to draw: no tall empty panel, the note says so (P20).
+        style={{ height: plan.draw ? height : 0 }}
       />
       {plan.note ? (
         <Text variant="studio-caption" tone="muted">

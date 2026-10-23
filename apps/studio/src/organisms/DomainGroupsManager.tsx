@@ -180,6 +180,7 @@ export function DomainGroupsManager({ domain, onClose, onShowInList }: DomainGro
         isOpen={domain !== null}
         onClose={onClose}
         title={domain ? GROUPS_TAGS.groupsTitle(domain.name) : ''}
+        empty={groups.length === 0 && members.length === 0 ? <EmptyState kind="empty" what={GROUPS_TAGS.domainGroupsWhat} detail={GROUPS_TAGS.groupsBody} /> : undefined}
         description={GROUPS_TAGS.groupsBody}
         hook="data-groups-dialog"
         list={<PaneList what={GROUPS_TAGS.domainGroupsWhat} entries={entries} selectedId={currentId} onSelect={setPicked} />}
