@@ -83,6 +83,32 @@
   font-size: var(--text-xs);
   line-height: var(--text-xs--line-height);
 }
+/* P21: every page's chrome is compact — the header, the list toolbar, the
+ * selection strip, a pane's header — so the search field, the status tabs and
+ * the view switch come down with the buttons. Rows, cards and dialogs keep
+ * HeroUI's sizes. */
+[data-density="compact"] .search-field__group {
+  height: 1.75rem;
+  font-size: var(--text-xs);
+}
+[data-density="compact"] .search-field__group input {
+  font-size: var(--text-xs);
+}
+[data-density="compact"] .tabs__tab {
+  height: 1.75rem;
+  padding-inline: 0.75rem;
+  font-size: var(--text-xs);
+}
+[data-density="compact"] .toggle-button {
+  height: 1.75rem;
+  min-width: 1.75rem;
+  padding-inline: 0.5rem;
+  font-size: var(--text-xs);
+}
+[data-density="compact"] .toggle-button svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
 
 .dark,
 [data-theme="dark"] {

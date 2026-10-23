@@ -84,9 +84,9 @@
   --tracking-tight: -0.025em;
   --tracking-normal: 0em;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --text-studio-title: var(--text-xl);
+  --text-studio-title: var(--text-lg);
   --text-studio-title--line-height: var(--leading-snug);
-  --text-studio-heading: var(--text-lg);
+  --text-studio-heading: var(--text-base);
   --text-studio-heading--line-height: var(--leading-snug);
   /* A name inside a section (P20): a setting, a sub-section, a domain on the Board. */
   --text-studio-subheading: var(--text-sm);

@@ -31,7 +31,8 @@ export function PageHeader({
   isDirty,
 }: PageHeaderProps) {
   return (
-    <header className="flex flex-col gap-4">
+    // Compact (P21): a page's title and its buttons, at the Control strip's scale.
+    <header className="flex flex-col gap-3" data-density="compact">
       {crumbs ? <div>{crumbs}</div> : null}
       <div className="flex min-h-10 items-start justify-between gap-6">
         <div className="flex min-w-0 flex-col gap-1">

@@ -100,7 +100,7 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
   )
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3" data-density="compact">
       <div className="flex items-center justify-between gap-2">
         <Text variant="studio-heading">{DOMAIN.heading}</Text>
         <IconButton icon="add" label={DOMAIN.add} size="sm" variant="secondary" onPress={startNew} isDisabled={editing === 'new'} />

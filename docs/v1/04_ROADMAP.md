@@ -1846,7 +1846,7 @@ Design: `docs/superpowers/specs/2026-10-21-beta5-the-rest-design.md`; plan and S
 - ☑ **P19.2** — `beta5.e2e.ts` on the real app; docs, *What's new* 2.0.0-beta.5.
 - ☑ **P19.3** — what the line named that the first build left out: workspace counts, the workspace under Statistics' title, members in another domain's group, broken boards and tag spellings in Health.
 
-### P20 — Beta: the interface pass (beta.6)  ☐
+### P20 — Beta: the interface pass (beta.6)  ☑
 
 Design: `docs/superpowers/specs/2026-10-22-p20-interface-pass-design.md`; plan and Sonnet's test list in `docs/superpowers/plans/2026-10-22-p20-interface-pass.md`. On `main` only. Tweaks, not a redesign: every layout has to hold for the maintainer's Beta library (about 1,050 questions, 15 domains, a game with 569 questions on its board) and for a first evening with three questions. Stage is unchanged; Screens and Control take only the type scale.
 
@@ -1888,9 +1888,15 @@ Design: `docs/superpowers/specs/2026-10-21-stable-1.1.1-design.md`. Built on `re
 
 After beta.5: the interface pass, **P20** above.
 
+### P21 — Beta: a smaller scale (beta.7)  ☐
+
+On `main` only. The maintainer's ask after beta.6: a page's title, its buttons and its toolbar were too big; follow the scale Control's top strip took in P20.11, as the default, with no option yet. Rows, cards and dialogs stay as they are.
+
+- ☑ **P21.1** — page chrome is compact: `PageHeader`, `ListToolbar`, `BulkBar` and the Domains pane's header take `data-density="compact"` (buttons, selects, the search field, the status tabs and the view switch at 28px, 12px text); the selection strip is 36px; `studio-title` 18px, `studio-heading` 16px.
+
 ### Next
 
-- ☐ `npm run version:beta` for 2.0.0-beta.6 when the maintainer says; the e2e suite on Windows before the tag.
+- ☐ Finish **P21**; `npm run version:beta` for 2.0.0-beta.7 when the maintainer says; the e2e suite on Windows before the tag.
 
 ---
 

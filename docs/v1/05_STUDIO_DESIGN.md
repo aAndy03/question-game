@@ -80,7 +80,10 @@ shipped theme.
 bar, sidebar and status bar paint — `var(--background)`, so the bars and the
 page are one surface. `--chrome-line` is every line the shell draws, one colour
 at one weight — `transparent`. `[data-density="compact"]` shrinks the HeroUI
-buttons and selects inside it to 28px (§26).
+buttons, selects, search fields, tabs and toggle buttons inside it to 28px
+(§26). Since P21 every page's chrome opts in — `PageHeader`, `ListToolbar`,
+`BulkBar` (36px), the Domains pane's header — while rows, cards, panels and
+dialogs keep HeroUI's sizes.
 
 **Decision on the roadmap's open question ("Studio theme reconciliation"):**
 Studio does **not** borrow Stage's mint and coral. The two surfaces agree on
@@ -104,8 +107,8 @@ component is written against the semantic variables so it never needs a
 | Variant | Size · weight | Role |
 | --- | --- | --- |
 | `studio-display` | 30px · semibold, tight | one large figure on a card (score, count) |
-| `studio-title` | 20px · semibold, tight | page title |
-| `studio-heading` | 18px · medium | section title inside a page or card |
+| `studio-title` | 18px · semibold, tight | page title (20px until P21) |
+| `studio-heading` | 16px · medium | section title inside a page or card (18px until P21) |
 | `studio-subheading` | 14px · medium | a name inside a section (P20): a setting's name, a titled block in a section (*Preview*, *Chosen*, *What each setting does*) |
 | `studio-body` | 14px | default text |
 | `studio-label` | 12px · medium | form labels, table headers, sidebar items |

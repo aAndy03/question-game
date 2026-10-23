@@ -46,12 +46,13 @@ export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, i
     <div
       {...(idle ? {} : { role: 'toolbar', 'aria-label': SHELL.bulkActions })}
       className={[
-        'flex h-11 shrink-0 items-center gap-3 rounded-[var(--radius)] border px-3',
+        'flex h-9 shrink-0 items-center gap-3 rounded-[var(--radius)] border px-3',
         // Idle draws no outline (P20.11: no lines); the border stays, transparent, so the strip keeps its size.
         idle ? 'border-transparent' : 'border-[var(--border)]',
       ].join(' ')}
       style={idle ? undefined : { background: 'var(--surface-secondary)' }}
       data-bulk-strip
+      data-density="compact"
       data-bulk-idle={idle ? '' : undefined}
     >
       {page ? (

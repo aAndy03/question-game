@@ -32,7 +32,7 @@ export function ListToolbar({ view, what, layout, onLayout, status, onStatus, fi
   const viewSwitch = layout && onLayout ? <ViewSwitch value={layout} onChange={onLayout} /> : null
   const statusTabs = status && onStatus ? <ArchiveToggle value={status} onChange={onStatus} withAll /> : null
   return (
-    <div className="@container/toolbar flex flex-col gap-2" data-list-toolbar>
+    <div className="@container/toolbar flex flex-col gap-2" data-list-toolbar data-density="compact">
       {/*
         One row on a wide list. On a narrow one (a row open beside it, a small
         window) the tools share their row with View · Status and every button

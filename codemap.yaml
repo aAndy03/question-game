@@ -2831,7 +2831,7 @@ packages:
         "--text-studio-caption--line-height": "2b87cb80"
         "--text-studio-display": "58652f69"
         "--text-studio-display--line-height": "859fbe35"
-        "--text-studio-heading": "4af84aaa"
+        "--text-studio-heading": "0848534b"
         "--text-studio-heading--line-height": "8b6ec5fd"
         "--text-studio-label": "89a92516"
         "--text-studio-label--line-height": f652aba7
@@ -2839,7 +2839,7 @@ packages:
         "--text-studio-mono--line-height": f652aba7
         "--text-studio-subheading": "5cce30aa"
         "--text-studio-subheading--line-height": "8b6ec5fd"
-        "--text-studio-title": cd45e4b0
+        "--text-studio-title": "4af84aaa"
         "--text-studio-title--line-height": "8b6ec5fd"
         "--tracking-normal": e1b9f0d9
         "--tracking-tight": "8b899f0f"
