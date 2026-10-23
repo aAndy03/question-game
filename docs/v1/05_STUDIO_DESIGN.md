@@ -436,8 +436,9 @@ someone remembers to add.
 | `TopBar` | play-state, settings (active operator), chrome | theme, sidebar mode, `settings_set_global(active_operator_id)` | recipe name if loaded · `PlayStatusPill` · `OperatorBadge` menu |
 | `StatusBar` | play-state, monitors, notices | opens the notices and displays popovers | one button for health and the latest notice (its popover is `NoticePanel`), the displays count (its popover draws `MonitorCards`), `remaining_ms` while playing (P21.3) |
 | `NoticePanel` | notices | runs notice actions (`useNoticeActions`) | fixed 24rem × 26rem, scrolls, compact `InlineNotice`s, *Clear all*, the *needs attention elsewhere* lines |
-| `MonitorCards` | `useDisplays` | `stage_open`, `stage_set_monitor`, `stage_add_mirror`, `stage_remove_mirror`, `stats_window`, `stats_monitor_id` | every display as a `MonitorCard` with Stage and Statistics on it — Settings ▸ Monitors and the status bar's displays popover (P21.4) |
-| `DisplaysStatus` | `useDisplays` | — | the status bar's displays: `DisplayGlyphs` and what is up; its popover is `DisplayWindowButtons` and `MonitorCards` |
+| `DisplaysPanel` | `useDisplays` | `stage_open`, `stage_set_monitor`, `stage_add_mirror`, `stage_remove_mirror`, `stats_window`, `stats_monitor_id` | the arrangement map and one `DisplayRow` per display, Stage and Statistics columns — Settings ▸ Monitors and, `compact`, the status bar's popover (P21.5) |
+| `DisplaysStatus` | `useDisplays` | — | the status bar's displays: `DisplayGlyphs` and what is up; its popover is `DisplayWindowButtons` and `DisplaysPanel compact` |
+| `UnloadGame` | play-state | `play_unload` | the ✕ beside the play pill while a game is loaded, on Control (P21.5) |
 | `ControlTools` | settings, Control layout | `audio_muted`, reset layout | audio · *Reset layout* · `SettingsFloat`, in `TopBar` while Control is open (P21.4) |
 | `NoticeCollector` | notices | runs notice actions | the `block` dialog only since P21.3 |
 | `NoticeDialog` | one `block` notice | its actions | modal, cannot be dismissed by click-away |
@@ -1123,7 +1124,10 @@ Writes `stage_set_monitor` and `settings_set_global { stage_reattach }`.
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-- `MonitorCard` (molecule): a proportional rectangle drawn from
+- **Since P21.5 the cards are rows** (`DisplayRow`, `DisplayTile`,
+  `DisplayMap` — ▸ as-built `studio.md`, The smaller scale); the states and
+  rules below hold, the drawing above is history.
+- `MonitorCard` (molecule, until P21.5): a proportional rectangle drawn from
   `physicalSize`, name, resolution, `primary` chip, and one of three states —
   `stage` (Stage stands here; `accent` border), `remembered` (the pick,
   currently unplugged; `warning` chip *Not connected*), `free` (button

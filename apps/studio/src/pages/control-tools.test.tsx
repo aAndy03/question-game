@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { App } from '@/App'
 import { HOME, useNavStore } from '@/chrome/nav'
-import { CHROME, CONTROL } from '@/copy'
+import { CHROME, CONTROL, UNLOAD } from '@/copy'
 import { createFakeHost } from '@/host/fake'
-import { demoLibrary, demoRecipe } from '@/host/devFake'
+import { demoLibrary, demoPlay, demoRecipe } from '@/host/devFake'
+import type { FakeHost } from '@/host/fake'
 import { setHostTransport } from '@/host/host'
 import { receivePlayState } from '@/host/playState'
 
@@ -14,8 +15,9 @@ import { receivePlayState } from '@/host/playState'
  * display pickers left Control for the status bar's displays.
  */
 describe("Control's tools in the top bar (P21.4)", () => {
+  let fake: FakeHost
   beforeEach(() => {
-    const fake = createFakeHost()
+    fake = createFakeHost()
     fake.seed(demoLibrary(), [demoRecipe()])
     setHostTransport(fake)
     receivePlayState(null)
@@ -45,6 +47,25 @@ describe("Control's tools in the top bar (P21.4)", () => {
 
     await go('teams')
     expect(document.querySelector('[data-control-tools]')).toBeNull()
+  })
+
+  it('puts Unload game beside the play pill, on Control, and nowhere when nothing is loaded (P21.5)', async () => {
+    render(<App />)
+    await go('control')
+    await screen.findByRole('button', { name: CONTROL.resetLayout })
+    expect(screen.queryByRole('button', { name: UNLOAD.action }), 'no game, nothing to unload').toBeNull()
+  })
+
+  it('offers Unload game in the header while a game is loaded', async () => {
+    const play = demoPlay('question-issued')
+    fake.playState = play
+    receivePlayState(play)
+    render(<App />)
+    await go('control')
+    const unload = await screen.findByRole('button', { name: UNLOAD.action })
+    expect(unload.closest('header')).not.toBeNull()
+    await go('teams')
+    expect(screen.queryByRole('button', { name: UNLOAD.action })).toBeNull()
   })
 
   it('leaves no display pickers on Control', async () => {

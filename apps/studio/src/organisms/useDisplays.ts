@@ -1,13 +1,13 @@
 import type { MonitorInfo } from '@questiongame/contract'
-import type { MonitorCardState, MonitorStatsState } from '@/molecules'
+import type { DisplayStageState, DisplayStatsState } from '@/molecules'
 import { useHostCommand } from '@/host/commands'
 import { useMonitors, useSettings } from '@/host/queries'
 import { useStagePlacement, useStatsWindowOpen } from '@/chrome/windows'
 
 export interface DisplayState {
   readonly monitor: MonitorInfo
-  readonly stage: MonitorCardState
-  readonly stats: MonitorStatsState
+  readonly stage: DisplayStageState
+  readonly stats: DisplayStatsState
 }
 
 /**
@@ -33,31 +33,35 @@ export function useDisplays() {
   const statsOn = statsOpen ? statsTarget : null
 
   /**
-   * The card's state for a display **in `list`**, which is to say a connected
+   * The Stage state for a display **in `list`**, which is to say a connected
    * one — `monitors_list` reports nothing else.
    *
    * There is deliberately no `remembered` branch here. That state means *the
-   * pick, unplugged*, and `MonitorCard` draws it as a dashed warning border
-   * reading "Not connected"; returning it for a display that is sitting right
-   * there told the operator a connected display was missing. A remembered
+   * pick, unplugged*, which the Monitors line under the rows reports ("Not
+   * connected"); the card that drew it for a display sitting right there
+   * told the operator a connected display was missing. A remembered
    * display that Stage simply is not standing on is `free` — it offers *Send
    * Stage here*, which is exactly what the operator wants from it.
    */
-  const stageOf = (key: string): MonitorCardState => {
+  const stageOf = (key: string): DisplayStageState => {
     if (placement.on === key) return 'stage'
     if (mirrors.includes(key)) return 'mirror'
     return 'free'
   }
 
   // Open here wins over Stage being here, so a window Stage was sent onto can
-  // still be closed from its card.
-  const statsOf = (key: string, stage: MonitorCardState): MonitorStatsState => {
+  // still be closed from its row.
+  const statsOf = (key: string, stage: DisplayStageState): DisplayStatsState => {
     if (statsOn === key) return 'here'
     if (stage === 'stage' || stage === 'mirror') return 'blocked'
     return 'free'
   }
 
-  const displays: DisplayState[] = list.map((monitor) => {
+  // Left to right, then top to bottom, as they stand (the redesign): the
+  // status bar's glyphs, the rows and the map then agree on the order, and the
+  // host's own order — enumeration — means nothing to the operator.
+  const ordered = [...list].sort((a, b) => a.position[0] - b.position[0] || a.position[1] - b.position[1])
+  const displays: DisplayState[] = ordered.map((monitor) => {
     const stage = stageOf(monitor.key)
     return { monitor, stage, stats: statsOf(monitor.key, stage) }
   })
@@ -110,6 +114,9 @@ export function useDisplays() {
     loading: monitors.isPending,
     stageOpen: placement.on !== null,
     statsOpen,
+    /** The display the pacer stands on, or null with no Stage window. */
+    stageOn: placement.on,
+    statsOn,
     statsFullscreen: settings.data?.control.stats_fullscreen ?? true,
     sendStage,
     removeStage,

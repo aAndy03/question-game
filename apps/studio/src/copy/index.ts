@@ -73,6 +73,18 @@ export const CHROME = {
   /** P21.4: what the status bar's displays say beside the small screens. */
   displaysSummary: (n: number, stage: boolean, stats: boolean) =>
     stage && stats ? 'Stage · Statistics' : stage ? 'Stage' : stats ? 'Statistics' : n === 1 ? '1 display' : `${n} displays`,
+  /**
+   * The displays button's accessible name: how many, and where each window
+   * stands — what the small screens say to someone who cannot see them.
+   */
+  displaysStatus: (n: number, stageOn: string | null, mirrors: number, statsOn: string | null) =>
+    [
+      n === 1 ? '1 display' : `${n} displays`,
+      stageOn ? `Stage on ${stageOn}${mirrors > 0 ? ` and ${mirrors} more` : ''}` : null,
+      statsOn ? `Statistics on ${statsOn}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · '),
   noNotices: 'No notices',
   /**
    * The collector's line for notices that are addressed to a field and render

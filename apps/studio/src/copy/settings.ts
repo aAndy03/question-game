@@ -231,12 +231,24 @@ export const SETTINGS = {
     single: 'One display: Stage fullscreen on this display; Studio is an Alt-Tab away.',
     standsOn: 'Stage stands on',
     remembered: 'Remembered',
+    /** Forgets the pick and parks the pacer on the primary display (`stage_set_monitor` null). */
+    usePrimary: 'Use primary',
     statsDisplay: 'Statistics display',
     none: 'None',
     /** P21.4: the Statistics window on a display card. */
     statistics: 'Statistics',
     showStatsHere: 'Show Statistics here',
     statsFullscreen: 'Statistics fullscreen',
+    /** P21.5: a row's actions are short under the Stage and Statistics
+     * headings; the full names above stay their accessible names. */
+    send: 'Send',
+    move: 'Move',
+    remove: 'Remove',
+    show: 'Show',
+    close: 'Close',
+    showing: 'Showing',
+    /** The arrangement map's accessible name: the displays as they stand. */
+    arrangement: (names: readonly string[]) => `Displays as arranged, left to right: ${names.join(', ')}`,
   } as const,
 
   shortcuts: {

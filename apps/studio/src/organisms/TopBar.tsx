@@ -2,6 +2,7 @@ import { Button as HeroButton, Dropdown, Header, Label } from '@heroui/react'
 import { IconButton, Icon } from '@/atoms'
 import { OperatorBadge, PlayStatusPill } from '@/molecules'
 import { ControlTools } from './ControlTools'
+import { UnloadGame } from './UnloadGame'
 import { useActivateOperator } from './useActivateOperator'
 import { useChromeStore, usePrefs, type ThemeChoice } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
@@ -46,8 +47,10 @@ export function TopBar() {
         <IconButton icon="back" label={CHROME.back} size="sm" isDisabled={back.length === 0} onPress={() => void goBack()} />
         <IconButton icon="forward" label={CHROME.forward} size="sm" isDisabled={forward.length === 0} onPress={() => void goForward()} />
       </div>
-      <div className="flex min-w-0 flex-1 items-center justify-center">
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-1">
         <PlayStatusPill status={play?.status ?? null} recipeName={recipe.data?.name ?? null} />
+        {/* Beside the game it unloads (P21.5), on Control with the other tools. */}
+        {onControl ? <UnloadGame /> : null}
       </div>
       <div className="flex items-center gap-1">
         {/* Control's own tools, only while Control is open (P21.4). */}

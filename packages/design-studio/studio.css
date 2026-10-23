@@ -74,6 +74,14 @@ html .button svg {
   width: 0.875rem;
   height: 0.875rem;
 }
+/* A list's own row actions (P21.5, the display rows): 24px and 11px, under
+ * the list's column headings. Two attribute-class pairs outrank `html .button`. */
+[data-density="tight"] .button {
+  height: 1.5rem;
+  gap: 0.25rem;
+  padding-inline: 0.5rem;
+  font-size: 0.6875rem;
+}
 /* Every select, everywhere (P21.3), as the buttons: the trigger here, what it
  * opens under "Menus and dropdowns". */
 html .select__trigger {

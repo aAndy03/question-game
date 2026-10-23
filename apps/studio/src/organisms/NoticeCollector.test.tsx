@@ -120,7 +120,7 @@ describe('the notices popover (P21.3)', () => {
     const trigger = await screen.findByRole('button', { name: /^Displays: 2 displays$/ }, { timeout: 5000 })
     await userEvent.click(trigger)
     const dialog = await screen.findByRole('dialog', { name: /displays/i })
-    expect(dialog.querySelector('[data-monitor-cards]')).not.toBeNull()
+    expect(dialog.querySelector('[data-display-list]')).not.toBeNull()
     expect(within(dialog).getAllByRole('button', { name: /Send Stage here/ }).length).toBe(2)
   })
 })

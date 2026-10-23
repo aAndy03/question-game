@@ -7,15 +7,16 @@ import { useHostCommand } from '@/host/commands'
 import { useMonitors, useSettings } from '@/host/queries'
 import { useStagePlacement } from '@/chrome/windows'
 import { DisplayWindowButtons } from './DisplayWindowButtons'
-import { MonitorCards } from './MonitorCards'
+import { DisplaysPanel } from './DisplaysPanel'
 import { useDisplays } from './useDisplays'
 import { SettingsForm } from './SettingsForm'
 
 /**
  * Settings ▸ Monitors (05_STUDIO_DESIGN.md §12.2.1): every connected display
- * as a `MonitorCard` — Stage and the Statistics window on it (§13.3; one group
- * since P21.4, where Statistics had a group with a display picker) — where
- * Stage stands and what is remembered, and the reattach rule.
+ * on the arrangement map and as a row of `DisplaysPanel` — Stage and the
+ * Statistics window on it (§13.3; one group since P21.4) — then where Stage
+ * stands and what is remembered, and the Statistics fullscreen switch. The
+ * status bar's popover draws the same panel, compact.
  *
  * Nothing here touches a Play (§9), and nothing here opens a window by itself:
  * Stage is sent, Statistics is shown, both because the operator said so. The
@@ -30,7 +31,7 @@ export function MonitorsSettings() {
   const list = monitors.data ?? []
   const remembered = settings.data?.control.stage_monitor_id ?? null
   const rememberedConnected = remembered !== null && list.some((m) => m.key === remembered)
-  // §13.3: a card's *Show Statistics here* remembers the display and shows
+  // §13.3: a row's *Show Statistics here* remembers the display and shows
   // the window; closing it means closed — a display coming back never re-opens
   // it.
   const { statsFullscreen, setStatsFullscreen } = useDisplays()
@@ -53,20 +54,22 @@ export function MonitorsSettings() {
         title={SETTINGS.monitors.title(list.length)}
         action={<DisplayWindowButtons />}
       >
-        <MonitorCards className="py-3" />
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 py-3">
+        <div className="py-3">
+          <DisplaysPanel />
+        </div>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 pb-3" data-density="tight">
           <Text variant="studio-caption" tone="muted">
             {`${SETTINGS.monitors.standsOn}: ${standsOnName}`}
           </Text>
           <Text variant="studio-caption" tone={remembered && !rememberedConnected ? 'warning' : 'muted'}>
-            {`${SETTINGS.monitors.remembered}: ${remembered ?? SETTINGS.monitors.none}${remembered && !rememberedConnected ? ` (${SETTINGS.monitors.notConnected})` : ''}`}
+            {`${SETTINGS.monitors.remembered}: ${remembered ? (nameOf(list.find((m) => m.key === remembered)) ?? remembered) : SETTINGS.monitors.none}${remembered && !rememberedConnected ? ` (${SETTINGS.monitors.notConnected})` : ''}`}
           </Text>
           {remembered ? (
             // Parks the **pacer** on primary. Always `stage_set_monitor`, never
             // the mirror path: this button moves the one window that must
             // always exist (§9, P11.11).
-            <Button size="sm" variant="tertiary" onPress={() => void run('stage_set_monitor', { monitorId: null })}>
-              {SETTINGS.monitors.primary}
+            <Button size="sm" variant="ghost" onPress={() => void run('stage_set_monitor', { monitorId: null })}>
+              {SETTINGS.monitors.usePrimary}
             </Button>
           ) : null}
         </div>

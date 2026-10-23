@@ -1,7 +1,7 @@
 import { useCallback, useEffect, type ReactNode } from 'react'
 import { Button } from '@/atoms'
 import { EmptyState, MosaicPanel, type MosaicDensityFloor } from '@/molecules'
-import { ActionPanel, ControlTopBar, GamePanel, StripsPanel, TimelinePanel, Viewer, useControlHotkeys } from '@/organisms'
+import { ActionPanel, GamePanel, StripsPanel, TimelinePanel, Viewer, useControlHotkeys } from '@/organisms'
 import { MosaicLayout } from '@/templates'
 import { useControlLayout, useControlLayoutStore, type PanelId } from '@/chrome/control'
 import { useNavStore } from '@/chrome/nav'
@@ -57,7 +57,6 @@ export function ControlPage() {
       value={layout}
       onChange={setLayout}
       titles={CONTROL.panels}
-      top={<ControlTopBar />}
       renderTile={renderTile}
     />
   )

@@ -279,8 +279,8 @@ describe('the Statistics window', () => {
       await useNavStore.getState().go({ tab: 'settings', inner: 'monitors' })
     })
 
-    // P21.4: Statistics lives on the display cards, beside Stage.
-    await waitFor(() => expect(document.querySelectorAll('[data-monitor-card]').length).toBe(2))
+    // P21.4: Statistics lives on the display rows, beside Stage.
+    await waitFor(() => expect(document.querySelectorAll('[data-display-row]').length).toBe(2))
 
     // Remembering a display is not showing one: the pick the picker makes is a
     // settings write and nothing else. This is the bug the manual model fixed
@@ -301,7 +301,7 @@ describe('the Statistics window', () => {
     expect(fake.calls.find((c) => c.name === 'stats_window')?.args).toEqual({ open: true })
 
     // And the same button closes it, because the host said it is open.
-    // The group's own button; the card it opened on offers the same.
+    // The group's own button; the row it opened on offers the same.
     const [close] = await screen.findAllByRole('button', { name: STATS.window.close })
     await act(async () => {
       fireEvent.click(close!)
@@ -322,25 +322,25 @@ describe('the Statistics window', () => {
     await waitFor(() => expect(fake.statsOpen).toBe(true))
     // The status bar says what is up, and marks the display it is on.
     await userEvent.keyboard('{Escape}')
-    expect(await screen.findByRole('button', { name: /^Displays: .*Statistics$/ })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: /^Displays: 2 displays · Statistics on Built-in display$/ })).toBeTruthy()
     expect(document.querySelector('[data-display-glyph="primary"]')?.hasAttribute('data-stats')).toBe(true)
   })
 
-  it('shows Statistics on the display whose card asked, and closes it there', async () => {
+  it('shows Statistics on the display whose row asked, and closes it there', async () => {
     const fake = mount()
     render(<App />)
     await act(async () => {
       await useNavStore.getState().go({ tab: 'settings', inner: 'monitors' })
     })
     const card = await waitFor(() => {
-      const el = document.querySelector<HTMLElement>('[data-monitor-key="tv@1920x1080"]')
-      if (!el) throw new Error('no card')
+      const el = document.querySelector<HTMLElement>('[data-display-row="tv@1920x1080"]')
+      if (!el) throw new Error('no row')
       return el
     })
     await userEvent.click(within(card).getByRole('button', { name: 'Show Statistics here' }))
     await waitFor(() => expect(fake.statsOpen).toBe(true))
     expect(fake.calls.find((c) => c.name === 'settings_set_global')?.args).toEqual({ setting: { key: 'stats_monitor_id', value: 'tv@1920x1080' } })
-    await waitFor(() => expect(card.dataset['monitorStats']).toBe('here'))
+    await waitFor(() => expect(card.dataset['statsState']).toBe('here'))
     await userEvent.click(within(card).getByRole('button', { name: STATS.window.close }))
     await waitFor(() => expect(fake.statsOpen).toBe(false))
   })

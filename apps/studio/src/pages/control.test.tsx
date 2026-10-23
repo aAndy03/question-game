@@ -178,9 +178,9 @@ describe('Control', () => {
    */
   it('a game that was never played is unloaded without a question, and discarded', async () => {
     const loaded: PlayStateForMain = { ...demoPlay('question-issued'), status: 'loaded', session: null }
-    await openControl(loaded, 'Unload game')
+    await openControl(loaded, 'Round 2')
 
-    fireEvent.click(screen.getByText('Unload game'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Unload game' }))
     await waitFor(() => expect(fake.calls.filter((c) => c.name === 'play_unload')).toHaveLength(1))
     // Nothing was played, so there is no record worth keeping and nothing to ask.
     expect(fake.calls.find((c) => c.name === 'play_unload')?.args).toEqual({ discard: true })
@@ -188,9 +188,9 @@ describe('Control', () => {
   })
 
   it('a game that was played asks whether to keep the record, and keeps it by default', async () => {
-    await openControl(demoPlay('question-outcome-correct'), 'Unload game')
+    await openControl(demoPlay('question-outcome-correct'), 'Next question')
 
-    fireEvent.click(screen.getByText('Unload game'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Unload game' }))
     await screen.findByText('Unload the game?')
     // Keep is the standing answer; the confirm button says which act it runs.
     fireEvent.click(screen.getByText('Unload', { selector: 'button, button *' }))

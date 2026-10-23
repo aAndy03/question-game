@@ -22,6 +22,10 @@ export interface ButtonProps {
   autoFocus?: boolean | undefined
   onPress?: (() => void) | undefined
   className?: string | undefined
+  /** The full name when the visible text is a short one under a heading
+   * (P21.5: *Send* under Stage is "Send Stage here"); it must contain the
+   * visible text. */
+  label?: string | undefined
   children: ReactNode
 }
 
@@ -41,6 +45,7 @@ export function Button({
   autoFocus,
   onPress,
   className,
+  label,
   children,
 }: ButtonProps) {
   const disabled = Boolean(isDisabled) || Boolean(disabledReason)
@@ -52,7 +57,7 @@ export function Button({
       isPending={Boolean(isPending)}
       fullWidth={Boolean(fullWidth)}
       type={type}
-      {...defined({ autoFocus, onPress, className })}
+      {...defined({ autoFocus, onPress, className, 'aria-label': label })}
     >
       {icon ? <Icon name={icon} size={size === 'lg' ? 'md' : 'sm'} /> : null}
       {children}

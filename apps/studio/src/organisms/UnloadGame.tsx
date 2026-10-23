@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Text } from '@/atoms'
+import { Button, IconButton, Text } from '@/atoms'
 import { ConfirmDialog } from '@/molecules'
 import { UNLOAD } from '@/copy'
 import { useHostCommand } from '@/host/commands'
@@ -7,12 +7,11 @@ import { toast } from '@/chrome/toast'
 import { isPlayOpen, usePlayState } from '@/host/playState'
 
 /**
- * Control's strip: *Unload*, while a game is loaded (spec §11.H). Since P21.4
- * the display pickers, *Open Stage* and *Show Statistics* are the status bar's
- * displays, and audio, *Reset layout* and the settings float are the top
- * bar's (`ControlTools`).
+ * *Unload game*, an ✕ beside the play pill in the top bar while a game is
+ * loaded (spec §11.H; P21.5 — until then Control's own strip, a row of height
+ * the mosaic now has). Nothing without a game.
  */
-export function ControlTopBar() {
+export function UnloadGame() {
   const run = useHostCommand()
   const play = usePlayState()
   const [confirmUnload, setConfirmUnload] = useState(false)
@@ -36,17 +35,18 @@ export function ControlTopBar() {
   if (play === null) return null
 
   return (
-    // Compact (P20): set once per show, so it should not outweigh the mosaic under it.
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5" data-control-top data-density="compact">
-      <div className="flex-1" />
-      {/* The way back out of a loaded game, and the only one: it is here
+    <>
+      {/* The way back out of a loaded game, and the only one: in the shell
         * rather than in a panel because it is about what is *in* Control, and
         * because the operator must be able to reach it whatever the mosaic
         * looks like. Available from the moment a recipe is loaded — before
         * the start, mid-show and after the end. */}
-      <Button size="sm" variant="ghost" icon="close" onPress={() => (neverStarted ? void unload(true) : setConfirmUnload(true))}>
-        {UNLOAD.action}
-      </Button>
+      <IconButton
+        icon="close"
+        label={UNLOAD.action}
+        size="sm"
+        onPress={() => (neverStarted ? void unload(true) : setConfirmUnload(true))}
+      />
       {/* Two questions in one dialog: *is this the end of the Play* (an open
         * one is abandoned on the way out) and *is it worth keeping*. Discard
         * is a hard delete — the only one in v1 outside Wipe Plays — so it is
@@ -88,6 +88,6 @@ export function ControlTopBar() {
         isPending={unloading}
         onConfirm={() => unload(discard)}
       />
-    </div>
+    </>
   )
 }

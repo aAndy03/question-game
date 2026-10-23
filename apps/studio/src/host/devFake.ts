@@ -12,18 +12,24 @@
  *
  * `?fake&firstrun` seeds no operators and no active operator, so the
  * first-run flow (§12.1) can be walked in a browser too.
+ *
+ * `?fake&displays=N` (1–7) connects that many displays instead of the default
+ * two (`demoMonitors`), so Settings ▸ Monitors and the status bar's displays
+ * can be worked on the way a rig with a projector, a prompter and a recorder
+ * would show them.
  */
 
-import { FIXTURES, type Command, type FixtureName, type PlayStateForMain } from '@questiongame/contract'
-import { createFakeHost, DEFAULT_GAME_SETTINGS, type FakeHost } from './fake'
+import { FIXTURES, type Command, type FixtureName, type MonitorInfo, type PlayStateForMain } from '@questiongame/contract'
+import { createFakeHost, DEFAULT_GAME_SETTINGS, FAKE_MONITORS, type FakeHost } from './fake'
 import { hasTauri, setHostTransport, type HostTransport } from './host'
 import type { CatalogItem, Recipe, StatsDimension, StatsMetric, StatsResult, StatsRow } from './types'
 
 export function installDevFakeIfAsked(): FakeHost | null {
   if (!import.meta.env.DEV || hasTauri()) return null
   if (typeof window === 'undefined' || !new URLSearchParams(window.location.search).has('fake')) return null
-  const fake = createFakeHost()
   const params = new URLSearchParams(window.location.search)
+  const displays = params.get('displays')
+  const fake = createFakeHost(displays ? { monitors: demoMonitors(Number(displays)) } : {})
   const firstRun = params.has('firstrun')
   // `&channel=beta` plays questiongame Beta: the chip, and the welcome on an empty library.
   if (params.get('channel') === 'beta') fake.channel = 'beta'
@@ -57,6 +63,38 @@ export function installDevFakeIfAsked(): FakeHost | null {
   const slow = Number(params.get('slow') ?? 0)
   setHostTransport(slow > 0 ? delayed(fake, slow) : fake)
   return fake
+}
+
+/** A display as `monitors_list` reports it: logical `size`, physical mode, and where the OS put it. */
+const display = (key: string, name: string, friendlyName: string | null, [x, y]: readonly [number, number], [w, h]: readonly [number, number], scaleFactor: number, alsoOn: readonly string[] = []): MonitorInfo => ({
+  key,
+  name,
+  primary: false,
+  position: [x, y],
+  size: [Math.round(w / scaleFactor), Math.round(h / scaleFactor)],
+  physicalSize: [w, h],
+  scaleFactor,
+  friendlyName,
+  alsoOn,
+})
+
+/**
+ * `n` connected displays (1–7) for `?fake&displays=N`: the default two first
+ * (so keys stay `primary` and `tv@1920x1080`), then an ultrawide (21:9), a
+ * portrait prompter, a 4:3 projector, a capture output Windows is duplicating
+ * onto a recorder, and a 4K panel at 200%. Positions are the OS's arrangement
+ * in logical pixels, so the Monitors map draws them where they stand.
+ */
+export function demoMonitors(n: number): MonitorInfo[] {
+  const extra: MonitorInfo[] = [
+    display('dell@3440x1440', '\\\\.\\DISPLAY3', 'DELL U3423WE', [3200, -180], [3440, 1440], 1),
+    display('prompter@1080x1920', '\\\\.\\DISPLAY4', 'Prompter', [-864, -460], [1080, 1920], 1.25),
+    display('projector@1024x768', '\\\\.\\DISPLAY5', 'Epson EB-X49', [448, 1080], [1024, 768], 1),
+    display('capture@1920x1080', '\\\\.\\DISPLAY6', 'ATEM Mini', [1920, 1080], [1920, 1080], 1.5, ['NINJA V']),
+    display('lg@3840x2160', '\\\\.\\DISPLAY7', 'LG 27UK850', [6640, -180], [3840, 2160], 2),
+  ]
+  const count = Number.isFinite(n) ? Math.min(7, Math.max(1, Math.round(n))) : 2
+  return [...FAKE_MONITORS, ...extra].slice(0, count)
 }
 
 function delayed(fake: FakeHost, ms: number): HostTransport {

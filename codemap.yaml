@@ -2190,7 +2190,7 @@ studio_calls:
     play_list: [apps/studio/src/host/queries.ts]
     play_load: [apps/studio/src/pages/GamePage.tsx]
     play_start: [apps/studio/src/organisms/ActionPanel.tsx]
-    play_unload: [apps/studio/src/organisms/ControlTopBar.tsx]
+    play_unload: [apps/studio/src/organisms/UnloadGame.tsx]
     recipe_archive: [apps/studio/src/organisms/useArchive.tsx]
     recipe_bulk_edit: [apps/studio/src/organisms/GameLabelsManager.tsx, apps/studio/src/organisms/useGameLabels.tsx]
     recipe_duplicate: [apps/studio/src/pages/GamePage.tsx, apps/studio/src/pages/GamesPage.tsx]

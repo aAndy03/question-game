@@ -1,4 +1,4 @@
-import { Icon } from '@/atoms'
+import { DisplayTile } from './DisplayTile'
 
 export interface DisplayGlyph {
   readonly key: string
@@ -12,39 +12,30 @@ export interface DisplayGlyphsProps {
   displays: readonly DisplayGlyph[]
 }
 
-const H = 14
-const ICON = { width: 9, height: 9 }
-
 /**
- * The connected displays as small screens, in the order the host lists them,
- * each marked with what stands on it — Stage (accent; a lighter frame for a
- * mirror) and the Statistics window (green) — the status bar's displays
- * button (P21.4). The same marks `MonitorCard` draws, at a glance's size.
+ * The connected displays as small screens, left to right as they stand,
+ * each marked with what stands on it — the status bar's displays button
+ * (P21.4). The same `DisplayTile` the rows and the map draw, at a glance's
+ * size; from five displays on they get a little smaller so seven still fit.
  */
 export function DisplayGlyphs({ displays }: DisplayGlyphsProps) {
+  const h = displays.length > 4 ? 12 : 14
   return (
     <span className="inline-flex items-center gap-1" data-display-glyphs>
       {displays.map((d) => {
-        const width = Math.round(Math.min(26, Math.max(16, H * d.aspect)))
-        const frame =
-          d.stage === 'stage'
-            ? 'border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_22%,transparent)]'
-            : d.stage === 'mirror'
-              ? 'border-[color-mix(in_oklab,var(--accent)_60%,transparent)]'
-              : d.stats
-                ? 'border-[var(--success)]'
-                : 'border-[var(--muted)] opacity-70'
+        // Proportional, within reason: a portrait panel is narrow, an
+        // ultrawide wide, and neither so extreme its mark does not fit.
+        const width = Math.round(Math.min(h * 2, Math.max(h * 0.75, h * d.aspect)))
         return (
           <span
             key={d.key}
-            className={['inline-flex items-center justify-center gap-px rounded-[3px] border-[1.5px]', frame].join(' ')}
-            style={{ width, height: H }}
+            className="inline-flex shrink-0"
+            style={{ width, height: h }}
             data-display-glyph={d.key}
             data-stage={d.stage ?? undefined}
             data-stats={d.stats || undefined}
           >
-            {d.stage ? <Icon name="displays" size="sm" style={ICON} className="text-[var(--accent)]" /> : null}
-            {d.stats ? <Icon name="statistics" size="sm" style={ICON} className="text-[var(--success)]" /> : null}
+            <DisplayTile stage={d.stage ?? 'free'} stats={d.stats} tiny />
           </span>
         )
       })}

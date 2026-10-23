@@ -242,7 +242,7 @@ function byMetric(result: StatsResult, metrics: readonly StatsMetric[]): StatsRe
  * CSS viewport Stage gets) and the physical one (1920×1080, what the operator
  * calls it) part company.
  */
-const FAKE_MONITORS: MonitorInfo[] = [
+export const FAKE_MONITORS: readonly MonitorInfo[] = [
   {
     key: 'primary',
     name: 'Built-in display',
@@ -308,7 +308,17 @@ function inScope(archivedAt: number | null, scope: ArchiveScope): boolean {
   return scope === 'active' ? archivedAt === null : archivedAt !== null
 }
 
-export function createFakeHost(): FakeHost {
+export interface FakeHostOptions {
+  /**
+   * The displays `monitors_list` reports — `FAKE_MONITORS`' two unless given.
+   * `?fake&displays=N` hands it `demoMonitors(N)` (`devFake.ts`), so the
+   * Monitors drawing can be worked on with up to seven.
+   */
+  readonly monitors?: readonly MonitorInfo[] | undefined
+}
+
+export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
+  const monitors = options.monitors ?? FAKE_MONITORS
   const listeners = new Map<EventName, Set<Handler>>()
   const library = new Map<string, CatalogItem>()
   const recipes = new Map<string, Recipe>()
@@ -332,13 +342,13 @@ export function createFakeHost(): FakeHost {
   /** The display picture, after anything that changes it (§9, P11.11). */
   const emitMonitors = () => {
     emit('monitors-changed', {
-      monitors: FAKE_MONITORS,
+      monitors,
       stageMonitorId: control.stage_monitor_id,
       stageMirrors: control.stage_mirror_ids,
       // Resolved the way the host resolves it: `null` only when there is no
       // Stage window, the primary display's key when it is on primary.
       stageOn: fake.stageOpen
-        ? (control.stage_monitor_id ?? (FAKE_MONITORS.find((m) => m.primary)?.key ?? null))
+        ? (control.stage_monitor_id ?? (monitors.find((m) => m.primary)?.key ?? null))
         : null,
       stageOpen: fake.stageOpen,
       statsMonitorId: control.stats_monitor_id,
@@ -1052,7 +1062,7 @@ export function createFakeHost(): FakeHost {
       }
       return null
     },
-    monitors_list: () => FAKE_MONITORS,
+    monitors_list: () => monitors,
     stage_set_monitor: (a) => {
       const id = (a.monitorId as string | null | undefined) ?? null
       control = {
@@ -1070,7 +1080,7 @@ export function createFakeHost(): FakeHost {
       if (control.stage_monitor_id === id || control.stage_mirror_ids.includes(id)) {
         refuse('monitor.already_showing_stage', `${id} is already showing Stage`)
       }
-      if (!FAKE_MONITORS.some((m) => m.key === id)) {
+      if (!monitors.some((m) => m.key === id)) {
         refuse('monitor.not_connected', `${id} is not connected`)
       }
       control = { ...control, stage_mirror_ids: [...control.stage_mirror_ids, id] }
