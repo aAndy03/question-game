@@ -41,7 +41,9 @@ describe('library views', () => {
     })
 
     // Headers: grouped by domain, the 120 extras under No domain, counted across pages.
-    await press('Clear all')
+    // beta.8: the filter in force is a chip beside Filters; its ✕ takes it off
+    // (*Clear all* is at the top of the Filters menu).
+    await press('Remove Difficulty band: Hard')
     await sees(`of ${total} questions`)
     await press('Group: None')
     await pick('Domain')
