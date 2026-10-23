@@ -181,7 +181,20 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
           }
         />
       }
-      primary={<DomainPane selectedId={domainId} onSelect={(id) => replace({ tab: 'library', ...(id ? { domainId: id } : {}) })} />}
+      primary={
+        <DomainPane
+          selectedId={domainId}
+          onSelect={(id) => replace({ tab: 'library', ...(id ? { domainId: id } : {}) })}
+          pickedIds={domainFilterOn ? (session.filters.domain as string[]) : []}
+          // Several domains (beta.8) are All questions filtered to them: the
+          // route goes to All and the filter is set in the same render, so the
+          // effect above that drops a filter under a picked domain never sees it.
+          onPickMany={(ids) => {
+            replace({ tab: 'library' })
+            setFilter('domain', ids.length > 0 ? [...ids] : null)
+          }}
+        />
+      }
       secondary={
         <>
           <ListArea

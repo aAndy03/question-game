@@ -290,3 +290,16 @@ export function normalizeRange(
   const max = Math.max(range.min, range.max)
   return min <= bounds.min && max >= bounds.max ? null : { min, max }
 }
+
+/**
+ * Shift+click's span (beta.8): every id from `anchor` to `id`, both ends
+ * included, in `order` — the view's order across every page — whichever way
+ * round they come. An anchor no longer in view is no anchor: just `id`.
+ */
+export function rangeBetween(order: readonly string[], anchor: string | null, id: string): readonly string[] {
+  const to = order.indexOf(id)
+  const from = anchor === null ? -1 : order.indexOf(anchor)
+  if (to < 0) return [id]
+  if (from < 0) return [id]
+  return from <= to ? order.slice(from, to + 1) : order.slice(to, from + 1)
+}

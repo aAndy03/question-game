@@ -1,9 +1,9 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useRef, type MouseEvent, type ReactNode } from 'react'
 import { CheckboxField, Text } from '@/atoms'
 import { EmptyState, GroupHeader, PageFooter } from '@/molecules'
 import { LIST, PICKER } from '@/copy'
 import { useListState } from '@/chrome/chrome'
-import { footerText, listView, type ListItem, type ListSpec } from '@/host/listView'
+import { footerText, listView, rangeBetween, type ListItem, type ListSpec } from '@/host/listView'
 import { useListView, type ListViewApi } from '@/host/useListView'
 import { ListToolbar } from './ListToolbar'
 
@@ -75,7 +75,12 @@ export function PickList<T>({ spec, items, chosen, onChosen, disabledReason, cou
     return out
   }, [items, spec, view.state])
 
-  const toggle = (id: string, on: boolean) => onChosen((now) => (on ? (now.includes(id) ? now : [...now, id]) : now.filter((x) => x !== id)))
+  // Where Shift+click spans from: the last row ticked or unticked by hand (beta.8).
+  const anchor = useRef<string | null>(null)
+  const toggle = (id: string, on: boolean) => {
+    anchor.current = id
+    onChosen((now) => (on ? (now.includes(id) ? now : [...now, id]) : now.filter((x) => x !== id)))
+  }
   /** Tick what can be ticked, in list order — each pick may close a difficulty for the next. */
   const tickAll = (ids: readonly string[]) =>
     onChosen((now) => {
@@ -94,6 +99,19 @@ export function PickList<T>({ spec, items, chosen, onChosen, disabledReason, cou
       const without = new Set(now.filter((x) => !ids.includes(x)))
       return now.filter((x) => !ids.includes(x) || disabledReason?.(x, without) != null)
     })
+  /**
+   * Ctrl/⌘+click and Shift+click (beta.8): the clicked row takes the other
+   * state, and with Shift so does every row from the last one ticked to it, in
+   * the view's order across pages — ticked the way *Select all* ticks, so a
+   * row a pick blocks (another question at that difficulty) stays off.
+   */
+  const pick = (id: string, range: boolean) => {
+    const on = !set.has(id)
+    const span = range ? rangeBetween(page.selectableIds, anchor.current, id) : [id]
+    anchor.current = id
+    if (on) tickAll(span)
+    else untickAll(span)
+  }
   /** Checked when nothing more in it can be ticked; mixed when some is. */
   const groupCheckbox = (ids: readonly string[], label: string) => {
     const some = ids.some((id) => set.has(id))
@@ -144,6 +162,7 @@ export function PickList<T>({ spec, items, chosen, onChosen, disabledReason, cou
                   isChosen={set.has(e.row.item.id)}
                   reason={reason(e.row.item.id)}
                   onToggle={toggle}
+                  onPick={pick}
                   onOpen={onOpen}
                   isCurrent={currentId === e.row.item.id}
                 />
@@ -165,6 +184,7 @@ function PickRow({
   isChosen,
   reason,
   onToggle,
+  onPick,
   onOpen,
   isCurrent,
 }: {
@@ -173,6 +193,7 @@ function PickRow({
   isChosen: boolean
   reason: string | null
   onToggle: (id: string, on: boolean) => void
+  onPick: (id: string, range: boolean) => void
   onOpen?: ((id: string) => void) | undefined
   isCurrent: boolean
 }) {
@@ -193,8 +214,27 @@ function PickRow({
       ) : null}
     </div>
   )
+  // Shift held on the checkbox: React Aria's onChange has no event.
+  const shift = useRef(false)
+  // Shift on the row picks a run, Ctrl/⌘ ticks it; neither opens the row
+  // (only a plain click does). Shift's mouse-down would select text across
+  // the rows, so it is refused.
+  const click = (e: MouseEvent) => {
+    if (!(e.shiftKey || e.ctrlKey || e.metaKey)) return
+    e.preventDefault()
+    e.stopPropagation()
+    onPick(id, e.shiftKey)
+  }
   return (
     <li
+      onClickCapture={(e) => {
+        // The checkbox decides for itself, with `shift`; the rest of the row is a pick.
+        if ((e.target as HTMLElement).closest('[data-pick-check]')) return
+        click(e)
+      }}
+      onMouseDown={(e) => {
+        if (e.shiftKey) e.preventDefault()
+      }}
       className={[
         'grid min-h-10 grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-x-3 rounded px-2',
         isCurrent ? 'bg-[var(--accent)]/12' : 'hover:bg-[var(--surface-secondary)]',
@@ -202,7 +242,9 @@ function PickRow({
       data-blocked={reason ? '' : undefined}
       data-current={isCurrent ? '' : undefined}
     >
-      <CheckboxField label={row.title} hideLabel isSelected={isChosen} onChange={(on) => onToggle(id, on)} disabledReason={reason} />
+      <span data-pick-check className="flex" onPointerDownCapture={(e) => (shift.current = e.shiftKey)} onKeyDownCapture={() => (shift.current = false)}>
+        <CheckboxField label={row.title} hideLabel isSelected={isChosen} onChange={(on) => (shift.current ? onPick(id, true) : onToggle(id, on))} disabledReason={reason} />
+      </span>
       <span className="contents">{row.leading ?? <span />}</span>
       {onOpen ? (
         <button type="button" className="min-w-0 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]" onClick={() => onOpen(id)} aria-pressed={isCurrent}>

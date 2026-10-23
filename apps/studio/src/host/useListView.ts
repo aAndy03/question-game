@@ -17,10 +17,10 @@
  *   selection for the same reason.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useChromeStore, useListPrefs, useListState, type ListState } from '@/chrome/chrome'
 import { LIST } from '@/copy'
-import { isActive, listView, normalizeRange, type Changed, type FilterValue, type ListItem, type ListPage, type ListSpec, type ListViewState, type PageSize } from './listView'
+import { isActive, listView, normalizeRange, rangeBetween, type Changed, type FilterValue, type ListItem, type ListPage, type ListSpec, type ListViewState, type PageSize } from './listView'
 
 export interface ListViewApi<T, V = unknown> {
   readonly page: ListPage<T, V>
@@ -51,6 +51,12 @@ export interface ListViewApi<T, V = unknown> {
     selectPage(): void
     /** The header checkbox off: this page only, not what is selected elsewhere. */
     deselectPage(): void
+    /**
+     * Ctrl/⌘+click (`range: false`) and Shift+click (`range: true`), beta.8:
+     * the clicked row takes the other state, and with Shift so does every row
+     * from the last one ticked to it, in the view's order across pages.
+     */
+    pick(id: string, range: boolean): void
     /** Every row in view, every page, added to what is selected. */
     selectAll(): void
     /** Every row in view off; hidden ones stay selected. */
@@ -90,6 +96,8 @@ export function useListView<T, V>(
   const setListPrefs = useChromeStore((s) => s.setListPrefs)
   const setListState = useChromeStore((s) => s.setListState)
   const [selected, setSelected] = useState<ReadonlySet<string>>(NO_IDS)
+  // Where Shift+click spans from: the last row ticked or unticked by hand.
+  const anchor = useRef<string | null>(null)
 
   const searching = session.search.trim().length > 0
   const remembered = prefs.sort ?? spec.defaults.sort
@@ -261,12 +269,27 @@ export function useListView<T, V>(
     return {
       ids: kept,
       onPage,
-      toggle: (id: string) =>
+      toggle: (id: string) => {
+        anchor.current = id
         setSelected((s) => {
           const next = new Set(s)
           if (!next.delete(id)) next.add(id)
           return next
-        }),
+        })
+      },
+      pick: (id: string, range: boolean) => {
+        const on = !kept.has(id)
+        const span = range ? rangeBetween(page.selectableIds, anchor.current, id) : [id]
+        anchor.current = id
+        setSelected((s) => {
+          const next = new Set(s)
+          for (const x of span) {
+            if (on) next.add(x)
+            else next.delete(x)
+          }
+          return next
+        })
+      },
       selectPage: () => setSelected((s) => new Set([...s, ...page.pageIds])),
       deselectPage: () =>
         setSelected((s) => {

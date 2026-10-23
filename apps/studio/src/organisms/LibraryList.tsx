@@ -168,6 +168,7 @@ export function LibraryList({
         isCurrent={currentId === row.item.id}
         isSelected={selection.ids.has(row.item.id)}
         onSelectChange={bulk ? () => selection.toggle(row.item.id) : undefined}
+        onSelectGesture={bulk ? (range) => selection.pick(row.item.id, range) : undefined}
         onOpen={onOpen ? () => onOpen(row.item.id) : undefined}
       />
     )

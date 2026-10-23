@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState, type MouseEvent } from 'react'
 import { Button, Icon, IconButton, Panel, Skeleton, Text } from '@/atoms'
 import { ActionMenu, ArchiveToggle, DomainForm, EmptyState, suggestDomainCode, type DomainFormValue } from '@/molecules'
 import { CONFIRM, DOMAIN, LIST, MENU, SHELL } from '@/copy'
@@ -16,6 +16,14 @@ import { TRANSFER } from '@/copy/workspaces'
 export interface DomainPaneProps {
   selectedId: string | null
   onSelect: (id: string | null) => void
+  /**
+   * Several domains at once (beta.8): Ctrl/⌘+click adds or takes one off,
+   * Shift+click adds the run from the last one clicked. The page shows their
+   * questions together (All questions, filtered to them); `pickedIds` is that
+   * filter, lit here like a pick. `[]` goes back to All questions.
+   */
+  pickedIds?: readonly string[] | undefined
+  onPickMany?: ((ids: readonly string[]) => void) | undefined
 }
 
 const EMPTY: DomainFormValue = { name: '', code: '', description: '' }
@@ -27,7 +35,7 @@ const EMPTY: DomainFormValue = { name: '', code: '', description: '' }
  * operator knows which one to open; *All questions* counts every one,
  * domain-less ones included.
  */
-export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
+export function DomainPane({ selectedId, onSelect, pickedIds = [], onPickMany }: DomainPaneProps) {
   const [scope, setScope] = useState<Exclude<ArchiveScope, 'all'>>('active')
   const domains = useCatalogList('domain', scope)
   const questions = useCatalogList('question', 'active')
@@ -48,6 +56,28 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
     }
   }, [questions.data, domains.data])
   const archive = useArchive()
+  // Where Shift+click spans from: the last domain clicked.
+  const anchor = useRef<string | null>(selectedId)
+  const lit = pickedIds.length > 0 ? pickedIds : selectedId ? [selectedId] : []
+  const choose = (id: string, e: MouseEvent | null) => {
+    const many = onPickMany && scope === 'active' && e !== null && (e.ctrlKey || e.metaKey || e.shiftKey)
+    if (!many) {
+      anchor.current = id
+      onSelect(id)
+      return
+    }
+    e.preventDefault()
+    if (e.shiftKey) {
+      const order = (domains.data ?? []).map((d) => d.id)
+      const from = anchor.current ? order.indexOf(anchor.current) : -1
+      const to = order.indexOf(id)
+      const run = from < 0 ? [id] : order.slice(Math.min(from, to), Math.max(from, to) + 1)
+      onPickMany([...new Set([...lit, ...run])])
+    } else {
+      onPickMany(lit.includes(id) ? lit.filter((x) => x !== id) : [...lit, id])
+    }
+    anchor.current = id
+  }
   const [editing, setEditing] = useState<'new' | string | null>(null)
   const [draft, setDraft] = useState<DomainFormValue>(EMPTY)
   const [saving, setSaving] = useState(false)
@@ -120,8 +150,8 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
                 code=""
                 count={null}
                 incomplete={incomplete.all}
-                isSelected={selectedId === null}
-                onSelect={() => onSelect(null)}
+                isSelected={selectedId === null && pickedIds.length === 0}
+                onSelect={() => (pickedIds.length > 0 && onPickMany ? onPickMany([]) : onSelect(null))}
               />
             </li>
           ) : null}
@@ -135,9 +165,9 @@ export function DomainPane({ selectedId, onSelect }: DomainPaneProps) {
                   code={d.code}
                   count={d.questions.length}
                   incomplete={scope === 'active' ? incomplete.of(d) : undefined}
-                  isSelected={selectedId === d.id}
+                  isSelected={lit.includes(d.id)}
                   isArchived={d.archivedAt !== null}
-                  onSelect={() => onSelect(d.id)}
+                  onSelect={(e) => choose(d.id, e)}
                   actions={
                     <ActionMenu
                       sections={[
@@ -198,7 +228,8 @@ function DomainRow({
   incomplete?: number | undefined
   isSelected: boolean
   isArchived?: boolean | undefined
-  onSelect: () => void
+  /** The click, for its Ctrl/⌘ and Shift; `null` from the keyboard. */
+  onSelect: (e: MouseEvent | null) => void
   actions?: React.ReactNode
 }) {
   return (
@@ -206,11 +237,15 @@ function DomainRow({
       role="option"
       aria-selected={isSelected}
       tabIndex={0}
-      onClick={onSelect}
+      onClick={(e) => onSelect(e)}
+      onMouseDown={(e) => {
+        // Shift's mouse-down would select the pane's text.
+        if (e.shiftKey) e.preventDefault()
+      }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          onSelect()
+          onSelect(null)
         }
       }}
       className={[

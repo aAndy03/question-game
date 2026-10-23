@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useRef, type MouseEvent, type ReactNode } from 'react'
 import { CheckboxField, Text } from '@/atoms'
 
 export type RecordLayout = 'grid' | 'table'
@@ -25,6 +25,12 @@ export interface RecordRowProps {
   actions?: ReactNode
   isSelected?: boolean | undefined
   onSelectChange?: ((selected: boolean) => void) | undefined
+  /**
+   * The selection gestures (beta.8): Shift+click on the row or its checkbox
+   * (`true`) selects a run, Ctrl/⌘+click on the row (`false`) ticks it —
+   * neither opens the row; a plain click does (the maintainer).
+   */
+  onSelectGesture?: ((range: boolean) => void) | undefined
   isArchived?: boolean | undefined
   isOverridden?: boolean | undefined
   /** Highlighted as the currently open record (an aside is showing it). */
@@ -55,6 +61,7 @@ export function RecordRow({
   actions,
   isSelected,
   onSelectChange,
+  onSelectGesture,
   isArchived,
   isOverridden,
   isCurrent,
@@ -75,18 +82,45 @@ export function RecordRow({
     isArchived ? 'opacity-70' : '',
   ].join(' ')
 
+  // Shift held when the checkbox was pressed: React Aria's onChange has no
+  // event, so the pointer-down remembers it.
+  const shift = useRef(false)
   const checkbox = selectable ? (
-    <div onClick={(e) => e.stopPropagation()} className="flex items-center">
-      <CheckboxField label={`Select ${title}`} hideLabel isSelected={Boolean(isSelected)} onChange={onSelectChange} />
+    <div
+      onClick={(e) => e.stopPropagation()}
+      onPointerDownCapture={(e) => (shift.current = e.shiftKey)}
+      onKeyDownCapture={() => (shift.current = false)}
+      className="flex items-center"
+    >
+      <CheckboxField
+        label={`Select ${title}`}
+        hideLabel
+        isSelected={Boolean(isSelected)}
+        onChange={(on) => (shift.current && onSelectGesture ? onSelectGesture(true) : onSelectChange?.(on))}
+      />
     </div>
   ) : null
+  // Shift selects a run, Ctrl/⌘ ticks; only a plain click opens. Shift's
+  // mouse-down would select text across the rows, so it is refused.
+  const click = (e: MouseEvent) => {
+    if (onSelectGesture && (e.shiftKey || e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      onSelectGesture(e.shiftKey)
+      return
+    }
+    onOpen?.()
+  }
+  const mouseDown = (e: MouseEvent) => {
+    if (onSelectGesture && e.shiftKey) e.preventDefault()
+  }
 
   if (layout === 'grid') {
     return (
       <div
         role={onOpen ? 'button' : undefined}
         tabIndex={onOpen ? 0 : undefined}
-        onClick={onOpen}
+        onClick={click}
+        onMouseDown={mouseDown}
         onKeyDown={(e) => {
           if (onOpen && (e.key === 'Enter' || e.key === ' ')) {
             e.preventDefault()
@@ -149,7 +183,8 @@ export function RecordRow({
     <div
       role={onOpen ? 'button' : 'row'}
       tabIndex={onOpen ? 0 : undefined}
-      onClick={onOpen}
+      onClick={click}
+      onMouseDown={mouseDown}
       onKeyDown={(e) => {
         if (onOpen && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault()
