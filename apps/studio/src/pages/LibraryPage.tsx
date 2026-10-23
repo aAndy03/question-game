@@ -121,7 +121,10 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
       }),
     [domainId, activeDomains, domain?.groups, tagList.data],
   )
-  const lv = useListView(spec, items, hits)
+  // Every question of this Status, whatever the domain pick: a question ticked
+  // under History stays ticked under Sport (beta.8).
+  const universe = useMemo(() => (questions.data ? new Map(questions.data.map((q) => [q.id, isArchived(q)])) : undefined), [questions.data])
+  const lv = useListView(spec, items, hits, universe)
   // The selection in the order the list shows it (across every page); a
   // picked row the view no longer shows keeps its place at the end.
   const inViewOrder = (ids: readonly string[]) => {

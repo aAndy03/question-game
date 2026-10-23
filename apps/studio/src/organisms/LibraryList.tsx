@@ -195,12 +195,13 @@ export function LibraryList({
   }
 
   // The one *Select all* tick: the table header's checkbox, or the strip's in
-  // grid view (P20). Since beta.8 it ticks every matching row on every page —
-  // the strip's *Select all {n}* button is gone (it was the strip's
-  // congestion), so the tick is the only way, and it must reach every page.
+  // grid view (P20). Since beta.8 it acts on **what is in view, every page**:
+  // on adds it all, off takes it all off, and rows a search or a filter hides
+  // stay as they are — *Clear* is what empties the selection. The strip's
+  // *Select all {n}* button is gone (it was the strip's congestion).
   const allSelected = page.selectableIds.length > 0 && page.selectableIds.every((id) => selection.ids.has(id))
-  const someSelected = selection.ids.size > 0
-  const tickAll = (on: boolean) => (on ? selection.selectAll() : selection.clear())
+  const someSelected = page.selectableIds.some((id) => selection.ids.has(id))
+  const tickAll = (on: boolean) => (on ? selection.selectAll() : selection.deselectAll())
   const header = () => {
     if (layout !== 'table' || columns === undefined) return null
     return (

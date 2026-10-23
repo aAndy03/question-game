@@ -34,3 +34,4 @@ export { ChordField, chordFromKeyboardEvent, type ChordFieldProps } from './Chor
 export { SegmentedField, type SegmentedFieldProps, type SegmentedOption } from './SegmentedField'
 export { DurationField, type DurationFieldProps } from './DurationField'
 export { OptionalNumberField, type OptionalNumberFieldProps } from './OptionalNumberField'
+export { useSqueeze } from './useSqueeze'

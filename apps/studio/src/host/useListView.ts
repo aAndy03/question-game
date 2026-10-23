@@ -51,7 +51,10 @@ export interface ListViewApi<T, V = unknown> {
     selectPage(): void
     /** The header checkbox off: this page only, not what is selected elsewhere. */
     deselectPage(): void
+    /** Every row in view, every page, added to what is selected. */
     selectAll(): void
+    /** Every row in view off; hidden ones stay selected. */
+    deselectAll(): void
     clear(): void
   }
   /** The selection split by what each bulk action would touch. */
@@ -74,6 +77,12 @@ export function useListView<T, V>(
   spec: ListSpec<T>,
   items: readonly ListItem<T, V>[] | undefined,
   hits: ReadonlyMap<string, number> | null,
+  /**
+   * Every row that may stay selected, by id, with whether it is archived —
+   * when the page narrows `items` before the view sees them (Domains &
+   * Questions' domain pick). Absent, `items` is the whole tab.
+   */
+  universe?: ReadonlyMap<string, boolean>,
 ): ListViewApi<T, V> {
   const tab = spec.tab
   const prefs = useListPrefs(tab)
@@ -111,10 +120,10 @@ export function useListView<T, V>(
   )
   const page = useMemo(() => listView(items ?? NO_ITEMS, spec, state), [items, spec, state])
 
-  // Changes that alter what matches clear the selection and go back to page 1.
+  // Changes that alter what matches go back to page 1. They keep the
+  // selection (beta.8): a row a search or a filter hides stays ticked.
   const narrow = useCallback(
     (patch: Partial<ListState>) => {
-      setSelected(NO_IDS)
       setListState(tab, { ...patch, page: 1 })
     },
     [setListState, tab],
@@ -196,7 +205,6 @@ export function useListView<T, V>(
   )
   const setPage = useCallback((n: number) => setListState(tab, { page: n }), [setListState, tab])
   const resetPage = useCallback(() => {
-    setSelected(NO_IDS)
     setListState(tab, { page: 1 })
   }, [setListState, tab])
   // The stored page follows the clamp: a list that shrank under the operator
@@ -225,24 +233,33 @@ export function useListView<T, V>(
     return out
   }, [session.filters, session.changed, spec])
 
-  // The selection is always what is selected **and still in view**: a row
-  // that left it — archived from the aside, fixed out of an Incomplete filter,
-  // into a collapsed group, out of the Status — is never counted or acted on
-  // (review), and is dropped so it does not come back selected.
-  const inView = useMemo(() => {
-    if (selected.size === 0) return selected
-    const visible = new Set(page.selectableIds)
-    const kept = [...selected].filter((id) => visible.has(id))
-    return kept.length === selected.size ? selected : new Set(kept)
-  }, [selected, page.selectableIds])
+  // Every row of the tab, and whether it is archived: what may stay selected.
+  const known = useMemo(() => {
+    if (universe) return universe
+    const out = new Map<string, boolean>()
+    for (const i of items ?? NO_ITEMS) out.set(i.id, spec.isArchived?.(i.data) ?? false)
+    return out
+  }, [universe, items, spec])
+  // **The selection outlives the view** (beta.8, the maintainer's ask): a row
+  // a search, a filter, a collapsed group, another page or another domain
+  // hides stays selected — tick some, search, tick more, act on all of them.
+  // A row that left the **tab** — archived out of Active, restored out of
+  // Archived, gone — is dropped, so it is never acted on and does not come
+  // back selected (the review's rule, kept for what has truly gone).
+  const kept = useMemo(() => {
+    if (selected.size === 0 || items === undefined) return selected
+    const still = [...selected].filter((id) => known.has(id))
+    return still.length === selected.size ? selected : new Set(still)
+  }, [selected, known, items])
   useEffect(() => {
-    if (inView !== selected) setSelected(inView)
-  }, [inView, selected])
+    if (kept !== selected) setSelected(kept)
+  }, [kept, selected])
 
   const selection = useMemo(() => {
-    const onPage = page.pageIds.reduce((n, id) => n + (inView.has(id) ? 1 : 0), 0)
+    const onPage = page.pageIds.reduce((n, id) => n + (kept.has(id) ? 1 : 0), 0)
+    const visible = new Set(page.selectableIds)
     return {
-      ids: inView,
+      ids: kept,
       onPage,
       toggle: (id: string) =>
         setSelected((s) => {
@@ -256,23 +273,24 @@ export function useListView<T, V>(
           const here = new Set(page.pageIds)
           return new Set([...s].filter((id) => !here.has(id)))
         }),
-      selectAll: () => setSelected(new Set(page.selectableIds)),
+      /** Add every row in view (every page); what is hidden stays as it is. */
+      selectAll: () => setSelected((s) => new Set([...s, ...page.selectableIds])),
+      /** Take every row in view off; what is hidden stays selected. */
+      deselectAll: () => setSelected((s) => new Set([...s].filter((id) => !visible.has(id)))),
       clear: () => setSelected(NO_IDS),
     }
-  }, [page.pageIds, page.selectableIds, inView])
+  }, [page.pageIds, page.selectableIds, kept])
 
+  // The whole selection, shown or hidden, split by what each action applies to.
   const bulk = useMemo(() => {
     const archive: string[] = []
     const restore: string[] = []
-    if (inView.size > 0) {
-      for (const i of items ?? NO_ITEMS) {
-        if (!inView.has(i.id)) continue
-        if (spec.isArchived?.(i.data)) restore.push(i.id)
-        else archive.push(i.id)
-      }
+    for (const id of kept) {
+      if (known.get(id)) restore.push(id)
+      else archive.push(id)
     }
     return { archive, restore }
-  }, [items, inView, spec])
+  }, [kept, known])
 
   return {
     page,

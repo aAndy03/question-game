@@ -51,6 +51,12 @@
   --chrome-line: transparent;
 }
 
+/* Every number in Studio in tabular figures (beta.8): counts, dates, scores
+ * and ids line up wherever they stand, not only where `Text tabular` asked. */
+html {
+  font-variant-numeric: tabular-nums;
+}
+
 /* A compact strip (P20): HeroUI's smallest button is 32px and its select 36px,
  * which made Control's top strip — two display pickers and a row of actions
  * the operator sets once — the loudest thing above the mosaic. Inside
@@ -74,17 +80,18 @@ html .button svg {
   width: 0.875rem;
   height: 0.875rem;
 }
-/* The selection strip's actions when they do not fit (beta.8, `BulkBar`):
- * each button its icon alone — the text stays for a screen reader and the
- * tooltip — and a button with no icon keeps its words. */
-[data-bulk-actions][data-squeezed] .button:has(svg) {
+/* A row of buttons that does not fit (beta.8, `useSqueeze`: the selection
+ * strip, the list toolbar's tools): each button its icon alone — the text
+ * stays for a screen reader and the tooltip — and one with no icon keeps its
+ * words. */
+[data-squeeze][data-squeezed] .button:has(svg) {
   width: 1.75rem;
   flex-shrink: 0;
   gap: 0;
   padding-inline: 0;
   font-size: 0;
 }
-[data-bulk-actions] .button {
+[data-squeeze] .button {
   flex-shrink: 0;
 }
 
@@ -145,6 +152,32 @@ html .select__value {
 }
 [data-density="compact"] .pagination__summary {
   font-size: var(--text-xs);
+}
+/* The Filters popover (beta.8) opens compact: its checkboxes, number
+ * steppers and heading at the strip's size, as its segments already are. */
+[data-density="compact"] .checkbox,
+[data-density="compact"] .checkbox__content {
+  font-size: var(--text-xs);
+}
+[data-density="compact"] .number-field__group,
+[data-density="compact"] .number-field__input {
+  height: 1.75rem;
+  min-height: 1.75rem;
+  font-size: var(--text-xs);
+}
+[data-density="compact"] .number-field__decrement-button,
+[data-density="compact"] .number-field__increment-button {
+  height: 1.75rem;
+  width: 1.75rem;
+  min-width: 1.75rem;
+}
+[data-density="compact"] .number-field__decrement-button svg,
+[data-density="compact"] .number-field__increment-button svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+[data-density="compact"] .popover__heading {
+  font-size: var(--text-sm);
 }
 
 .dark,

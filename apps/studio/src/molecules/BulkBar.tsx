@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, type ReactNode } from 'react'
-import { Button, CheckboxField, Text } from '@/atoms'
+import { useRef, type ReactNode } from 'react'
+import { Button, CheckboxField, Text, useSqueeze } from '@/atoms'
 import { LIST, SHELL } from '@/copy'
 
 export interface BulkAction {
@@ -40,37 +40,13 @@ export interface BulkBarProps {
  *
  * **No scrollbars** (beta.8): the actions used to scroll inside the strip, so a
  * narrow window with an opened row drew a scrollbar in it. Now, when they do
- * not fit, they become their icons (`data-squeezed`), each named by a
- * tooltip; what still does not fit is clipped, never scrolled.
+ * not fit, they become their icons (`useSqueeze`), each named by a tooltip;
+ * what still does not fit is clipped, never scrolled.
  */
 export function BulkBar({ count, onPage, archive, restore, onClear, isPending, extra, page }: BulkBarProps) {
   const idle = count === 0
   const actions = useRef<HTMLDivElement>(null)
-  useLayoutEffect(() => {
-    const el = actions.current
-    if (!el) return
-    // Measured at full size every time, so the strip widens back to words as
-    // soon as they fit; the attribute flips before paint.
-    const fit = () => {
-      delete el.dataset['squeezed']
-      const squeezed = el.scrollWidth > el.clientWidth + 1
-      if (squeezed) el.dataset['squeezed'] = ''
-      for (const button of el.querySelectorAll<HTMLElement>('button')) {
-        if (squeezed && !button.title) {
-          button.title = button.textContent?.trim() ?? ''
-          button.dataset['bulkTitle'] = ''
-        } else if (!squeezed && button.dataset['bulkTitle'] !== undefined) {
-          button.removeAttribute('title')
-          delete button.dataset['bulkTitle']
-        }
-      }
-    }
-    fit()
-    if (typeof ResizeObserver === 'undefined') return
-    const watch = new ResizeObserver(fit)
-    watch.observe(el)
-    return () => watch.disconnect()
-  })
+  useSqueeze(actions)
   return (
     <div
       {...(idle ? {} : { role: 'toolbar', 'aria-label': SHELL.bulkActions })}
@@ -94,7 +70,7 @@ export function BulkBar({ count, onPage, archive, restore, onClear, isPending, e
       </span>
       {idle ? null : (
         <>
-          <div ref={actions} className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-hidden" data-bulk-actions>
+          <div ref={actions} className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-hidden" data-bulk-actions data-squeeze>
             {archive && archive.count > 0 ? (
               <Button size="sm" variant="danger" icon="archive" onPress={archive.run} isPending={isPending} isDisabled={isPending}>
                 {LIST.archiveN(archive.count)}

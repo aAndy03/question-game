@@ -87,8 +87,9 @@ export function FilterMenu({ filters, values, changed, onChange, onChanged, acti
       <Button variant="secondary" size="sm" icon="filter">
         {activeCount > 0 ? `${LIST.filters} · ${activeCount}` : LIST.filters}
       </Button>
-      <Popover.Content className="w-96" placement="bottom start">
-        <Popover.Dialog aria-label={LIST.filters} className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
+      {/* Compact like the toolbar it opens from (beta.8): its checkboxes, steppers and segments at the strip's size. */}
+      <Popover.Content className="w-80" placement="bottom start">
+        <Popover.Dialog aria-label={LIST.filters} className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto" data-density="compact" data-filter-menu>
           <Popover.Heading>{LIST.filters}</Popover.Heading>
           {hint ? (
             <Text as="div" variant="studio-caption" tone="muted">

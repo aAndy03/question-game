@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+import { useSqueeze } from '@/atoms'
 import { ActiveFilters, ArchiveToggle, FilterMenu, GroupMenu, SearchField, SortMenu, ViewSwitch, type ArchiveView } from '@/molecules'
 import type { ViewMode } from '@/chrome/chrome'
 import type { ListViewApi } from '@/host/useListView'
@@ -31,6 +33,8 @@ export function ListToolbar({ view, what, layout, onLayout, status, onStatus, fi
   const { spec, state } = view
   const viewSwitch = layout && onLayout ? <ViewSwitch value={layout} onChange={onLayout} /> : null
   const statusTabs = status && onStatus ? <ArchiveToggle value={status} onChange={onStatus} withAll /> : null
+  const tools = useRef<HTMLDivElement>(null)
+  useSqueeze(tools)
   return (
     <div className="@container/toolbar flex flex-col gap-2" data-list-toolbar data-density="compact">
       {/*
@@ -42,7 +46,9 @@ export function ListToolbar({ view, what, layout, onLayout, status, onStatus, fi
       */}
       <div className="flex flex-wrap items-center gap-2 @[48rem]/toolbar:flex-nowrap @[48rem]/toolbar:items-start">
         {lead ? <div className="min-w-0 shrink">{lead}</div> : null}
-        <div className="order-3 flex w-full min-w-0 flex-wrap items-center gap-2 @[48rem]/toolbar:order-none @[48rem]/toolbar:w-auto @[48rem]/toolbar:flex-1">
+        {/* The tools stay on one row (beta.8): when Filters · Sort · Group
+          * would wrap, they become their icons (`useSqueeze`). */}
+        <div ref={tools} className="order-3 flex w-full min-w-0 flex-wrap items-center gap-2 @[48rem]/toolbar:order-none @[48rem]/toolbar:w-auto @[48rem]/toolbar:flex-1" data-squeeze data-list-tools>
           <SearchField what={what} onSearch={view.setSearch} initial={state.search} className="w-64 min-w-40" />
           <FilterMenu
             filters={spec.filters}

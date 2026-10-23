@@ -126,17 +126,42 @@ describe('selection (B-01–B-06, B-11–B-14)', () => {
     expect(result.current.selection.onPage).toBe(50)
   })
 
-  it('is cleared by a filter, a Changed window or a search, not by a page or a sort (Review Focus 4)', () => {
+  // beta.8: the maintainer's ask — the selection outlives the view (Review
+  // Focus 4 cleared it on every narrowing).
+  it('survives a filter, a Changed window, a search, a page and a sort', () => {
     const { result } = mount(many(250))
-    for (const change of [() => result.current.setFilter('tag', ['a']), () => result.current.setChanged('7d'), () => result.current.setSearch('x'), () => result.current.clearFilters()]) {
-      act(() => result.current.selection.selectAll())
-      act(change)
-      expect(result.current.selection.ids.size).toBe(0)
-    }
     act(() => result.current.selection.selectAll())
-    act(() => result.current.setPage(2))
-    act(() => result.current.setSort({ id: 'n', desc: false }))
-    expect(result.current.selection.ids.size).toBeGreaterThan(0)
+    for (const change of [() => result.current.setFilter('tag', ['a']), () => result.current.setChanged('7d'), () => result.current.setSearch('x'), () => result.current.clearFilters(), () => result.current.setPage(2), () => result.current.setSort({ id: 'n', desc: false }), () => result.current.resetPage()]) {
+      act(change)
+      expect(result.current.selection.ids.size).toBe(250)
+    }
+  })
+
+  it('drops a row that left the tab — archived out of Active, or gone — and keeps what is only hidden', () => {
+    const items = [item('a'), item('b'), item('c')]
+    const { result, rerender } = mount(items)
+    act(() => result.current.selection.selectAll())
+    act(() => result.current.setSearch('x'))
+    rerender({ items, hits: new Map([['a', 1]]) })
+    expect(result.current.selection.ids.size).toBe(3)
+    // 'b' archived from the aside: it leaves the Active tab's items.
+    rerender({ items: [item('a'), item('c')], hits: new Map([['a', 1]]) })
+    expect([...result.current.selection.ids].sort()).toEqual(['a', 'c'])
+    expect(result.current.bulk.archive).toEqual(['a', 'c'])
+  })
+
+  it('ticks and unticks what is in view, leaving hidden rows as they are; Clear empties it', () => {
+    const items = [item('a'), item('b'), item('c')]
+    const { result, rerender } = mount(items)
+    act(() => result.current.selection.toggle('c'))
+    act(() => result.current.setSearch('x'))
+    rerender({ items, hits: new Map([['a', 1], ['b', 2]]) })
+    act(() => result.current.selection.selectAll())
+    expect([...result.current.selection.ids].sort()).toEqual(['a', 'b', 'c'])
+    act(() => result.current.selection.deselectAll())
+    expect([...result.current.selection.ids]).toEqual(['c'])
+    act(() => result.current.selection.clear())
+    expect(result.current.selection.ids.size).toBe(0)
   })
 
   it('holds an item in two groups once', () => {
@@ -148,15 +173,17 @@ describe('selection (B-01–B-06, B-11–B-14)', () => {
     expect(result.current.selection.ids.size).toBe(2)
   })
 
-  it('drops a group from the selection when it is collapsed, and select all leaves it out (B-12, B-13)', () => {
+  it('keeps a collapsed group selected, and select all on the rest leaves it as it is (B-12, B-13; beta.8)', () => {
     const items = [...many(3, { tags: ['a'] }).map((t) => item(`a${t.id}`, { tags: ['a'] })), ...many(2).map((t) => item(`b${t.id}`, { tags: ['b'] }))]
     const { result } = mount(items)
     act(() => result.current.setGroup('tag'))
-    act(() => result.current.selection.selectAll())
     act(() => result.current.toggleCollapsed('a'))
-    expect([...result.current.selection.ids].every((id) => id.startsWith('b'))).toBe(true)
     act(() => result.current.selection.selectAll())
     expect(result.current.selection.ids.size).toBe(2)
+    act(() => result.current.toggleCollapsed('a'))
+    act(() => result.current.selection.selectAll())
+    act(() => result.current.toggleCollapsed('a'))
+    expect(result.current.selection.ids.size).toBe(5)
   })
 
   it('keeps a collapsed group through a sort change; a new grouping forgets it (Review Focus 5)', () => {

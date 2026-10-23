@@ -1904,6 +1904,7 @@ On `main` only. The maintainer's ask after beta.6: a page's title, its buttons a
 - ☑ **P21** versioned as 2.0.0-beta.7 (What's new in English and Romanian); **not tagged** — the maintainer said to commit it and go on. The e2e suite on Windows comes before any tag.
 - ☐ **P22 — beta.8**, on `main`:
   - ☑ **P22.1** — the selection strip: no *Select all {n}* button (the Select all tick — the table header's, the strip's in grid view — now ticks every matching row on every page), and no scrollbars: actions that do not fit turn into their icons, named by tooltips.
+  - ☑ **P22.3** — the selection outlives the view: a search, a filter, another domain or page hides rows without unticking them (only a row that leaves the tab drops), the *Select all* tick acts on what is in view; the Filters popover compact; the toolbar's Filters · Sort · Group become icons instead of wrapping; tabular figures everywhere.
   - ☑ **P22.2** — *Share* on Domains & Questions (the maintainer scrapped the global share, then the file: it is local, so it is text): the selection strip's *Share* and a row's menu copy the picked questions, in the list's order, as one complete `questiongame.questions` document — options and which are right, difficulty, every domain, question tags, explanation — and the existing *Import questions…* takes it in by pasting. The host writes it (`catalog_export_questions`, `import::write`) beside the reader; the fake mirrors it. Over 2,000 (what one import takes) it refuses before asking; with no clipboard it shows the text to copy by hand.
 
 ---
