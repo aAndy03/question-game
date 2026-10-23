@@ -1893,6 +1893,7 @@ After beta.5: the interface pass, **P20** above.
 On `main` only. The maintainer's ask after beta.6: a page's title, its buttons and its toolbar were too big; follow the scale Control's top strip took in P20.11, as the default, with no option yet. Rows, cards and dialogs stay as they are.
 
 - ☑ **P21.1** — page chrome is compact: `PageHeader`, `ListToolbar`, `BulkBar` and the Domains pane's header take `data-density="compact"` (buttons, selects, the search field, the status tabs and the view switch at 28px, 12px text); the selection strip is 36px; `studio-title` 18px, `studio-heading` 16px.
+- ☑ **P21.2** — every button is compact, everywhere (dialogs, the Board, the editors): `html .button` in `studio.css` at 28px with 12px text and 14px icons, outranking HeroUI's `.button--sm`; fields, switches, sliders and number steppers keep their sizes. The pagination strip is compact; the Domains pane is 224px (was 280), its counts in a 32px column.
 
 ### Next
 

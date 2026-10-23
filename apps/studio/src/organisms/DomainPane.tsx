@@ -238,7 +238,7 @@ function DomainRow({
         </span>
       ) : null}
       {/* The count in one column down the pane (P20): every row keeps the menu's slot, filled or not. */}
-      <Text variant="studio-caption" tone="muted" tabular className="w-10 shrink-0 text-right">
+      <Text variant="studio-caption" tone="muted" tabular className="w-8 shrink-0 text-right">
         {count ?? ''}
       </Text>
       <div className="flex w-8 shrink-0 justify-end opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>

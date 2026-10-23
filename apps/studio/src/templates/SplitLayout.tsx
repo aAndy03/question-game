@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 
 export interface SplitLayoutProps {
   header: ReactNode
-  /** The narrow pane (Domains), 280px. */
+  /** The narrow pane (Domains), 224px (280 until P21.2: a name and its count did not need the room). */
   primary: ReactNode
   /** The wide pane (Questions). */
   secondary: ReactNode
@@ -19,7 +19,7 @@ export function SplitLayout({ header, primary, secondary }: SplitLayoutProps) {
       className="flex h-full min-h-0 flex-col gap-6 p-6"
     >
       {header}
-      <div className="grid min-h-0 flex-1 grid-cols-[17.5rem_minmax(0,1fr)] gap-6">
+      <div className="grid min-h-0 flex-1 grid-cols-[14rem_minmax(0,1fr)] gap-6">
         <div className="flex min-h-0 flex-col overflow-y-auto">{primary}</div>
         <div className="flex min-h-0 min-w-0 flex-col">{secondary}</div>
       </div>

@@ -255,7 +255,7 @@ export interface PageFooterProps {
 export function PageFooter({ page, pageCount, text, pageSize, onPage, onPageSize }: PageFooterProps) {
   if (text === '') return null
   return (
-    <Pagination aria-label={LIST.pages} className="flex flex-wrap items-center justify-between gap-3 pt-2">
+    <Pagination aria-label={LIST.pages} className="flex flex-wrap items-center justify-between gap-3 pt-2" data-density="compact">
       <Pagination.Summary>{text}</Pagination.Summary>
       <div className="flex items-center gap-3">
         <SegmentedField
