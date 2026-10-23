@@ -61,6 +61,10 @@ export const WORKSPACE = {
   newGroupTitle: 'New workspace group',
   renameGroupTitle: 'Rename workspace group',
   moveTitle: 'Move to workspace group',
+  /** P21.6: the selection strip, as every other library list has. */
+  moveManyTitle: (n: number) => `Move ${n} ${n === 1 ? 'workspace' : 'workspaces'} to a workspace group`,
+  archivedMany: (n: number) => `Archived ${n} ${n === 1 ? 'workspace' : 'workspaces'}`,
+  restoredMany: (n: number) => `Restored ${n} ${n === 1 ? 'workspace' : 'workspaces'}`,
   deleteGroupTitle: 'Delete this workspace group?',
   deleteGroupBody: 'Its workspaces stay, ungrouped.',
   deleteTitle: 'Delete this workspace permanently?',

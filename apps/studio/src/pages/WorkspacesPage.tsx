@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Button, MeaningChip, SelectField, Text } from '@/atoms'
 import { ActionMenu, ConfirmDialog, NameDialog, PageHeader, type ActionSection, type ConfirmFrame } from '@/molecules'
-import { MENU } from '@/copy'
+import { MENU, VIEWS, fmt } from '@/copy'
 import { LibraryList, ListToolbar, isGameLoaded, useSwitchWorkspace, workspaceName, type RecordView } from '@/organisms'
 import { LibraryTabLayout } from '@/templates'
 import { noticesAt, useNoticeStore } from '@/chrome/notices'
-import { useArchiveScope, useChromeStore } from '@/chrome/chrome'
+import { useArchiveScope, useChromeStore, usePrefs } from '@/chrome/chrome'
 import { workspacesSpec } from '@/host/listSpecs'
 import type { ListItem } from '@/host/listView'
 import { useListView } from '@/host/useListView'
@@ -22,7 +22,7 @@ type Dialog =
   | { readonly kind: 'new' }
   | { readonly kind: 'rename'; readonly workspace: Workspace }
   | { readonly kind: 'duplicate'; readonly workspace: Workspace }
-  | { readonly kind: 'group'; readonly workspace: Workspace }
+  | { readonly kind: 'group'; readonly ids: readonly string[] }
   | { readonly kind: 'newGroup' }
   | { readonly kind: 'renameGroup'; readonly group: WorkspaceGroup }
   | { readonly kind: 'deleteGroup'; readonly group: WorkspaceGroup }
@@ -33,6 +33,12 @@ type Dialog =
  * group, archived ones included, with Open · Rename · Move to group ·
  * Duplicate · Archive/Restore · Delete permanently, and the groups' own
  * Rename · Move up/down · Delete. Every name is typed by the operator.
+ *
+ * The same list as every library tab (P21.6): grid or table, column headings,
+ * and the selection strip — Archive, Restore, Move to workspace group. The
+ * current workspace is kept out of a bulk Archive, as the playing game is on
+ * Games; Duplicate and Delete permanently stay per row, each needing a name
+ * or its own confirm.
  */
 export function WorkspacesPage() {
   const workspaces = useWorkspaces()
@@ -54,6 +60,11 @@ export function WorkspacesPage() {
   const counts = useWorkspaceCounts()
   const scope = useArchiveScope('workspaces')
   const setScope = useChromeStore((s) => s.setArchiveScope)
+  const { view } = usePrefs()
+  const setView = useChromeStore((s) => s.setView)
+  // A prefs document written before P21.6 has no entry for this tab.
+  const layout = view.workspaces ?? 'table'
+  const [bulkPending, setBulkPending] = useState(false)
   const groups = useMemo(() => [...(data?.groups ?? [])].sort((a, b) => a.sortKey - b.sortKey), [data?.groups])
   const spec = useMemo(() => workspacesSpec(groups), [groups])
   // On the list-view model (beta.5): search, sort, grouped by workspace group, Status.
@@ -73,6 +84,7 @@ export function WorkspacesPage() {
               return c ? WORKSPACE.counts(c) : undefined
             })(),
             isArchived: w.archivedAt !== null,
+            meta: [fmt.dateShort(w.updatedAt)],
             chips: (
               <>
                 {w.id === data.current ? <MeaningChip meaning="active">{WORKSPACE.current}</MeaningChip> : null}
@@ -173,7 +185,7 @@ export function WorkspacesPage() {
         return
       case 'group':
         setGroupPick(w.groupId ?? '')
-        setDialog({ kind: 'group', workspace: w })
+        setDialog({ kind: 'group', ids: [w.id] })
         return
       case 'archive':
       case 'restore':
@@ -185,6 +197,15 @@ export function WorkspacesPage() {
         return
       }
     }
+  }
+
+  /** One command per workspace, as the row's own; the strip says how many it took. */
+  const bulkRun = async (name: 'workspace_archive' | 'workspace_restore', ids: readonly string[]) => {
+    setBulkPending(true)
+    let done = 0
+    for (const id of ids) if (await run.ok(name, { id })) done += 1
+    setBulkPending(false)
+    if (done > 0) toast.success(name === 'workspace_archive' ? WORKSPACE.archivedMany(done) : WORKSPACE.restoredMany(done))
   }
 
   const deleteNow = async (pin: string | null) => {
@@ -216,10 +237,12 @@ export function WorkspacesPage() {
         />
       }
     >
-      <div className="flex min-h-0 flex-col gap-3" data-workspaces-page>
+      <div className="flex min-h-0 flex-1 flex-col gap-3" data-workspaces-page>
         <ListToolbar
           view={lv}
           what={WORKSPACE.many}
+          layout={layout}
+          onLayout={(v) => setView('workspaces', v)}
           status={scope}
           onStatus={(v) => {
             setScope('workspaces', v)
@@ -231,8 +254,28 @@ export function WorkspacesPage() {
           total={data.workspaces.length}
           scope={scope}
           isLoading={false}
-          layout="table"
+          layout={layout}
           what={WORKSPACE.many}
+          columns={{ title: { sortId: 'name', label: VIEWS.name }, meta: [{ sortId: 'changed', label: VIEWS.changed }] }}
+          bulk={{
+            onArchive: (ids) => void bulkRun('workspace_archive', ids.filter((id) => id !== data.current)),
+            onRestore: (ids) => void bulkRun('workspace_restore', ids),
+            keep: [data.current],
+            extra: (ids) => (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="folder"
+                onPress={() => {
+                  setGroupPick('')
+                  setDialog({ kind: 'group', ids })
+                }}
+              >
+                {WORKSPACE.moveToGroup}
+              </Button>
+            ),
+            isPending: bulkPending,
+          }}
           actions={(row) => {
             const w = data.workspaces.find((x) => x.id === row.id)
             return w ? <ActionMenu label={`${WORKSPACE.actions}: ${workspaceName(w)}`} sections={rowActions(w)} onAction={(id) => void onRow(w, id)} /> : null
@@ -282,7 +325,7 @@ export function WorkspacesPage() {
         isOpen={dialog?.kind === 'group'}
         onOpenChange={(o) => (o ? undefined : close())}
         severity="default"
-        title={WORKSPACE.moveTitle}
+        title={dialog?.kind === 'group' && dialog.ids.length > 1 ? WORKSPACE.moveManyTitle(dialog.ids.length) : WORKSPACE.moveTitle}
         body={
           <SelectField
             label={WORKSPACE.groupLabel}
@@ -295,8 +338,11 @@ export function WorkspacesPage() {
         onConfirm={async () => {
           if (dialog?.kind !== 'group') return true
           const groupId = groupPick || null
-          const sortKey = data.workspaces.filter((w) => w.groupId === groupId).length
-          return run.ok('workspace_set_group', { id: dialog.workspace.id, groupId, sortKey })
+          // Each lands at the end of the group, in the order they were picked.
+          let sortKey = data.workspaces.filter((w) => w.groupId === groupId && !dialog.ids.includes(w.id)).length
+          let ok = true
+          for (const id of dialog.ids) ok = (await run.ok('workspace_set_group', { id, groupId, sortKey: sortKey++ })) && ok
+          return ok
         }}
       />
       <ConfirmDialog

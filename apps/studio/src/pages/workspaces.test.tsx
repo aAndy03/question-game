@@ -130,6 +130,42 @@ describe('Manage workspaces', () => {
     const archive = await screen.findByRole('menuitem', { name: WORKSPACE.archive })
     expect(archive.getAttribute('aria-disabled')).toBe('true')
   })
+
+  // P21.6: the list every other library tab has — the selection strip, and
+  // grid or table.
+  it('archives a selection in bulk and keeps the current workspace out of it', async () => {
+    await withOperator()
+    await fake.invoke('workspace_create', { name: 'Club' })
+    await fake.invoke('workspace_create', { name: 'School' })
+    useNavStore.setState({ route: { tab: 'workspaces' } })
+    render(<App />)
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select all' }))
+    const strip = await waitFor(() => {
+      const el = document.querySelector<HTMLElement>('[data-bulk-strip]:not([data-bulk-idle])')
+      if (!el) throw new Error('no strip')
+      return el
+    })
+    expect(within(strip).getByText('3 selected')).toBeTruthy()
+    fireEvent.click(within(strip).getByRole('button', { name: 'Archive 2' }))
+    await waitFor(() => expect(calls('workspace_archive')).toHaveLength(2))
+    expect(calls('workspace_archive').map((c) => c.args?.['id'])).not.toContain(fake.workspaces[0]?.id)
+    expect(await screen.findByText(WORKSPACE.archivedMany(2))).toBeTruthy()
+  })
+
+  it('moves a selection to a workspace group, and offers grid as well as table', async () => {
+    await withOperator()
+    await fake.invoke('workspace_create', { name: 'Club' })
+    await fake.invoke('workspace_group_create', { name: 'Clients' })
+    useNavStore.setState({ route: { tab: 'workspaces' } })
+    render(<App />)
+    expect(await screen.findByRole('radio', { name: 'Grid' })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Table' })).toBeTruthy()
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Select all' }))
+    fireEvent.click(await screen.findByRole('button', { name: WORKSPACE.moveToGroup }))
+    expect(await screen.findByText(WORKSPACE.moveManyTitle(2))).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: WORKSPACE.save }))
+    await waitFor(() => expect(calls('workspace_set_group')).toHaveLength(2))
+  })
 })
 
 describe('review fixes', () => {

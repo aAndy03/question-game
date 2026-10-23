@@ -2658,6 +2658,10 @@ Every tab also has **Search** (uncapped: every match), **Status** (Active · Arc
 
 ## 21. Workspaces (Beta 2.0)
 
+*Manage workspaces* draws the standard library list (§20) since P21.6: grid ·
+table, column headings, the selection strip (*Archive* · *Restore* · *Move to
+workspace group…*; the current workspace is never archived in bulk).
+
 Design: `docs/superpowers/specs/2026-10-21-workspaces-design.md`. A workspace is one library of teams, domains, questions and games. The scope is the host's: every list Studio draws is already this workspace's. There is no shared library since beta.2 (`docs/superpowers/specs/2026-10-21-remove-shared-library-design.md`): a row reaches another workspace by copy or move.
 
 - **The switcher** (`organisms/WorkspaceSwitcher`) is the first thing in the sidebar, above *Library*: the current workspace's name, a menu of the others by group (*Ungrouped* last; the current one checked), then *New workspace…* and *Manage workspaces…*. In the rail it is the initials, the name in a tooltip. While a game is loaded in Control it is disabled and says why.

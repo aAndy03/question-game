@@ -1884,7 +1884,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
   const fake: FakeHost = {
     calls,
     workspaces: [
-      { id: FIRST_WORKSPACE, name: 'My library', groupId: null, sortKey: 0, settings: null, createdAt: 0, updatedAt: 0, archivedAt: null },
+      { id: FIRST_WORKSPACE, name: 'My library', groupId: null, sortKey: 0, settings: null, createdAt: 1789000000000, updatedAt: 1789000000000, archivedAt: null },
     ],
     workspaceGroups: [],
     currentWorkspace: FIRST_WORKSPACE,

@@ -25,7 +25,7 @@ export type ThemeChoice = 'system' | 'light' | 'dark'
 export type ViewMode = 'grid' | 'table'
 
 /** Tabs that show a record list and so carry a view preference (§12). */
-export type ListTab = 'teams' | 'library' | 'games' | 'operators' | 'statistics'
+export type ListTab = 'teams' | 'library' | 'games' | 'operators' | 'statistics' | 'workspaces'
 
 /** The Settings tab's inner tab, in its fixed order (§12.2). */
 export type SettingsInner = 'monitors' | 'settings' | 'shortcuts' | 'about'
@@ -84,7 +84,7 @@ export function isListViewKey(path: string): boolean {
 export const DEFAULT_PREFS: OperatorPrefs = {
   sidebar: 'expanded',
   theme: 'system',
-  view: { teams: 'grid', library: 'table', games: 'grid', operators: 'table', statistics: 'table' },
+  view: { teams: 'grid', library: 'table', games: 'grid', operators: 'table', statistics: 'table', workspaces: 'table' },
   settingsInner: 'monitors',
 }
 
