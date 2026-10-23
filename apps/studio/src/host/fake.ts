@@ -74,7 +74,7 @@ import type {
   TagCount,
 } from './types'
 import { FAKE_LEDGER, FAKE_PREVIEW } from './fake/preview'
-import { ImportRefused, planImport } from './fake/import'
+import { ImportRefused, planImport, writeQuestions } from './fake/import'
 import { sameBody, seedLibrary, seedRecipe } from './fake/seed'
 import { bodyGaps, effectiveBody } from './question'
 import { isTwin } from './twins'
@@ -856,6 +856,17 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       const shipped = scopedSeed(seedRecipe(demo, gameDefaults))
       count(recipes.get(shipped.id), shipped)
       return status satisfies SeedStatus
+    },
+    // beta.8 — the host's writer, mirrored (`fake/import.ts`): a read.
+    catalog_export_questions: (a) => {
+      const all = [...library.values()].filter((r) => r.kind === 'question').map((r) => r.item as ItemOf<'question'>)
+      const picked = ((a.ids as string[] | undefined) ?? []).map((id) => {
+        const q = all.find((x) => x.id === id)
+        if (!q) refuse('catalog', `no question with id ${id}`)
+        return q as ItemOf<'question'>
+      })
+      const domains = [...library.values()].filter((r) => r.kind === 'domain' && r.item.archivedAt === null).map((r) => r.item as ItemOf<'domain'>)
+      return writeQuestions(picked, domains)
     },
     // §2.32 — the host's planner, mirrored (`fake/import.ts`). A preview
     // writes nothing; a commit writes the plan and announces each kind once.

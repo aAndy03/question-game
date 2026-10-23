@@ -58,6 +58,8 @@ export const ICONS = {
   duplicate: 'copy',
   copy: 'copy',
   import: 'file-arrow-up',
+  /** beta.8: *Share* on Domains & Questions — the picked questions, as text. */
+  share: 'arrow-up-from-square',
   open: 'arrow-right',
   sort: 'bars-unaligned',
   filter: 'funnel',

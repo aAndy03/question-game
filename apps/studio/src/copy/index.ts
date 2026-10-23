@@ -499,6 +499,18 @@ export const PICKER = {
   moreChosen: (n: number) => `and ${n} more`,
 } as const
 
+/** beta.8: *Share* on Domains & Questions — the picked questions as the text *Import questions…* reads. */
+export const SHARE = {
+  action: 'Share',
+  copied: (n: number) => `Copied ${n.toLocaleString('en-US')} ${n === 1 ? 'question' : 'questions'} — paste into Import questions… in any library`,
+  tooMany: (n: number) => `Import questions… takes up to 2,000 questions at a time; ${n.toLocaleString('en-US')} are picked — share fewer`,
+  /** No clipboard in this webview: the text, to copy by hand. */
+  byHandTitle: 'Copy these questions',
+  byHandBody: 'Select all of the text and copy it, then paste it into Import questions… in any library.',
+  byHandLabel: 'Shared questions',
+  done: 'Done',
+} as const
+
 export const IMPORT = {
   open: 'Import',
   title: 'Import questions',

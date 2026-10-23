@@ -144,6 +144,20 @@ pub fn catalog_restore_many(
     Ok(changes)
 }
 
+/// `catalog_export_questions` (beta.8): the picked questions, in the list's
+/// order, as one document *Import questions…* reads. A read: nothing is
+/// written and nothing is emitted; Studio puts the text on the clipboard.
+#[tauri::command(async)]
+pub fn catalog_export_questions(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    ids: Vec<QuestionId>,
+) -> AppResult<String> {
+    guard::allow(window.label(), "catalog_export_questions")?;
+    let host = state.lock();
+    Ok(host.catalog.export_questions(&ids)?)
+}
+
 /// A row the import dialog edited (P20): its 1-based index and the row, in the
 /// file's own format, read by the host's reader like any other.
 #[derive(Debug, Deserialize)]

@@ -290,6 +290,7 @@ fn handlers() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
         commands::catalog::catalog_restore,
         commands::catalog::catalog_restore_many,
         commands::catalog::catalog_import_questions,
+        commands::catalog::catalog_export_questions,
         commands::catalog::catalog_search,
         commands::catalog::referenced_by,
         commands::catalog::asset_put,

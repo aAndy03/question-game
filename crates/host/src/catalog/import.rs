@@ -842,6 +842,97 @@ impl<'a> Resolver<'a> {
     }
 }
 
+// ----------------------------------------------------------------- the writer
+
+/// One row as [`read_row`] reads it, in the template's field order.
+#[derive(Serialize)]
+struct WrittenRow<'a> {
+    question: &'a str,
+    options: Vec<WrittenOption<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    difficulty: Option<u8>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    domains: Vec<&'a str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    tags: Vec<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    explanation: Option<&'a str>,
+}
+
+/// A wrong option is its text, as the template writes it; a right one says so.
+#[derive(Serialize)]
+#[serde(untagged)]
+enum WrittenOption<'a> {
+    Wrong(&'a str),
+    Right { text: &'a str, correct: bool },
+}
+
+#[derive(Serialize)]
+struct WrittenDocument<'a> {
+    format: &'static str,
+    version: u64,
+    questions: Vec<WrittenRow<'a>>,
+}
+
+/// The other direction (beta.8, *Share…* on Domains & Questions): questions as
+/// one document in this file's own format, **complete** — every option and
+/// which are right, the difficulty, every domain, the tags, the explanation —
+/// so [`plan`] reads back what was written, and *Import questions…* on any
+/// library takes it as it is. Pure; the rows in the order given.
+///
+/// `domains` are the library's **active** domains: the reader matches active
+/// domains only, so an archived one would arrive as a new domain. A domain is
+/// written by its name, which is what travels to another library — by its
+/// code only when two active domains here share the name, where the reader
+/// would pick the oldest and the share would say something it did not mean.
+/// What the format has no field for stays home: the domain's code and group,
+/// a picture.
+pub fn write(questions: &[Question], domains: &[Domain]) -> String {
+    let mut named: BTreeMap<String, usize> = BTreeMap::new();
+    for domain in domains {
+        *named.entry(fold(&domain.name)).or_default() += 1;
+    }
+    let mut homes: BTreeMap<&QuestionId, Vec<&str>> = BTreeMap::new();
+    for domain in domains {
+        let spelled = if named.get(&fold(&domain.name)).copied().unwrap_or(0) > 1 {
+            domain.code.as_str()
+        } else {
+            domain.name.as_str()
+        };
+        for member in &domain.questions {
+            homes.entry(&member.question_id).or_default().push(spelled);
+        }
+    }
+    let rows = questions
+        .iter()
+        .map(|q| WrittenRow {
+            question: &q.stem,
+            options: q
+                .options
+                .iter()
+                .map(|o| {
+                    if o.correct {
+                        WrittenOption::Right { text: &o.text, correct: true }
+                    } else {
+                        WrittenOption::Wrong(&o.text)
+                    }
+                })
+                .collect(),
+            difficulty: q.difficulty,
+            domains: homes.get(&q.id).cloned().unwrap_or_default(),
+            tags: q.tags.iter().map(String::as_str).collect(),
+            explanation: q.explanation.as_deref().filter(|e| !e.trim().is_empty()),
+        })
+        .collect();
+    let document = WrittenDocument {
+        format: FORMAT,
+        version: VERSION,
+        questions: rows,
+    };
+    // Plain data with string keys: serialising it cannot fail.
+    serde_json::to_string_pretty(&document).unwrap_or_default()
+}
+
 // --------------------------------------------------------------- the service
 
 impl CatalogService {
@@ -857,6 +948,33 @@ impl CatalogService {
         now_ms: u64,
     ) -> CatalogResult<(ImportReport, Vec<CatalogChange>)> {
         self.import_questions_with(text, commit, default_domain, &ImportOverrides::default(), now_ms)
+    }
+
+    /// `catalog_export_questions` (beta.8): these questions, in this order, as
+    /// one document *Import questions…* reads ([`write`]). Archived questions
+    /// are written like any other — the selection said so — and arrive active;
+    /// an id that is not in the library is refused, naming it.
+    pub fn export_questions(&self, ids: &[QuestionId]) -> CatalogResult<String> {
+        let all: BTreeMap<QuestionId, Question> = self
+            .catalog_list(CatalogKind::Question, ArchiveScope::All)?
+            .into_iter()
+            .filter_map(|item| item.as_question().cloned())
+            .map(|q| (q.id.clone(), q))
+            .collect();
+        let picked = ids
+            .iter()
+            .map(|id| {
+                all.get(id)
+                    .cloned()
+                    .ok_or_else(|| CatalogError::not_found(CatalogKind::Question, id.as_str()))
+            })
+            .collect::<CatalogResult<Vec<Question>>>()?;
+        let domains: Vec<Domain> = self
+            .catalog_list(CatalogKind::Domain, ArchiveScope::Active)?
+            .into_iter()
+            .filter_map(|item| item.as_domain().cloned())
+            .collect();
+        Ok(write(&picked, &domains))
     }
 
     /// [`Self::import_questions`] with the dialog's edits and skips (P20).

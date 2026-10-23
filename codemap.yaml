@@ -99,6 +99,13 @@ commands:
     file: crates/app/src/commands/workspace.rs
     params: ["kind: CatalogKind", "ids: Vec<String>"]
     returns: "AppResult<Vec<String>>"
+  catalog_export_questions:
+    async: true
+    callers: [main]
+    doc: "`catalog_export_questions` (beta.8): the picked questions, in the list's order, as one document *Import questions…* reads."
+    file: crates/app/src/commands/catalog.rs
+    params: ["ids: Vec<QuestionId>"]
+    returns: "AppResult<String>"
   catalog_family:
     async: true
     callers: [main]
@@ -889,6 +896,7 @@ contract:
       - catalog_restore
       - catalog_restore_many
       - catalog_import_questions
+      - catalog_export_questions
       - catalog_search
       - referenced_by
       - asset_put
@@ -1008,7 +1016,7 @@ contract:
   files:
     packages/contract/src/commands.ts:
       COMMANDS: {kind: const, sig: "#e3696517"}
-      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, organise, workspace, app } #a71a6b34"}
+      COMMAND_GROUPS: {doc: "Commands grouped by the module that owns them.", kind: const, sig: "{ catalog, match, presentation, flags, stats, organise, workspace, app } #f08ef256"}
       CatalogChange: {doc: "`catalog-changed`.", kind: interface, sig: "{ kind, id, op }"}
       Command: {kind: type, sig: "(typeof COMMAND_GROUPS)[CommandGroup][number]"}
       CommandGroup: {kind: type, sig: "keyof typeof COMMAND_GROUPS"}
@@ -1483,6 +1491,7 @@ host_api:
     "catalog::groups::TagCount": {doc: "One tag in view, for the tag picker and *Manage tags*.", kind: struct, sig: "struct TagCount { tag: String, questions: usize }"}
     "catalog::groups::tag_key": {doc: "The fold a tag is compared by.", kind: fn, sig: "fn tag_key(tag: &str) -> String"}
   crates/host/src/catalog/import.rs:
+    "catalog::import::CatalogService::export_questions": {doc: "`catalog_export_questions` (beta.8): these questions, in this order, as one document *Import questions…* reads ([`write`]).", kind: method, sig: "fn export_questions(&self, ids: &[QuestionId]) -> CatalogResult<String>"}
     "catalog::import::CatalogService::import_questions": {doc: "`catalog_import_questions` (§2.32).", kind: method, sig: "fn import_questions(&self, text: &str, commit: bool, default_domain: Option<&DomainId>, now_ms: u64) -> CatalogResult<(ImportReport, Vec<CatalogChange>)>"}
     "catalog::import::CatalogService::import_questions_with": {doc: "[`Self::import_questions`] with the dialog's edits and skips (P20).", kind: method, sig: "fn import_questions_with(&self, text: &str, commit: bool, default_domain: Option<&DomainId>, overrides: &ImportOverrides, now_ms: u64) -> CatalogResult<(ImportReport, Vec<CatalogChange>)>"}
     "catalog::import::FORMAT": {doc: "The one document shape this build reads.", kind: const, sig: "const FORMAT: &str = \"questiongame.questions\""}
@@ -1504,6 +1513,7 @@ host_api:
     "catalog::import::plan": {doc: "Read one question file and say what importing it would do.", kind: fn, sig: "fn plan(text: &str, library: &Library<'_>, default_domain: Option<&DomainId>, mint: &mut dyn FnMut() -> String) -> CatalogResult<ImportPlan>"}
     "catalog::import::plan_with": {doc: "[`plan`], with the operator's edits and skips (P20).", kind: fn, sig: "fn plan_with(text: &str, library: &Library<'_>, default_domain: Option<&DomainId>, overrides: &ImportOverrides, mint: &mut dyn FnMut() -> String) -> CatalogResult<ImportPlan>"}
     "catalog::import::suggest_code": {doc: "The code a new domain gets — the rule the Domain form applies (`apps/studio/src/host/domain.ts`), so an imported domain looks like one typed in by hand: three ASCII capitals, padded with `X`, and a...", kind: fn, sig: "fn suggest_code(name: &str) -> String"}
+    "catalog::import::write": {doc: "The other direction (beta.8, *Share…* on Domains & Questions): questions as one document in this file's own format, **complete** — every option and which are right, the difficulty, every domain, th...", kind: fn, sig: "fn write(questions: &[Question], domains: &[Domain]) -> String"}
   crates/host/src/catalog/labels.rs:
     "catalog::labels::CatalogService::recipe_bulk_edit": {doc: "Apply `edits`, in order, to every game in `ids`; `write: false` is the preview.", kind: method, sig: "fn recipe_bulk_edit(&self, ids: &[RecipeId], edits: &[RecipeEdit], write: bool, now_ms: u64) -> CatalogResult<LabelReport>"}
     "catalog::labels::FOLDER_MAX": {doc: "A folder name's longest spelling, in characters.", kind: const, sig: "const FOLDER_MAX: usize = 60"}
@@ -2140,6 +2150,7 @@ studio_calls:
       - apps/studio/src/organisms/DomainPane.tsx
       - apps/studio/src/pages/LibraryPage.tsx
       - apps/studio/src/pages/TeamsPage.tsx
+    catalog_export_questions: [apps/studio/src/organisms/useShareQuestions.tsx]
     catalog_family: [apps/studio/src/host/queries.ts]
     catalog_get: [apps/studio/src/host/queries.ts]
     catalog_import_questions: [apps/studio/src/host/queries.ts, apps/studio/src/organisms/ImportQuestionsDialog.tsx]

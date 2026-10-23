@@ -2361,6 +2361,14 @@ One JSON file in the editor's shape. Every field but the list is optional:
 - **Refused whole**, nothing written: invalid JSON (with line and column), a
   wrong `format` / `version`, no row list, more than 2,000 rows.
 
+### 17.2.1 Share (beta.8)
+
+*Share* on Domains & Questions — the selection strip, and a question row's
+menu under *Copy and move* — copies the picked questions as one document of
+§17.2, complete, in the list's order: what *Import questions…* reads, here or
+in another library. `catalog_export_questions { ids }` → the text. A domain
+is named, or coded where two share a name; archived domains are left out.
+
 ### 17.3 One command, preview then commit
 
 `catalog_import_questions { text, commit, defaultDomainId }` → `ImportReport`.

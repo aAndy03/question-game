@@ -26,6 +26,9 @@ export const COMMAND_GROUPS = {
      * dialog's preview and writes nothing; `commit: true` writes the same plan
      * in one transaction. Studio only. */
     'catalog_import_questions',
+    /** The picked questions as one `questiongame.questions` document, complete
+     * (beta.8, *Share…*): what *Import questions…* reads. A read. Studio only. */
+    'catalog_export_questions',
     'catalog_search',
     /** What still points at a row — what the Archive confirm shows first. */
     'referenced_by',

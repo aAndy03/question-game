@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, MeaningChip, Text } from '@/atoms'
 import { ActionMenu, DifficultyChip, IncompleteMark, PageHeader } from '@/molecules'
-import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, useBulkEdit, DomainGroupsManager, QuestionTagsManager, useGroupEditing, type RecordView } from '@/organisms'
+import { DomainPane, ImportQuestionsDialog, LibraryList, ListToolbar, QuestionDetail, useArchive, useTransfer, useBulkEdit, DomainGroupsManager, QuestionTagsManager, useGroupEditing, useShareQuestions, type RecordView } from '@/organisms'
 import { ListArea, SplitLayout } from '@/templates'
 import { useArchiveScope, useChromeStore, useListState, usePrefs } from '@/chrome/chrome'
 import { useNavStore } from '@/chrome/nav'
 import { toast } from '@/chrome/toast'
-import { DOMAIN, IMPORT, LIST, MENU, QUESTION, SHELL, TABS, VIEWS, fmt } from '@/copy'
+import { DOMAIN, IMPORT, LIST, MENU, QUESTION, SHARE, SHELL, TABS, VIEWS, fmt } from '@/copy'
 import { TRANSFER } from '@/copy/workspaces'
 import { GROUPS_TAGS } from '@/copy/groupsTags'
 import { activeMemberIds, questionGaps } from '@/host/question'
@@ -40,6 +40,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
   const replace = useNavStore((s) => s.replace)
   const archive = useArchive()
   const transfer = useTransfer()
+  const sharing = useShareQuestions()
   // *Duplicate* here (beta.5): the same text, in the same domains and domain groups.
   const duplicate = async (ids: readonly string[]) => {
     if (await run.ok('catalog_duplicate', { kind: 'question', ids })) toast.success(SHELL.duplicated(ids.length, QUESTION.one, QUESTION.many))
@@ -121,6 +122,14 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
     [domainId, activeDomains, domain?.groups, tagList.data],
   )
   const lv = useListView(spec, items, hits)
+  // The selection in the order the list shows it (across every page); a
+  // picked row the view no longer shows keeps its place at the end.
+  const inViewOrder = (ids: readonly string[]) => {
+    const picked = new Set(ids)
+    const shown = lv.page.selectableIds.filter((id) => picked.has(id))
+    const seen = new Set(shown)
+    return [...shown, ...ids.filter((id) => !seen.has(id))]
+  }
   const incompleteCount = useMemo(() => (items ?? []).filter((i) => i.data.gaps.length > 0).length, [items])
   // Picking a domain in the pane is the domain scope: the Domain filter is not
   // offered there, so its values go rather than linger as a hidden chip.
@@ -245,6 +254,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                       title: MENU.copyMove,
                       items: [
                         { id: 'duplicate', label: LIST.duplicate, icon: 'duplicate' },
+                        { id: 'share', label: SHARE.action, icon: 'share' },
                         { id: 'copy', label: TRANSFER.copyTo, icon: 'copy' },
                         { id: 'move', label: TRANSFER.moveTo, icon: 'transfer' },
                         ...(questions.data?.find((q) => q.id === row.id)?.familyId != null ? [{ id: 'unfollow', label: TRANSFER.unfollow, icon: 'unlink' as const }] : []),
@@ -259,6 +269,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                   onAction={(a) => {
                     if (a === 'copy' || a === 'move') transfer.open(a, { questions: [row.id] })
                     if (a === 'duplicate') void duplicate([row.id])
+                    if (a === 'share') void sharing.share([row.id])
                     if (a === 'unfollow') void run.ok('catalog_unfollow', { kind: 'question', id: row.id })
                     const at = domainId ? { domainId } : {}
                     if (a === 'open') void go({ tab: 'library', questionId: row.id, mode: 'view', ...at })
@@ -278,6 +289,10 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
                       {archivedView ? null : bulkEdit.menu(ids, { domain: domain && domain.archivedAt === null ? domain : null, questions: picked })}
                       <Button size="sm" variant="secondary" icon="duplicate" onPress={() => void duplicate(ids)}>
                         {LIST.duplicate}
+                      </Button>
+                      {/* In the list's order — sort, group, the domain picked — so the text reads as the list does. */}
+                      <Button size="sm" variant="secondary" icon="share" onPress={() => void sharing.share(inViewOrder(ids))}>
+                        {SHARE.action}
                       </Button>
                       {transfer.menu({ questions: ids })}
                     </>
@@ -305,6 +320,7 @@ export function LibraryPage({ domainId, currentId = null }: LibraryPageProps) {
           </ListArea>
           {archive.dialog}
           {transfer.dialog}
+          {sharing.dialog}
           {bulkEdit.dialog}
           <DomainGroupsManager
             domain={groupsOpen ? domain : null}

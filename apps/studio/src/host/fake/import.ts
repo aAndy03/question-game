@@ -272,3 +272,32 @@ export function planImport(
   const newDomains = created.filter((d) => members.has(d.id)).map((d) => ({ name: d.name, code: d.code }))
   return { report: { committed: false, rows: reportRows, newDomains, counts }, questions, domains }
 }
+
+/**
+ * `catalog_export_questions` (beta.8) — the mirror of the host's `write`: the
+ * questions in the order given, complete, in the template's field order. A
+ * domain by its name, by its code when two active domains share the name;
+ * active domains only. Change both in one commit.
+ */
+export function writeQuestions(questions: readonly Question[], domains: readonly Domain[]): string {
+  const named = new Map<string, number>()
+  for (const d of domains) named.set(fold(d.name), (named.get(fold(d.name)) ?? 0) + 1)
+  const homes = new Map<string, string[]>()
+  for (const d of domains) {
+    const spelled = (named.get(fold(d.name)) ?? 0) > 1 ? d.code : d.name
+    for (const m of d.questions) homes.set(m.questionId, [...(homes.get(m.questionId) ?? []), spelled])
+  }
+  const rows = questions.map((q) => {
+    const row: Record<string, unknown> = {
+      question: q.stem,
+      options: q.options.map((o) => (o.correct ? { text: o.text, correct: true } : o.text)),
+    }
+    if (q.difficulty !== null && q.difficulty !== undefined) row['difficulty'] = q.difficulty
+    const at = homes.get(q.id) ?? []
+    if (at.length > 0) row['domains'] = at
+    if ((q.tags ?? []).length > 0) row['tags'] = q.tags
+    if (q.explanation && q.explanation.trim() !== '') row['explanation'] = q.explanation
+    return row
+  })
+  return JSON.stringify({ format: IMPORT_FORMAT, version: IMPORT_VERSION, questions: rows }, null, 2)
+}
