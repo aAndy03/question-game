@@ -1902,7 +1902,7 @@ On `main` only. The maintainer's ask after beta.6: a page's title, its buttons a
 ### Next
 
 - ☑ **P21** versioned as 2.0.0-beta.7 (What's new in English and Romanian); **not tagged** — the maintainer said to commit it and go on. The e2e suite on Windows comes before any tag.
-- ☐ **P22 — beta.8**, on `main`:
+- ☑ **P22 — beta.8**, on `main` — versioned 2.0.0-beta.8 and released (the e2e suite run on Windows first):
   - ☑ **P22.1** — the selection strip: no *Select all {n}* button (the Select all tick — the table header's, the strip's in grid view — now ticks every matching row on every page), and no scrollbars: actions that do not fit turn into their icons, named by tooltips.
   - ☑ **P22.5** — the filters in force are small chips right after the Filters button, as many as fit, then *+N* into the menu (which lists them all, with *Clear all*) — no row of their own; the search box shrinks to 7rem first, the buttons go to icons next. The full-suite flake: Testing Library's 1 s wait inside tests P12.9 had given 20 s, now 5 s (`asyncUtilTimeout`).
   - ☑ **P22.4** — the selection gestures: Shift+click selects a run (row or checkbox, table, grid and pickers), Ctrl/⌘+click ticks a row — neither opens it; in the Domains pane Ctrl/⌘ and Shift+click pick several domains, shown together as All questions filtered to them.

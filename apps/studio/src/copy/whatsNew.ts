@@ -30,6 +30,47 @@ export interface WhatsNewRelease {
 
 export const WHATS_NEW: readonly WhatsNewRelease[] = [
   {
+    version: '2.0.0-beta.8',
+    notes: {
+      en: [
+        {
+          title: 'Share questions',
+          body: 'On Domains & Questions, Share in the selection bar or in a question’s menu copies the questions you picked as text, complete: every option and which are right, the difficulty, every domain, the tags and the explanation. Paste it into Import questions… in any library: a domain with the same name is joined, a missing one is created, and a question that is already there is not added twice.',
+        },
+        {
+          title: 'A selection that stays',
+          body: 'What you tick stays ticked when you search, filter, change page or pick another domain, so you can tick some, search, tick more and act on all of them. The bar says how many are selected and how many of them are on this page. Select all ticks or unticks what is in view, on every page; Clear empties the selection.',
+        },
+        {
+          title: 'Shift and Ctrl',
+          body: 'Shift+click ticks every row from the last one you ticked to the one you click, in table and grid view and in the pickers; Ctrl+click (⌘+click on a Mac) ticks a row without opening it. In the Domains pane, Ctrl+click and Shift+click pick several domains, and their questions are listed together.',
+        },
+        {
+          title: 'A tidier toolbar and selection bar',
+          body: 'The filters in force sit beside the Filters button as small chips, as many as there is room for, then +N, which opens Filters, where all of them are listed with Clear all. When the window is narrow, the search box shrinks first, then Filters, Sort and Group and the selection bar’s actions become their icons, with their names in a tooltip, instead of wrapping or scrolling. The Filters menu is more compact, and numbers line up everywhere.',
+        },
+      ],
+      ro: [
+        {
+          title: 'Distribuie întrebări',
+          body: 'În Domains & Questions, Share din bara de selecție sau din meniul unei întrebări copiază întrebările alese ca text, complet: fiecare variantă și care sunt corecte, dificultatea, toate domeniile, etichetele și explicația. Lipește-l în Import questions… în orice bibliotecă: un domeniu cu același nume e folosit, unul care lipsește e creat, iar o întrebare care există deja nu e adăugată a doua oară.',
+        },
+        {
+          title: 'O selecție care rămâne',
+          body: 'Ce bifezi rămâne bifat când cauți, filtrezi, schimbi pagina sau alegi alt domeniu, așa că poți bifa câteva, căuta, bifa altele și lucra cu toate deodată. Bara spune câte sunt selectate și câte dintre ele sunt pe pagina aceasta. Select all bifează sau debifează ce se vede, pe toate paginile; Clear golește selecția.',
+        },
+        {
+          title: 'Shift și Ctrl',
+          body: 'Shift+clic bifează toate rândurile de la ultimul bifat până la cel pe care dai clic, în tabel, în grilă și în ferestrele de alegere; Ctrl+clic (⌘+clic pe Mac) bifează un rând fără să-l deschidă. În panoul Domains, Ctrl+clic și Shift+clic aleg mai multe domenii, iar întrebările lor apar împreună.',
+        },
+        {
+          title: 'O bară de unelte și o bară de selecție mai ordonate',
+          body: 'Filtrele active stau lângă butonul Filters ca niște etichete mici, câte încap, apoi +N, care deschide Filters, unde le găsești pe toate, cu Clear all. Când fereastra e îngustă, întâi se micșorează căutarea, apoi Filters, Sort și Group și acțiunile din bara de selecție devin iconițe, cu numele lor la trecerea mouse-ului, în loc să treacă pe alt rând sau să se deruleze. Meniul Filters e mai compact, iar cifrele se aliniază peste tot.',
+        },
+      ],
+    },
+  },
+  {
     version: '2.0.0-beta.7',
     notes: {
       en: [
