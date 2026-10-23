@@ -65,6 +65,11 @@ export const CHROME = {
   displays: (n: number) => (n === 1 ? '1 display' : `${n} displays`),
   notices: 'Notices',
   openCollector: 'Open notices',
+  /** P21.3: the status bar's popovers. */
+  clearAll: 'Clear all',
+  openDisplays: 'Displays',
+  displaysTitle: (n: number) => (n === 1 ? '1 display' : `${n} displays`),
+  displaysSettings: 'Monitors settings',
   noNotices: 'No notices',
   /**
    * The collector's line for notices that are addressed to a field and render

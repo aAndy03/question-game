@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { Notice } from '@questiongame/contract'
-import { NoticeCollector } from './NoticeCollector'
+import { StatusBar } from './StatusBar'
 import { useNoticeStore } from '@/chrome/notices'
 import { setHostTransport } from '@/host/host'
 import { createFakeHost } from '@/host/fake'
@@ -14,6 +15,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
  * `targetPath: 'audio.cues'` — is `inline`, so it appeared in neither: the dot
  * went amber on Control Load and the panel the operator clicked was empty,
  * with no way to find out why.
+ *
+ * P21.3: the list is the status bar's popover, opened by the one health and
+ * notices button (or the store flag a refusal sets) — these render the bar.
  */
 
 const notice = (over: Partial<Notice> = {}): Notice => ({
@@ -39,7 +43,7 @@ function open(notices: Notice[]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
-      <NoticeCollector />
+      <StatusBar />
     </QueryClientProvider>,
   )
 }
@@ -79,15 +83,45 @@ describe('the notice collector', () => {
   })
 })
 
-describe('the collector drawer (P12.8)', () => {
-  // HeroUI 3.2.6 made `Drawer.Content` a full-viewport track that places the
-  // dialog; a width on it pinned the right-hand panel to the left edge.
-  it('sizes the panel, not the track', async () => {
-    open([notice()])
-    await screen.findByText('1 item needs attention elsewhere')
-    const dialog = document.querySelector('.drawer__dialog')
-    expect(dialog?.className).toContain('w-[26rem]')
-    expect(document.querySelector('.drawer__content')?.className).not.toContain('w-[26rem]')
+describe('the notices popover (P21.3)', () => {
+  it('is a fixed size, so a long list scrolls inside it', async () => {
+    open(Array.from({ length: 12 }, (_, i) => notice({ code: 'health.search_degraded', targetPath: null, actions: ['rebuild_search'], detail: { n: String(i) } })))
+    const panel = await waitFor(() => {
+      const el = document.querySelector('[data-notice-panel]')
+      if (!el) throw new Error('no panel')
+      return el
+    })
+    expect(panel.className).toContain('h-[min(26rem,70vh)]')
+    expect(panel.className).toContain('w-[min(24rem,90vw)]')
+    expect(panel.querySelector('.overflow-y-auto')).not.toBeNull()
+  })
+
+  it('opens from the one health and notices button, and the store follows', async () => {
+    setHostTransport(createFakeHost())
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <StatusBar />
+      </QueryClientProvider>,
+    )
+    const trigger = screen.getByRole('button', { name: /Health: .* · Open notices/ })
+    await userEvent.click(trigger)
+    const dialog = await screen.findByRole('dialog', { name: 'Notices' })
+    expect(within(dialog).getByText('No notices yet')).toBeTruthy()
+    expect(useNoticeStore.getState().collectorOpen).toBe(true)
+  })
+
+  it('draws the displays as Settings ▸ Monitors does', async () => {
+    setHostTransport(createFakeHost())
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <StatusBar />
+      </QueryClientProvider>,
+    )
+    const trigger = await screen.findByRole('button', { name: /^Displays: 2 displays$/ }, { timeout: 5000 })
+    await userEvent.click(trigger)
+    const dialog = await screen.findByRole('dialog', { name: /displays/i })
+    expect(dialog.querySelector('[data-monitor-cards]')).not.toBeNull()
+    expect(within(dialog).getAllByRole('button', { name: /Send Stage here/ }).length).toBe(2)
   })
 })
 
@@ -105,11 +139,12 @@ describe('the update notice (P12.9)', () => {
     })
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <NoticeCollector />
+        <StatusBar />
       </QueryClientProvider>,
     )
-    expect(await screen.findByText('questiongame 1.0.3 is available.')).toBeTruthy()
-    screen.getByRole('button', { name: 'Open release page' }).click()
+    const dialog = await screen.findByRole('dialog', { name: 'Notices' })
+    expect(within(dialog).getByText('questiongame 1.0.3 is available.')).toBeTruthy()
+    within(dialog).getByRole('button', { name: 'Open release page' }).click()
     await waitFor(() => expect(fake.openedReleases).toEqual(['1.0.3']))
     await waitFor(() => expect(useNoticeStore.getState().notices).toHaveLength(0))
   })

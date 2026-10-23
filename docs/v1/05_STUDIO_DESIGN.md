@@ -83,7 +83,9 @@ at one weight — `transparent`. `[data-density="compact"]` shrinks the HeroUI
 buttons, selects, search fields, tabs and toggle buttons inside it to 28px
 (§26). Since P21 every page's chrome opts in — `PageHeader`, `ListToolbar`,
 `BulkBar` (36px), the Domains pane's header — while rows, cards, panels and
-dialogs keep HeroUI's sizes.
+dialogs keep HeroUI's sizes. Buttons (P21.2) and select triggers (P21.3) are
+28px everywhere, and every menu and select list is compact: 26px rows, 12px
+labels, 11px descriptions.
 
 **Decision on the roadmap's open question ("Studio theme reconciliation"):**
 Studio does **not** borrow Stage's mint and coral. The two surfaces agree on
@@ -432,8 +434,10 @@ someone remembers to add.
 | `HostBridge` | every host event | Query invalidations, play-state store, notices | mounts once in `App`; no UI |
 | `SidebarNav` | nav, play-state (to badge Control), chrome | `nav.go` | three states; hidden mode keeps an 8px left-edge peek strip that expands on hover |
 | `TopBar` | play-state, settings (active operator), chrome | theme, sidebar mode, `settings_set_global(active_operator_id)` | recipe name if loaded · `PlayStatusPill` · `OperatorBadge` menu |
-| `StatusBar` | play-state, monitors, notices | opens collector | health (P10 placeholder "—"), displays count, latest notice one-liner, `remaining_ms` while playing |
-| `NoticeCollector` | notices | runs notice actions | HeroUI `Drawer` from the right; `block` severity opens `NoticeDialog` instead |
+| `StatusBar` | play-state, monitors, notices | opens the notices and displays popovers | one button for health and the latest notice (its popover is `NoticePanel`), the displays count (its popover draws `MonitorCards`), `remaining_ms` while playing (P21.3) |
+| `NoticePanel` | notices | runs notice actions (`useNoticeActions`) | fixed 24rem × 26rem, scrolls, compact `InlineNotice`s, *Clear all*, the *needs attention elsewhere* lines |
+| `MonitorCards` | monitors, Stage placement | `stage_open`, `stage_set_monitor`, `stage_add_mirror` | every display as a `MonitorCard` — Settings ▸ Monitors and the status bar's displays popover |
+| `NoticeCollector` | notices | runs notice actions | the `block` dialog only since P21.3 |
 | `NoticeDialog` | one `block` notice | its actions | modal, cannot be dismissed by click-away |
 | `LibraryList` | a `useListView` page | selection (the view's), bulk commands | draws the list view (§20): group headers, sortable header row, page footer; grid or table renderer; `@tanstack/react-virtual` above 200 entries; `Skeleton` while loading; `EmptyState` variants. No TanStack Table since 1.1. P20: the selection strip (`BulkBar`) is mounted before the first tick and sits right above the list body; grid view hands it the page's *Select all* |
 | `TeamEditor` `DomainEditor` `QuestionEditor` `OperatorEditor` | one item Query | `catalog_upsert` | TanStack Form; validation mirrors host rules; host refusal lands inline. P20: Team, Question and Operator draw their body in `EditorColumns` (§4.2) — the side column holds the preview, where the question is filed and its question tags, the PIN panel |

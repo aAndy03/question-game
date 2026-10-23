@@ -2128,7 +2128,7 @@ host_api:
     "timer::Timer::zero_at": {doc: "The instant the countdown reaches zero if left running.", kind: method, sig: "fn zero_at(&self) -> Option<u64>"}
 studio_calls:
   by_command:
-    abandon: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/NoticeCollector.tsx]
+    abandon: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useNoticeActions.ts]
     app_close_cancelled: [apps/studio/src/organisms/QuitGuard.tsx]
     app_info: [apps/studio/src/host/queries.ts]
     app_quit: [apps/studio/src/organisms/QuitGuard.tsx]
@@ -2145,7 +2145,7 @@ studio_calls:
     catalog_import_questions: [apps/studio/src/host/queries.ts, apps/studio/src/organisms/ImportQuestionsDialog.tsx]
     catalog_list: [apps/studio/src/host/queries.ts]
     catalog_propagation_preview: [apps/studio/src/organisms/usePropagatingSave.tsx]
-    catalog_rebuild_search: [apps/studio/src/organisms/NoticeCollector.tsx]
+    catalog_rebuild_search: [apps/studio/src/organisms/useNoticeActions.ts]
     catalog_restore: [apps/studio/src/organisms/useArchive.tsx]
     catalog_restore_many: [apps/studio/src/organisms/useArchive.tsx]
     catalog_search: [apps/studio/src/host/queries.ts]
@@ -2174,7 +2174,7 @@ studio_calls:
     get_state: [apps/studio/src/host/bridge.tsx]
     give_token: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useControlHotkeys.ts]
     health_get: [apps/studio/src/host/bridge.tsx]
-    library_repair: [apps/studio/src/organisms/NoticeCollector.tsx]
+    library_repair: [apps/studio/src/organisms/useNoticeActions.ts]
     lock_selection: [apps/studio/src/organisms/ActionPanel.tsx, apps/studio/src/organisms/useControlHotkeys.ts]
     monitors_list: [apps/studio/src/host/queries.ts]
     operator_activate: [apps/studio/src/organisms/FirstRunFlow.tsx, apps/studio/src/organisms/useActivateOperator.tsx]
@@ -2183,7 +2183,7 @@ studio_calls:
     paths_reveal:
       - apps/studio/src/organisms/DataActions.tsx
       - apps/studio/src/organisms/FirstRunFlow.tsx
-      - apps/studio/src/organisms/NoticeCollector.tsx
+      - apps/studio/src/organisms/useNoticeActions.ts
     pause: [apps/studio/src/organisms/ActionPanel.tsx]
     pause_timer: [apps/studio/src/organisms/ActionPanel.tsx]
     play_events: [apps/studio/src/host/queries.ts, apps/studio/src/organisms/TimelinePanel.tsx]
@@ -2231,30 +2231,32 @@ studio_calls:
       - apps/studio/src/organisms/ActionPanel.tsx
       - apps/studio/src/organisms/StripsPanel.tsx
       - apps/studio/src/organisms/useControlHotkeys.ts
-    stage_add_mirror: [apps/studio/src/organisms/MonitorsSettings.tsx]
+    stage_add_mirror: [apps/studio/src/organisms/MonitorCards.tsx]
     stage_open:
       - apps/studio/src/organisms/ControlTopBar.tsx
+      - apps/studio/src/organisms/MonitorCards.tsx
       - apps/studio/src/organisms/MonitorsSettings.tsx
-      - apps/studio/src/organisms/NoticeCollector.tsx
-    stage_remove_mirror: [apps/studio/src/organisms/MonitorsSettings.tsx]
+      - apps/studio/src/organisms/useNoticeActions.ts
+    stage_remove_mirror: [apps/studio/src/organisms/MonitorCards.tsx]
     stage_set_monitor:
       - apps/studio/src/organisms/ControlTopBar.tsx
+      - apps/studio/src/organisms/MonitorCards.tsx
       - apps/studio/src/organisms/MonitorsSettings.tsx
-      - apps/studio/src/organisms/NoticeCollector.tsx
+      - apps/studio/src/organisms/useNoticeActions.ts
     start_timer: [apps/studio/src/organisms/ActionPanel.tsx]
     stats_query: [apps/studio/src/host/queries.ts]
     stats_window: [apps/studio/src/organisms/ControlTopBar.tsx, apps/studio/src/organisms/MonitorsSettings.tsx]
     tag_delete: [apps/studio/src/organisms/QuestionTagsManager.tsx]
     tag_list: [apps/studio/src/host/queries.ts]
     tag_rename: [apps/studio/src/organisms/QuestionTagsManager.tsx]
-    tags_unify: [apps/studio/src/organisms/NoticeCollector.tsx]
+    tags_unify: [apps/studio/src/organisms/useNoticeActions.ts]
     transfer_preview: [apps/studio/src/organisms/useTransfer.tsx]
     undo_turn:
       - apps/studio/src/organisms/ActionPanel.tsx
       - apps/studio/src/organisms/TimelinePanel.tsx
       - apps/studio/src/organisms/useControlHotkeys.ts
     update_check: [apps/studio/src/host/updates.ts, apps/studio/src/organisms/AboutPanel.tsx]
-    update_open_release: [apps/studio/src/organisms/AboutPanel.tsx, apps/studio/src/organisms/NoticeCollector.tsx]
+    update_open_release: [apps/studio/src/organisms/AboutPanel.tsx, apps/studio/src/organisms/useNoticeActions.ts]
     whats_new_get: [apps/studio/src/host/whatsNew.ts]
     whats_new_seen: [apps/studio/src/host/whatsNew.ts, apps/studio/src/organisms/WhatsNewDialog.tsx]
     wipe_plays: [apps/studio/src/organisms/DataActions.tsx]
@@ -2798,6 +2800,9 @@ packages:
         "--field-border": "5628777f"
         "--field-border-width": "9e0741c0"
         "--font-geist": "7f0352bf"
+        "--normal-bg": "442e7f57"
+        "--normal-border": "5628777f"
+        "--normal-text": "57ff1514"
       packages/design-studio/tokens/theme.css:
         "--border-width": "9e0741c0"
         "--cursor-disabled": "6fa686cf"

@@ -1894,6 +1894,7 @@ On `main` only. The maintainer's ask after beta.6: a page's title, its buttons a
 
 - ☑ **P21.1** — page chrome is compact: `PageHeader`, `ListToolbar`, `BulkBar` and the Domains pane's header take `data-density="compact"` (buttons, selects, the search field, the status tabs and the view switch at 28px, 12px text); the selection strip is 36px; `studio-title` 18px, `studio-heading` 16px.
 - ☑ **P21.2** — every button is compact, everywhere (dialogs, the Board, the editors): `html .button` in `studio.css` at 28px with 12px text and 14px icons, outranking HeroUI's `.button--sm`; fields, switches, sliders and number steppers keep their sizes. The pagination strip is compact; the Domains pane is 224px (was 280), its counts in a 32px column.
+- ☑ **P21.3** — every select trigger is 28px and every menu or list it opens is compact (26px rows, 12px labels, 11px descriptions and section headers), the row menus with them; the dark toast is the popover's grey (`--overlay`), not the near-black it was. Health and the latest notice are **one** status-bar button opening a **fixed-size popover** (`NoticePanel`, 24rem × 26rem, scrolling, compact notices, *Clear all*) in place of the right-hand drawer; the displays count opens a popover drawing `MonitorCards` — the same component Settings ▸ Monitors draws — with a way to Monitors settings. `useNoticeActions` is the one action table for the popover and the `block` dialog.
 
 ### Next
 
