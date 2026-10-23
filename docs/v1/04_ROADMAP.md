@@ -1902,7 +1902,9 @@ On `main` only. The maintainer's ask after beta.6: a page's title, its buttons a
 ### Next
 
 - ☑ **P21** versioned as 2.0.0-beta.7 (What's new in English and Romanian); **not tagged** — the maintainer said to commit it and go on. The e2e suite on Windows comes before any tag.
-- ☐ **P22 — beta.8**: the maintainer's next list, on `main`.
+- ☐ **P22 — beta.8**, on `main`:
+  - ☑ **P22.1** — the selection strip: no *Select all {n}* button (the Select all tick — the table header's, the strip's in grid view — now ticks every matching row on every page), and no scrollbars: actions that do not fit turn into their icons, named by tooltips.
+  - ☐ **P22.2** — *Share…* on Domains & Questions (the maintainer scrapped the global share): the selection, a row or what the list shows, as text or a file the existing *Import questions…* reads.
 
 ---
 

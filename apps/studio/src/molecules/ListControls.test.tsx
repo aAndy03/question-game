@@ -153,10 +153,18 @@ describe('BulkBar (B-02, B-07–B-10, B-16)', () => {
   })
 
   it('hides an action with nothing to touch, and says nothing about pages when all are here', () => {
-    render(<BulkBar count={3} onPage={3} archive={{ count: 3, run: vi.fn() }} restore={{ count: 0, run: vi.fn() }} selectAll={{ count: 250, run: vi.fn() }} onClear={vi.fn()} />)
+    render(<BulkBar count={3} onPage={3} archive={{ count: 3, run: vi.fn() }} restore={{ count: 0, run: vi.fn() }} onClear={vi.fn()} />)
     expect(screen.getByText('3 selected')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Restore/ })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Select all 250' })).toBeTruthy()
+    // beta.8: no *Select all {n}* in the strip — the Select all tick does it.
+    expect(screen.queryByRole('button', { name: /^Select all/ })).toBeNull()
+  })
+
+  it('never scrolls its actions: they are clipped, and squeezed to icons when they do not fit (beta.8)', () => {
+    render(<BulkBar count={3} onPage={3} archive={{ count: 3, run: vi.fn() }} onClear={vi.fn()} />)
+    const actions = document.querySelector<HTMLElement>('[data-bulk-actions]')!
+    expect(actions.className).toContain('overflow-hidden')
+    expect(actions.className).not.toMatch(/overflow-(x-)?auto/)
   })
 
   it('is a quiet strip at 0: it says so, offers nothing to press, and is no toolbar (P20)', () => {

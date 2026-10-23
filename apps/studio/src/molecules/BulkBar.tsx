@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { Button, CheckboxField, Text } from '@/atoms'
 import { LIST, SHELL } from '@/copy'
 
@@ -16,15 +16,14 @@ export interface BulkBarProps {
   archive?: BulkAction | undefined
   /** What Restore would touch — the archived ones. Hidden at 0. */
   restore?: BulkAction | undefined
-  /** *Select all {n}*: every matching item on every page, when not all are selected. */
-  selectAll?: BulkAction | undefined
   onClear: () => void
   isPending?: boolean | undefined
   /** More actions on the selection, after Archive and Restore (Beta 2.0). */
   extra?: ReactNode
   /**
-   * The page's *Select all* checkbox, drawn first (P20) — for grid view, which
-   * has no header row to hold it. Table view passes nothing: its header has one.
+   * The *Select all* checkbox — every matching item, every page — drawn first
+   * (P20) for grid view, which has no header row to hold it. Table view passes
+   * nothing: its header has one.
    */
   page?: { readonly all: boolean; readonly some: boolean; onChange(on: boolean): void } | undefined
 }
@@ -37,11 +36,41 @@ export interface BulkBarProps {
  * "0 selected", nothing to press); one confirm per batch when
  * something is selected (spec §2.19). Under Status *All* a selection mixes
  * active and archived rows, so both actions are offered, each with the count
- * it applies to (stable 1.1). The actions scroll inside the strip rather than
- * run under an opened row's panel; the count and *Clear* never shrink.
+ * it applies to (stable 1.1). The count and *Clear* never shrink.
+ *
+ * **No scrollbars** (beta.8): the actions used to scroll inside the strip, so a
+ * narrow window with an opened row drew a scrollbar in it. Now, when they do
+ * not fit, they become their icons (`data-squeezed`), each named by a
+ * tooltip; what still does not fit is clipped, never scrolled.
  */
-export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, isPending, extra, page }: BulkBarProps) {
+export function BulkBar({ count, onPage, archive, restore, onClear, isPending, extra, page }: BulkBarProps) {
   const idle = count === 0
+  const actions = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = actions.current
+    if (!el) return
+    // Measured at full size every time, so the strip widens back to words as
+    // soon as they fit; the attribute flips before paint.
+    const fit = () => {
+      delete el.dataset['squeezed']
+      const squeezed = el.scrollWidth > el.clientWidth + 1
+      if (squeezed) el.dataset['squeezed'] = ''
+      for (const button of el.querySelectorAll<HTMLElement>('button')) {
+        if (squeezed && !button.title) {
+          button.title = button.textContent?.trim() ?? ''
+          button.dataset['bulkTitle'] = ''
+        } else if (!squeezed && button.dataset['bulkTitle'] !== undefined) {
+          button.removeAttribute('title')
+          delete button.dataset['bulkTitle']
+        }
+      }
+    }
+    fit()
+    if (typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(fit)
+    watch.observe(el)
+    return () => watch.disconnect()
+  })
   return (
     <div
       {...(idle ? {} : { role: 'toolbar', 'aria-label': SHELL.bulkActions })}
@@ -65,7 +94,7 @@ export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, i
       </span>
       {idle ? null : (
         <>
-          <div className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+          <div ref={actions} className="flex h-full min-w-0 flex-1 items-center gap-2 overflow-hidden" data-bulk-actions>
             {archive && archive.count > 0 ? (
               <Button size="sm" variant="danger" icon="archive" onPress={archive.run} isPending={isPending} isDisabled={isPending}>
                 {LIST.archiveN(archive.count)}
@@ -77,11 +106,6 @@ export function BulkBar({ count, onPage, archive, restore, selectAll, onClear, i
               </Button>
             ) : null}
             {extra}
-            {selectAll && selectAll.count > count ? (
-              <Button size="sm" variant="tertiary" onPress={selectAll.run}>
-                {LIST.selectAllN(selectAll.count)}
-              </Button>
-            ) : null}
           </div>
           <Button size="sm" variant="tertiary" onPress={onClear} className="shrink-0">
             {LIST.clearSelection}

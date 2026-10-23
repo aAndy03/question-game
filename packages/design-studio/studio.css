@@ -74,6 +74,20 @@ html .button svg {
   width: 0.875rem;
   height: 0.875rem;
 }
+/* The selection strip's actions when they do not fit (beta.8, `BulkBar`):
+ * each button its icon alone — the text stays for a screen reader and the
+ * tooltip — and a button with no icon keeps its words. */
+[data-bulk-actions][data-squeezed] .button:has(svg) {
+  width: 1.75rem;
+  flex-shrink: 0;
+  gap: 0;
+  padding-inline: 0;
+  font-size: 0;
+}
+[data-bulk-actions] .button {
+  flex-shrink: 0;
+}
+
 /* A list's own row actions (P21.5, the display rows): 24px and 11px, under
  * the list's column headings. Two attribute-class pairs outrank `html .button`. */
 [data-density="tight"] .button {

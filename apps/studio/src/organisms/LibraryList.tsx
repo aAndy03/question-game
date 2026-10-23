@@ -194,9 +194,13 @@ export function LibraryList({
     )
   }
 
-  // The page's tick state: the table header's checkbox, or the strip's in grid view (P20).
-  const pageAll = page.pageIds.length > 0 && page.pageIds.every((id) => selection.ids.has(id))
-  const pageSome = page.pageIds.some((id) => selection.ids.has(id))
+  // The one *Select all* tick: the table header's checkbox, or the strip's in
+  // grid view (P20). Since beta.8 it ticks every matching row on every page —
+  // the strip's *Select all {n}* button is gone (it was the strip's
+  // congestion), so the tick is the only way, and it must reach every page.
+  const allSelected = page.selectableIds.length > 0 && page.selectableIds.every((id) => selection.ids.has(id))
+  const someSelected = selection.ids.size > 0
+  const tickAll = (on: boolean) => (on ? selection.selectAll() : selection.clear())
   const header = () => {
     if (layout !== 'table' || columns === undefined) return null
     return (
@@ -205,9 +209,9 @@ export function LibraryList({
           <CheckboxField
             label={LIST.selectAll}
             hideLabel
-            isSelected={pageAll}
-            isIndeterminate={!pageAll && pageSome}
-            onChange={(on) => (on ? selection.selectPage() : selection.deselectPage())}
+            isSelected={allSelected}
+            isIndeterminate={!allSelected && someSelected}
+            onChange={tickAll}
           />
         ) : null}
         <span className="w-7 shrink-0" />
@@ -289,11 +293,10 @@ export function LibraryList({
               : undefined
           }
           restore={bulk.onRestore ? { count: view.bulk.restore.length, run: () => bulk.onRestore?.(view.bulk.restore) } : undefined}
-          selectAll={{ count: page.selectableIds.length, run: selection.selectAll }}
           extra={bulk.extra ? bulk.extra([...selection.ids]) : undefined}
           onClear={selection.clear}
           isPending={bulk.isPending}
-          page={layout === 'grid' && page.pageIds.length > 0 ? { all: pageAll, some: pageSome, onChange: (on) => (on ? selection.selectPage() : selection.deselectPage()) } : undefined}
+          page={layout === 'grid' && page.pageIds.length > 0 ? { all: allSelected, some: someSelected, onChange: tickAll } : undefined}
         />
       ) : null}
       {/* No table role: rows open records and groups have headings, which a table could not hold. */}

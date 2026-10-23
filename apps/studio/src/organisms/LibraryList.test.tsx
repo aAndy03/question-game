@@ -128,13 +128,12 @@ describe('LibraryList', () => {
     error.mockRestore()
   })
 
-  it('selects across pages from the bulk bar (B-01)', () => {
+  it('selects across pages with the one Select all tick (B-01; beta.8: no Select all {n} button)', () => {
     const onArchive = vi.fn()
     render(<Harness items={many(250)} onArchive={onArchive} />)
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
-    expect(screen.getByText('100 selected')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Select all 250' }))
     expect(screen.getByText('250 selected (100 on this page)')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Select all/ })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Archive 250' }))
     expect(onArchive.mock.calls[0]![0]).toHaveLength(250)
   })
@@ -180,12 +179,15 @@ describe('review fixes', () => {
 })
 
 describe('deferred fixes', () => {
-  it('unticking the header checkbox keeps what is selected on other pages', () => {
+  it('unticking the Select all checkbox clears every page, and a partial selection shows it mixed (beta.8)', () => {
     render(<Harness items={many(250)} onArchive={vi.fn()} />)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select all 250' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
-    expect(screen.getByText('150 selected (0 on this page)')).toBeTruthy()
+    const all = () => screen.getByRole('checkbox', { name: 'Select all' }) as HTMLInputElement
+    fireEvent.click(all())
+    expect(screen.getByText('250 selected (100 on this page)')).toBeTruthy()
+    fireEvent.click(all())
+    expect(screen.getByText('0 selected')).toBeTruthy()
+    fireEvent.click(screen.getAllByRole('checkbox', { name: /^Select t/ })[0]!)
+    expect(all().indeterminate || all().getAttribute('aria-checked') === 'mixed' || all().closest('[data-indeterminate]') !== null).toBe(true)
   })
 
   it('makes no table claim it cannot keep: sort buttons say their state, headings stand outside any table', () => {

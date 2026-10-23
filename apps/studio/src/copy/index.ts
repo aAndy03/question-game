@@ -258,7 +258,6 @@ export const LIST = {
   nextPage: 'Next page',
   pages: 'Pages',
   page: (n: number) => `Page ${n}`,
-  selectAllN: (n: number) => `Select all ${n.toLocaleString('en-US')}`,
   selectedOnPage: (n: number, m: number) => `${n.toLocaleString('en-US')} selected (${m.toLocaleString('en-US')} on this page)`,
   archiveN: (n: number) => `Archive ${n.toLocaleString('en-US')}`,
   restoreN: (n: number) => `Restore ${n.toLocaleString('en-US')}`,
